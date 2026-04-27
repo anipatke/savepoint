@@ -1,0 +1,32 @@
+{
+  "name": "savepoint",
+  "version": "0.1.0",
+  "description": "Savepoint scaffolds an audit-driven AI development workflow.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "bin": {
+    "savepoint": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup src/cli.ts --format esm --platform node --target node20 --out-dir dist --clean",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier . --check",
+    "test": "node --require ./scripts/vitest-preload.cjs ./node_modules/vitest/vitest.mjs run --configLoader runner --config vitest.config.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^24.1.0",
+    "eslint": "^9.33.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.39.0",
+    "vitest": "^3.2.4",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.3"
+  }
+}

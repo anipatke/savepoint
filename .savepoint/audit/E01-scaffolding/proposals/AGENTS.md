@@ -9,11 +9,10 @@ Before doing anything, read `.savepoint/router.md`. That file routes you to the 
 When you are about to write code, you must first read, in order:
 
 1. `.savepoint/PRD.md` — what we are building and why
-2. `.savepoint/router.md` — current state and next action
-3. The active epic Design: `.savepoint/releases/v1/epics/{E##-epic}/Design.md`
-4. The active task file: `.savepoint/releases/v1/epics/{E##-epic}/tasks/{T###}-*.md`
-
-Read `.savepoint/Design.md` only when the task changes architecture or audit state. Read `.savepoint/releases/v1/PRD.md` only when planning epics, changing release scope, or resolving epic order.
+2. `.savepoint/Design.md` — how the system is architected
+3. The release PRD: `.savepoint/releases/v1/PRD.md`
+4. The epic Design: `.savepoint/releases/v1/epics/{epic}/Design.md`
+5. The active task file: `.savepoint/releases/v1/epics/{epic}/tasks/{NNN}-*.md`
 
 **Conditional read:** if the active task touches TUI rendering, theme, or visual design, also read `.savepoint/visual-identity.md`. Otherwise skip it — it's ~1.8K tokens you don't need.
 

@@ -10,6 +10,8 @@ status: in_progress
 
 The first public release. Establishes the workflow end-to-end with the audit loop minus the AI semantic-review layer.
 
+The repo, npm package, and binary are all named `savepoint`.
+
 ### In scope
 
 - `savepoint init` — scaffolds `.savepoint/`, prints magic prompt to stdout + clipboard, optional one-shot dev-deps install.
@@ -30,19 +32,20 @@ The first public release. Establishes the workflow end-to-end with the audit loo
 
 ## Proposed epic breakdown
 
-These are the proposed epics for v1. Order matters: each builds on the prior. The first epic is scaffolding (per the savepoint convention). Confirm or revise before any epic gets a `Design.md`.
+These are the proposed epics for v1. Order matters: each builds on the prior. The first epic is E01-scaffolding (per the savepoint convention). Epic folders use `E##-slug` prefixes so humans can navigate the filesystem without reopening this table.
 
-| # | Epic name | Purpose |
-|---|---|---|
-| 01 | `scaffolding` | TS project init, lint/typecheck/test setup, `tsup` build, package.json, repo skeleton. **First audit establishes the codebase baseline.** |
-| 02 | `data-model` | YAML frontmatter parsing, task/epic/release readers, status state machine, dependency resolution, cycle detection. Pure logic, no I/O beyond fs reads. |
-| 03 | `cli-foundation` | Argument parsing, command dispatch, `--help` / `--version`, exit codes, non-TTY detection. The 5-command shell with stub bodies. |
-| 04 | `init-command` | `savepoint init` — scaffold writer, magic-prompt printer, clipboard integration, one-shot dev-deps install, language detection. |
-| 05 | `tui-board` | Ink board: 5-column Kanban, detail pane, navigation, status transitions with gate enforcement, theme system, render fallbacks. |
-| 06 | `audit-pipeline` | 6-step audit pipeline (without AI semantic review): snapshot generation, proposal scaffolding, TUI review mode, commit step, audit-log. |
-| 07 | `doctor-command` | Integrity checks (corrupt YAML, broken deps, cycles, orphans, duplicates) + ad-hoc quality-gate runner. |
-| 08 | `templates-and-prompts` | The shipped template files (`PRD.prompt.md`, `Design.prompt.md`, etc.) with embedded HTML-comment instructions. The Router Pattern made real. |
-| 09 | `polish-and-release` | README, license, `npm publish` setup, manual e2e matrix run with Claude / Cursor / Gemini / Aider, version 0.1.0 cut. |
+| #   | Epic name                   | Purpose                                                                                                                                                                  |
+| --- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `E01-scaffolding`           | TS project init, lint/typecheck/test setup, `tsup` build, package metadata for `savepoint`, repo skeleton. **First audit establishes the codebase baseline.**            |
+| 02  | `E02-data-model`            | YAML frontmatter parsing, task/epic/release readers, status state machine, dependency resolution, cycle detection. Pure logic, no I/O beyond fs reads.                   |
+| 03  | `E03-cli-foundation`        | Argument parsing, command dispatch, `--help` / `--version`, exit codes, non-TTY detection. The 5-command shell with stub bodies.                                         |
+| 04  | `E04-templates-and-prompts` | The shipped template files (`PRD.prompt.md`, `Design.prompt.md`, etc.) with embedded HTML-comment instructions. The Router Pattern made real before commands consume it. |
+| 05  | `E05-init-command`          | `savepoint init` — scaffold writer, magic-prompt printer, clipboard integration, one-shot dev-deps install, language detection.                                          |
+| 06  | `E06-tui-board`             | Ink board: 5-column Kanban, detail pane, navigation, status transitions with gate enforcement, theme system, render fallbacks.                                           |
+| 07  | `E07-audit-pipeline`        | 6-step audit pipeline (without AI semantic review): snapshot generation, proposal scaffolding, TUI review mode, commit step, audit-log.                                  |
+| 08  | `E08-doctor-command`        | Integrity checks (corrupt YAML, broken deps, cycles, orphans, duplicates) + ad-hoc quality-gate runner.                                                                  |
+| 09  | `E09-docs-and-packaging`    | README, license, npm metadata, published-file allowlist, `npm pack` and install smoke tests.                                                                             |
+| 10  | `E10-release-validation`    | Manual e2e matrix run with Claude / Cursor / Gemini / Aider, cross-platform checks, final version 0.1.0 cut.                                                             |
 
 ## Success criteria for v0.1.0
 

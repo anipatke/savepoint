@@ -16,19 +16,20 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 
 ## Palette
 
-| Element | Hex | Role |
-|---|---|---|
-| Background | `#121212` | Main screen background |
-| Surface | `#0D0D0D` | Cards and panels |
-| Surface 2 | `#0F0F0F` | Secondary panels / title bars |
-| Border | `#1A1A1A` | Quiet structural edges |
-| Border Subtle | `#222222` | Slightly stronger separators |
-| Primary Text | `#F0E6DA` | Warm off-white terminal text |
-| Atari Orange | `#FC6323` | Primary CTA, active highlight |
-| NPP Green | `#A4C639` | Success, live systems |
-| Vibe Purple | `#B1A1DF` | AI, reflection |
+| Element       | Hex       | Role                          |
+| ------------- | --------- | ----------------------------- |
+| Background    | `#121212` | Main screen background        |
+| Surface       | `#0D0D0D` | Cards and panels              |
+| Surface 2     | `#0F0F0F` | Secondary panels / title bars |
+| Border        | `#1A1A1A` | Quiet structural edges        |
+| Border Subtle | `#222222` | Slightly stronger separators  |
+| Primary Text  | `#F0E6DA` | Warm off-white terminal text  |
+| Atari Orange  | `#FC6323` | Primary CTA, active highlight |
+| NPP Green     | `#A4C639` | Success, live systems         |
+| Vibe Purple   | `#B1A1DF` | AI, reflection                |
 
 **Color rules:**
+
 - **Intentional accents.** One accent color per major section/type. Use for labels, hover, glows, active text — never giant background fills.
 - **Dark backgrounds.** Keep them dark so accents pop.
 - **Visual encoding.** Color semantically encodes categories or states; reinforce with minimal text.
@@ -40,6 +41,7 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 - **Accent retro fonts:** `Silkscreen` or `Press Start 2P`, used rarely for score counters or deliberately extreme moments
 
 **Rules:**
+
 - Headings uppercase, with deliberate letter-spacing where the medium allows.
 - Body readable and restrained; abandon monospace for long text if readability suffers.
 - Render magnitude/comparison numbers as proportional visuals (bars, circles), not raw values.
@@ -70,6 +72,7 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 ## Replication brief
 
 If recreating this look-and-feel, preserve:
+
 - dark charcoal background with warm off-white text
 - three-color accent system (one per major section)
 - `Chakra Petch` for headings, `Space Mono` for body/UI (where typography can be controlled)
@@ -91,18 +94,18 @@ If recreating this look-and-feel, preserve:
 
 ## What survives in the terminal
 
-| Web rule | Terminal feasibility | Adaptation |
-|---|---|---|
-| Dark bg + warm off-white text | ✓ | 24-bit color with 256/16-color fallbacks |
-| 3-color accent system | ✓ | per status, per epic, per section |
-| `Chakra Petch` / `Space Mono` fonts | ✗ | terminal owns the font; README discloses |
-| Uppercase tracked headings | ⚠ | uppercase yes; letter-spacing no (fixed-width cells) |
-| Scanlines | ✗ | flicker/ugly in text — skip |
-| Glows / underglow | ⚠ | substitute with subtle bg tint on focused row + accent border |
-| Quiet borders, dark surfaces | ✓ | box-drawing chars (`─ │ ┌ ┐`) in border-subtle gray |
-| Inline reveal cards | ✓ | Ink state-driven expand/collapse |
-| Visual encoding before text | ✓ | colored glyphs (`▣ ◇ ◆ ✓`) with text reinforcement |
-| "System booting up" motion | ⚠ | 200ms init sequence on launch acceptable; running animation skip |
+| Web rule                            | Terminal feasibility | Adaptation                                                       |
+| ----------------------------------- | -------------------- | ---------------------------------------------------------------- |
+| Dark bg + warm off-white text       | ✓                    | 24-bit color with 256/16-color fallbacks                         |
+| 3-color accent system               | ✓                    | per status, per epic, per section                                |
+| `Chakra Petch` / `Space Mono` fonts | ✗                    | terminal owns the font; README discloses                         |
+| Uppercase tracked headings          | ⚠                    | uppercase yes; letter-spacing no (fixed-width cells)             |
+| Scanlines                           | ✗                    | flicker/ugly in text — skip                                      |
+| Glows / underglow                   | ⚠                    | substitute with subtle bg tint on focused row + accent border    |
+| Quiet borders, dark surfaces        | ✓                    | box-drawing chars (`─ │ ┌ ┐`) in border-subtle gray              |
+| Inline reveal cards                 | ✓                    | Ink state-driven expand/collapse                                 |
+| Visual encoding before text         | ✓                    | colored glyphs (`▣ ◇ ◆ ✓`) with text reinforcement               |
+| "System booting up" motion          | ⚠                    | 200ms init sequence on launch acceptable; running animation skip |
 
 ## When `savepoint init` ships
 
