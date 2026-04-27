@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: active
+status: audited
 ---
 
 # Epic E04: templates-and-prompts
@@ -39,6 +39,24 @@ Expected files introduced or extended by this epic:
 Before this epic, project scaffolding would need to invent file contents in code. After this epic, generated Savepoint projects come from data files that agents and humans can inspect.
 
 Templates become a stable internal asset boundary consumed by `init-command`, audit prompts, and future workflow docs.
+
+## Implemented As
+
+- Project scaffold assets were added under `templates/project/`, including `AGENTS.md`, `.savepoint/router.md`, `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/config.yml`, and `.savepoint/visual-identity.md`.
+- Release starter content was added at `templates/release/v1/PRD.md`.
+- Prompt assets were added under `templates/prompts/` for PRD creation, project design, epic design, task breakdown, task planning, task building, and audit reconciliation.
+- `src/templates/manifest.ts` defines typed template sets for project, release, and prompt assets.
+- `src/templates/paths.ts` resolves template roots and family-specific paths.
+- `src/templates/load.ts` loads named templates from disk and returns path-aware `not_found` errors.
+- `src/templates/render.ts` interpolates `PROJECT_NAME`, `RELEASE_NUMBER`, and `RELEASE_NAME` placeholders while leaving unresolved placeholders intact as a visible failure signal.
+- `src/templates/index.ts` exposes a narrow public helper surface.
+- Template tests were added under `test/templates/` for required files, frontmatter, router states, agent instruction markers, audit prompt shape, path lookup, loading failures, and interpolation behavior.
+- The audit snapshot was generated manually because `savepoint audit` is still a stub.
+
+Design delta notes:
+
+- The loader reports all read failures as `not_found`; richer filesystem error typing is deferred until command handlers need to distinguish missing files from permission or IO failures.
+- The audit prompt correctly requires one proposal bundle, but audit startup exposed a workflow gap: the router can point agents at a snapshot before one exists. The follow-up improvement is to make snapshot creation an explicit precondition before entering `audit-pending`, or to instruct the agent to create one manual snapshot once without searching broadly.
 
 ## Boundaries
 

@@ -1,19 +1,12 @@
-import { version } from "./version.js";
+import { runCli } from "./cli/run.js";
 
-function printHelp(): void {
-  process.stdout.write(`savepoint v${version}\n`);
-  process.stdout.write("This scaffold is not implemented yet.\n");
-}
+const result = runCli({
+  argv: process.argv,
+  stdin: process.stdin,
+  stdout: process.stdout,
+  stderr: process.stderr,
+  env: process.env,
+  platform: process.platform,
+});
 
-function main(): void {
-  const [, , command] = process.argv;
-
-  if (command === "--version" || command === "-v") {
-    process.stdout.write(`${version}\n`);
-    return;
-  }
-
-  printHelp();
-}
-
-main();
+process.exit(result.exitCode);

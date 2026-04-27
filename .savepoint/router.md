@@ -16,10 +16,11 @@ Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Desig
 ## Current state
 
 ```yaml
-state: epic-task-breakdown
+state: task-building
 release: v1
-epic: E02-data-model
-next_action: "Break E02-data-model into T### task files only. Read only the E02 Design unless an explicit dependency requires more context."
+epic: E05-init-command
+task: E05-init-command/T001-init-cli-contract
+next_action: "E05 tasks are planned. Begin the first unblocked task by setting T001 status to in_progress, then implement its checklist."
 ```
 
 ## State → next action
@@ -53,26 +54,27 @@ When complete, transition to `state: epic-task-breakdown` for this epic.
 
 ### `state: epic-task-breakdown`
 
-Epic Design exists but no tasks yet.
+Epic Design exists but tasks are missing or not fully planned.
 
 **Next action:**
 
 1. Re-read the epic Design.
-2. Propose a task list — each task **independently buildable**, **objective-led**, with declared `depends_on`.
-3. Create `.savepoint/releases/v1/epics/{E##-epic}/tasks/TNNN-slug.md` for each, with frontmatter:
+2. Create or update the full epic task list — each task **independently buildable**, **objective-led**, with declared `depends_on`.
+3. Each task file lives at `.savepoint/releases/v1/epics/{E##-epic}/tasks/TNNN-slug.md` with frontmatter:
    ```yaml
    ---
    id: {E##-epic}/TNNN-slug
-   status: backlog
+   status: planned
    objective: "<one sentence>"
    depends_on: []
    ---
    ```
-4. When the user approves the list, transition to `state: task-planning`.
+4. In the same pass, write each task's `## Implementation Plan` as inline `- [ ]` checkboxes.
+5. When every task is planned, transition to `state: task-building` for the first unblocked task.
 
 ### `state: task-planning`
 
-Tasks exist in `backlog`. User has selected one to plan.
+Reserved for repair or late-added tasks. Normal epic planning happens during `state: epic-task-breakdown`.
 
 **Next action:** Read the task's `objective`. Write the implementation plan as inline `- [ ]` checkboxes under a `## Implementation Plan` heading. Set `status: planned`. Stop.
 
@@ -86,12 +88,14 @@ Task is `in_progress`. All `depends_on` are `done`.
 
 The last task in an epic is `done`. Audit must run before the next epic starts.
 
-**Next action:** Read `.savepoint/audit/{E##-epic}/snapshot.md`. Read the epic's `Design.md`. Read only the files listed as changed. Write patch-shaped proposed updates to `.savepoint/audit/{E##-epic}/proposals/`:
+**Next action:** Confirm `.savepoint/audit/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `Design.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`:
 
-- `Design.md` — merge epic delta into project architecture
-- `AGENTS.md` — refresh the Codebase Map section between markers
-- `epic-Design.md` — add "implemented as:" section noting deltas from the original plan
-- `quality-review.md` — semantic-review findings against the 10 Code Style rules (advisory only)
+- `Design.md` section — merge only the epic delta into project architecture.
+- `AGENTS.md` section — refresh Codebase Map entries from changed-module metadata; preserve existing rows.
+- `epic-Design.md` section — add "implemented as:" notes and deltas from the original plan.
+- `Quality Review` section — semantic-review findings against the 10 Code Style rules (advisory only).
+
+Prefer delta-only edits (`Insert After`, `Replace`, `Delete`) anchored to exact text. Do not quote and replace entire large sections unless the whole section genuinely changed.
 
 Proposal format:
 
@@ -109,7 +113,7 @@ Proposal format:
 <new content>
 ```
 
-Quality review format:
+Quality review section format:
 
 ```md
 ## Must Fix Before Close
