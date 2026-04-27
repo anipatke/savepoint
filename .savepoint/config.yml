@@ -1,0 +1,28 @@
+# Savepoint config — single source of truth for project preferences.
+
+verify_strict: false        # vibe-coder soft mode; tasks reach done on assertion. Set true for TDD-strict.
+
+quality_gates:
+  # Filled in by epic 01 (scaffolding). Until then, audits skip step 0.
+  lint:       null
+  typecheck:  null
+  test:       null
+  block_on_failure: true
+
+audit:
+  divergence_threshold: 0.5  # warn if a proposal changes >50% of a live file
+
+theme:
+  bg:         "#121212"
+  surface:    "#0D0D0D"
+  surface_2:  "#0F0F0F"
+  border:     "#1A1A1A"
+  text:       "#F0E6DA"
+  accents:
+    backlog:     "#B1A1DF"   # Vibe Purple
+    planned:     "#B1A1DF"
+    in_progress: "#FC6323"   # Atari Orange
+    review:      "#FC6323"
+    done:        "#A4C639"   # NPP Green
+    blocked:     "#FF4444"
+  borders: "subtle"          # subtle | sharp | none
