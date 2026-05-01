@@ -19,10 +19,9 @@ theme:
   border: "#1A1A1A"
   text: "#F0E6DA"
   accents:
-    backlog: "#B1A1DF" # Vibe Purple
     planned: "#B1A1DF"
     in_progress: "#FC6323" # Atari Orange
-    review: "#FC6323"
     done: "#A4C639" # NPP Green
     blocked: "#FF4444"
+    epic: "#B1A1DF" # Vibe Purple
   borders: "subtle" # subtle | sharp | none

@@ -17,10 +17,10 @@ Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Desig
 
 ```yaml
 state: task-building
-release: v1
-epic: E05-init-command
-task: E05-init-command/T001-init-cli-contract
-next_action: "E05 tasks are planned. Begin the first unblocked task by setting T001 status to in_progress, then implement its checklist."
+release: v1.1
+epic: E01-tui-optimisation
+task: E01-tui-optimisation/T001-border-resize-fix
+next_action: Execute T001 — Fix right-border clipping and resize robustness.
 ```
 
 ## State → next action

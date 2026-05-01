@@ -11,7 +11,7 @@ This file routes the agent based on the project's current state. Read this whene
 
 Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Design.md` only for architecture changes or audit closeout. Read `.savepoint/releases/v{{RELEASE_NUMBER}}/PRD.md` only for release planning or epic-order questions.
 
-**Conditional read (token discipline):** if your active task touches **TUI rendering, theme, or visual design**, also read `.savepoint/visual-identity.md` after Design.md. Otherwise skip it — it's ~1.8K tokens you don't need.
+**Conditional read (token discipline):** if your active task touches **Ink/TUI implementation**, also read `agent-skills/ink-tui-design/SKILL.md` after Design.md as the execution guide. If it touches **TUI rendering, theme, or visual design**, also read `.savepoint/visual-identity.md` as the visual guardrails. Otherwise skip the extra files — they are tokens you do not need.
 
 ## Current state
 
@@ -22,6 +22,16 @@ epic: none
 task: none
 next_action: "The project has its PRD and Design locked but no epics defined yet. Help the user define the epics list and confirm priority."
 ```
+
+## Manual audit override
+
+If the user explicitly asks you to audit an epic, perform the audit for that epic even if the router has not reached `state: audit-pending` yet.
+
+Persist the audit artifacts before replying:
+
+- Ensure `.savepoint/audit/{E##-epic}/snapshot.md` exists. Create a manual snapshot once if needed.
+- Write the proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`.
+- Do not stop at chat-only findings. The filesystem artifact is part of the task output.
 
 ## State → next action
 
@@ -69,31 +79,35 @@ Epic Design exists but tasks are missing or not fully planned.
    depends_on: []
    ---
    ```
-4. In the same pass, write each task's `## Implementation Plan` as inline `- [ ]` checkboxes.
+4. In the same pass, write each task's `## Acceptance Criteria` (observable outcomes that define "done") and `## Implementation Plan` (the build checklist that satisfies them) as inline `- [ ]` checkboxes, plus a `## Context Log` section with `Files read`, `Estimated input tokens`, and `Notes` fields.
 5. When every task is planned, transition to `state: task-building` for the first unblocked task.
 
 ### `state: task-planning`
 
 Reserved for repair or late-added tasks. Normal epic planning happens during `state: epic-task-breakdown`.
 
-**Next action:** Read the task's `objective`. Write the implementation plan as inline `- [ ]` checkboxes under a `## Implementation Plan` heading. Set `status: planned`. Stop.
+**Next action:** Read the task's `objective`. Write `## Acceptance Criteria` (observable outcomes) before `## Implementation Plan` (build checklist). Use inline `- [ ]` checkboxes under the plan, add a `## Context Log` section, set `status: planned`, and stop.
 
 ### `state: task-building`
 
 Task is `in_progress`. All `depends_on` are `done`.
 
-**Next action:** Execute the plan. Tick checkboxes as you complete them. Edit code per the **Code Style** rules in `AGENTS.md`. When all checkboxes tick, set `status: review` and stop.
+**Next action:** Execute the plan. Tick checkboxes as you complete them. The implementation checklist exists to satisfy the task's acceptance criteria; every checked box should map to an observable outcome in `## Acceptance Criteria`. Edit code per the **Code Style** rules in `AGENTS.md`. Before setting `status: done`, update the task's `## Context Log`. When all checkboxes tick, run the full quality-gate suite, set `status: done`, update the router, and **stop for user review**.
+
+**Do not start the next task without user acknowledgment.**
 
 ### `state: audit-pending`
 
 The last task in an epic is `done`. Audit must run before the next epic starts.
 
-**Next action:** Confirm `.savepoint/audit/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `Design.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`:
+**Context gate:** If you just built this epic in the current session, you **must not** audit it. Close this session. The user should start a new session for the audit.
+
+**Next action (fresh session only):** Confirm `.savepoint/audit/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `Design.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`:
 
 - `Design.md` section — merge only the epic delta into project architecture.
 - `AGENTS.md` section — refresh Codebase Map entries from changed-module metadata; preserve existing rows.
-- `epic-Design.md` section — add "implemented as:" notes and deltas from the original plan.
-- `Quality Review` section — semantic-review findings against the 10 Code Style rules (advisory only).
+- `epic-Design.md` section — add "Implemented as:" notes and deltas from the original plan.
+- `Quality Review` section — semantic-review findings against the 10 Code Style rules.
 
 Prefer delta-only edits (`Insert After`, `Replace`, `Delete`) anchored to exact text. Do not quote and replace entire large sections unless the whole section genuinely changed.
 
@@ -117,6 +131,8 @@ Quality review section format:
 
 ```md
 ## Must Fix Before Close
+
+## Must Fix Before Next Epic
 
 ## Carry Forward
 

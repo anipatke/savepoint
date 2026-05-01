@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: E04-templates-and-prompts (2026-04-27)
+last_audited: E02-data-readers (2026-05-01)
 ---
 
 # Savepoint — System Architecture
@@ -13,23 +13,24 @@ last_audited: E04-templates-and-prompts (2026-04-27)
 ## 1. Architecture model
 
 - **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
-- **Agent-agnostic via the Router Pattern:**
-  1. `AGENTS.md` at the project root (spec-compliant; readable by all major coding agents).
-  2. `AGENTS.md` routes the agent into `.savepoint/router.md` (the state-machine file).
-  3. `.savepoint/router.md` conditionally points the agent at the next template prompt based on project state.
-  4. Templates contain **embedded HTML-comment instructions** (`<!-- AGENT: ... -->`) the agent follows verbatim.
+- **Agent routing:** AGENTS.md → `.savepoint/router.md` → template prompts. See AGENTS.md Workflow section.
+- **Bundled Agent Skills:** Savepoint ships with custom skills (`draft-prd`, `system-design`, `create-plan`, `create-task`, `build-task`, `audit`) to enforce each phase of the state machine.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
   - Audit: 5–15KB.
   - Anything that breaks these bounds violates the wedge.
-- **Template asset boundary:** established in epic `E04-templates-and-prompts` (2026-04-27). Project scaffolding and workflow prompts now live as versioned markdown/YAML assets under `templates/`, with small TypeScript helpers in `src/templates/` for manifest lookup, path resolution, loading, and interpolation.
+- **Go data-reader boundary:** established in epic `E02-data-readers` (2026-05-01). `internal/data` owns Savepoint file parsing and discovery for the Go implementation: task frontmatter models, markdown YAML extraction, router state parsing, config theme defaults, release/epic/task directory listing, and boundary error sentinels.
+- **Template assets** live under `templates/` with helpers in `src/templates/` (epic E04).
+- **Init command** (`savepoint init`) validates, scaffolds, prints prompt, clipboard, optional install (epic E05).
+- **Board command** (`savepoint board`) reads project, non-TTY fallback, Ink TUI, transition gates, mtime writes, audit signaling (epic E06).
+- **Audit pipeline** (`savepoint audit`) resolves epic, skips, quality gates, snapshots, router transition, proposal review (epic E07).
 
 ## 2. Directory layout
 
 ```
 <project-root>/
-├── AGENTS.md                       ← uppercase, spec-standard, agent entry point
+├── AGENTS.md                       ← agent entry point
 └── .savepoint/
     ├── PRD.md                      ← project vision (rare changes)
     ├── Design.md                   ← project architecture (this file)
@@ -39,7 +40,8 @@ last_audited: E04-templates-and-prompts (2026-04-27)
     ├── audit/
     │   └── {E##-epic}/
     │       ├── snapshot.md
-    │       └── proposals.md
+    │       └── proposals/
+    │           └── proposals.md
     └── releases/
         └── v1/
             ├── PRD.md              ← release-scoped PRD
@@ -50,12 +52,7 @@ last_audited: E04-templates-and-prompts (2026-04-27)
                         └── T001-slug.md
 ```
 
-- `AGENTS.md` is at root (uppercase, cross-vendor spec).
-- `Design.md` lives in `.savepoint/` (working doc, not public-facing).
-- `visual-identity.md` is conditional — only loaded by router for TUI/theme/visual tasks.
-- **Subtasks are inline checklists** inside the task `.md` — never separate files.
-- Epic folders are prefixed for navigation (`E01-scaffolding/`). Task files and IDs are prefixed the same way (`T001-package-baseline.md`).
-- The Savepoint package itself owns scaffold assets under `templates/project/`, `templates/release/v1/`, and `templates/prompts/`; generated projects receive rendered copies, not hardcoded strings from command handlers.
+AGENTS.md at root (uppercase, cross-vendor spec). Design.md in `.savepoint/` (working doc, not public-facing). visual-identity.md conditional — only loaded for TUI/theme/visual tasks. Subtasks are inline checklists inside task `.md` — never separate files. Epic folders and task files use `E##`/`T##` prefix. Scaffold assets live under `templates/`; generated projects receive rendered copies, not hardcoded strings.
 
 ## 3. Hierarchy semantics
 
@@ -68,30 +65,23 @@ last_audited: E04-templates-and-prompts (2026-04-27)
 
 ## 4. Status model & gates
 
-Five statuses, with explicit gates:
+Three statuses, with explicit gates:
 
-| Status        | Meaning                           | Entry gate                                    |
-| ------------- | --------------------------------- | --------------------------------------------- |
-| `backlog`     | Task exists, no plan              | created                                       |
-| `planned`     | Implementation plan written       | plan section non-empty                        |
-| `in_progress` | AI building                       | all `depends_on` are `done`                   |
-| `review`      | Build done, awaiting verification | all sub-tasks checked off                     |
-| `done`        | Verified, locked                  | assertion + (configurable) quality gates pass |
+| Status        | Meaning                    | Entry gate                                                      |
+| ------------- | -------------------------- | --------------------------------------------------------------- |
+| `planned`     | Ready to build             | plan section non-empty                                          |
+| `in_progress` | AI building                | all `depends_on` are `done`                                     |
+| `done`        | Complete for current scope | all implementation items checked; verification per project mode |
 
 - `blocked` is a **flag**, not a status — `in_progress` + `blocked: "reason"` is valid.
-- Status names and transition validation live in `src/domain/status.ts`.
-- `done -> review` is allowed so completed work can be reopened for audit-stale rechecks. The warning itself belongs to future CLI/TUI write layers.
-- **Verification mode is configurable per project** (`verify_strict: true|false`). Default: `false` (vibe-coder soft mode).
+- `done -> in_progress` is allowed so completed work can be reopened when follow-up work is required.
+- Verification mode: see `config.yml`.
 
 ## 5. Dependencies
 
 - Declared in YAML frontmatter: `depends_on: [E##-epic/T###-task-id, ...]` (repo-relative IDs).
-- Task dependency IDs are parsed with the same domain parser as task IDs (`src/domain/ids.ts`).
 - `src/validation/dependencies.ts` detects duplicate task IDs, missing dependencies, and dependency cycles.
-- `src/readers/tasks.ts` reads an epic task directory, validates all task markdown, then runs graph validation only after readable task files are parsed.
 - Cross-epic deps allowed but warned (signal that epic boundaries may be wrong).
-- TUI shows blocked tasks as visually locked.
-- `savepoint doctor` detects cycles.
 
 ## 6. CLI surface (4 commands, no extras)
 
@@ -104,21 +94,10 @@ Five statuses, with explicit gates:
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.
-- As of E03, the binary has a real command shell around stub handlers:
-  - `src/cli.ts` owns process globals and delegates to `runCli()`.
-  - `src/cli/args.ts` parses the fixed command and global flag surface.
-  - `src/cli/run.ts` dispatches help, version, command stubs, unknown commands, and unknown flags.
-  - `src/cli/help.ts` generates deterministic top-level and command-level help.
-  - `src/cli/environment.ts` detects TTY, color, and platform capability from injected inputs.
-  - `src/commands/*.ts` contains deterministic not-yet-implemented stubs.
-- Implemented global flags: `--help`, `-h`, `--version`, `-v`.
-- Implemented command help flags: `--help`, `-h` after `init`, `board`, `audit`, or `doctor`.
-- Command behavior remains future work. Until later epics fill it in, command stubs return `EXIT_NOT_IMPLEMENTED`.
+- Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
-- **Agents must not run `savepoint` commands.** Stated in AGENTS.md.
 
 **Names:** npm package `savepoint`; binary `savepoint`. No `vk` alias.
-
 ## 7. Audit pipeline (6 steps)
 
 ```
@@ -131,29 +110,16 @@ Five statuses, with explicit gates:
 5. Commit         — Approved proposals overwrite live files. Epic gets status: audited. Next epic unlocks.
 ```
 
-- **First epic = E01-scaffolding by convention.** First audit establishes the baseline. ✓ _E01-scaffolding audited 2026-04-27._
 - `audit_pending` is a **hard gate**: next epic's tasks cannot enter `in_progress` until prior epic is `audited`.
 - **High-divergence guard:** if a proposal changes >50% of the live file, TUI requires extra confirmation (threshold tunable in `config.yml`).
 - **Skip allowed** via `savepoint audit --skip --reason "..."`. Logged to `.savepoint/audit-log.md`. Permanent `⚠ skipped` badge in TUI.
-- **Proposal bundles** use delta-shaped edits by default: `Insert After`, `Replace`, or `Delete` blocks anchored to exact text. Agents avoid rewriting whole sections unless a section is genuinely being replaced.
-- **Quality review** is a section inside the proposal bundle. A standalone `quality-review.md` is only needed when the review UI explicitly asks for separate files.
-- **Snapshot availability is an audit precondition.** The router should enter `audit-pending` only after `.savepoint/audit/{E##-epic}/snapshot.md` exists. While the audit CLI is still a stub, the closeout task should create one manual snapshot instead of making the next agent probe for a missing file at audit startup.
-- **Codebase Map** is generated mechanically in `AGENTS.md` between markers from changed-module metadata. Agents provide or refine short purpose text for new modules; they do not hand-rewrite the whole map unless the generator is unavailable.
-
-### Quality gates (audit step 0)
-
-```yaml
-# .savepoint/config.yml
-quality_gates:
-  lint: "<command>" # null to disable
-  typecheck: "<command>"
-  test: "<command>"
-  block_on_failure: true
-```
+- **Proposal bundles** use delta-shaped edits: `Insert After`, `Replace`, or `Delete` blocks anchored to exact text.
+- **Quality review** is a section inside the proposal bundle.
+- **Snapshot availability is an audit precondition.** The router should enter `audit-pending` only after `.savepoint/audit/{E##-epic}/snapshot.md` exists.
 
 Three layers:
 
-- **Layer 1 (mechanical):** user's chosen linter (we recommend, don't ship). TS: `eslint` + `dependency-cruiser`. Python: `radon` + `pylint`. Go: `gocyclo` + `staticcheck`. **Cross-language fallback:** `lizard`.
+- **Layer 1 (mechanical):** user's chosen linter. Recommended: eslint+dependency-cruiser (TS), radon+pylint (Python), gocyclo+staticcheck (Go). Cross-language fallback: `lizard`. Quality gate config: see `.savepoint/config.yml`.
 - **Layer 2 (AI semantic review):** baked into the audit reconcile prompt. Outputs a quality-review section in the proposal bundle. **Advisory, not blocking.**
 - **Layer 3:** `savepoint doctor` runs Layer 1 + prints Layer 2 prompt for ad-hoc use.
 
@@ -165,15 +131,15 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** single screen — header (release/epic context) + 5-column Kanban + detail pane.
+**Layout:** single screen with a 5-column Kanban board and detail pane. Non-TTY output uses `src/tui/render/plain-table.ts`.
 
-**Keybindings:** arrow + vim. `space`/`enter`/`e`/`r`/`R`/`E`/`A`/`q`. **No file watching MVP** (manual `r` refresh).
+**Implementation modules:** see AGENTS.md Codebase Map (E06 and E07 epic rows).
 
-**Out of MVP:** file watching, drag-and-drop, multi-select, search, inline editing.
+**Keybindings:** arrow/vim navigation, enter advances, backspace retreats, r/R refreshes, a/A exits toward audit review when proposals exist, q quits.
 
 ## 9. Concurrency
 
-- **mtime-based optimistic concurrency.** TUI reads mtime, re-stats before write, prompts "Reload? [Y/n]" on conflict.
+- **mtime-based optimistic concurrency.** TUI status writes compare the expected task-file mtime before parsing and again immediately before a no-op or write; conflicts are reported as non-destructive messages that require manual refresh before retry.
 - Agents edit freely; the TUI defers.
 - **No lockfile.**
 
@@ -184,7 +150,7 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 ## 11. Failure modes
 
-All routed through `savepoint doctor`. Doctor diagnoses and proposes; never auto-destructive.
+All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and proposes; never auto-destructive.
 
 | Failure                                      | Behavior                                                    |
 | -------------------------------------------- | ----------------------------------------------------------- |
@@ -199,15 +165,13 @@ All routed through `savepoint doctor`. Doctor diagnoses and proposes; never auto
 
 ## 12. Distribution & build
 
+> Audit note: the live repository is transitioning from the documented TypeScript/Node implementation to a Go module (`github.com/opencode/savepoint`). The architecture document still contains substantial TypeScript-era implementation detail and should be reconciled as Go epics are audited.
+
 - **License:** MIT.
 - **Install:** primary `npx savepoint init`, persistent `npm i -g savepoint` → `savepoint`.
 - **Runtime:** Node 20.10+ LTS, ESM-only, no native deps. macOS / Linux / Windows-Terminal.
 - **Repo:** single package. TypeScript strict. `tsup` build → `dist/`. Bin `dist/cli.js` shebanged.
 - **No telemetry.** Ever.
-- **Baseline scaffold:** established in epic `E01-scaffolding` (2026-04-27). Package name `savepoint`, version `0.1.0`. Build, typecheck, lint, format, and test gates all pass.
-- **Read-only data model:** established in epic `E02-data-model` (2026-04-27). `js-yaml` is the only runtime dependency added for structured YAML/frontmatter parsing.
-- **CLI foundation:** established in epic `E03-cli-foundation` (2026-04-27). The binary now has a testable parser, help/version handling, command dispatch, terminal capability detection, and deterministic stubs for `init`, `board`, `audit`, and `doctor`.
-- **Template and prompt assets:** established in epic `E04-templates-and-prompts` (2026-04-27). Default project, release, config, visual identity, and workflow prompt content now lives under `templates/`, with `src/templates/` exposing typed manifest, path, load, and render helpers.
 
 ## 13. Testing
 
@@ -221,12 +185,6 @@ All routed through `savepoint doctor`. Doctor diagnoses and proposes; never auto
 | End-to-end with real AI agents                           | Manual matrix                    | Pre-release: `[Claude, Cursor, Gemini, Aider]` × `[init, plan, audit]` |
 
 ~70% line coverage target; behavior coverage prioritized.
-
-E02 adds focused unit coverage for ID parsing, status validation, task/release/epic/router/config frontmatter validation, markdown read-boundary failures, project root discovery, dependency graph errors, and epic task-set reading. As of the E02 audit, `npm test` reports 16 passing test files and 176 passing tests when run outside the sandbox.
-
-E03 adds focused CLI coverage for bare invocation, global help/version flags, command-level help, command dispatch, unknown top-level commands and flags, unknown command-level flags, environment detection, and command stubs. As of E03 closeout, the focused CLI runner suite reports 35 passing tests.
-
-E04 adds focused template coverage for required project/release/prompt assets, router states, embedded agent markers, audit prompt shape, template path resolution, missing-template boundary errors, and placeholder interpolation. As of the E04 audit snapshot, `npm test` reports 26 passing test files and 299 passing tests.
 
 ## 14. Package versioning
 

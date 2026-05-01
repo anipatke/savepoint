@@ -6,6 +6,23 @@ Welcome, AI agent. This project (`savepoint`) uses its own conventions to manage
 
 Before doing anything, read `.savepoint/router.md`. That file routes you to the next file based on the project's current state.
 
+**Available Custom Skills:**
+Savepoint ships with skills that define your role at each stage.
+- `draft-prd`: Acts as a strict Product Manager to interrogate the user and write the PRD.
+- `system-design`: Acts as a Staff Engineer mapping the architecture.
+- `create-plan` / `create-task`: Acts as a Technical PM breaking work into Epics and ACs.
+- `build-task`: Acts as the disciplined execution engine writing code and logging drift.
+- `audit`: Acts as the QA Lead reconciling code with documentation.
+
+**Skill Activation (CRITICAL):**
+When you read `.savepoint/router.md`, you MUST activate the corresponding agent skill for the current state before taking any action. Use the `activate_skill` tool (or equivalent) for the appropriate phase:
+- `state: draft-prd` -> Activate the `draft-prd` skill.
+- `state: design` -> Activate the `system-design` skill.
+- `state: planning` -> Activate the `create-plan` skill.
+- `state: task-breakdown` -> Activate the `create-task` skill.
+- `state: in-progress` -> Activate the `build-task` skill.
+- `state: audit-pending` -> Activate the `audit` skill.
+
 When you are about to write code, you must first read, in order:
 
 1. `.savepoint/router.md` — current state and next action
@@ -16,29 +33,76 @@ When you are about to write code, you must first read, in order:
 Read `.savepoint/PRD.md` only for project vision changes, major scope questions, or when the router explicitly asks for it.
 Read `.savepoint/Design.md` only when the task changes architecture or audit state. Read `.savepoint/releases/v1/PRD.md` only when planning epics, changing release scope, or resolving epic order.
 
-**Conditional read:** if the active task touches TUI rendering, theme, or visual design, also read `.savepoint/visual-identity.md`. Otherwise skip it — it's ~1.8K tokens you don't need.
+**Conditional read:** if the active task touches TUI implementation, also read `agent-skills/ink-tui-design/SKILL.md` as the execution guide. If it touches TUI rendering, theme, or visual design, also read `.savepoint/visual-identity.md` as the visual guardrails. Otherwise skip the extra files — they are tokens you do not need.
 
 **Do not load files outside the current task scope** unless the task requires it. Token discipline is the wedge of this product; we honor it on ourselves.
 
 Planning and implementation are separate handoffs:
 
 - Epic task breakdown and detailed task planning happen together in one pass by one planning agent.
-- Each task file must be independently buildable, objective-led, include explicit `depends_on` IDs, and contain a `## Implementation Plan` with inline `- [ ]` checkboxes before implementation starts.
+- Each task file must be independently buildable, objective-led, include explicit `depends_on` IDs, contain `## Acceptance Criteria` (observable outcomes) before `## Implementation Plan` (build checklist), and include a `## Context Log` for files read, estimated input tokens, and notes.
 - Implementation happens one task at a time and may be handed to any agent. Clear context between tasks by default; rehydrate only from the router, active epic Design, active task file, and directly touched source/test files.
-- During implementation, run focused tests for the touched behavior first; reserve the full quality-gate suite for task closeout or an explicit quality-gates task.
+- During implementation, run focused tests for the touched behavior first; reserve the full quality-gate suite for task closeout.
+
 - After all tasks in an epic are `done`, hand the epic back for audit.
+- Any explicit audit request overrides the normal handoff timing for that epic. Persist the audit to `.savepoint/audit/{E##-epic}/snapshot.md` and `.savepoint/audit/{E##-epic}/proposals.md` before replying; do not stop at chat-only findings.
+
+## Task Status Canon
+
+Task frontmatter `status` must be exactly one of `planned`, `in_progress`, or `done`.
+
+Active task phase is represented separately with `phase: build`, `phase: test`, or `phase: audit`, and `phase` is only valid when `status: in_progress`.
+
+Never write `todo`, `doing`, `blocked`, `review`, `audit`, or phase names into `status`. If a task is blocked, keep its canonical status and document the blocker in the body.
+
+## Task Completion Protocol
+
+When a task reaches `status: done`, you MUST:
+
+1. Verify every `## Acceptance Criteria` line has a passing test or verified manual outcome. A task is not done until its acceptance criteria are satisfied, not merely its implementation checkboxes ticked.
+2. Tick all checkboxes in the `## Implementation Plan`.
+3. Fill the `## Context Log` (files read, estimated input tokens, notes).
+4. Run the full quality-gate suite (`make build && make test`). Record the result in the Context Log.
+5. If any gate fails, fix it or document the blocker in the task file before setting `status: done`.
+6. Set the task frontmatter to `status: done`.
+7. Update `router.md` with the next action (next unblocked task, or `audit-pending` if all tasks done).
+8. **Stop. Prompt the user:**
+   > "Task {id} is done. Quality gates: {pass/fail list}. Router updated to {next_action}. Review the changes, then tell me to continue."
+
+**Do not start the next task. Do not advance past this point without user acknowledgment.**
+
+## Task Closeout Meta-Check
+
+After marking a task `done` and before prompting the user, ask yourself:
+
+- Did this task add new source files, modules, or exports not in the Codebase Map?
+- Did this task change the architecture from what `.savepoint/Design.md` describes?
+
+If yes, append a `## Drift Notes` section to the task file:
+  - `Drift: {file} added, not yet in Codebase Map.`
+  - `Drift: {section} in Design.md may need update.`
+
+Drift notes are lightweight annotations. They do **not** replace the epic audit. They flag what the next audit should reconcile.
+
+## Audit Handoff Rule
+
+The agent session that builds an epic **must not** run its audit. Audit requires fresh eyes.
+
+When all tasks in an epic are `done`:
+1. Update `router.md` to `state: audit-pending` for that epic.
+2. Stop. Tell the user: "Epic {id} is complete. Start a new agent session for the audit."
+3. The user starts a fresh session. The new agent reads `router.md`, sees `audit-pending`, and follows the audit-reconciliation instructions.
+
+**If you are in the same session that built the epic, you must not audit it.**
 
 ## Build / Test / Run
 
 ```bash
-npm run build        # compile src/ → dist/cli.js via tsup (ESM, node20)
-npm run typecheck    # tsc --noEmit strict check (NodeNext)
-npm run lint         # eslint flat config — rejects any in TypeScript
-npm run format:check # prettier check across src, test, config, markdown
-npm test             # vitest smoke suite
+make build # go build -o savepoint main.go
+make test  # go test ./...
+make run   # go run main.go
+make clean # rm -f savepoint
 ```
-
-> **Windows note:** `npm test` uses a custom preload script (`scripts/vitest-preload.cjs`) and `vitest.config.js` (not `.ts`) to work around a Windows-specific child_process/esbuild issue. This is transparent when running through npm scripts.
 
 ## Code Style
 
@@ -55,46 +119,15 @@ npm test             # vitest smoke suite
 
 ## Codebase Map
 
-<!-- AUTO-GENERATED BY savepoint audit. Do not edit manually. -->
-
-| Module                           | Epic                                                                                          | Purpose                                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `src/cli.ts`                     | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | Process entrypoint; delegates process globals to `runCli()` |
-| `src/version.ts`                 | [E01-scaffolding](.savepoint/releases/v1/epics/E01-scaffolding/Design.md)                     | Single source for package version string                    |
-| `src/cli/args.ts`                | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | CLI argument parsing and normalization                      |
-| `src/cli/environment.ts`         | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | TTY, color, and platform capability detection               |
-| `src/cli/exit-codes.ts`          | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | Shared CLI exit code constants                              |
-| `src/cli/help.ts`                | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | Top-level and command-level help text generation            |
-| `src/cli/run.ts`                 | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | Testable CLI runner and command dispatcher                  |
-| `src/commands/*.ts`              | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | Deterministic command stub handlers                         |
-| `src/domain/config.ts`           | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Config defaults and typed project config model              |
-| `src/domain/epic.ts`             | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Epic Design frontmatter model and validation                |
-| `src/domain/ids.ts`              | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Release, epic, and task ID parsing and formatting           |
-| `src/domain/release.ts`          | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Release PRD frontmatter model and validation                |
-| `src/domain/router.ts`           | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Router state values and validation                          |
-| `src/domain/status.ts`           | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Task status values and transition validation                |
-| `src/domain/task.ts`             | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Task frontmatter/document model and validation              |
-| `src/fs/markdown.ts`             | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Markdown/frontmatter reader with path-aware boundary errors |
-| `src/fs/project.ts`              | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Project root discovery and scoped `.savepoint` path helpers |
-| `src/readers/config.ts`          | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Read-only `config.yml` reader with defaults                 |
-| `src/readers/epic.ts`            | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Read-only epic Design reader                                |
-| `src/readers/release.ts`         | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Read-only release PRD reader                                |
-| `src/readers/router.ts`          | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Read-only router Current state reader                       |
-| `src/readers/tasks.ts`           | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Epic task-set reader with graph validation                  |
-| `src/templates/*.ts`             | [E04-templates-and-prompts](.savepoint/releases/v1/epics/E04-templates-and-prompts/Design.md) | Template manifest, path, load, and render helpers           |
-| `src/validation/dependencies.ts` | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Duplicate, missing dependency, and cycle detection          |
-| `templates/project/**`           | [E04-templates-and-prompts](.savepoint/releases/v1/epics/E04-templates-and-prompts/Design.md) | Default project scaffold markdown and YAML assets           |
-| `templates/release/**`           | [E04-templates-and-prompts](.savepoint/releases/v1/epics/E04-templates-and-prompts/Design.md) | Release starter PRD templates                               |
-| `templates/prompts/*.prompt.md`  | [E04-templates-and-prompts](.savepoint/releases/v1/epics/E04-templates-and-prompts/Design.md) | Agent workflow prompt templates                             |
-| `test/smoke.test.ts`             | [E01-scaffolding](.savepoint/releases/v1/epics/E01-scaffolding/Design.md)                     | Baseline Vitest smoke test proving test runner works        |
-| `test/cli/*.test.ts`             | [E03-cli-foundation](.savepoint/releases/v1/epics/E03-cli-foundation/Design.md)               | CLI parser, help, environment, stub, and runner tests       |
-| `test/domain/*.test.ts`          | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Unit tests for pure domain models and validation            |
-| `test/fs/*.test.ts`              | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Unit tests for filesystem boundary helpers                  |
-| `test/readers/*.test.ts`         | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Unit tests for read-only Savepoint document readers         |
-| `test/templates/*.test.ts`       | [E04-templates-and-prompts](.savepoint/releases/v1/epics/E04-templates-and-prompts/Design.md) | Template asset, prompt, router, and render integrity tests  |
-| `test/validation/*.test.ts`      | [E02-data-model](.savepoint/releases/v1/epics/E02-data-model/Design.md)                       | Unit tests for dependency graph validation                  |
-
-<!-- END AUTO-GENERATED -->
+| Module                               | Purpose                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `main.go`                            | CLI Entrypoint and root command wiring                                                               |
+| `internal/board/`                    | TUI board components, models, layouts, transitions, and rendering logic                              |
+| `internal/data/`                     | Task data models, frontmatter parsing, project configuration, routing, and generic file readers      |
+| `internal/styles/`                   | Shared visual design system, TUI styling, and palettes                                               |
+| `cmd/`                               | Additional CLI subcommands (if any)                                                                  |
+| `templates/`                         | Default project scaffold markdown, YAML assets, and agent prompt templates                           |
+| `agent-skills/`                      | Custom skill guides for different agent phases (`draft-prd`, `audit`, etc.)                          |
 
 ## CLI rules for agents
 
@@ -105,3 +138,4 @@ npm test             # vitest smoke suite
 ## Recommended planning models
 
 For PRD/Design/Task planning, this workflow assumes a top-tier model: Claude Opus, Gemini 2.5 Pro, GPT-5.5, or equivalent. Lighter models may not follow embedded prompt instructions reliably. If you are not one of those, advise the user before proceeding with planning steps.
+ instructions reliably. If you are not one of those, advise the user before proceeding with planning steps.

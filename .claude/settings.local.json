@@ -5,7 +5,16 @@
       "Bash(npx prettier *)",
       "Bash(npm test *)",
       "Bash(npm install *)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(echo \"lint exit: $?\")",
+      "Bash(echo \"format exit: $?\")",
+      "Bash(npx tsc *)",
+      "Bash(node --require ./scripts/vitest-preload.cjs ./node_modules/vitest/vitest.mjs run --configLoader runner --config vitest.config.js --reporter=verbose test/tui/components/Board.test.tsx)",
+      "Bash(node --require ./scripts/vitest-preload.cjs ./node_modules/vitest/vitest.mjs run --configLoader runner --config vitest.config.js --reporter=verbose test/tui/components/Board.test.tsx test/tui/components/App.test.tsx test/tui/components/DetailPane.test.tsx)",
+      "Bash(node --require ./scripts/vitest-preload.cjs ./node_modules/vitest/vitest.mjs run --configLoader runner --config vitest.config.js)",
+      "Bash(go test *)",
+      "Bash(go build *)",
+      "Bash(go vet *)"
     ]
   }
 }

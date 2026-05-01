@@ -6,7 +6,7 @@ last_audited: never
 
 # Visual Identity — Atari-Noir
 
-> The brand identity for {{PROJECT_NAME}}. **Loaded conditionally** — only when working on TUI rendering, theme, or design-system tasks. Non-visual tasks must skip this file to honor the token budget.
+> The brand identity and visual guardrails for {{PROJECT_NAME}}. **Loaded conditionally** — only when working on TUI rendering, theme, or design-system tasks. Non-visual tasks must skip this file to honor the token budget.
 
 ## Vibe
 
@@ -106,6 +106,16 @@ If recreating this look-and-feel, preserve:
 | Inline reveal cards                 | ✓                    | Ink state-driven expand/collapse                                 |
 | Visual encoding before text         | ✓                    | colored glyphs (`▣ ◇ ◆ ✓`) with text reinforcement               |
 | "System booting up" motion          | ⚠                    | 200ms init sequence on launch acceptable; running animation skip |
+
+## Terminal UI guardrails
+
+- Keep UI state explicit and local to the smallest useful surface.
+- Use project data files as the source of truth; do not invent hidden UI state.
+- Keep layout compact and readable on narrow terminals first.
+- Treat accidental line wrapping as a bug.
+- Make selection, focus, and status changes obvious without relying on color alone.
+- Make every keyboard action predictable and idempotent.
+- Test branching input handling, navigation, state transitions, render output, and non-TTY fallbacks.
 
 ## When `savepoint init` ships
 

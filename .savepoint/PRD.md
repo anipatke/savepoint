@@ -13,6 +13,8 @@ A public OSS CLI + Ink-based TUI that scaffolds an opinionated AI-driven develop
 
 …with hard gates at each transition.
 
+run dev npm run build && node dist/cli.js board to test
+
 ## Why
 
 Three failure modes plague AI-driven development today:
