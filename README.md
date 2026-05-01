@@ -48,7 +48,7 @@ Small scopes. Small context windows. No wandering.
 
 Built for a cinematic, technical feel without the bloat.
 
-- **Cinematic TUI:** Built with Ink. It feels like a proper terminal tool, not a web app ported to a CLI.
+- **Cinematic TUI:** Built with Go and Bubble Tea. It feels like a proper terminal tool, lightning-fast and dependency-free.
 - **File-First:** Your project's state lives in markdown and JSON files right next to your code.
 - **Agent-Agnostic:** Claude, Cursor, Aider, Gemini — if it reads markdown and edits files, it works. No MCP server. No per-agent adapters.
 - **Token-Efficient by Design:** Tasks read <2KB of context. Audits stay under ~15KB. No more burning your AI budget on bloated backlogs.

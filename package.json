@@ -1,0 +1,25 @@
+{
+  "name": "savepoint",
+  "version": "1.0.0",
+  "description": "It’s a simple, file-based state machine and cinematic Terminal UI (TUI) designed to force you—and your agent (Claude, Cursor, Aider, Gemini)—to slow down, write down what you're actually building, and check your work before moving on.",
+  "keywords": [
+    "board",
+    "kanban",
+    "planning"
+  ],
+  "homepage": "https://github.com/anipatke/savepoint#readme",
+  "bugs": {
+    "url": "https://github.com/anipatke/savepoint/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anipatke/savepoint.git"
+  },
+  "license": "MIT",
+  "author": "anipatke",
+  "type": "Go",
+  "main": "main.go",
+  "scripts": {
+    "test": "savepoint init"
+  }
+}
