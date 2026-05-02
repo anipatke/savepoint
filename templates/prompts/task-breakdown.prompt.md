@@ -6,7 +6,7 @@ You are breaking an approved epic into a set of tasks that agents can build one 
 
 ## Input
 
-- `.savepoint/releases/v{N}/epics/{E##-slug}/Design.md` — the epic to break down.
+- `.savepoint/releases/v{N}/epics/{E##-slug}/E##-Detail.md` — the epic to break down.
 - `.savepoint/Design.md` — project architecture (for boundary checks).
 
 ## Output

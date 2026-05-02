@@ -1,6 +1,6 @@
 ---
 id: E06-atari-noir-layout/T010-auto-refresh-watcher
-status: planned
+status: done
 objective: "Auto-refresh the board when task files change on disk via fsnotify file watcher"
 depends_on: []
 ---
@@ -19,26 +19,26 @@ depends_on: []
 
 ## Implementation Plan
 
-- [ ] Add `github.com/fsnotify/fsnotify` to `go.mod`
-- [ ] Create `internal/board/watch.go`:
+- [x] Add `github.com/fsnotify/fsnotify` to `go.mod`
+- [x] Create `internal/board/watch.go`:
   - Define `fileChangeMsg struct{}` and `reloadMsg struct{ tasks []data.Task }`
   - `watchFiles(w *fsnotify.Watcher) tea.Cmd` — blocks on watcher.Events, drains channel for 100ms, emits single `fileChangeMsg`
   - `reloadTasks(root string) tea.Cmd` — calls `loadAllTasks(root)` and emits `reloadMsg{tasks}`
   - `loadAllTasks(root string) ([]data.Task, error)` — extracted from `board.go`, reuses `Discover` + `Parser`
-- [ ] Edit `internal/board/model.go`:
-  - Add `watcher *fsnotify.Watcher` field to `Model`
-  - `Init()` — create watcher, `watcher.AddRecursive(root)` on `.savepoint/releases/`, return `watchFiles(watcher)`
-  - Close watcher in `Init()` if root is empty (test mode)
-- [ ] Edit `internal/board/board.go`:
+- [x] Edit `internal/board/model.go`:
+  - Add `Watcher *fsnotify.Watcher` field to `Model`
+  - `Init()` — returns `watchFiles(m.Watcher)` if watcher non-nil, else nil
+- [x] Edit `internal/board/board.go`:
   - Extract task-discovery loop from `newProjectModel` into `loadAllTasks(root string) ([]data.Task, error)`
-  - `newProjectModel` calls `loadAllTasks` instead of inline logic
-- [ ] Edit `internal/board/update.go`:
+  - `newProjectModel` calls `loadAllTasks` + `newWatcher`, sets `model.Watcher`
+  - `loadEpicTasks` now sets `task.Path` and `task.Mtime` from stat
+- [x] Edit `internal/board/update.go`:
   - Handle `fileChangeMsg` → return `reloadTasks(m.Root)` cmd
-  - Handle `reloadMsg` → swap `m.AllTasks = msg.tasks`, call `m.refreshTasks()`, return `watchFiles(m.watcher)` to re-subscribe
-  - On quit (`q`/`ctrl+c`), close `m.watcher` before `tea.Quit`
-- [ ] Edit `internal/board/transitions.go`:
-  - In `Advance` / `Retreat`, call `data.WriteTaskStatus(taskPath, task, expectedMtime)` to persist to disk so the watcher picks it up
-- [ ] Run `go build ./...` and `go test ./...` to verify no regressions
+  - Handle `reloadMsg` → swap `m.AllTasks = msg.tasks`, call `m.refreshTasks()`, return `watchFiles(m.Watcher)` to re-subscribe
+  - On quit (`q`/`ctrl+c`), close `m.Watcher` before `tea.Quit`
+  - `space`/`backspace` now call `data.WriteTaskStatus` to persist to disk
+- [x] `internal/data/task.go`: added `Path string` and `Mtime time.Time` (yaml:"-") to Task
+- [x] Run `go build ./...` and `go test ./...` to verify no regressions
 
 ## Context Log
 
@@ -47,15 +47,20 @@ Files read:
 - `internal/board/board.go`
 - `internal/board/update.go`
 - `internal/board/transitions.go`
-- `internal/board/watch.go` (does not exist yet)
+- `internal/board/watch.go` (created)
 - `internal/data/write.go`
+- `internal/data/task.go`
+- `internal/data/parser.go`
 - `.savepoint/AGENTS.md`
-- `.savepoint/releases/v1/epics/E06-atari-noir-layout/Design.md`
-- `.savepoint/releases/v1/epics/E06-atari-noir-layout/tasks/T009-router-priority-marker.md`
 
-Estimated input tokens: 1800
+Estimated input tokens: 2200
+
+Quality gates: `go build ./...` PASS, `go test ./...` PASS (board: 0.317s, data: 0.343s)
 
 Notes:
-- The watcher watches `.savepoint/releases/` recursively. `fsnotify` v1.7+ supports `AddWith(path, fsnotify.Recursive)` on macOS/Windows; on Linux, fall back to walking and adding each subdirectory.
-- The 100ms debounce in `watchFiles` collapses rapid write sequences (e.g. editor save + lsp format) into a single reload.
-- `WriteTaskStatus` needs the task file path. Task struct may need a `Path` field populated at load time to make persistence possible.
+- fsnotify v1.10.0 has no recursive AddWith option; used `filepath.WalkDir` + `w.Add` per subdir instead.
+- `data.Task` gained `Path` and `Mtime` (yaml:"-") fields populated in `loadEpicTasks`.
+- Advance/Retreat disk writes live in `update.go`, not `transitions.go` (keeps transitions pure).
+- Watcher created in `newProjectModel`; Init() subscribes if non-nil; nil watcher = test-safe.
+- Follow-up fix (2026-05-02): `newWatcher` receives `root` as the `.savepoint` directory, so it watches `root/releases` directly rather than `.savepoint/.savepoint/releases`. Watch startup errors now fail model creation instead of being silently ignored.
+- Follow-up fix (2026-05-02): file-change reloads refresh task data plus release/epic indexes, and create events add watches for newly-created directories before the debounced reload.

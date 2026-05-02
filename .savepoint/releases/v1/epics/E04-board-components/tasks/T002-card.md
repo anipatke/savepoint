@@ -26,7 +26,7 @@ depends_on: [E04-board-components/T001-column]
 
 ## Context Log
 
-Files read: `internal/board/column.go`, `internal/board/column_test.go`, `internal/styles/styles.go`, `internal/styles/palette.go`, `internal/data/task.go`, `.savepoint/releases/v1/epics/E04-board-components/Design.md`, `AGENTS.md`, `.savepoint/router.md`
+Files read: `internal/board/column.go`, `internal/board/column_test.go`, `internal/styles/styles.go`, `internal/styles/palette.go`, `internal/data/task.go`, `.savepoint/releases/v1/epics/E04-board-components/E04-Detail.md`, `AGENTS.md`, `.savepoint/router.md`
 
 Estimated input tokens: ~4 000
 

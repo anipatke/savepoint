@@ -27,7 +27,7 @@ depends_on: []
 Files read:
 
 - `.savepoint/router.md`
-- `.savepoint/releases/v1/epics/E01-go-setup/Design.md`
+- `.savepoint/releases/v1/epics/E01-go-setup/E01-Detail.md`
 - `.savepoint/releases/v1/epics/E01-go-setup/tasks/T001-init-module.md`
 - `go.mod`
 - `go.sum`

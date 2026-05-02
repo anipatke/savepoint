@@ -1,10 +1,12 @@
 package styles
 
-// Truecolor hex constants (Atari-Noir palette)
+// Truecolor hex constants (Atari-Noir palette).
+// Background, Surface, and Surface2 intentionally share one black value so the
+// terminal stays visually flat; hierarchy comes from spacing, dividers, and accents.
 const (
-	Background   = "#121212"
-	Surface      = "#0D0D0D"
-	Surface2     = "#0F0F0F"
+	Background   = "#000000"
+	Surface      = "#000000"
+	Surface2     = "#000000"
 	Border       = "#1A1A1A"
 	BorderSubtle = "#222222"
 	PrimaryText  = "#F0E6DA"
@@ -15,9 +17,9 @@ const (
 
 // 256-color (ANSI256) fallbacks — nearest terminal approximations
 const (
-	Background256   = "233"
-	Surface256      = "232"
-	Surface2256     = "232"
+	Background256   = "16"
+	Surface256      = "16"
+	Surface2256     = "16"
 	Border256       = "234"
 	BorderSubtle256 = "235"
 	PrimaryText256  = "230"

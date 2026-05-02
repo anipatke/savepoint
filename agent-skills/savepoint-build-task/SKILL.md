@@ -11,7 +11,7 @@ This skill is activated when the `.savepoint/router.md` state is `in-progress` a
 
 ## Input
 - `.savepoint/router.md` (Current state).
-- The active epic Design: `.savepoint/releases/v1/epics/{E##-epic}/Design.md`.
+- The active epic E##-Detail.md: `.savepoint/releases/v1/epics/{E##-epic}/E##-Detail.md`.
 - The active task file: `.savepoint/releases/v1/epics/{E##-epic}/tasks/{T###}-*.md`.
 - Directly touched source/test files.
 

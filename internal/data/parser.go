@@ -51,7 +51,7 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		Points:      fields.Points,
 		Tags:        fields.Tags,
 		Acceptance:  firstList(fields.Acceptance, extractChecklistSection(content, "## Acceptance Criteria")),
-		Checklist:   extractChecklistSection(content, "## Implementation Plan"),
+		Checklist:   extractChecklistItems(content, "## Implementation Plan"),
 		Notes:       fields.Notes,
 		DependsOn:   fields.DependsOn,
 		Progress:    fields.Progress,
@@ -160,6 +160,44 @@ func firstList(values ...[]string) []string {
 		}
 	}
 	return nil
+}
+
+func extractChecklistItems(content, heading string) []CheckItem {
+	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	start := strings.Index(normalized, heading)
+	if start == -1 {
+		return nil
+	}
+
+	section := normalized[start+len(heading):]
+	if next := strings.Index(section, "\n## "); next != -1 {
+		section = section[:next]
+	}
+
+	items := []CheckItem{}
+	var current *CheckItem
+	for _, line := range strings.Split(section, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- [x] ") {
+			items = append(items, CheckItem{Text: strings.TrimSpace(trimmed[6:]), Done: true})
+			current = &items[len(items)-1]
+			continue
+		}
+		if strings.HasPrefix(trimmed, "- [ ] ") {
+			items = append(items, CheckItem{Text: strings.TrimSpace(trimmed[6:]), Done: false})
+			current = &items[len(items)-1]
+			continue
+		}
+		if strings.HasPrefix(trimmed, "- ") {
+			items = append(items, CheckItem{Text: strings.TrimSpace(trimmed[2:]), Done: false})
+			current = &items[len(items)-1]
+			continue
+		}
+		if trimmed != "" && current != nil {
+			current.Text = strings.TrimSpace(current.Text + " " + trimmed)
+		}
+	}
+	return items
 }
 
 func extractChecklistSection(content, heading string) []string {

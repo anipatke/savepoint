@@ -27,7 +27,7 @@ depends_on: ["E06-atari-noir-layout/T001-color-system"]
 
 Files read:
 - `.savepoint/router.md`
-- `.savepoint/releases/v1/epics/E06-atari-noir-layout/Design.md`
+- `.savepoint/releases/v1/epics/E06-atari-noir-layout/E06-Detail.md`
 - `.savepoint/releases/v1/epics/E06-atari-noir-layout/tasks/T002-header-and-dividers.md`
 - `.savepoint/releases/v1/epics/E06-atari-noir-layout/tasks/T001-color-system.md`
 - `.savepoint/visual-identity.md`

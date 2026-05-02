@@ -13,9 +13,9 @@ audit:
   divergence_threshold: 0.5 # warn if a proposal changes >50% of a live file
 
 theme:
-  bg: "#121212"
-  surface: "#0D0D0D"
-  surface_2: "#0F0F0F"
+  bg: "#000000"
+  surface: "#000000"
+  surface_2: "#000000"
   border: "#1A1A1A"
   text: "#F0E6DA"
   accents:

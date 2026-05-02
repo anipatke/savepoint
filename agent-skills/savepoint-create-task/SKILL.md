@@ -10,7 +10,7 @@ A task plan is a contract between the planner and the builder. If the task plan 
 This skill is activated when the `.savepoint/router.md` state is `task-breakdown` and the router points to a specific task file.
 
 ## Input
-- `.savepoint/releases/v1/epics/{E##-epic}/Design.md` (The active Epic's design).
+- `.savepoint/releases/v1/epics/{E##-epic}/E##-Detail.md` (The active Epic's design).
 - The high-level task markdown file (e.g., `.savepoint/releases/v1/epics/{E##-epic}/tasks/T001-slug.md`).
 
 ## Workflow

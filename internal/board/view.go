@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -18,19 +19,26 @@ func (m Model) View() string {
 	if w == 0 {
 		w = defaultTermW
 	}
-
-	layout := CalculateLayout(w, m.Height)
-	icon := styles.HeaderIcon.Render("▣")
-	text := styles.HeaderText.Render("S A V E P O I N T")
-	header := styles.HeaderFrame.Width(w).Render(icon + "  " + text)
-	board := m.renderBoard(layout)
-	footer := m.renderFooter(w)
-	base := lipgloss.JoinVertical(lipgloss.Left, header, board, footer)
-
+	m.Width = w
 	h := m.Height
 	if h == 0 {
 		h = defaultTermH
 	}
+	m.Height = h
+
+	header := m.renderHeader(w)
+	nextActivity := m.renderNextActivityLine(w)
+	layout := CalculateLayoutWithChrome(w, h, extraHeaderLines(nextActivity))
+	topDivider := dividerLine(w)
+	board := m.renderBoard(layout)
+	bottomDivider := dividerLine(w)
+	footer := m.renderFooter(w)
+	sections := []string{header}
+	if nextActivity != "" {
+		sections = append(sections, nextActivity)
+	}
+	sections = append(sections, topDivider, board, bottomDivider, footer)
+	base := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	if m.Overlay == OverlayEpic {
 		overlay := RenderEpicDropdown(m.Epics, m.EpicCursor, min(40, w))
@@ -53,11 +61,109 @@ func (m Model) View() string {
 			return base
 		}
 		ow := overlayWidth(w)
-		detail := RenderDetail(task, ow)
+		detail := RenderDetail(task, ow, m.RouterState, detailMaxHeight(h), m.DetailOffset)
+		return overlayOnBase(dimLines(base), detail, w, h)
+	}
+
+	if m.Overlay == OverlayEpicDetail {
+		ow := overlayWidth(w)
+		epicSlug := ""
+		if m.EpicPanelCursor >= 0 && m.EpicPanelCursor < len(m.Epics) {
+			epicSlug = m.Epics[m.EpicPanelCursor]
+		}
+		detail := RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset)
 		return overlayOnBase(dimLines(base), detail, w, h)
 	}
 
 	return base
+}
+
+func (m Model) renderHeader(w int) string {
+	icon := styles.HeaderIcon.Render("▣")
+	text := styles.HeaderText.Render("S A V E P O I N T")
+	left := icon + "  " + text
+	return styles.HeaderFrame.Width(w).Render(left)
+}
+
+func extraHeaderLines(line string) int {
+	if line == "" {
+		return 0
+	}
+	return 1
+}
+
+func (m Model) renderNextActivityLine(w int) string {
+	if w <= 0 {
+		w = defaultTermW
+	}
+	return renderNextActivityLine(m.RouterState, w)
+}
+
+func renderNextActivityLine(state *data.RouterState, w int) string {
+	tag, style, ok := nextActivityPhase(state)
+	if !ok || strings.TrimSpace(state.NextAction) == "" {
+		return ""
+	}
+
+	content := style.Render(tag+":") + " " + state.NextAction
+	if lipgloss.Width(content) > w {
+		content = xansi.Truncate(content, w, "…")
+	}
+	return styles.RootLine.Width(w).Render(content)
+}
+
+func nextActivityPhase(state *data.RouterState) (string, lipgloss.Style, bool) {
+	if state == nil {
+		return "", lipgloss.Style{}, false
+	}
+	switch state.State {
+	case "task-building":
+		return "BUILD", styles.FooterPhaseBuild, true
+	case "audit-pending":
+		return "AUDIT", styles.FooterPhaseAudit, true
+	case "pre-implementation", "epic-design", "epic-task-breakdown":
+		return "PLAN", styles.FooterPhasePlan, true
+	default:
+		return "", lipgloss.Style{}, false
+	}
+}
+
+// FormatNextActivity formats a compact activity string from router state.
+// Returns empty string when state is nil. Result is capped at 20 visible chars.
+func FormatNextActivity(state *data.RouterState) string {
+	if state == nil {
+		return ""
+	}
+	var s string
+	switch state.State {
+	case "task-building":
+		s = fmt.Sprintf("Build %s %s/%s", state.Release, shortRouterID(state.Epic), shortRouterID(state.Task))
+	case "audit-pending":
+		s = fmt.Sprintf("Audit %s", shortRouterID(state.Epic))
+	case "epic-design":
+		s = fmt.Sprintf("Design %s", shortRouterID(state.Epic))
+	case "epic-task-breakdown":
+		s = fmt.Sprintf("Plan %s", shortRouterID(state.Epic))
+	case "pre-implementation":
+		s = fmt.Sprintf("Planning %s", state.Release)
+	default:
+		s = state.State
+	}
+	return xansi.Truncate(s, 20, "…")
+}
+
+// shortRouterID extracts the compact prefix from a full router slug.
+// "E01-tui-optimisation/T001-border-resize-fix" → "T001"
+// "E01-tui-optimisation" → "E01"
+func shortRouterID(full string) string {
+	part := full
+	if i := strings.LastIndex(full, "/"); i >= 0 {
+		part = full[i+1:]
+	}
+	if i := strings.Index(part, "-"); i >= 0 {
+		return part[:i]
+	}
+	return part
 }
 
 func (m Model) focusedTask() (data.Task, bool) {
@@ -147,23 +253,34 @@ func (m Model) renderBoard(layout Layout) string {
 
 func (m Model) renderColumns(layout Layout) string {
 	if layout.ColCount == 1 {
-		return m.renderColumn(m.FocusedColumn, layout.ColWidths[0])
+		return m.renderColumn(m.FocusedColumn, layout.ColWidths[0], layout.ContentHeight)
 	}
 	allCols := []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, data.ColumnDone}
 	rendered := make([]string, len(allCols))
 	for i, col := range allCols {
-		rendered[i] = m.renderColumn(col, layout.ColWidths[i])
+		rendered[i] = m.renderColumn(col, layout.ColWidths[i], layout.ContentHeight)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
 
 func (m Model) renderEpicPanel(w int) string {
-	return RenderEpicSidebar(m.Epics, m.SelectedEpic, w)
+	return RenderEpicSidebar(m.Epics, m.SelectedEpic, w, m.EpicPanelFocus, m.EpicPanelCursor, m.EpicStatus)
 }
 
-func (m Model) renderColumn(col data.ColumnType, colW int) string {
-	focused := m.FocusedColumn == col
-	return RenderColumn(m.Tasks[col], col, colW, m.FocusedTask, focused)
+func (m Model) renderColumn(col data.ColumnType, colW, maxHeight int) string {
+	focused := !m.EpicPanelFocus && m.FocusedColumn == col
+	return RenderColumn(m.Tasks[col], col, colW, maxHeight, m.ColumnOffsets[col], m.FocusedTask, focused, m.RouterState)
+}
+
+func detailMaxHeight(termH int) int {
+	if termH <= 0 {
+		termH = defaultTermH
+	}
+	h := termH * 7 / 10
+	if h < 6 {
+		h = 6
+	}
+	return h
 }
 
 func (m Model) renderFooter(termW int) string {
@@ -179,6 +296,13 @@ func (m Model) renderFooter(termW int) string {
 	return lipgloss.JoinVertical(lipgloss.Center, phase, spacer, hints)
 }
 
+func dividerLine(termW int) string {
+	if termW <= 0 {
+		termW = defaultTermW
+	}
+	return styles.Divider.Render(strings.Repeat("─", termW))
+}
+
 func footerLine(termW int, content string) string {
 	if termW <= 0 {
 		termW = defaultTermW
@@ -186,5 +310,5 @@ func footerLine(termW int, content string) string {
 	if lipgloss.Width(content) > termW {
 		content = xansi.Truncate(content, termW, "")
 	}
-	return lipgloss.NewStyle().Width(termW).Align(lipgloss.Center).Render(content)
+	return styles.RootLine.Width(termW).Align(lipgloss.Center).Render(content)
 }

@@ -9,7 +9,7 @@ This file routes the agent based on the project's current state. Read this whene
 3. The active epic Design
 4. The active task file, when a task is selected
 
-Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Design.md` only for architecture changes or audit closeout. Read `.savepoint/releases/v{{RELEASE_NUMBER}}/PRD.md` only for release planning or epic-order questions.
+Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Design.md` only for architecture changes or audit closeout. Read `.savepoint/releases/{release}/{release}-PRD.md` only for release planning or epic-order questions.
 
 **Conditional read (token discipline):** if your active task touches **Ink/TUI implementation**, also read `agent-skills/ink-tui-design/SKILL.md` after Design.md as the execution guide. If it touches **TUI rendering, theme, or visual design**, also read `.savepoint/visual-identity.md` as the visual guardrails. Otherwise skip the extra files — they are tokens you do not need.
 
@@ -30,7 +30,7 @@ If the user explicitly asks you to audit an epic, perform the audit for that epi
 Persist the audit artifacts before replying:
 
 - Ensure `.savepoint/audit/{E##-epic}/snapshot.md` exists. Create a manual snapshot once if needed.
-- Write the proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`.
+- Write the proposal bundle to `.savepoint/audit/{release}/{E##-epic}/proposals.md`.
 - Do not stop at chat-only findings. The filesystem artifact is part of the task output.
 
 ## State → next action
@@ -43,9 +43,9 @@ The project has its PRD and Design locked but no epics defined yet.
 
 **Next action:**
 
-1. Read `.savepoint/releases/v{{RELEASE_NUMBER}}/PRD.md` — the v{{RELEASE_NUMBER}} release scope (epic list lives there).
+1. Read `.savepoint/releases/{release}/{release}-PRD.md` — the release scope (epic list lives there).
 2. Help the user define the epics list and confirm priority.
-3. For each epic in order, create the directory `.savepoint/releases/v{{RELEASE_NUMBER}}/epics/E##-{epic-name}/` with a `Design.md` stub.
+3. For each epic in order, create the directory `.savepoint/releases/{release}/epics/E##-{epic-name}/` with a `Design.md` stub.
 4. When epic E01 (scaffolding) is created, transition to `state: epic-design` for that epic.
 
 **Do not** start writing code. We are still in planning.
@@ -70,7 +70,7 @@ Epic Design exists but tasks are missing or not fully planned.
 
 1. Re-read the epic Design.
 2. Create or update the full epic task list — each task **independently buildable**, **objective-led**, with declared `depends_on`.
-3. Each task file lives at `.savepoint/releases/v{{RELEASE_NUMBER}}/epics/{E##-epic}/tasks/TNNN-slug.md` with frontmatter:
+3. Each task file lives at `.savepoint/releases/{release}/epics/{E##-epic}/tasks/TNNN-slug.md` with frontmatter:
    ```yaml
    ---
    id: {E##-epic}/TNNN-slug
@@ -150,3 +150,4 @@ If you are not Claude Opus / Gemini 2.5 Pro / GPT-5.5 / equivalent, surface a wa
 > _"Heads up — I'm running on a lighter model. Savepoint's planning steps work best with top-tier models because the embedded prompts are detailed. I'll do my best, but consider switching the model for PRD/Design/Task-breakdown steps."_
 
 Then proceed.
+ proceed.

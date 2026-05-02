@@ -2,7 +2,10 @@ module github.com/opencode/savepoint
 
 go 1.26.2
 
-require github.com/charmbracelet/bubbletea v1.3.10
+require (
+	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/fsnotify/fsnotify v1.10.0
+)
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect

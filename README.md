@@ -34,11 +34,11 @@ Savepoint turns your project into a series of hard gates, enforced by **six bund
 
 Small scopes. Small context windows. No wandering.
 
-- **The PRD Gate (`draft-prd`):** The agent interviews you to ensure your idea is crisp enough for a V1 before writing any architecture.
-- **The Design Gate (`system-design`):** Write down what you actually want. If you can't explain it simply in a markdown file, the AI is going to make a mess of it.
-- **The Plan Gate (`create-plan` & `create-task`):** Break the idea down into small, manageable steps. No giant leaps. This becomes the checklist the AI _must_ follow.
-- **The Build Gate (`build-task`):** The AI writes code for one small step at a time. The scope stays tight so it doesn't wander off into the weeds. It logs "Drift Notes" instead of cowboy-coding architectural changes.
-- **The Audit Gate (`audit`):** Before moving on, we stop and check. Does the code match the plan? We don't advance until the map matches the territory.
+- **The PRD Gate (`savepoint-draft-prd`):** The agent interviews you to ensure your idea is crisp enough for a V1 before writing any architecture.
+- **The Design Gate (`savepoint-system-design`):** Write down what you actually want. If you can't explain it simply in a markdown file, the AI is going to make a mess of it.
+- **The Plan Gate (`savepoint-create-plan` & `savepoint-create-task`):** Break the idea down into small, manageable steps. No giant leaps. This becomes the checklist the AI _must_ follow.
+- **The Build Gate (`savepoint-build-task`):** The AI writes code for one small step at a time. The scope stays tight so it doesn't wander off into the weeds. It logs "Drift Notes" instead of cowboy-coding architectural changes.
+- **The Audit Gate (`savepoint-audit`):** Before moving on, we stop and check. Does the code match the plan? We don't advance until the map matches the territory.
 
 > 🔒 **The Audit Loop** — When the last task in an epic moves to `done`, the next epic stays _locked_ until your docs (`Design.md`, `AGENTS.md`, and the epic's own design) are reconciled with the actual code via the audit agent. **No existing markdown-first task tool has this gate.**
 
@@ -76,3 +76,4 @@ I’m sharing it to prove a point: The real power of AI isn't just the size of t
 
 **License:** MIT  
 **Status:** Recursive Construction (v1 MVP in progress)
+us:** Recursive Construction (v1 MVP in progress)

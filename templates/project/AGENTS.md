@@ -8,22 +8,22 @@ Before doing anything, read `.savepoint/router.md`. That file routes you to the 
 
 **Skill Activation (CRITICAL):**
 When you read `.savepoint/router.md`, you MUST activate the corresponding agent skill for the current state before taking any action. Use the `activate_skill` tool (or equivalent) for the appropriate phase:
-- `state: draft-prd` -> Activate the `draft-prd` skill.
-- `state: design` -> Activate the `system-design` skill.
-- `state: planning` -> Activate the `create-plan` skill.
-- `state: task-breakdown` -> Activate the `create-task` skill.
-- `state: in-progress` -> Activate the `build-task` skill.
-- `state: audit-pending` -> Activate the `audit` skill.
+- `state: draft-prd` -> Activate the `savepoint-draft-prd` skill.
+- `state: design` -> Activate the `savepoint-system-design` skill.
+- `state: planning` -> Activate the `savepoint-create-plan` skill.
+- `state: task-breakdown` -> Activate the `savepoint-create-task` skill.
+- `state: in-progress` -> Activate the `savepoint-build-task` skill.
+- `state: audit-pending` -> Activate the `savepoint-audit` skill.
 
 When you are about to write code, you must first read, in order:
 
 1. `.savepoint/router.md` — current state and next action
-2. The active epic Design: `.savepoint/releases/v{{RELEASE_NUMBER}}/epics/{E##-epic}/Design.md`
-3. The active task file: `.savepoint/releases/v{{RELEASE_NUMBER}}/epics/{E##-epic}/tasks/{T###}-*.md`
+2. The active epic E##-Detail.md: `.savepoint/releases/{release}/epics/{E##-epic}/E##-Detail.md`
+3. The active task file: `.savepoint/releases/{release}/epics/{E##-epic}/tasks/{T###}-*.md`
 4. Directly touched source/test files
 
 Read `.savepoint/PRD.md` only for project vision changes, major scope questions, or when the router explicitly asks for it.
-Read `.savepoint/Design.md` only when the task changes architecture or audit state. Read `.savepoint/releases/v{{RELEASE_NUMBER}}/PRD.md` only when planning epics, changing release scope, or resolving epic order.
+Read `.savepoint/Design.md` only when the task changes architecture or audit state. Read `.savepoint/releases/{release}/{release}-PRD.md` only when planning epics, changing release scope, or resolving epic order.
 
 **Conditional read (token discipline):** if your active task touches **Ink/TUI implementation**, also read `agent-skills/ink-tui-design/SKILL.md` after Design.md as the execution guide. If it touches **TUI rendering, theme, or visual design**, also read `.savepoint/visual-identity.md` as the visual guardrails. Otherwise skip the extra files — they are tokens you do not need.
 
@@ -33,11 +33,11 @@ Planning and implementation are separate handoffs:
 
 - Epic task breakdown and detailed task planning happen together in one pass by one planning agent.
 - Each task file must be independently buildable, objective-led, include explicit `depends_on` IDs, contain `## Acceptance Criteria` (observable outcomes) before `## Implementation Plan` (build checklist), and include a `## Context Log` for files read, estimated input tokens, and notes.
-- Implementation happens one task at a time and may be handed to any agent. Clear context between tasks by default; rehydrate only from the router, active epic Design, active task file, and directly touched source/test files.
+- Implementation happens one task at a time and may be handed to any agent. Clear context between tasks by default; rehydrate only from the router, active epic E##-Detail.md, active task file, and directly touched source/test files.
 - During implementation, run focused tests for the touched behavior first; reserve the full quality-gate suite for task closeout.
 
 - After all tasks in an epic are `done`, hand the epic back for audit.
-- Any explicit audit request overrides the normal handoff timing for that epic. Persist the audit to `.savepoint/audit/{E##-epic}/snapshot.md` and `.savepoint/audit/{E##-epic}/proposals.md` before replying; do not stop at chat-only findings.
+- Any explicit audit request overrides the normal handoff timing for that epic. Persist the audit to `.savepoint/audit/{release}/{E##-epic}/snapshot.md` and `.savepoint/audit/{release}/{E##-epic}/proposals.md` before replying; do not stop at chat-only findings.
 
 ## Task Status Canon
 

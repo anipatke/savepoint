@@ -1,18 +1,18 @@
 # Prompt: Epic Design Creation
 
-<!-- AGENT: You have a release PRD and a project Design. Write one epic Design.md. Stop when that single epic design is complete. -->
+<!-- AGENT: You have a release PRD and a project Design. Write one epic E##-Detail.md. Stop when that single epic design is complete. -->
 
 You are designing one epic for a Savepoint-managed release.
 
 ## Input
 
-- `.savepoint/releases/v{N}/PRD.md` — release scope and epic list.
+- `.savepoint/releases/{release}/{release}-PRD.md` — release scope and epic list.
 - `.savepoint/Design.md` — project architecture and constraints.
 - The epic name and one-sentence purpose from the release PRD table.
 
 ## Output
 
-A single markdown file at `.savepoint/releases/v{N}/epics/{E##-slug}/Design.md`:
+A single markdown file at `.savepoint/releases/{release}/epics/{E##-slug}/E##-Detail.md`:
 
 ```
 ---

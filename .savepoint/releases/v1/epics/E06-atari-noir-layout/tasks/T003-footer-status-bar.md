@@ -30,7 +30,7 @@ depends_on: ["E06-atari-noir-layout/T002-header-and-dividers"]
 
 Files read:
 - `.savepoint/router.md`
-- `.savepoint/releases/v1/epics/E06-atari-noir-layout/Design.md`
+- `.savepoint/releases/v1/epics/E06-atari-noir-layout/E06-Detail.md`
 - `.savepoint/releases/v1/epics/E06-atari-noir-layout/tasks/T003-footer-status-bar.md`
 - `.savepoint/releases/v1/epics/E06-atari-noir-layout/tasks/T002-header-and-dividers.md`
 - `.savepoint/visual-identity.md`

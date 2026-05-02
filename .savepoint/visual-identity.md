@@ -20,9 +20,9 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 
 | Element       | Hex       | Role                          |
 | ------------- | --------- | ----------------------------- |
-| Background    | `#121212` | Main screen background        |
-| Surface       | `#0D0D0D` | Cards and panels              |
-| Surface 2     | `#0F0F0F` | Secondary panels / title bars |
+| Background    | `#000000` | Uniform terminal background   |
+| Surface       | `#000000` | Cards and panels; same black as background |
+| Surface 2     | `#000000` | Secondary panels / title bars; same black as background |
 | Border        | `#1A1A1A` | Quiet structural edges        |
 | Border Subtle | `#222222` | Slightly stronger separators  |
 | Primary Text  | `#F0E6DA` | Warm off-white terminal text  |
@@ -34,6 +34,7 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 
 - **Intentional accents.** One accent color per major section/type. Use for labels, hover, glows, active text — never giant background fills.
 - **Dark backgrounds.** Keep them dark so accents pop.
+- **Uniform terminal black.** In the TUI, Background, Surface, and Surface 2 intentionally remain the same black value. Do not reintroduce subtly different panel background fills; hierarchy comes from spacing, dividers, glyphs, and accent borders.
 - **Visual encoding.** Color semantically encodes categories or states; reinforce with minimal text.
 
 ## Typography

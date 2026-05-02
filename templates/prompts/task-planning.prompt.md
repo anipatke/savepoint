@@ -7,7 +7,7 @@ You are repairing or late-adding one task to an epic that is already in progress
 ## Input
 
 - The task file stub (may have an empty or incomplete `## Implementation Plan`).
-- `.savepoint/releases/v{N}/epics/{E##-slug}/Design.md` — epic context.
+- `.savepoint/releases/v{N}/epics/{E##-slug}/E##-Detail.md` — epic context.
 - `.savepoint/router.md` — current state.
 
 ## Output

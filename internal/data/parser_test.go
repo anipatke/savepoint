@@ -210,7 +210,48 @@ Notes here.`
 	if len(task.Acceptance) != 2 || task.Acceptance[0] != "First criterion." || task.Acceptance[1] != "Second criterion." {
 		t.Errorf("Task.Acceptance = %v, want markdown criteria", task.Acceptance)
 	}
-	if len(task.Checklist) != 2 || task.Checklist[0] != "First checklist item." || task.Checklist[1] != "Second checklist item." {
-		t.Errorf("Task.Checklist = %v, want markdown checklist", task.Checklist)
+	if len(task.Checklist) != 2 {
+		t.Fatalf("Task.Checklist len = %d, want 2", len(task.Checklist))
+	}
+	if task.Checklist[0].Text != "First checklist item." || task.Checklist[0].Done {
+		t.Errorf("Task.Checklist[0] = %+v, want {Text:\"First checklist item.\", Done:false}", task.Checklist[0])
+	}
+	if task.Checklist[1].Text != "Second checklist item." || !task.Checklist[1].Done {
+		t.Errorf("Task.Checklist[1] = %+v, want {Text:\"Second checklist item.\", Done:true}", task.Checklist[1])
+	}
+}
+
+func TestParseTaskFile_joinsHardWrappedChecklistItems(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E06/T001
+status: planned
+objective: "Style the board"
+---
+
+# Task
+
+## Implementation Plan
+
+- [ ] First sentence spans across a hard markdown line break
+  before it ends. Second sentence stays in the same checklist item.
+- [x] Already checked sentence wraps
+  without becoming another checklist item.
+`
+
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if len(task.Checklist) != 2 {
+		t.Fatalf("Task.Checklist len = %d, want 2", len(task.Checklist))
+	}
+	wantFirst := "First sentence spans across a hard markdown line break before it ends. Second sentence stays in the same checklist item."
+	if task.Checklist[0].Text != wantFirst || task.Checklist[0].Done {
+		t.Errorf("Task.Checklist[0] = %+v, want text %q and Done=false", task.Checklist[0], wantFirst)
+	}
+	wantSecond := "Already checked sentence wraps without becoming another checklist item."
+	if task.Checklist[1].Text != wantSecond || !task.Checklist[1].Done {
+		t.Errorf("Task.Checklist[1] = %+v, want text %q and Done=true", task.Checklist[1], wantSecond)
 	}
 }

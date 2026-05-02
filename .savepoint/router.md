@@ -6,10 +6,10 @@ This file routes the agent based on the project's current state. Read this whene
 
 1. This file (you are here)
 2. The current state below to know what to do next
-3. The active epic Design
+3. The active epic E##-Detail.md
 4. The active task file, when a task is selected
 
-Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Design.md` only for architecture changes or audit closeout. Read `.savepoint/releases/v1/PRD.md` only for release planning or epic-order questions.
+Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Design.md` only for architecture changes or audit closeout. Read `.savepoint/releases/{release}/{release}-PRD.md` only for release planning or epic-order questions.
 
 **Conditional read (token discipline):** if your active task touches **TUI rendering, theme, or visual design**, also read `.savepoint/visual-identity.md` after Design.md. Otherwise skip it — it's ~1.8K tokens you don't need.
 
@@ -18,10 +18,12 @@ Read `.savepoint/PRD.md` only for project vision changes. Read `.savepoint/Desig
 ```yaml
 state: task-building
 release: v1.1
-epic: E01-tui-optimisation
-task: E01-tui-optimisation/T001-border-resize-fix
-next_action: Execute T001 — Fix right-border clipping and resize robustness.
+epic: E05-tasking-permissions
+task: E05-tasking-permissions/T005-update-help-overlay
+next_action: Build E05-tasking-permissions/T005-update-help-overlay.
 ```
+
+**Note:** v1.1 PRD now exists at `.savepoint/releases/v1.1/v1.1-PRD.md`. All five v1.1 epics are documented.
 
 ## State → next action
 
@@ -33,18 +35,18 @@ The project has its PRD and Design locked but no epics defined yet.
 
 **Next action:**
 
-1. Read `.savepoint/releases/v1/PRD.md` — the v1 release scope (epic list lives there).
+1. Read `.savepoint/releases/{release}/{release}-PRD.md` — the release scope (epic list lives there).
 2. Help the user define the epics list and confirm priority.
-3. For each epic in order, create the directory `.savepoint/releases/v1/epics/E##-{epic-name}/` with a `Design.md` stub.
+3. For each epic in order, create the directory `.savepoint/releases/{release}/epics/E##-{epic-name}/` with an `E##-Detail.md` stub.
 4. When epic E01 (scaffolding) is created, transition to `state: epic-design` for that epic.
 
 **Do not** start writing code. We are still in planning.
 
 ### `state: epic-design`
 
-An epic exists but its `Design.md` is empty or a stub.
+An epic exists but its `E##-Detail.md` is empty or a stub.
 
-**Next action:** Walk the user through filling out the epic's `Design.md`:
+**Next action:** Walk the user through filling out the epic's `E##-Detail.md`:
 
 - What is this epic adding to the system?
 - What components / files does it touch?
@@ -58,9 +60,9 @@ Epic Design exists but tasks are missing or not fully planned.
 
 **Next action:**
 
-1. Re-read the epic Design.
+1. Re-read the epic E##-Detail.md.
 2. Create or update the full epic task list — each task **independently buildable**, **objective-led**, with declared `depends_on`.
-3. Each task file lives at `.savepoint/releases/v1/epics/{E##-epic}/tasks/TNNN-slug.md` with frontmatter:
+3. Each task file lives at `.savepoint/releases/{release}/epics/{E##-epic}/tasks/TNNN-slug.md` with frontmatter:
    ```yaml
    ---
    id: {E##-epic}/TNNN-slug
@@ -88,11 +90,11 @@ Task is `in_progress`. All `depends_on` are `done`.
 
 The last task in an epic is `done`. Audit must run before the next epic starts.
 
-**Next action:** Confirm `.savepoint/audit/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `Design.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`:
+**Next action:** Confirm `.savepoint/audit/{release}/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `E##-Detail.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{release}/{E##-epic}/proposals.md`:
 
 - `Design.md` section — merge only the epic delta into project architecture.
 - `AGENTS.md` section — refresh Codebase Map entries from changed-module metadata; preserve existing rows.
-- `epic-Design.md` section — add "implemented as:" notes and deltas from the original plan.
+- `epic-E##-Detail.md` section — add "implemented as:" notes and deltas from the original plan.
 - `Quality Review` section — semantic-review findings against the 10 Code Style rules (advisory only).
 
 Prefer delta-only edits (`Insert After`, `Replace`, `Delete`) anchored to exact text. Do not quote and replace entire large sections unless the whole section genuinely changed.
@@ -123,7 +125,7 @@ Quality review section format:
 ## Already Fixed
 ```
 
-After proposals are approved, apply approved proposals to live files, mark the epic `Design.md` as `status: audited`, update project `Design.md` `last_audited`, refresh `AGENTS.md` Codebase Map, and advance this router to the next epic state.
+After proposals are approved, apply approved proposals to live files, mark the epic `E##-Detail.md` as `status: audited`, update project `Design.md` `last_audited`, refresh `AGENTS.md` Codebase Map, and advance this router to the next epic state.
 
 Stop. The user reviews proposals in the TUI before commit actions.
 

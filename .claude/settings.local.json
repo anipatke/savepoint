@@ -14,7 +14,14 @@
       "Bash(node --require ./scripts/vitest-preload.cjs ./node_modules/vitest/vitest.mjs run --configLoader runner --config vitest.config.js)",
       "Bash(go test *)",
       "Bash(go build *)",
-      "Bash(go vet *)"
+      "Bash(go vet *)",
+      "Bash(make build *)",
+      "Bash(make test *)",
+      "Bash(go get *)",
+      "Bash(go doc *)",
+      "Bash(make clean *)",
+      "Bash(make build-linux *)",
+      "Bash(./savepoint_test_bin --version)"
     ]
   }
 }

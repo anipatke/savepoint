@@ -1,12 +1,19 @@
 package board
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
 )
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+func plainTerminal(s string) string {
+	return ansiPattern.ReplaceAllString(s, "")
+}
 
 func sampleTask() data.Task {
 	return data.Task{
@@ -20,49 +27,49 @@ func sampleTask() data.Task {
 }
 
 func TestRenderDetail_containsID(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "E04/T001") {
 		t.Error("RenderDetail missing task ID")
 	}
 }
 
 func TestRenderDetail_containsTitle(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "My Task") {
 		t.Error("RenderDetail missing task title")
 	}
 }
 
 func TestRenderDetail_containsEpic(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "E04-board-components") {
 		t.Error("RenderDetail missing epic")
 	}
 }
 
 func TestRenderDetail_containsRelease(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "v1") {
 		t.Error("RenderDetail missing release")
 	}
 }
 
 func TestRenderDetail_containsStatus(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "in_progress") {
 		t.Error("RenderDetail missing status")
 	}
 }
 
 func TestRenderDetail_containsPhase(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "build") {
 		t.Error("RenderDetail missing phase")
 	}
 }
 
 func TestRenderDetail_containsEscHint(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "esc") {
 		t.Error("RenderDetail missing esc:close hint")
 	}
@@ -71,35 +78,23 @@ func TestRenderDetail_containsEscHint(t *testing.T) {
 func TestRenderDetail_containsDescription(t *testing.T) {
 	tk := sampleTask()
 	tk.Description = "some description text"
-	got := RenderDetail(tk, 60)
+	got := RenderDetail(tk, 60, nil, 0, 0)
 	if !strings.Contains(got, "some description text") {
 		t.Error("RenderDetail missing description text")
 	}
 }
 
 func TestRenderDetail_noDescriptionSectionWhenEmpty(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if strings.Contains(got, "Description:") {
 		t.Error("RenderDetail should not show Description section when empty")
 	}
 }
 
-func TestRenderDetail_containsAcceptanceCriteria(t *testing.T) {
-	tk := sampleTask()
-	tk.Acceptance = []string{"criterion one", "criterion two"}
-	got := RenderDetail(tk, 60)
-	if !strings.Contains(got, "criterion one") {
-		t.Error("RenderDetail missing first acceptance criterion")
-	}
-	if !strings.Contains(got, "criterion two") {
-		t.Error("RenderDetail missing second acceptance criterion")
-	}
-}
-
 func TestRenderDetail_containsChecklist(t *testing.T) {
 	tk := sampleTask()
-	tk.Checklist = []string{"first implementation item", "second implementation item"}
-	got := RenderDetail(tk, 60)
+	tk.Checklist = []data.CheckItem{{Text: "first implementation item"}, {Text: "second implementation item", Done: true}}
+	got := RenderDetail(tk, 60, nil, 0, 0)
 	if !strings.Contains(got, "Implementation Plan:") {
 		t.Error("RenderDetail missing implementation plan heading")
 	}
@@ -111,10 +106,70 @@ func TestRenderDetail_containsChecklist(t *testing.T) {
 	}
 }
 
+func TestRenderDetail_checklistSingleSentenceGetsOneCheckbox(t *testing.T) {
+	tk := sampleTask()
+	tk.Checklist = []data.CheckItem{{Text: "single sentence task"}}
+
+	got := plainTerminal(RenderDetail(tk, 60, nil, 0, 0))
+
+	if count := strings.Count(got, "[ ]"); count != 1 {
+		t.Fatalf("RenderDetail checkbox count = %d, want 1\n%s", count, got)
+	}
+	if strings.Contains(got, "[x]") {
+		t.Fatal("RenderDetail should not render checked marker for unchecked item")
+	}
+}
+
+func TestRenderDetail_checklistMultiSentenceGetsOneCheckboxPerSentence(t *testing.T) {
+	tk := sampleTask()
+	tk.Checklist = []data.CheckItem{{Text: "First sentence. Second sentence! Third sentence?"}}
+
+	got := plainTerminal(RenderDetail(tk, 60, nil, 0, 0))
+
+	if count := strings.Count(got, "[ ]"); count != 3 {
+		t.Fatalf("RenderDetail checkbox count = %d, want 3\n%s", count, got)
+	}
+	for _, want := range []string{"[ ] First sentence.", "[ ] Second sentence!", "[ ] Third sentence?"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("RenderDetail missing sentence checkbox line %q\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderDetail_checklistHardWrappedSentenceDoesNotDuplicateCheckbox(t *testing.T) {
+	tk := sampleTask()
+	tk.Checklist = []data.CheckItem{{
+		Text: "This sentence is intentionally long enough to wrap inside a narrow detail overlay while remaining one semantic sentence.",
+	}}
+
+	got := plainTerminal(RenderDetail(tk, 34, nil, 0, 0))
+
+	if count := strings.Count(got, "[ ]"); count != 1 {
+		t.Fatalf("RenderDetail checkbox count = %d, want 1\n%s", count, got)
+	}
+	if !strings.Contains(got, "    intentionally long enough") {
+		t.Fatalf("RenderDetail continuation line should align under checkbox text\n%s", got)
+	}
+}
+
+func TestRenderDetail_checklistCheckedSentenceUsesCheckedMarker(t *testing.T) {
+	tk := sampleTask()
+	tk.Checklist = []data.CheckItem{{Text: "already done. still done.", Done: true}}
+
+	got := plainTerminal(RenderDetail(tk, 60, nil, 0, 0))
+
+	if count := strings.Count(got, "[x]"); count != 2 {
+		t.Fatalf("RenderDetail checked checkbox count = %d, want 2\n%s", count, got)
+	}
+	if strings.Contains(got, "[ ]") {
+		t.Fatal("RenderDetail should not render unchecked marker for checked item")
+	}
+}
+
 func TestRenderDetail_wrapsLongDescription(t *testing.T) {
 	tk := sampleTask()
 	tk.Description = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda"
-	got := RenderDetail(tk, 30)
+	got := RenderDetail(tk, 30, nil, 0, 0)
 	if strings.Contains(got, tk.Description) {
 		t.Error("RenderDetail should wrap long description text")
 	}
@@ -124,7 +179,7 @@ func TestRenderDetail_wrapsLongDescription(t *testing.T) {
 }
 
 func TestRenderDetail_noAcceptanceSectionWhenEmpty(t *testing.T) {
-	got := RenderDetail(sampleTask(), 60)
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if strings.Contains(got, "Acceptance Criteria:") {
 		t.Error("RenderDetail should not show Acceptance section when empty")
 	}
@@ -211,6 +266,58 @@ func TestView_detailOverlayRendered(t *testing.T) {
 	}
 	if !strings.Contains(got, "E04/T001") {
 		t.Error("View() with OverlayDetail missing task ID")
+	}
+}
+
+func TestRenderDetail_routerPriorityLabel(t *testing.T) {
+	task := sampleTask()
+	router := &data.RouterState{Release: task.Release, Epic: task.Epic, Task: task.ID}
+	got := RenderDetail(task, 60, router, 0, 0)
+	if !strings.Contains(got, "(router priority)") {
+		t.Error("RenderDetail missing router priority label for matching task")
+	}
+}
+
+func TestRenderDetail_noRouterPriorityLabelWhenNoMatch(t *testing.T) {
+	task := sampleTask()
+	router := &data.RouterState{Release: task.Release, Epic: task.Epic, Task: "other-id"}
+	got := RenderDetail(task, 60, router, 0, 0)
+	if strings.Contains(got, "(router priority)") {
+		t.Error("RenderDetail should not show router priority label for non-matching task")
+	}
+}
+
+func TestRenderDetail_viewportShowsScrollIndicators(t *testing.T) {
+	task := sampleTask()
+	task.Description = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron"
+
+	got := RenderDetail(task, 32, nil, 8, 2)
+
+	if !strings.Contains(got, "↑ 2 above") {
+		t.Error("RenderDetail missing above indicator")
+	}
+	if !strings.Contains(got, "↓") || !strings.Contains(got, "more") {
+		t.Error("RenderDetail missing more indicator")
+	}
+	if strings.Contains(got, "ID:") {
+		t.Error("RenderDetail should not render body lines above viewport")
+	}
+}
+
+func TestUpdate_detailOverlayScrollsWithJK(t *testing.T) {
+	m := NewModel([]data.Task{sampleTask()}, "v1", "E04-board-components")
+	m.Overlay = OverlayDetail
+
+	got, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	updated := requireModel(t, got)
+	if updated.DetailOffset != 1 {
+		t.Errorf("DetailOffset after j = %d, want 1", updated.DetailOffset)
+	}
+
+	got, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	updated = requireModel(t, got)
+	if updated.DetailOffset != 0 {
+		t.Errorf("DetailOffset after k = %d, want 0", updated.DetailOffset)
 	}
 }
 

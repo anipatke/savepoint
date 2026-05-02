@@ -12,13 +12,13 @@ This skill is activated when the `.savepoint/router.md` state is `planning`.
 ## Input
 - `.savepoint/PRD.md` (Vision and constraints)
 - `.savepoint/Design.md` (Architecture and layout)
-- `.savepoint/releases/v1/PRD.md` (Optional: Release-scoped PRD)
+- `.savepoint/releases/v1/v1-PRD.md` (Optional: Release-scoped PRD)
 
 ## Workflow
 
 1.  **Read the Context:** Consume the PRD and Design documents to understand the scope and technical constraints.
 2.  **Define Epics:** Group the work into high-level features or milestones. Name them clearly (e.g., `E01-scaffolding`, `E02-database`, `E03-auth`). Each Epic must represent a deliverable slice of value.
-3.  **Draft Epic Designs:** For each Epic, create a shell `Design.md` inside `.savepoint/releases/v1/epics/{E##-epic-name}/Design.md`. This file should describe the *delta* (what this specific epic adds to the overall architecture).
+3.  **Draft Epic Designs:** For each Epic, create a shell `E##-Detail.md` inside `.savepoint/releases/v1/epics/{E##-epic-name}/E##-Detail.md`. This file should describe the *delta* (what this specific epic adds to the overall architecture).
 4.  **Breakdown Tasks (High Level):** Inside each Epic folder, list out the high-level tasks required to complete it. Do not write full implementation plans yet—just identify the discrete chunks of work (e.g., `T001-setup-repo.md`, `T002-init-db.md`).
 5.  **Order and Dependency:** Ensure the Epics and tasks are ordered logically. You cannot build the frontend auth UI (E03) before the database models (E02) exist.
 6.  **Handoff:** Update `.savepoint/router.md` to `state: task-breakdown` and point it at the first Epic. Prompt the user to review the Epic list.

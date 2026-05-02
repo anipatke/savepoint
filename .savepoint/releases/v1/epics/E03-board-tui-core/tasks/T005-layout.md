@@ -25,7 +25,7 @@ depends_on: [E03-board-tui-core/T004-styles]
 
 ## Context Log
 
-Files read: internal/board/model.go, view.go, update.go, board.go, view_test.go, update_test.go, model_test.go, internal/styles/styles.go, go.mod, .savepoint/releases/v1/epics/E03-board-tui-core/Design.md
+Files read: internal/board/model.go, view.go, update.go, board.go, view_test.go, update_test.go, model_test.go, internal/styles/styles.go, go.mod, .savepoint/releases/v1/epics/E03-board-tui-core/E03-Detail.md
 
 Estimated input tokens: ~6 000
 

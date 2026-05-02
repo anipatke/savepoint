@@ -1,6 +1,6 @@
 ---
 id: E06-atari-noir-layout/T007-detail-card-fixes
-status: planned
+status: done
 objective: "Add line breaks under Acceptance Criteria and Implementation Plan headings in task detail, and word-wrap card titles instead of truncating"
 depends_on: []
 ---
@@ -18,11 +18,11 @@ depends_on: []
 
 ## Implementation Plan
 
-- [ ] Edit `internal/board/detail.go` — add `""` entry after the `Acceptance Criteria:` heading line and after the `Implementation Plan:` heading line.
-- [ ] Edit `internal/board/detail.go` — make `wrapText` and `splitLongWord` exported (capitalize) so they can be reused from `card.go`.
-- [ ] Edit `internal/board/card.go` — replace `truncate(t.Title, inner)` with a multi-line approach that word-wraps the title across available width.
-- [ ] Edit `internal/board/card.go` — combine wrapped title lines with newlines in the card content (joining with `\n`).
-- [ ] Run `make build && make test` to verify no regressions.
+- [x] Edit `internal/board/detail.go` — add `""` entry after the `Acceptance Criteria:` heading line and after the `Implementation Plan:` heading line.
+- [x] Edit `internal/board/detail.go` — make `wrapText` and `splitLongWord` exported (capitalize) so they can be reused from `card.go`.
+- [x] Edit `internal/board/card.go` — replace `truncate(t.Title, inner)` with a multi-line approach that word-wraps the title across available width.
+- [x] Edit `internal/board/card.go` — combine wrapped title lines with newlines in the card content (joining with `\n`).
+- [x] Run `make build && make test` to verify no regressions.
 
 ## Context Log
 
@@ -33,4 +33,4 @@ Files read:
 
 Estimated input tokens: 600
 
-Notes:
+Notes: Exported WrapText/SplitLongWord from detail.go; updated card_test.go TestRenderCard_titleTruncated → TestRenderCard_titleWraps. Build and tests pass.

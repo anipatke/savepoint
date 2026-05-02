@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: E02-data-readers (2026-05-01)
+last_audited: v1.1/E02-cross-platform-compatibility (2026-05-02)
 ---
 
 # Savepoint — System Architecture
@@ -14,7 +14,7 @@ last_audited: E02-data-readers (2026-05-01)
 
 - **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
 - **Agent routing:** AGENTS.md → `.savepoint/router.md` → template prompts. See AGENTS.md Workflow section.
-- **Bundled Agent Skills:** Savepoint ships with custom skills (`draft-prd`, `system-design`, `create-plan`, `create-task`, `build-task`, `audit`) to enforce each phase of the state machine.
+- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-build-task`, `savepoint-audit`) to enforce each phase of the state machine.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
@@ -23,7 +23,7 @@ last_audited: E02-data-readers (2026-05-01)
 - **Go data-reader boundary:** established in epic `E02-data-readers` (2026-05-01). `internal/data` owns Savepoint file parsing and discovery for the Go implementation: task frontmatter models, markdown YAML extraction, router state parsing, config theme defaults, release/epic/task directory listing, and boundary error sentinels.
 - **Template assets** live under `templates/` with helpers in `src/templates/` (epic E04).
 - **Init command** (`savepoint init`) validates, scaffolds, prints prompt, clipboard, optional install (epic E05).
-- **Board command** (`savepoint board`) reads project, non-TTY fallback, Ink TUI, transition gates, mtime writes, audit signaling (epic E06).
+- **Board command** (`savepoint board`) reads project state, renders the Atari-Noir TUI board, supports release/epic filtering, detail overlays, task status transitions with mtime-guarded writes, release/epic-scoped router priority markers, fsnotify-based task auto-refresh (epic E06), header Next Activity display, height-aware column/detail viewport scrolling, stable focused/unfocused column border geometry (v1.1 E01), and a focusable wide-screen epic sidebar with purple epic focus, epic detail overlays, and status glyphs loaded from epic detail frontmatter (v1.1 E04).
 - **Audit pipeline** (`savepoint audit`) resolves epic, skips, quality gates, snapshots, router transition, proposal review (epic E07).
 
 ## 2. Directory layout
@@ -40,14 +40,13 @@ last_audited: E02-data-readers (2026-05-01)
     ├── audit/
     │   └── {E##-epic}/
     │       ├── snapshot.md
-    │       └── proposals/
-    │           └── proposals.md
+    │       └── proposals.md
     └── releases/
-        └── v1/
-            ├── PRD.md              ← release-scoped PRD
+        └── {release}/              ← e.g. v1, v1.1
+            ├── {release}-PRD.md    ← release-scoped PRD
             └── epics/
                 └── E##-{epic-name}/
-                    ├── Design.md   ← epic delta
+                    ├── E##-Detail.md   ← epic delta
                     └── tasks/
                         └── T001-slug.md
 ```
@@ -59,7 +58,7 @@ AGENTS.md at root (uppercase, cross-vendor spec). Design.md in `.savepoint/` (wo
 | Level        | Definition                                                                             |
 | ------------ | -------------------------------------------------------------------------------------- |
 | **Release**  | The thing being built. One PRD per release. v1 = MVP.                                  |
-| **Epic**     | A major feature within a release. Has its own Design.md (delta from project Design).   |
+| **Epic**     | A major feature within a release. Has its own E##-Detail.md (delta from project Design). |
 | **Task**     | Independently buildable. Objective-led. **Requires implementation plan before build.** |
 | **Sub-task** | Inline checklist item — _evidence of the implementation plan_, not standalone work.    |
 
@@ -104,7 +103,7 @@ Three statuses, with explicit gates:
 0. Quality Gates  — CLI runs configured commands. Halts on failure if block_on_failure: true.
 1. Snapshot       — CLI writes file tree (gitignore-respecting) + changed-files list. NO code contents.
 2. Diff Brief     — State flips to audit_pending: {E##-epic}. Magic prompt printed to user.
-3. Reconcile      — Agent reads epic Design + snapshot + scoped code. Writes one proposal bundle to
+3. Reconcile      — Agent reads epic E##-Detail.md + snapshot + scoped code. Writes one proposal bundle to
                     .savepoint/audit/{E##-epic}/proposals.md.
 4. Review         — TUI shows side-by-side per-proposal diff. Approve / reject / edit each.
 5. Commit         — Approved proposals overwrite live files. Epic gets status: audited. Next epic unlocks.
@@ -115,7 +114,7 @@ Three statuses, with explicit gates:
 - **Skip allowed** via `savepoint audit --skip --reason "..."`. Logged to `.savepoint/audit-log.md`. Permanent `⚠ skipped` badge in TUI.
 - **Proposal bundles** use delta-shaped edits: `Insert After`, `Replace`, or `Delete` blocks anchored to exact text.
 - **Quality review** is a section inside the proposal bundle.
-- **Snapshot availability is an audit precondition.** The router should enter `audit-pending` only after `.savepoint/audit/{E##-epic}/snapshot.md` exists.
+- **Snapshot availability is an audit precondition.** The router should enter `audit-pending` only after `.savepoint/audit/{release}/{E##-epic}/snapshot.md` exists.
 
 Three layers:
 
@@ -131,9 +130,17 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** single screen with a 5-column Kanban board and detail pane. Non-TTY output uses `src/tui/render/plain-table.ts`.
+**Layout:** single screen with a 3-column task board (`planned`, `in_progress`, `done`), optional epic sidebar on wide terminals, centered overlays for release/epic/help/task/epic-detail views, static Atari-Noir header/footer, full-width dividers, uniform black TUI backgrounds, and navigation hints. The header can show a compact right-aligned Next Activity value from router state. Columns and detail overlays use height-aware viewport slicing with subtle above/more scroll indicators. Focused and unfocused columns preserve the same rounded-border geometry so focus changes do not shift content. On terminals at least 120 columns wide, the epic sidebar is focusable from the Planned column; it uses the purple epic accent for focused panel borders, focused epic labels, and epic detail overlays while task-column focus remains orange. Non-TTY output remains a plain table fallback.
 
-**Implementation modules:** see AGENTS.md Codebase Map (E06 and E07 epic rows).
+**Visual guardrail:** the terminal board intentionally uses one black background for Background, Surface, and Surface 2. Do not restore subtly different dark panel fills; depth should come from spacing, dividers, glyphs, and focused Atari Orange borders.
+
+**Terminal color policy:** the board must use a deterministic Lipgloss color profile and one canonical terminal black across truecolor, ANSI256, and ANSI fallbacks. In 256-color mode, Background, Surface, and Surface 2 must map to the same actual black value, not adjacent dark-gray values. Full-screen/root surfaces may paint that one black background for consistency; nested task cards, task text, glyphs, tags, metadata, and router-priority labels should remain foreground-only unless a component explicitly owns a filled visual region. This prevents padded text from creating gray bars in terminals such as PowerShell, Windows Terminal, VS Code terminal, and Warp.
+
+**Border policy:** focus must not change geometry or introduce terminal-specific broken border rendering. Use one consistent box-border family across columns, cards, and overlays. If rounded borders render as dash bars or broken segments in Warp, prefer the single-line border style already allowed by `.savepoint/visual-identity.md`; do not mix rounded and single-line borders as an ad-hoc per-component workaround.
+
+**Board persistence and refresh:** task status transitions write canonical task frontmatter through `internal/data.WriteTaskStatus` with mtime conflict checks. The board treats `Model.Root` as the `.savepoint` directory, watches `.savepoint/releases/` recursively with fsnotify, adds watches for newly-created release/epic/task directories, and reloads task plus release/epic index data plus epic status metadata after debounced file changes. Router priority markers match release + epic + task, not only the short `T###` value; completed cards render with the orange build glyph even if they previously matched router priority. Epic status glyphs are cached from each epic's `E##-Detail.md` frontmatter and shown in the wide epic sidebar only.
+
+**Implementation modules:** see AGENTS.md Codebase Map.
 
 **Keybindings:** arrow/vim navigation, enter advances, backspace retreats, r/R refreshes, a/A exits toward audit review when proposals exist, q quits.
 
@@ -165,12 +172,14 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 
 ## 12. Distribution & build
 
-> Audit note: the live repository is transitioning from the documented TypeScript/Node implementation to a Go module (`github.com/opencode/savepoint`). The architecture document still contains substantial TypeScript-era implementation detail and should be reconciled as Go epics are audited.
+> Audit note: the live repository is now a Go module (`github.com/opencode/savepoint`). Remaining TypeScript-era distribution details should be removed as Go epics are audited.
 
 - **License:** MIT.
-- **Install:** primary `npx savepoint init`, persistent `npm i -g savepoint` → `savepoint`.
-- **Runtime:** Node 20.10+ LTS, ESM-only, no native deps. macOS / Linux / Windows-Terminal.
-- **Repo:** single package. TypeScript strict. `tsup` build → `dist/`. Bin `dist/cli.js` shebanged.
+- **Runtime:** Go CLI binary. Source builds with `go build`; tests run with `go test ./...`.
+- **Local build:** `make build` delegates to `internal/buildtool`, builds `savepoint` or `savepoint.exe`, and injects `main.version` from `VERSION` or the latest git tag.
+- **Cross-platform builds:** `make build-all` cross-compiles linux-amd64, linux-arm64, darwin-amd64, and darwin-arm64 raw binaries into `dist/{platform}-{arch}/savepoint`.
+- **Artifacts:** `make dist` creates versioned `.tar.gz` archives in `dist/` for the Linux and Darwin targets using Go archive APIs, not shell `tar`.
+- **Smoke validation:** `make smoke-test` builds the local binary and runs `--version` as a headless exit-0 check.
 - **No telemetry.** Ever.
 
 ## 13. Testing

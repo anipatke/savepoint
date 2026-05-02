@@ -22,6 +22,9 @@ func TestCalculateLayout_wide(t *testing.T) {
 			t.Errorf("ColWidths[%d] = %d, want 24", i, w)
 		}
 	}
+	if l.ContentHeight != 30 {
+		t.Errorf("ContentHeight = %d, want 30", l.ContentHeight)
+	}
 }
 
 func TestCalculateLayout_medium(t *testing.T) {
@@ -63,6 +66,20 @@ func TestCalculateLayout_tinyWidth_floorsAtMinColWidth(t *testing.T) {
 	}
 	if l.ColWidths[0] != minColWidth {
 		t.Errorf("ColWidths[0] = %d, want %d (minColWidth floor)", l.ColWidths[0], minColWidth)
+	}
+}
+
+func TestCalculateLayout_tinyHeight_floorsAtMinContentHeight(t *testing.T) {
+	l := CalculateLayout(100, 8)
+	if l.ContentHeight != minContentHeight {
+		t.Errorf("ContentHeight = %d, want %d", l.ContentHeight, minContentHeight)
+	}
+}
+
+func TestCalculateLayoutWithChrome_accountsForExtraHeaderLine(t *testing.T) {
+	l := CalculateLayoutWithChrome(120, 40, 1)
+	if l.ContentHeight != 29 {
+		t.Errorf("ContentHeight = %d, want 29", l.ContentHeight)
 	}
 }
 

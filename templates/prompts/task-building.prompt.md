@@ -7,7 +7,7 @@ You are implementing one Savepoint task that is `in_progress` with all `depends_
 ## Input
 
 - `.savepoint/router.md` — confirms you are on the correct task.
-- `.savepoint/releases/v{N}/epics/{E##-slug}/Design.md` — epic context.
+- `.savepoint/releases/v{N}/epics/{E##-slug}/E##-Detail.md` — epic context.
 - The active task file: `.savepoint/releases/v{N}/epics/{E##-slug}/tasks/TNNN-slug.md` — your checklist.
 - Any directly touched source or test files.
 

@@ -3,7 +3,8 @@ package board
 const (
 	colOverhead = 4 // rounded border (1) + padding (1) each side
 
-	minColWidth = 10
+	minColWidth      = 10
+	minContentHeight = 5
 
 	epicPanelWidth    = 28
 	epicPanelOverhead = 4
@@ -20,6 +21,7 @@ type Layout struct {
 	EpicPanelWidth   int
 	ColCount         int
 	ColWidths        []int
+	ContentHeight    int
 }
 
 // CalculateLayout returns the board layout for the given terminal dimensions.
@@ -27,7 +29,12 @@ type Layout struct {
 //   - >=120 cols: epic panel (28w) + 3 columns
 //   - 80–119 cols: 3 columns only
 //   - <80 cols: 1 column
-func CalculateLayout(width, _ int) Layout {
+func CalculateLayout(width, height int) Layout {
+	return CalculateLayoutWithChrome(width, height, 0)
+}
+
+func CalculateLayoutWithChrome(width, height, extraHeaderLines int) Layout {
+	contentHeight := max(height-10-extraHeaderLines, minContentHeight)
 	inner := width - boardFrameOverhead
 	switch {
 	case width >= breakpointWide:
@@ -38,6 +45,7 @@ func CalculateLayout(width, _ int) Layout {
 			EpicPanelWidth:   epicPanelWidth,
 			ColCount:         3,
 			ColWidths:        []int{cw, cw, cw},
+			ContentHeight:    contentHeight,
 		}
 	case width >= breakpointNarrow:
 		available := inner - 3*colOverhead
@@ -46,6 +54,7 @@ func CalculateLayout(width, _ int) Layout {
 			EpicPanelVisible: false,
 			ColCount:         3,
 			ColWidths:        []int{cw, cw, cw},
+			ContentHeight:    contentHeight,
 		}
 	default:
 		cw := max(inner-colOverhead, minColWidth)
@@ -53,6 +62,7 @@ func CalculateLayout(width, _ int) Layout {
 			EpicPanelVisible: false,
 			ColCount:         1,
 			ColWidths:        []int{cw},
+			ContentHeight:    contentHeight,
 		}
 	}
 }
