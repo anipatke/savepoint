@@ -1,6 +1,6 @@
 ---
 id: E03-ui-visual-refinement/T006-forced-256-color-profile
-status: planned
+status: done
 objective: "Force 256-color terminal profile at init to ensure consistent background rendering across all terminals"
 depends_on: []
 ---
@@ -17,9 +17,9 @@ depends_on: []
 
 ## Implementation Plan
 
-- [ ] Read `main.go` — understand startup flow and identify where to inject profile forcing
-- [ ] Edit `main.go` — add `lipgloss.SetColorProfile(lipgloss.Force256Color)` call before `board.Run()`
-- [ ] Run `make build && make test` to verify no regressions
+- [x] Read board startup flow and identify where to inject profile forcing
+- [x] Edit `internal/board/board.go` — add `lipgloss.SetColorProfile(termenv.ANSI256)` before model initialization
+- [x] Run equivalent build and test gates in this Windows shell
 
 ## Context Log
 

@@ -16,6 +16,31 @@ type reloadMsg struct {
 	releases     []string
 	releaseEpics map[string][]string
 	epicStatuses map[string]string
+	routerState  *data.RouterState
+}
+
+type routerWriteMsg struct {
+	message string
+	state   *data.RouterState
+	taskID  string
+}
+
+type taskWriteMsg struct {
+	prefix string
+	next   data.Task
+	err    error
+}
+
+type epicDetailMsg struct {
+	content string
+}
+
+type auditContentMsg struct {
+	content string
+}
+
+type errorMsg struct {
+	message string
 }
 
 // watchFiles blocks until a file event arrives, debounces for 100ms, emits fileChangeMsg.
@@ -56,16 +81,21 @@ func reloadTasks(root string) tea.Cmd {
 	return func() tea.Msg {
 		tasks, releases, releaseEpics, epicStatuses, err := loadBoardData(root)
 		if err != nil {
-			return nil
+			return errorMsg{message: "reload failed: " + err.Error()}
 		}
-		return reloadMsg{tasks: tasks, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses}
+		routerState, _ := readRouterState(root)
+		return reloadMsg{tasks: tasks, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState}
 	}
 }
 
-// newWatcher watches the releases directory by walking all subdirs (fsnotify v1.10 has no recursive opt).
+// newWatcher watches the savepoint root (for router.md) and all releases subdirs.
 func newWatcher(root string) (*fsnotify.Watcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
+		return nil, err
+	}
+	if err := w.Add(root); err != nil {
+		w.Close()
 		return nil, err
 	}
 	releasesPath := filepath.Join(root, "releases")

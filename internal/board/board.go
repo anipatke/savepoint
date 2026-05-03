@@ -5,25 +5,27 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	xterm "github.com/charmbracelet/x/term"
 	"github.com/opencode/savepoint/internal/data"
 )
 
 func Run() error {
-	lipgloss.SetColorProfile(termenv.ANSI256)
+	return RunWithFilters("", "")
+}
 
-	model, err := newProjectModel(".")
+func RunWithFilters(release, epic string) error {
+	if !xterm.IsTerminal(os.Stdout.Fd()) {
+		return runPlainOutput(release, epic)
+	}
+	return RunTUI(release, epic)
+}
+
+func runPlainOutput(release, epic string) error {
+	model, err := newProjectModel(".", release, epic)
 	if err != nil {
 		return err
 	}
-
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return err
-	}
+	fmt.Print(RenderPlainTable(model))
 	return nil
 }
 
@@ -31,7 +33,7 @@ func newProgramModel() Model {
 	return NewModel(nil, "v1", "E03-board-tui-core")
 }
 
-func newProjectModel(start string) (Model, error) {
+func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
 	d := data.NewDiscover()
 	root, err := d.FindSavepointRoot(start)
 	if err != nil {
@@ -48,8 +50,17 @@ func newProjectModel(start string) (Model, error) {
 		return Model{}, err
 	}
 
-	release := firstKnown(routerState.Release, releaseIDs)
-	epic := firstKnown(routerState.Epic, releaseEpics[release])
+	preferredRelease := routerState.Release
+	if releaseFilter != "" {
+		preferredRelease = releaseFilter
+	}
+	preferredEpic := routerState.Epic
+	if epicFilter != "" {
+		preferredEpic = epicFilter
+	}
+
+	release := firstKnown(preferredRelease, releaseIDs)
+	epic := firstKnown(preferredEpic, releaseEpics[release])
 
 	model := NewModel(tasks, release, epic)
 	model.Root = root

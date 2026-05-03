@@ -66,7 +66,7 @@ func TestView_containsFooterHints(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	footer := m.renderFooter(80)
 
-	if !strings.Contains(footer, "←/→:nav  E:epic  R:release  ?:help  q:quit") {
+	if !strings.Contains(footer, "←/→:nav  p: Priority  R:release  ?:help  q:quit") {
 		t.Fatal("renderFooter() missing navigation hints")
 	}
 
@@ -75,12 +75,22 @@ func TestView_containsFooterHints(t *testing.T) {
 		t.Fatalf("renderFooter() returned %d lines, want 3", len(lines))
 	}
 	if strings.TrimSpace(plainTerminal(lines[1])) != "" {
-		t.Fatalf("renderFooter() spacer line = %q, want blank", lines[1])
+		t.Fatalf("renderFooter() status line = %q, want blank", lines[1])
 	}
 	for i, line := range lines {
 		if got := lipgloss.Width(line); got > 80 {
 			t.Fatalf("renderFooter() line %d width = %d, want <= 80", i, got)
 		}
+	}
+}
+
+func TestView_footerRendersStatusMessage(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.StatusMessage = "Router set to v1.1 E05-tasking-permissions/T004"
+	footer := plainTerminal(m.renderFooter(80))
+
+	if !strings.Contains(footer, "Router set to v1.1 E05-tasking-permissions/T004") {
+		t.Fatal("renderFooter() missing status message")
 	}
 }
 

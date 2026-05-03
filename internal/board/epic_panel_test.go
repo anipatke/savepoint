@@ -1,6 +1,8 @@
 package board
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -81,22 +83,22 @@ func TestRenderEpicDropdown_emptyShowsNone(t *testing.T) {
 	}
 }
 
-func TestEpicIndex_found(t *testing.T) {
+func TestSliceIndex_found(t *testing.T) {
 	epics := []string{"E01", "E02", "E03"}
-	if got := epicIndex(epics, "E02"); got != 1 {
-		t.Errorf("epicIndex = %d, want 1", got)
+	if got := sliceIndex(epics, "E02"); got != 1 {
+		t.Errorf("sliceIndex = %d, want 1", got)
 	}
 }
 
-func TestEpicIndex_notFound(t *testing.T) {
-	if got := epicIndex([]string{"E01"}, "E99"); got != 0 {
-		t.Errorf("epicIndex not-found = %d, want 0", got)
+func TestSliceIndex_notFound(t *testing.T) {
+	if got := sliceIndex([]string{"E01"}, "E99"); got != 0 {
+		t.Errorf("sliceIndex not-found = %d, want 0", got)
 	}
 }
 
-func TestEpicIndex_empty(t *testing.T) {
-	if got := epicIndex(nil, "E01"); got != 0 {
-		t.Errorf("epicIndex empty = %d, want 0", got)
+func TestSliceIndex_empty(t *testing.T) {
+	if got := sliceIndex(nil, "E01"); got != 0 {
+		t.Errorf("sliceIndex empty = %d, want 0", got)
 	}
 }
 
@@ -567,7 +569,7 @@ func TestView_epicDetailOverlayNoContent(t *testing.T) {
 
 func TestRenderEpicDetail_stripsMarkdownHeadings(t *testing.T) {
 	content := "---\ntype: epic-design\n---\n# Epic E01\n\n## Purpose\nDoes things."
-	got := RenderEpicDetail("E01-test", content, 60, 40, 0)
+	got := RenderEpicDetail("E01-test", content, 60, 40, 0, 0)
 	if !strings.Contains(got, "EPIC DETAIL") {
 		t.Error("RenderEpicDetail missing EPIC DETAIL header")
 	}
@@ -577,8 +579,277 @@ func TestRenderEpicDetail_stripsMarkdownHeadings(t *testing.T) {
 }
 
 func TestRenderEpicDetail_noDetailFallback(t *testing.T) {
-	got := RenderEpicDetail("E01-test", "(no detail available)", 60, 40, 0)
+	got := RenderEpicDetail("E01-test", "(no detail available)", 60, 40, 0, 0)
 	if !strings.Contains(got, "no detail available") {
 		t.Error("RenderEpicDetail fallback message missing")
+	}
+}
+
+func TestRenderEpicDetail_tabIndicatorDetailActive(t *testing.T) {
+	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 0)
+	if !strings.Contains(got, "DETAIL [1]") {
+		t.Error("RenderEpicDetail tab=0: missing DETAIL [1] indicator")
+	}
+	if !strings.Contains(got, "AUDIT [2]") {
+		t.Error("RenderEpicDetail tab=0: missing AUDIT [2] indicator")
+	}
+}
+
+func TestRenderEpicDetail_tabIndicatorAuditActive(t *testing.T) {
+	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 1)
+	if !strings.Contains(got, "DETAIL [1]") {
+		t.Error("RenderEpicDetail tab=1: missing DETAIL [1] indicator")
+	}
+	if !strings.Contains(got, "AUDIT [2]") {
+		t.Error("RenderEpicDetail tab=1: missing AUDIT [2] indicator")
+	}
+}
+
+func TestRenderEpicAuditTab_header(t *testing.T) {
+	got := RenderEpicAuditTab("E06-test", "# Audit\n\n## Main Findings\nAll good.", 60, 40, 0, 1)
+	if !strings.Contains(got, "EPIC AUDIT") {
+		t.Error("RenderEpicAuditTab missing EPIC AUDIT header")
+	}
+}
+
+func TestRenderEpicAuditTab_noContent(t *testing.T) {
+	got := RenderEpicAuditTab("E06-test", "(no audit available)", 60, 40, 0, 1)
+	if !strings.Contains(got, "no audit available") {
+		t.Error("RenderEpicAuditTab fallback message missing")
+	}
+}
+
+func TestRenderEpicAuditTab_emptyContent(t *testing.T) {
+	got := RenderEpicAuditTab("E06-test", "", 60, 40, 0, 1)
+	if !strings.Contains(got, "no audit available") {
+		t.Error("RenderEpicAuditTab empty content should show fallback")
+	}
+}
+
+func TestRenderEpicAuditTab_stripsFrontmatter(t *testing.T) {
+	content := "---\ntype: audit\n---\n# E06 Audit\n\n## Main Findings\nLooks good."
+	got := RenderEpicAuditTab("E06-test", content, 60, 40, 0, 1)
+	if strings.Contains(got, "type: audit") {
+		t.Error("RenderEpicAuditTab should strip frontmatter")
+	}
+	if !strings.Contains(got, "EPIC AUDIT") {
+		t.Error("RenderEpicAuditTab missing header after frontmatter strip")
+	}
+}
+
+func TestRenderEpicAuditTab_checkboxDonePresent(t *testing.T) {
+	content := "## Code Style Review\n- [x] One job per file\n- [ ] One-sentence functions"
+	got := RenderEpicAuditTab("E06-test", content, 60, 40, 0, 1)
+	if !strings.Contains(got, "One job per file") {
+		t.Error("RenderEpicAuditTab missing done checkbox text")
+	}
+	if !strings.Contains(got, "One-sentence functions") {
+		t.Error("RenderEpicAuditTab missing undone checkbox text")
+	}
+}
+
+func TestRenderEpicAuditTab_scrollFooter(t *testing.T) {
+	got := RenderEpicAuditTab("E06-test", "# Audit", 60, 40, 0, 1)
+	if !strings.Contains(got, "esc:close") {
+		t.Error("RenderEpicAuditTab missing esc:close footer")
+	}
+}
+
+func TestRenderEpicAuditTab_tabIndicator(t *testing.T) {
+	got := RenderEpicAuditTab("E06-test", "# Audit", 60, 40, 0, 1)
+	if !strings.Contains(got, "DETAIL [1]") {
+		t.Error("RenderEpicAuditTab missing DETAIL [1] indicator")
+	}
+	if !strings.Contains(got, "AUDIT [2]") {
+		t.Error("RenderEpicAuditTab missing AUDIT [2] indicator")
+	}
+}
+
+func TestRenderEpicAuditTab_mainFindingsVisible(t *testing.T) {
+	content := "## Main Findings\nAudit summary is visible.\n\n## Proposed Changes\n### Target File\nAGENTS.md\n"
+	got := RenderEpicAuditTab("E06-test", content, 80, 50, 0, 1)
+	if !strings.Contains(got, "Audit summary is visible") {
+		t.Error("RenderEpicAuditTab should render Main Findings body")
+	}
+	if strings.Contains(got, "Target File") || strings.Contains(got, "AGENTS.md") {
+		t.Error("RenderEpicAuditTab should not render Proposed Changes admin blocks")
+	}
+}
+
+func TestRenderEpicAuditTab_qualityReviewHidden(t *testing.T) {
+	content := "## Quality Review\nOld quality section.\n\n## Code Style Review\n- [ ] One job per file\n"
+	got := RenderEpicAuditTab("E06-test", content, 80, 50, 0, 1)
+	if strings.Contains(got, "Old quality section") {
+		t.Error("RenderEpicAuditTab should not render superseded Quality Review section")
+	}
+	if !strings.Contains(got, "One job per file") {
+		t.Error("RenderEpicAuditTab should render Code Style Review")
+	}
+}
+
+func TestRenderEpicAuditTab_allCodeStyleRules(t *testing.T) {
+	rules := []string{
+		"One job per file",
+		"One-sentence functions",
+		"Test branches",
+		"Types are documentation",
+		"Build, don't speculate",
+		"Errors at boundaries",
+		"One source of truth",
+		"Comments explain WHY",
+		"Content in data files",
+		"Small diffs",
+	}
+	content := "## Code Style Review\n"
+	for _, r := range rules {
+		content += "- [ ] " + r + "\n"
+	}
+	got := RenderEpicAuditTab("E06-test", content, 80, 50, 0, 1)
+	for _, r := range rules {
+		if !strings.Contains(got, r) {
+			t.Errorf("RenderEpicAuditTab missing code style rule %q", r)
+		}
+	}
+}
+
+// TestView_epicAuditTabRendered verifies View() uses RenderEpicAuditTab when EpicDetailTab=1.
+func TestView_epicAuditTabRendered(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Width = 120
+	m.Height = 30
+	m.Epics = []string{"E06-audit-command"}
+	m.Overlay = OverlayEpicDetail
+	m.EpicDetailTab = 1
+	m.EpicAuditContent = "# Audit Findings: E06\n\n## Main Findings\nAll good.\n\n## Code Style Review\n- [x] One job per file\n"
+
+	got := m.View()
+	if !strings.Contains(got, "EPIC AUDIT") {
+		t.Error("View() with EpicDetailTab=1 missing EPIC AUDIT header")
+	}
+	if strings.Contains(got, "EPIC DETAIL") {
+		t.Error("View() with EpicDetailTab=1 should not render EPIC DETAIL header")
+	}
+}
+
+// TestAuditWorkflow_fullEndToEnd exercises the full audit workflow:
+// create E##-Audit.md on disk, open overlay, press 2, verify content loads and renders.
+func TestAuditWorkflow_fullEndToEnd(t *testing.T) {
+	root := t.TempDir()
+	epicSlug := "E06-audit-command"
+	epicDir := filepath.Join(root, "releases", "v1.1", "epics", epicSlug)
+	if err := os.MkdirAll(epicDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	auditContent := `---
+type: audit-findings
+audited: 2026-05-03
+---
+# Audit Findings: E06 Agent Audit + Audit Tab
+
+## Main Findings
+All acceptance criteria met.
+
+## Code Style Review
+- [x] One job per file
+- [x] One-sentence functions
+- [x] Test branches
+- [x] Types are documentation
+- [x] Build, don't speculate
+- [x] Errors at boundaries
+- [x] One source of truth
+- [x] Comments explain WHY
+- [x] Content in data files
+- [x] Small diffs
+`
+	if err := os.WriteFile(filepath.Join(epicDir, "E06-Audit.md"), []byte(auditContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tasks := []data.Task{
+		{ID: "E06-audit-command/T009-integration", Release: "v1.1", Epic: epicSlug, Column: data.ColumnPlanned},
+	}
+	m := NewModel(tasks, "v1.1", epicSlug)
+	m.Root = root
+	m.Epics = []string{epicSlug}
+	m.EpicPanelCursor = 0
+	m.Width = 120
+	m.Height = 40
+
+	// Open detail overlay (tab=0)
+	m.openEpicDetailOverlay()
+	if m.Overlay != OverlayEpicDetail {
+		t.Fatal("overlay not opened")
+	}
+	if m.EpicDetailTab != 0 {
+		t.Errorf("EpicDetailTab = %d, want 0 on open", m.EpicDetailTab)
+	}
+
+	// Press 2 → switch to audit tab, load content
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	updated := requireModel(t, got)
+
+	if updated.EpicDetailTab != 1 {
+		t.Errorf("EpicDetailTab = %d, want 1 after pressing 2", updated.EpicDetailTab)
+	}
+
+	msg := cmd()
+	got2, _ := updated.Update(msg)
+	updated2 := requireModel(t, got2)
+	if updated2.EpicAuditContent == "" || updated2.EpicAuditContent == "(no audit available)" {
+		t.Errorf("EpicAuditContent not loaded: %q", updated2.EpicAuditContent)
+	}
+
+	// Verify View() renders audit content
+	view := updated2.View()
+	if !strings.Contains(view, "EPIC AUDIT") {
+		t.Error("View() after tab switch missing EPIC AUDIT")
+	}
+	if !strings.Contains(view, "One job per file") {
+		t.Error("View() after tab switch missing code style rule")
+	}
+
+	// Press 1 → switch back to detail tab
+	got, _ = updated2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	updated = requireModel(t, got)
+	if updated.EpicDetailTab != 0 {
+		t.Errorf("EpicDetailTab = %d, want 0 after pressing 1", updated.EpicDetailTab)
+	}
+
+	// Press esc → overlay closes
+	got, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated = requireModel(t, got)
+	if updated.Overlay != OverlayNone {
+		t.Errorf("Overlay = %q, want none after esc", updated.Overlay)
+	}
+}
+
+func TestRenderEpicAuditTab_v11AuditFiles(t *testing.T) {
+	files := []struct {
+		path string
+		want string
+	}{
+		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E02-cross-platform-compatibility", "E02-Audit.md"), "cross-platform build work"},
+		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E03-ui-visual-refinement", "E03-Audit.md"), "visual refinement work"},
+		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E04-epic-navigation", "E04-Audit.md"), "wide-screen epic navigation"},
+		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E05-tasking-permissions", "E05-Audit.md"), "tasking-permissions shift"},
+		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E06-audit-command", "E06-Audit.md"), "agent-led"},
+	}
+
+	for _, tt := range files {
+		content, err := os.ReadFile(tt.path)
+		if err != nil {
+			t.Fatalf("read %s: %v", tt.path, err)
+		}
+		if !strings.Contains(string(content), tt.want) {
+			t.Fatalf("fixture %s missing %q", tt.path, tt.want)
+		}
+		got := RenderEpicAuditTab(filepath.Base(filepath.Dir(tt.path)), string(content), 80, 40, 0, 1)
+		if !strings.Contains(got, tt.want) {
+			t.Errorf("RenderEpicAuditTab(%s) missing %q", tt.path, tt.want)
+		}
+		if strings.Contains(got, "Target File") {
+			t.Errorf("RenderEpicAuditTab(%s) should not render Proposed Changes", tt.path)
+		}
 	}
 }

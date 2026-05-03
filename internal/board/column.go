@@ -88,9 +88,3 @@ func columnTitle(col data.ColumnType) string {
 	}
 }
 
-func taskLabel(t data.Task) string {
-	if t.Title == "" {
-		return t.ID
-	}
-	return fmt.Sprintf("%s  %s", t.ID, t.Title)
-}

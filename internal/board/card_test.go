@@ -198,7 +198,6 @@ func TestRenderCard_explicitStatusUsesUnifiedGlyph(t *testing.T) {
 		glyph  string
 	}{
 		{"planned", data.StatusPlanned, "○"},
-		{"in progress", data.StatusInProgress, "▶"},
 		{"done", data.StatusDone, "◉"},
 		{"audited", data.StatusAudited, "✓"},
 	}
@@ -214,5 +213,42 @@ func TestRenderCard_explicitStatusUsesUnifiedGlyph(t *testing.T) {
 				t.Errorf("RenderCard with status %q should not fall back to audit glyph", tt.status)
 			}
 		})
+	}
+}
+
+func TestRenderCard_inProgressShowsPhaseText(t *testing.T) {
+	tests := []struct {
+		name  string
+		stage data.ProgressStage
+		label string
+		glyph string
+	}{
+		{"build", data.StageBuild, "BUILD", glyphBuild},
+		{"test", data.StageTest, "TEST", glyphTest},
+		{"audit", data.StageAudit, "AUDIT", glyphAudit},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := data.Task{ID: "T1", Column: data.ColumnInProgress, Status: string(data.StatusInProgress), Stage: tt.stage}
+			got := RenderCard(task, 30, false, nil)
+			if !strings.Contains(got, tt.label) {
+				t.Errorf("RenderCard missing phase label %q", tt.label)
+			}
+			if !strings.Contains(got, tt.glyph) {
+				t.Errorf("RenderCard missing phase glyph %q", tt.glyph)
+			}
+			if strings.Contains(got, "▶") {
+				t.Error("RenderCard should not use generic in_progress glyph when phase is available")
+			}
+		})
+	}
+}
+
+func TestRenderCard_doneShowsDoneText(t *testing.T) {
+	task := data.Task{ID: "T1", Column: data.ColumnDone, Status: string(data.StatusDone)}
+	got := RenderCard(task, 30, false, nil)
+	if !strings.Contains(got, "DONE") {
+		t.Error("RenderCard missing DONE phase label")
 	}
 }

@@ -206,6 +206,79 @@ objective: "No phase yet"
 	}
 }
 
+func TestWriteTaskStatus_defaultsInProgressPhaseWhenStageMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E01/T010
+status: planned
+objective: "No phase yet"
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+
+	task := &Task{
+		ID:     "E01/T010",
+		Column: ColumnInProgress,
+	}
+
+	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+
+	if !strings.Contains(string(result), "phase: build") {
+		t.Error("phase field should default to build for in_progress writes")
+	}
+}
+
+func TestWriteTaskStatus_removesLegacyStageField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E01/T009
+status: in_progress
+stage: build
+phase: build
+objective: "Legacy mixed fields"
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:     "E01/T009",
+		Column: ColumnInProgress,
+		Stage:  StageTest,
+	}
+
+	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if strings.Contains(string(result), "stage:") {
+		t.Error("legacy stage field should be removed")
+	}
+	if !strings.Contains(string(result), "phase: test") {
+		t.Error("phase field should be updated to test")
+	}
+	parsed, err := NewParser().ParseTaskFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if parsed.Stage != StageTest {
+		t.Errorf("Stage = %q, want test", parsed.Stage)
+	}
+}
+
 func TestWriteTaskStatus_preservesBodyWithMultipleLines(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
@@ -405,6 +478,100 @@ next_action: "Do the thing"
 
 	if parsed.NextAction != "Do the thing" {
 		t.Errorf("NextAction = %q, want %q", parsed.NextAction, "Do the thing")
+	}
+}
+
+func TestApplyProposal_replacesText(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Design.md")
+	content := "# Architecture\n\nOld section text.\n\nMore content."
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ApplyProposal(path, "Old section text.", "New section text."); err != nil {
+		t.Fatalf("ApplyProposal() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if !strings.Contains(string(result), "New section text.") {
+		t.Error("replacement not applied")
+	}
+	if strings.Contains(string(result), "Old section text.") {
+		t.Error("old text still present")
+	}
+	if !strings.Contains(string(result), "More content.") {
+		t.Error("surrounding content not preserved")
+	}
+}
+
+func TestApplyProposal_missingTarget(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Design.md")
+	if err := os.WriteFile(path, []byte("some content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ApplyProposal(path, "not present", "replacement")
+	if err == nil {
+		t.Fatal("ApplyProposal() expected error for missing target")
+	}
+}
+
+func TestUpdateEpicStatus_setsStatusField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "E06-Detail.md")
+	content := "---\ntype: epic-design\nstatus: planned\n---\n\n# E06 Body"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := UpdateEpicStatus(path, "audited"); err != nil {
+		t.Fatalf("UpdateEpicStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if !strings.Contains(string(result), "status: audited") {
+		t.Error("status not updated to audited")
+	}
+	if !strings.Contains(string(result), "# E06 Body") {
+		t.Error("body not preserved")
+	}
+}
+
+func TestUpdateLastAudited_setsField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Design.md")
+	content := "---\ntype: project-design\nstatus: active\nlast_audited: v1.1/E05-tasking-permissions\n---\n\n# Body"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := UpdateLastAudited(path, "v1.1/E06-audit-command"); err != nil {
+		t.Fatalf("UpdateLastAudited() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if !strings.Contains(string(result), "last_audited: v1.1/E06-audit-command") {
+		t.Error("last_audited not updated")
+	}
+}
+
+func TestUpdateLastAudited_addsFieldIfMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Design.md")
+	content := "---\ntype: project-design\nstatus: active\n---\n\n# Body"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := UpdateLastAudited(path, "v1.1/E06-audit-command"); err != nil {
+		t.Fatalf("UpdateLastAudited() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if !strings.Contains(string(result), "last_audited: v1.1/E06-audit-command") {
+		t.Error("last_audited not added")
 	}
 }
 

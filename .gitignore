@@ -1,4 +1,7 @@
 dist/
+savepoint
+savepoint.exe
+*.zip
 node_modules/
 coverage/
 .DS_Store

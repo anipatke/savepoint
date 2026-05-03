@@ -28,7 +28,7 @@ last_audited: never
 ## 4. Status model & gates
 ## 5. Dependencies
 ## 6. CLI surface
-## 7. Audit pipeline
+## 7. Agent audit workflow
 ## 8. Testing strategy
 ## 9. Release versioning
 ```
@@ -41,3 +41,5 @@ last_audited: never
 4. **CLI surface is optional.** If the project has no CLI, state that explicitly.
 5. **Do not write epics or tasks.** The Design is architecture only.
 6. **Keep visual identity separate.** If the project has UI/TUI/theme concerns, note that `.savepoint/visual-identity.md` will carry them.
+7. **Audit is agent-led.** Do not design a `savepoint audit` CLI pipeline. The audit gate is performed by a fresh agent using the audit skill, producing one epic-local `E##-Audit.md` file.
+8. **Audit file structure is fixed.** `E##-Audit.md` user-facing sections are `## Main Findings` and `## Code Style Review`; file-specific replacement blocks belong under `## Proposed Changes` as admin/apply metadata and should not be rendered in the Epic Detail Audit tab.

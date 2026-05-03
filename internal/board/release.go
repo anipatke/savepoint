@@ -31,12 +31,4 @@ func RenderReleaseDropdown(releases []string, cursor int, width int) string {
 	return styles.EpicPanel.Width(width).Render(strings.Join(lines, "\n"))
 }
 
-// releaseIndex returns the index of selected in releases, or 0 if not found.
-func releaseIndex(releases []string, selected string) int {
-	for i, r := range releases {
-		if r == selected {
-			return i
-		}
-	}
-	return 0
-}
+

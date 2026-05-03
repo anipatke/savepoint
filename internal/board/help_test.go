@@ -22,6 +22,7 @@ func TestRenderHelp_containsShortcuts(t *testing.T) {
 		"enter",
 		"e",
 		"r",
+		"p",
 		"up / k",
 		"down / j",
 		"?",

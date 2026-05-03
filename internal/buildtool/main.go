@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"path/filepath"
 	"runtime"
 )
@@ -196,7 +197,7 @@ func version() string {
 	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
 	output, err := cmd.Output()
 	if err == nil && len(output) > 0 {
-		return string(trimSpace(output))
+		return strings.TrimSpace(string(output))
 	}
 	return "v0.0.0"
 }
@@ -208,12 +209,3 @@ func localExecutable() string {
 	return "savepoint"
 }
 
-func trimSpace(value []byte) []byte {
-	for len(value) > 0 && (value[len(value)-1] == '\n' || value[len(value)-1] == '\r' || value[len(value)-1] == '\t' || value[len(value)-1] == ' ') {
-		value = value[:len(value)-1]
-	}
-	for len(value) > 0 && (value[0] == '\n' || value[0] == '\r' || value[0] == '\t' || value[0] == ' ') {
-		value = value[1:]
-	}
-	return value
-}

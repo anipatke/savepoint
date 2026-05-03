@@ -26,6 +26,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Releases = append([]string(nil), msg.releases...)
 		m.ReleaseEpics = copyReleaseEpics(msg.releaseEpics)
 		m.EpicStatus = msg.epicStatuses
+		if msg.routerState != nil {
+			m.RouterState = msg.routerState
+			m.RouterTask = msg.routerState.Task
+		}
 		m.SelectedRelease = firstKnown(m.SelectedRelease, m.Releases)
 		m.refreshEpicsForRelease()
 		m.refreshTasks()
@@ -35,138 +39,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		if m.Overlay != OverlayNone {
-			return m.updateOverlay(msg)
+			return m.handleOverlay(msg)
 		}
-		switch msg.String() {
-		case "q", "ctrl+c":
-			if m.Watcher != nil {
-				m.Watcher.Close()
-			}
-			return m, tea.Quit
-		case "e":
-			m.Overlay = OverlayEpic
-			m.EpicCursor = epicIndex(m.Epics, m.SelectedEpic)
-			return m, nil
-		case "r":
-			m.Overlay = OverlayRelease
-			m.ReleaseCursor = releaseIndex(m.Releases, m.SelectedRelease)
-			return m, nil
-		case "?":
-			m.Overlay = OverlayHelp
-			return m, nil
-		case "m":
-			task, ok := m.focusedTask()
-			if !ok {
-				return m, nil
-			}
-			if taskDone(task) {
-				m.StatusMessage = "Router not updated: focused task is done"
-				return m, nil
-			}
-			if m.Root == "" {
-				m.StatusMessage = "Router not updated: no savepoint root"
-				return m, nil
-			}
-			message, err := m.writeRouterTask(task)
-			if err != nil {
-				m.StatusMessage = err.Error()
-				return m, nil
-			}
-			m.StatusMessage = message
-			return m, nil
-		}
-		if m.EpicPanelFocus {
-			if !m.epicPanelAvailable() {
-				m.EpicPanelFocus = false
-			} else {
-				return m.updateEpicPanel(msg)
-			}
-		}
-		switch msg.String() {
-		case "left", "h":
-			if m.FocusedColumn == data.ColumnPlanned && m.epicPanelAvailable() {
-				m.EpicPanelFocus = true
-				m.EpicPanelCursor = epicIndex(m.Epics, m.SelectedEpic)
-				m.StatusMessage = ""
-				return m, nil
-			}
-			m.FocusedColumn = prevColumn(m.FocusedColumn)
-			m.FocusedTask = 0
-			m.ensureFocusedTaskVisible()
-			m.StatusMessage = ""
-		case "right", "l":
-			m.FocusedColumn = nextColumn(m.FocusedColumn)
-			m.FocusedTask = 0
-			m.ensureFocusedTaskVisible()
-			m.StatusMessage = ""
-		case "up", "k":
-			if m.FocusedTask > 0 {
-				m.FocusedTask--
-			}
-			m.ensureFocusedTaskVisible()
-			m.StatusMessage = ""
-		case "down", "j":
-			if m.FocusedTask < len(m.Tasks[m.FocusedColumn])-1 {
-				m.FocusedTask++
-			}
-			m.ensureFocusedTaskVisible()
-			m.StatusMessage = ""
-		case "pgup":
-			m.scrollFocusedColumn(-m.columnPageSize())
-			m.StatusMessage = ""
-		case "pgdown":
-			m.scrollFocusedColumn(m.columnPageSize())
-			m.StatusMessage = ""
-		case "enter":
-			tasks := m.Tasks[m.FocusedColumn]
-			if len(tasks) > 0 && m.FocusedTask < len(tasks) {
-				m.Overlay = OverlayDetail
-				m.DetailOffset = 0
-			}
-			m.StatusMessage = ""
-		case " ":
-			tasks := m.Tasks[m.FocusedColumn]
-			if len(tasks) > 0 && m.FocusedTask < len(tasks) {
-				task := tasks[m.FocusedTask]
-				if ok, reason := CanAdvance(&task, m.AllTasks); !ok {
-					m.StatusMessage = reason
-				} else {
-					m.StatusMessage = ""
-					for i, t := range m.AllTasks {
-						if t.ID == task.ID {
-							Advance(&m.AllTasks[i])
-							if m.AllTasks[i].Path != "" {
-								if err := data.WriteTaskStatus(m.AllTasks[i].Path, &m.AllTasks[i], task.Mtime); err != nil && err != data.ErrMtimeConflict {
-									m.StatusMessage = err.Error()
-								}
-							}
-							break
-						}
-					}
-					m.refreshTasks()
-					m.ensureFocusedTaskVisible()
-				}
-			}
-		case "backspace":
-			tasks := m.Tasks[m.FocusedColumn]
-			if len(tasks) > 0 && m.FocusedTask < len(tasks) {
-				task := tasks[m.FocusedTask]
-				m.StatusMessage = ""
-				for i, t := range m.AllTasks {
-					if t.ID == task.ID {
-						Retreat(&m.AllTasks[i])
-						if m.AllTasks[i].Path != "" {
-							if err := data.WriteTaskStatus(m.AllTasks[i].Path, &m.AllTasks[i], task.Mtime); err != nil && err != data.ErrMtimeConflict {
-								m.StatusMessage = err.Error()
-							}
-						}
-						break
-					}
-				}
-				m.refreshTasks()
-				m.ensureFocusedTaskVisible()
-			}
-		}
+		return m.handleBoardKey(msg)
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
@@ -174,8 +49,313 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.EpicPanelFocus = false
 		}
 		m.ensureFocusedTaskVisible()
+	case routerWriteMsg:
+		m.StatusMessage = msg.message
+		m.RouterState = msg.state
+		m.RouterTask = msg.taskID
+	case taskWriteMsg:
+		for i, t := range m.AllTasks {
+			if t.ID == msg.next.ID {
+				m.AllTasks[i] = msg.next
+				break
+			}
+		}
+		m.StatusMessage = taskTransitionMessage(msg.prefix, msg.next)
+		m.refreshTasks()
+		m.ensureFocusedTaskVisible()
+	case epicDetailMsg:
+		m.EpicDetailContent = msg.content
+	case auditContentMsg:
+		m.EpicAuditContent = msg.content
+	case errorMsg:
+		m.StatusMessage = msg.message
 	}
 	return m, nil
+}
+
+func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.Overlay {
+	case OverlayHelp:
+		return m.handleHelpOverlay(msg)
+	case OverlayEpic:
+		return m.handleEpicOverlay(msg)
+	case OverlayRelease:
+		return m.handleReleaseOverlay(msg)
+	case OverlayDetail:
+		return m.handleDetailOverlay(msg)
+	case OverlayEpicDetail:
+		return m.handleEpicDetailOverlay(msg)
+	}
+	return m, nil
+}
+
+func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		if m.Watcher != nil {
+			m.Watcher.Close()
+		}
+		return m, tea.Quit
+	case "e":
+		m.Overlay = OverlayEpic
+		m.EpicCursor = sliceIndex(m.Epics, m.SelectedEpic)
+		return m, nil
+	case "r":
+		m.Overlay = OverlayRelease
+		m.ReleaseCursor = sliceIndex(m.Releases, m.SelectedRelease)
+		return m, nil
+	case "?":
+		m.Overlay = OverlayHelp
+		return m, nil
+	case "p":
+		task, ok := m.focusedTask()
+		if !ok {
+			return m, nil
+		}
+		if taskDone(task) {
+			m.StatusMessage = "Router not updated: focused task is done"
+			return m, nil
+		}
+		if m.Root == "" {
+			m.StatusMessage = "Router not updated: no savepoint root"
+			return m, nil
+		}
+		return m, writeRouterTaskCmd(m.Root, task)
+	}
+	if m.EpicPanelFocus {
+		if !m.epicPanelAvailable() {
+			m.EpicPanelFocus = false
+		} else {
+			return m.updateEpicPanel(msg)
+		}
+	}
+	switch msg.String() {
+	case "left", "h":
+		if m.FocusedColumn == data.ColumnPlanned && m.epicPanelAvailable() {
+			m.EpicPanelFocus = true
+			m.EpicPanelCursor = sliceIndex(m.Epics, m.SelectedEpic)
+			m.StatusMessage = ""
+			return m, nil
+		}
+		m.FocusedColumn = prevColumn(m.FocusedColumn)
+		m.FocusedTask = 0
+		m.ensureFocusedTaskVisible()
+		m.StatusMessage = ""
+	case "right", "l":
+		m.FocusedColumn = nextColumn(m.FocusedColumn)
+		m.FocusedTask = 0
+		m.ensureFocusedTaskVisible()
+		m.StatusMessage = ""
+	case "up", "k":
+		if m.FocusedTask > 0 {
+			m.FocusedTask--
+		}
+		m.ensureFocusedTaskVisible()
+		m.StatusMessage = ""
+	case "down", "j":
+		if m.FocusedTask < len(m.Tasks[m.FocusedColumn])-1 {
+			m.FocusedTask++
+		}
+		m.ensureFocusedTaskVisible()
+		m.StatusMessage = ""
+	case "pgup":
+		m.scrollFocusedColumn(-m.columnPageSize())
+		m.StatusMessage = ""
+	case "pgdown":
+		m.scrollFocusedColumn(m.columnPageSize())
+		m.StatusMessage = ""
+	case "enter":
+		tasks := m.Tasks[m.FocusedColumn]
+		if len(tasks) > 0 && m.FocusedTask < len(tasks) {
+			m.Overlay = OverlayDetail
+			m.DetailOffset = 0
+		}
+		m.StatusMessage = ""
+	case " ":
+		return m.handleAdvanceTask()
+	case "backspace":
+		return m.handleRetreatTask()
+	}
+	return m, nil
+}
+
+func (m Model) handleAdvanceTask() (tea.Model, tea.Cmd) {
+	tasks := m.Tasks[m.FocusedColumn]
+	if len(tasks) > 0 && m.FocusedTask < len(tasks) {
+		task := tasks[m.FocusedTask]
+		if ok, reason := CanAdvance(&task, m.AllTasks); !ok {
+			m.StatusMessage = reason
+			return m, nil
+		}
+		m.StatusMessage = ""
+		for i, t := range m.AllTasks {
+			if t.ID == task.ID {
+				next := m.AllTasks[i]
+				Advance(&next)
+				if next.Path != "" {
+					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved")
+				}
+				m.AllTasks[i] = next
+				m.StatusMessage = taskTransitionMessage("Moved", next)
+				break
+			}
+		}
+		m.refreshTasks()
+		m.ensureFocusedTaskVisible()
+	}
+	return m, nil
+}
+
+func (m Model) handleRetreatTask() (tea.Model, tea.Cmd) {
+	tasks := m.Tasks[m.FocusedColumn]
+	if len(tasks) > 0 && m.FocusedTask < len(tasks) {
+		task := tasks[m.FocusedTask]
+		m.StatusMessage = ""
+		for i, t := range m.AllTasks {
+			if t.ID == task.ID {
+				next := m.AllTasks[i]
+				Retreat(&next)
+				if next.Path != "" {
+					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved back")
+				}
+				m.AllTasks[i] = next
+				m.StatusMessage = taskTransitionMessage("Moved back", next)
+				break
+			}
+		}
+		m.refreshTasks()
+		m.ensureFocusedTaskVisible()
+	}
+	return m, nil
+}
+
+func (m Model) handleHelpOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	}
+	return m, nil
+}
+
+func (m Model) handleEpicOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "up", "k":
+		if m.EpicCursor > 0 {
+			m.EpicCursor--
+		}
+	case "down", "j":
+		if len(m.Epics) > 0 && m.EpicCursor < len(m.Epics)-1 {
+			m.EpicCursor++
+		}
+	case "enter":
+		if len(m.Epics) > 0 {
+			m.SelectedEpic = m.Epics[m.EpicCursor]
+			m.FocusedTask = 0
+			m.DetailOffset = 0
+			m.refreshTasks()
+			m.ensureFocusedTaskVisible()
+			m.Overlay = OverlayNone
+			if m.Root != "" {
+				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleReleaseOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "up", "k":
+		if m.ReleaseCursor > 0 {
+			m.ReleaseCursor--
+		}
+	case "down", "j":
+		if len(m.Releases) > 0 && m.ReleaseCursor < len(m.Releases)-1 {
+			m.ReleaseCursor++
+		}
+	case "enter":
+		if len(m.Releases) > 0 {
+			m.SelectedRelease = m.Releases[m.ReleaseCursor]
+			m.refreshEpicsForRelease()
+			m.FocusedTask = 0
+			m.DetailOffset = 0
+			m.refreshTasks()
+			m.ensureFocusedTaskVisible()
+			m.Overlay = OverlayNone
+			if m.Root != "" {
+				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "up", "k":
+		if m.DetailOffset > 0 {
+			m.DetailOffset--
+		}
+	case "down", "j":
+		m.DetailOffset++
+	case "pgup":
+		m.DetailOffset -= m.detailPageSize()
+		if m.DetailOffset < 0 {
+			m.DetailOffset = 0
+		}
+	case "pgdown":
+		m.DetailOffset += m.detailPageSize()
+	}
+	return m, nil
+}
+
+func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "1":
+		m.EpicDetailTab = 0
+		m.EpicDetailOffset = 0
+	case "2":
+		m.EpicDetailTab = 1
+		m.EpicDetailOffset = 0
+		if m.EpicAuditContent == "" {
+			epicSlug := m.epicDetailEpic()
+			shortEpicID := epicSlug
+			if idx := strings.Index(epicSlug, "-"); idx >= 0 {
+				shortEpicID = epicSlug[:idx]
+			}
+			epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
+			return m, readEpicAuditCmd(epicDir, shortEpicID)
+		}
+	case "up", "k":
+		if m.EpicDetailOffset > 0 {
+			m.EpicDetailOffset--
+		}
+	case "down", "j":
+		m.EpicDetailOffset++
+	case "pgup":
+		m.EpicDetailOffset -= m.detailPageSize()
+		if m.EpicDetailOffset < 0 {
+			m.EpicDetailOffset = 0
+		}
+	case "pgdown":
+		m.EpicDetailOffset += m.detailPageSize()
+	}
+	return m, nil
+}
+
+func taskWriteErrorMessage(err error) string {
+	if err == data.ErrMtimeConflict {
+		return "mtime conflict: refresh before retrying"
+	}
+	return err.Error()
 }
 
 func (m Model) updateEpicPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -189,29 +369,28 @@ func (m Model) updateEpicPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.EpicPanelCursor > 0 {
 			m.EpicPanelCursor--
-			m.selectEpicPanelEpic()
+			return m, m.selectEpicPanelEpic()
 		}
 	case "down", "j":
 		if m.EpicPanelCursor < len(m.Epics)-1 {
 			m.EpicPanelCursor++
-			m.selectEpicPanelEpic()
+			return m, m.selectEpicPanelEpic()
 		}
 	case "enter":
-		m.openEpicDetailOverlay()
+		return m, m.openEpicDetailOverlay()
 	case "right", "l":
 		m.EpicPanelFocus = false
 		m.FocusedColumn = data.ColumnPlanned
 		m.FocusedTask = 0
 		m.ensureFocusedTaskVisible()
 	case "left", "h":
-		// Stay in the panel; there is no focusable region further left.
 	}
 	return m, nil
 }
 
-func (m *Model) selectEpicPanelEpic() {
+func (m *Model) selectEpicPanelEpic() tea.Cmd {
 	if len(m.Epics) == 0 || m.EpicPanelCursor < 0 || m.EpicPanelCursor >= len(m.Epics) {
-		return
+		return nil
 	}
 	m.SelectedEpic = m.Epics[m.EpicPanelCursor]
 	m.FocusedTask = 0
@@ -219,15 +398,14 @@ func (m *Model) selectEpicPanelEpic() {
 	m.refreshTasks()
 	m.ensureFocusedTaskVisible()
 	if m.Root != "" {
-		if err := m.writeRouterReleaseEpic(); err != nil {
-			m.StatusMessage = err.Error()
-		}
+		return writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
 	}
+	return nil
 }
 
-func (m *Model) openEpicDetailOverlay() {
+func (m *Model) openEpicDetailOverlay() tea.Cmd {
 	if len(m.Epics) == 0 || m.EpicPanelCursor < 0 || m.EpicPanelCursor >= len(m.Epics) {
-		return
+		return nil
 	}
 	epicSlug := m.Epics[m.EpicPanelCursor]
 	shortEpicID := epicSlug
@@ -235,13 +413,14 @@ func (m *Model) openEpicDetailOverlay() {
 		shortEpicID = epicSlug[:idx]
 	}
 	epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
-	m.EpicDetailContent = readEpicDetailFile(epicDir, shortEpicID)
+	m.EpicDetailEpic = epicSlug
 	m.EpicDetailOffset = 0
+	m.EpicDetailTab = 0
+	m.EpicAuditContent = ""
 	m.Overlay = OverlayEpicDetail
+	return readEpicDetailCmd(epicDir, shortEpicID)
 }
 
-// readEpicDetailFile finds and reads the canonical detail file for an epic.
-// Tries E##-Detail.md then E##-Design.md; falls back to any E##-*.md in the dir.
 func readEpicDetailFile(epicDir, shortID string) string {
 	for _, suffix := range []string{"-Detail.md", "-Design.md"} {
 		if raw, err := os.ReadFile(filepath.Join(epicDir, shortID+suffix)); err == nil {
@@ -271,86 +450,17 @@ func copyReleaseEpics(in map[string][]string) map[string][]string {
 	return out
 }
 
-func (m Model) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q":
-		m.Overlay = OverlayNone
-	case "up", "k":
-		if m.Overlay == OverlayDetail && m.DetailOffset > 0 {
-			m.DetailOffset--
-		}
-		if m.Overlay == OverlayEpicDetail && m.EpicDetailOffset > 0 {
-			m.EpicDetailOffset--
-		}
-		if m.Overlay == OverlayEpic && m.EpicCursor > 0 {
-			m.EpicCursor--
-		}
-		if m.Overlay == OverlayRelease && m.ReleaseCursor > 0 {
-			m.ReleaseCursor--
-		}
-	case "down", "j":
-		if m.Overlay == OverlayDetail {
-			m.DetailOffset++
-		}
-		if m.Overlay == OverlayEpicDetail {
-			m.EpicDetailOffset++
-		}
-		if m.Overlay == OverlayEpic && len(m.Epics) > 0 && m.EpicCursor < len(m.Epics)-1 {
-			m.EpicCursor++
-		}
-		if m.Overlay == OverlayRelease && len(m.Releases) > 0 && m.ReleaseCursor < len(m.Releases)-1 {
-			m.ReleaseCursor++
-		}
-	case "enter":
-		if m.Overlay == OverlayEpic && len(m.Epics) > 0 {
-			m.SelectedEpic = m.Epics[m.EpicCursor]
-			m.FocusedTask = 0
-			m.DetailOffset = 0
-			m.refreshTasks()
-			m.ensureFocusedTaskVisible()
-			m.Overlay = OverlayNone
-			if m.Root != "" {
-				if err := m.writeRouterReleaseEpic(); err != nil {
-					m.StatusMessage = err.Error()
-				}
-			}
-		}
-		if m.Overlay == OverlayRelease && len(m.Releases) > 0 {
-			m.SelectedRelease = m.Releases[m.ReleaseCursor]
-			m.refreshEpicsForRelease()
-			m.FocusedTask = 0
-			m.DetailOffset = 0
-			m.refreshTasks()
-			m.ensureFocusedTaskVisible()
-			m.Overlay = OverlayNone
-			if m.Root != "" {
-				if err := m.writeRouterReleaseEpic(); err != nil {
-					m.StatusMessage = err.Error()
-				}
-			}
-		}
-	case "pgup":
-		if m.Overlay == OverlayDetail {
-			m.DetailOffset -= m.detailPageSize()
-			if m.DetailOffset < 0 {
-				m.DetailOffset = 0
-			}
-		}
-		if m.Overlay == OverlayEpicDetail {
-			m.EpicDetailOffset -= m.detailPageSize()
-			if m.EpicDetailOffset < 0 {
-				m.EpicDetailOffset = 0
-			}
-		}
-	case "pgdown":
-		if m.Overlay == OverlayDetail {
-			m.DetailOffset += m.detailPageSize()
-		}
-		if m.Overlay == OverlayEpicDetail {
-			m.EpicDetailOffset += m.detailPageSize()
-		}
+func (m Model) epicDetailEpic() string {
+	if m.EpicDetailEpic != "" {
+		return m.EpicDetailEpic
 	}
-	return m, nil
+	if m.SelectedEpic != "" {
+		return m.SelectedEpic
+	}
+	if len(m.Epics) > 0 && m.EpicPanelCursor >= 0 && m.EpicPanelCursor < len(m.Epics) {
+		return m.Epics[m.EpicPanelCursor]
+	}
+	return ""
 }
 
 func (m *Model) ensureFocusedTaskVisible() {

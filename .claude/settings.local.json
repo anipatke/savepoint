@@ -21,7 +21,18 @@
       "Bash(go doc *)",
       "Bash(make clean *)",
       "Bash(make build-linux *)",
-      "Bash(./savepoint_test_bin --version)"
+      "Bash(./savepoint_test_bin --version)",
+      "PowerShell(go run *)",
+      "Bash(go run *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Branding\\\\03-VIBE-LAB\\\\savepoint\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Branding\\\\03-VIBE-LAB\\\\savepoint\\\\.savepoint\\\\releases\\\\v1.1\\\\epics\\\\E08-board-command\" -Recurse -Filter \"*.md\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(cmd\")",
+      "PowerShell(go build *)",
+      "PowerShell(go test *)",
+      "PowerShell(cd \"C:\\\\Users\\\\User\\\\Branding\\\\03-VIBE-LAB\\\\savepoint\"; $files = @\\(\"agent-skills\\\\savepoint-create-task\\\\SKILL.md\", \"templates\\\\project\\\\agent-skills\\\\savepoint-create-task\\\\SKILL.md\"\\); foreach \\($f in $files\\) { $bytes = [System.IO.File]::ReadAllBytes\\($f\\); Write-Host \"$f first bytes: $\\($bytes[0..9] -join ','\\) \\(CRLF: $\\($bytes[3] -eq 13\\)\\)\" })",
+      "PowerShell(cd \"C:\\\\Users\\\\User\\\\Branding\\\\03-VIBE-LAB\\\\savepoint\"; $others = Get-ChildItem agent-skills -Recurse -Filter \"SKILL.md\" | Where-Object { $_.DirectoryName -notmatch \"savepoint-create-task\" }; foreach \\($f in $others\\) { $bytes = [System.IO.File]::ReadAllBytes\\($f.FullName\\); Write-Host \"$\\($f.Name\\) dir=$\\($f.Directory.Name\\) CRLF=$\\($bytes[3] -eq 13\\)\" })"
     ]
   }
 }

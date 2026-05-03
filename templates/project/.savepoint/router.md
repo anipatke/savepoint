@@ -27,11 +27,12 @@ next_action: "The project has its PRD and Design locked but no epics defined yet
 
 If the user explicitly asks you to audit an epic, perform the audit for that epic even if the router has not reached `state: audit-pending` yet.
 
-Persist the audit artifacts before replying:
+Persist the audit artifact before replying:
 
-- Ensure `.savepoint/audit/{E##-epic}/snapshot.md` exists. Create a manual snapshot once if needed.
-- Write the proposal bundle to `.savepoint/audit/{release}/{E##-epic}/proposals.md`.
-- Do not stop at chat-only findings. The filesystem artifact is part of the task output.
+- Write exactly one `.savepoint/releases/{release}/epics/{E##-epic}/E##-Audit.md`.
+- Include `## Main Findings`, `## Code Style Review`, and `## Proposed Changes`.
+- Keep file-specific `### Target File` / `### Replace` / `### With` blocks under `## Proposed Changes`.
+- Do not apply proposals or mark the epic audited until the user says `apply audit`.
 
 ## State → next action
 
@@ -102,12 +103,11 @@ The last task in an epic is `done`. Audit must run before the next epic starts.
 
 **Context gate:** If you just built this epic in the current session, you **must not** audit it. Close this session. The user should start a new session for the audit.
 
-**Next action (fresh session only):** Confirm `.savepoint/audit/{E##-epic}/snapshot.md` exists. If it is missing while the audit CLI is still unavailable, create one manual snapshot from the known epic scope once; do not search broadly for replacement inputs. Then read the snapshot, read the epic's `Design.md`, and read only the files listed as changed. Write one patch-shaped proposal bundle to `.savepoint/audit/{E##-epic}/proposals.md`:
+**Next action (fresh session only):** Read the epic's `E##-Detail.md`, task files, drift notes, `.savepoint/Design.md`, `AGENTS.md`, and scoped changed files. Write one epic-local audit file to `.savepoint/releases/{release}/epics/{E##-epic}/E##-Audit.md`:
 
-- `Design.md` section — merge only the epic delta into project architecture.
-- `AGENTS.md` section — refresh Codebase Map entries from changed-module metadata; preserve existing rows.
-- `epic-Design.md` section — add "Implemented as:" notes and deltas from the original plan.
-- `Quality Review` section — semantic-review findings against the 10 Code Style rules.
+- `## Main Findings` — user-facing AC verification, important drift, and notable risks.
+- `## Code Style Review` — checklist against the 10 AGENTS.md code style rules.
+- `## Proposed Changes` — admin/apply metadata using `### Target File`, `### Replace`, and `### With`.
 
 Prefer delta-only edits (`Insert After`, `Replace`, `Delete`) anchored to exact text. Do not quote and replace entire large sections unless the whole section genuinely changed.
 
@@ -139,7 +139,7 @@ Quality review section format:
 ## Already Fixed
 ```
 
-After proposals are approved, apply approved proposals to live files, mark the epic `Design.md` as `status: audited`, update project `Design.md` `last_audited`, refresh `AGENTS.md` Codebase Map, and advance this router to the next epic state.
+After proposals are approved, apply approved proposals to live files, mark the epic `E##-Detail.md` as `status: audited`, update project `Design.md` `last_audited`, refresh `AGENTS.md` Codebase Map if needed, and advance this router to the next epic state.
 
 Stop. The user reviews proposals in the TUI before commit actions.
 

@@ -46,7 +46,7 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		Epic:        firstNonEmpty(fields.Epic, extractEpicFromID(fields.ID)),
 		Release:     firstNonEmpty(fields.Release, "v1"),
 		Column:      normalizeColumn(rawColumn),
-		Stage:       firstStage(fields.Stage, fields.Phase),
+		Stage:       firstStage(fields.Phase, fields.Stage),
 		Priority:    fields.Priority,
 		Points:      fields.Points,
 		Tags:        fields.Tags,
@@ -59,6 +59,10 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 
 	if err := validateParsedTaskLifecycle(rawColumn, *task); err != nil {
 		return nil, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	if task.Column == ColumnInProgress && task.Stage == "" {
+		task.Stage = StageBuild
 	}
 
 	return task, nil
@@ -84,8 +88,13 @@ type taskFrontmatter struct {
 	Progress    Progress      `yaml:"progress"`
 }
 
+// normalizeLineEndings replaces Windows line endings with Unix line endings.
+func normalizeLineEndings(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
 func extractFrontmatter(content string) (string, error) {
-	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	normalized := normalizeLineEndings(content)
 	if !strings.HasPrefix(normalized, "---\n") {
 		return "", ErrNoFrontmatter
 	}
@@ -139,9 +148,15 @@ const legacyTodoColumn ColumnType = "todo"
 
 func validateParsedTaskLifecycle(rawColumn ColumnType, task Task) error {
 	if rawColumn != "" && rawColumn != legacyTodoColumn && !IsCanonicalColumn(rawColumn) {
-		return fmt.Errorf("invalid task status %q: use planned, in_progress, or done", rawColumn)
+		return fmt.Errorf("invalid task status %q: use planned, in_progress, or done. Add 'status: planned' or 'status: in_progress' to task frontmatter", rawColumn)
 	}
-	return ValidateTaskLifecycle(task)
+	if task.Column == ColumnInProgress && !IsCanonicalStage(task.Stage) && task.Stage != "" {
+		return fmt.Errorf("invalid phase %q: use build, test, or audit. Add 'phase: build' to task frontmatter", task.Stage)
+	}
+	if task.Column != ColumnInProgress && task.Stage != "" {
+		return nil
+	}
+	return nil
 }
 
 func firstStage(values ...ProgressStage) ProgressStage {
@@ -163,7 +178,7 @@ func firstList(values ...[]string) []string {
 }
 
 func extractChecklistItems(content, heading string) []CheckItem {
-	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	normalized := normalizeLineEndings(content)
 	start := strings.Index(normalized, heading)
 	if start == -1 {
 		return nil
@@ -201,7 +216,7 @@ func extractChecklistItems(content, heading string) []CheckItem {
 }
 
 func extractChecklistSection(content, heading string) []string {
-	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	normalized := normalizeLineEndings(content)
 	start := strings.Index(normalized, heading)
 	if start == -1 {
 		return nil

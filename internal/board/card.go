@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
 )
@@ -24,18 +25,20 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 		inner = 2
 	}
 
-	var glyph string
-	if t.Status != "" {
-		glyph = statusGlyph(t.Status)
-	} else if t.Column == data.ColumnDone {
-		glyph = styles.GlyphBuild.Render(glyphBuild)
-	} else if isRouterPriority(t, routerState) {
-		glyph = styles.TagDone.Render(glyphBuild)
-	} else {
-		glyph = phaseGlyphStyled(t.Stage)
+	glyph := taskGlyph(t, routerState)
+	phase := taskPhaseText(t)
+	idWidth := inner - 2
+	if phase != "" {
+		idWidth -= lipgloss.Width(phase) + 1
 	}
-	// glyph is 1 rune + 1 space prefix; leave room for "▣ "
-	idLine := fmt.Sprintf("%s %s", glyph, truncate(shortID(t.ID), inner-2))
+	if idWidth < 1 {
+		idWidth = 1
+	}
+
+	idLine := fmt.Sprintf("%s %s", glyph, truncate(shortID(t.ID), idWidth))
+	if phase != "" && lipgloss.Width(idLine)+1+lipgloss.Width(phase) <= inner {
+		idLine += " " + phase
+	}
 	titleLine := styles.CardMeta.Render(strings.Join(WrapText(t.Title, inner), "\n"))
 
 	content := idLine + "\n" + titleLine
@@ -44,6 +47,33 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 		return styles.CardFocused.Width(width).Render(content)
 	}
 	return styles.Card.Width(width).Render(content)
+}
+
+func taskGlyph(t data.Task, routerState *data.RouterState) string {
+	if t.Column == data.ColumnInProgress {
+		return phaseGlyphStyled(t.Stage)
+	}
+	if t.Column == data.ColumnDone {
+		return styles.GlyphBuild.Render(glyphBuild)
+	}
+	if isRouterPriority(t, routerState) {
+		return styles.TagDone.Render(glyphBuild)
+	}
+	if t.Status != "" {
+		return statusGlyph(t.Status)
+	}
+	return phaseGlyphStyled(t.Stage)
+}
+
+func taskPhaseText(t data.Task) string {
+	switch t.Column {
+	case data.ColumnInProgress:
+		return styles.CardMeta.Render(strings.ToUpper(phaseLabel(t.Stage)))
+	case data.ColumnDone:
+		return styles.CardMeta.Render("DONE")
+	default:
+		return ""
+	}
 }
 
 func phaseGlyphStyled(stage data.ProgressStage) string {
@@ -96,14 +126,4 @@ func shortID(id string) string {
 	return id
 }
 
-// truncate clips s to max runes, appending "…" if clipped.
-func truncate(s string, max int) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	if max <= 1 {
-		return "…"
-	}
-	return string(runes[:max-1]) + "…"
-}
+

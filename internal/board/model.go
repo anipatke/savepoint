@@ -1,9 +1,6 @@
 package board
 
 import (
-	"os"
-	"path/filepath"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
 	"github.com/opencode/savepoint/internal/data"
@@ -22,6 +19,7 @@ const (
 
 // Model holds all board state. Tasks are grouped by column for O(1) column access.
 type Model struct {
+	Theme             data.Theme
 	AllTasks          []data.Task
 	Tasks             map[data.ColumnType][]data.Task
 	FocusedColumn     data.ColumnType
@@ -35,7 +33,10 @@ type Model struct {
 	EpicPanelFocus    bool
 	EpicPanelCursor   int
 	EpicDetailOffset  int
+	EpicDetailEpic    string
 	EpicDetailContent string
+	EpicDetailTab     int    // 0=Detail, 1=Audit
+	EpicAuditContent  string // cached E##-Audit.md content
 	Releases          []string
 	ReleaseEpics      map[string][]string
 	ReleaseCursor     int
@@ -129,7 +130,7 @@ func (m *Model) refreshEpicsForRelease() {
 
 	for _, epic := range m.Epics {
 		if epic == m.SelectedEpic {
-			m.EpicCursor = epicIndex(m.Epics, m.SelectedEpic)
+			m.EpicCursor = sliceIndex(m.Epics, m.SelectedEpic)
 			m.clampEpicPanelCursor()
 			return
 		}
@@ -183,90 +184,6 @@ func (m *Model) clampColumnOffsets() {
 			m.ColumnOffsets[col] = len(tasks) - 1
 		}
 	}
-}
-
-func (m *Model) writeRouterReleaseEpic() error {
-	routerPath := filepath.Join(m.Root, "router.md")
-
-	fi, err := os.Stat(routerPath)
-	if err != nil {
-		return err
-	}
-
-	content, err := os.ReadFile(routerPath)
-	if err != nil {
-		return err
-	}
-
-	r := data.NewRouterReader()
-	state, err := r.ReadState(string(content))
-	if err != nil {
-		return err
-	}
-
-	state.Epic = shortID(m.SelectedEpic)
-	state.Release = m.SelectedRelease
-
-	return data.WriteRouterState(m.Root, state, fi.ModTime())
-}
-
-func (m *Model) writeRouterTask(task data.Task) (string, error) {
-	routerPath := filepath.Join(m.Root, "router.md")
-
-	fi, err := os.Stat(routerPath)
-	if err != nil {
-		return "", err
-	}
-
-	content, err := os.ReadFile(routerPath)
-	if err != nil {
-		return "", err
-	}
-
-	r := data.NewRouterReader()
-	state, err := r.ReadState(string(content))
-	if err != nil {
-		return "", err
-	}
-
-	state.Release = task.Release
-	state.Epic = task.Epic
-	if m.isLastUncompletedTask(task) {
-		state.State = "audit-pending"
-		state.Task = ""
-		state.NextAction = "Audit " + task.Epic + "."
-		if err := data.WriteRouterState(m.Root, state, fi.ModTime()); err != nil {
-			return "", err
-		}
-		m.RouterState = state
-		m.RouterTask = ""
-		return "Audit pending for " + task.Epic, nil
-	}
-
-	state.State = "task-building"
-	state.Task = task.ID
-	state.NextAction = "Build " + task.ID + "."
-	if err := data.WriteRouterState(m.Root, state, fi.ModTime()); err != nil {
-		return "", err
-	}
-	m.RouterState = state
-	m.RouterTask = task.ID
-	return "Router set to " + task.Release + " " + task.Epic + "/" + shortID(task.ID), nil
-}
-
-func (m Model) isLastUncompletedTask(task data.Task) bool {
-	for _, candidate := range m.AllTasks {
-		if candidate.ID == task.ID {
-			continue
-		}
-		if candidate.Release != task.Release || candidate.Epic != task.Epic {
-			continue
-		}
-		if !taskDone(candidate) {
-			return false
-		}
-	}
-	return true
 }
 
 func taskDone(task data.Task) bool {

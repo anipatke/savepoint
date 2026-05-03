@@ -16,8 +16,17 @@ type Theme struct {
 	Accents  map[string]string `yaml:"accents"`
 }
 
+type QualityGates struct {
+	Lint           *string `yaml:"lint"`
+	Typecheck      *string `yaml:"typecheck"`
+	Test           *string `yaml:"test"`
+	BlockOnFailure bool    `yaml:"block_on_failure"`
+	Timeout        string  `yaml:"gate_timeout"`
+}
+
 type Config struct {
-	Theme Theme `yaml:"theme"`
+	Theme         Theme         `yaml:"theme"`
+	QualityGates  QualityGates  `yaml:"quality_gates"`
 }
 
 var defaultTheme = Theme{
@@ -80,8 +89,13 @@ func fillThemeDefaults(theme Theme) Theme {
 	if theme.Text == "" {
 		theme.Text = defaultTheme.Text
 	}
-	if len(theme.Accents) == 0 {
-		theme.Accents = defaultTheme.Accents
+	if theme.Accents == nil {
+		theme.Accents = make(map[string]string)
+	}
+	for k, v := range defaultTheme.Accents {
+		if _, ok := theme.Accents[k]; !ok {
+			theme.Accents[k] = v
+		}
 	}
 	return theme
 }

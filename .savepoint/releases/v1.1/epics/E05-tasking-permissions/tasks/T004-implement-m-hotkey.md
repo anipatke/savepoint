@@ -2,7 +2,7 @@
 id: E05-tasking-permissions/T004-implement-m-hotkey
 status: done
 objective: "Implement TUI `m` hotkey that explicitly sets the router's task from the currently focused task"
-depends_on: ["E05-tasking-permissions/T002-update-router-md", "E05-tasking-permissions/T005-add-help-entry"]
+depends_on: ["E05-tasking-permissions/T002-update-router-md", "E05-tasking-permissions/T003-update-design-md"]
 ---
 
 # T004: Implement TUI `m` hotkey
@@ -86,3 +86,13 @@ Notes:
 - Closeout quality gate: `make build` failed because `make` is unavailable in this shell.
 - Closeout quality gate equivalent: `go run ./internal/buildtool build` passed.
 - Closeout quality gate equivalent: `go test ./...` passed.
+- 2026-05-02 r1.1 E05 T04 pass: task frontmatter set to `status: in_progress`, `phase: test`; router updated to active T004 task.
+- Dependency correction: replaced stale nonexistent `T005-add-help-entry` dependency with `T003-update-design-md`.
+- Focused test: `go test ./internal/board` passed.
+- Quality gate: `make build` failed because `make` is unavailable in this shell.
+- Quality gate equivalent: `go run ./internal/buildtool build` passed.
+- Quality gate equivalent: `go test ./...` passed.
+- Follow-up fix: `m` handler was updating `StatusMessage`, but the footer never rendered that message; `internal/board/view.go` now shows status feedback between the phase line and key hints.
+- Added regression coverage in `internal/board/view_test.go` for footer status rendering.
+- Focused test: `go test ./internal/board` passed after status rendering fix.
+- Quality gate equivalent: `go test ./...` passed after status rendering fix.

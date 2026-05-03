@@ -34,9 +34,9 @@ last_audited: never
 
 <!-- Commands and flags if applicable. -->
 
-## 7. Audit pipeline
+## 7. Agent audit workflow
 
-<!-- Steps the audit follows. -->
+<!-- Savepoint audit is agent-led and skill-driven, not a CLI pipeline. At epic close, a fresh audit agent writes one epic-local `E##-Audit.md` with exactly these user-facing sections: `## Main Findings` and `## Code Style Review`. File-specific `### Target File` / `### Replace` / `### With` blocks belong under a separate `## Proposed Changes` admin section so the TUI Audit tab can omit them. -->
 
 ## 8. Testing strategy
 

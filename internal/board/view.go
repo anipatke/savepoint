@@ -67,11 +67,13 @@ func (m Model) View() string {
 
 	if m.Overlay == OverlayEpicDetail {
 		ow := overlayWidth(w)
-		epicSlug := ""
-		if m.EpicPanelCursor >= 0 && m.EpicPanelCursor < len(m.Epics) {
-			epicSlug = m.Epics[m.EpicPanelCursor]
+		epicSlug := m.epicDetailEpic()
+		var detail string
+		if m.EpicDetailTab == 1 {
+			detail = RenderEpicAuditTab(epicSlug, m.EpicAuditContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
+		} else {
+			detail = RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
 		}
-		detail := RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset)
 		return overlayOnBase(dimLines(base), detail, w, h)
 	}
 
@@ -137,13 +139,13 @@ func FormatNextActivity(state *data.RouterState) string {
 	var s string
 	switch state.State {
 	case "task-building":
-		s = fmt.Sprintf("Build %s %s/%s", state.Release, shortRouterID(state.Epic), shortRouterID(state.Task))
+		s = fmt.Sprintf("Build %s %s/%s", state.Release, shortID(state.Epic), shortID(state.Task))
 	case "audit-pending":
-		s = fmt.Sprintf("Audit %s", shortRouterID(state.Epic))
+		s = fmt.Sprintf("Audit %s", shortID(state.Epic))
 	case "epic-design":
-		s = fmt.Sprintf("Design %s", shortRouterID(state.Epic))
+		s = fmt.Sprintf("Design %s", shortID(state.Epic))
 	case "epic-task-breakdown":
-		s = fmt.Sprintf("Plan %s", shortRouterID(state.Epic))
+		s = fmt.Sprintf("Plan %s", shortID(state.Epic))
 	case "pre-implementation":
 		s = fmt.Sprintf("Planning %s", state.Release)
 	default:
@@ -152,19 +154,7 @@ func FormatNextActivity(state *data.RouterState) string {
 	return xansi.Truncate(s, 20, "…")
 }
 
-// shortRouterID extracts the compact prefix from a full router slug.
-// "E01-tui-optimisation/T001-border-resize-fix" → "T001"
-// "E01-tui-optimisation" → "E01"
-func shortRouterID(full string) string {
-	part := full
-	if i := strings.LastIndex(full, "/"); i >= 0 {
-		part = full[i+1:]
-	}
-	if i := strings.Index(part, "-"); i >= 0 {
-		return part[:i]
-	}
-	return part
-}
+
 
 func (m Model) focusedTask() (data.Task, bool) {
 	tasks := m.Tasks[m.FocusedColumn]
@@ -291,9 +281,13 @@ func (m Model) renderFooter(termW int) string {
 			styles.FooterDivider.Render(" │ ")+
 			styles.FooterPhaseAudit.Render("AUDIT"),
 	)
-	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  E:epic  R:release  ?:help  q:quit"))
-	spacer := footerLine(termW, "")
-	return lipgloss.JoinVertical(lipgloss.Center, phase, spacer, hints)
+	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  p: Priority  R:release  ?:help  q:quit"))
+	status := ""
+	if m.StatusMessage != "" {
+		status = styles.StatusBar.Render(m.StatusMessage)
+	}
+	statusLine := footerLine(termW, status)
+	return lipgloss.JoinVertical(lipgloss.Center, phase, statusLine, hints)
 }
 
 func dividerLine(termW int) string {

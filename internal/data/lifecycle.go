@@ -2,17 +2,24 @@ package data
 
 import "fmt"
 
-func ValidateTaskLifecycle(task Task) error {
+func ValidateTaskLifecycle(task *Task) error {
 	if !IsCanonicalColumn(task.Column) {
-		return fmt.Errorf("invalid task status %q: use planned, in_progress, or done", task.Column)
+		return fmt.Errorf("invalid status %q: use planned, in_progress, or done. Add 'status: planned' or 'status: in_progress' to task frontmatter", task.Column)
 	}
 
-	if task.Column != ColumnInProgress && task.Stage != "" {
-		return fmt.Errorf("phase %q is only valid when status is in_progress", task.Stage)
+	if task.Column == ColumnInProgress {
+		if task.Stage == "" {
+			task.Stage = StageBuild
+			return nil
+		}
+		if !IsCanonicalStage(task.Stage) {
+			return fmt.Errorf("invalid phase %q: use build, test, or audit. Add 'phase: build' to task frontmatter", task.Stage)
+		}
+		return nil
 	}
 
-	if task.Column == ColumnInProgress && !IsCanonicalStage(task.Stage) {
-		return fmt.Errorf("invalid in_progress phase %q: use build, test, or audit", task.Stage)
+	if task.Stage != "" {
+		return fmt.Errorf("phase field %q is only valid when status is in_progress. Remove 'phase' or change status to in_progress", task.Stage)
 	}
 
 	return nil

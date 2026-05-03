@@ -1,6 +1,6 @@
 {
   "name": "savepoint",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "It’s a simple, file-based state machine and cinematic Terminal UI (TUI) designed to force you—and your agent (Claude, Cursor, Aider, Gemini)—to slow down, write down what you're actually building, and check your work before moving on.",
   "keywords": [
     "board",
@@ -21,6 +21,6 @@
     "savepoint": "./savepoint"
   },
   "scripts": {
-    "test": "savepoint init"
+    "test": "echo \"Run 'make test' for Go tests\""
   }
 }

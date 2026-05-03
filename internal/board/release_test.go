@@ -40,17 +40,17 @@ func TestRenderReleaseDropdown_hintsPresent(t *testing.T) {
 	}
 }
 
-func TestReleaseIndex_found(t *testing.T) {
+func TestSliceIndexRelease_found(t *testing.T) {
 	releases := []string{"v1", "v2", "v3"}
-	if got := releaseIndex(releases, "v2"); got != 1 {
-		t.Errorf("releaseIndex = %d, want 1", got)
+	if got := sliceIndex(releases, "v2"); got != 1 {
+		t.Errorf("sliceIndex = %d, want 1", got)
 	}
 }
 
-func TestReleaseIndex_notFound(t *testing.T) {
+func TestSliceIndexRelease_notFound(t *testing.T) {
 	releases := []string{"v1", "v2"}
-	if got := releaseIndex(releases, "v9"); got != 0 {
-		t.Errorf("releaseIndex = %d, want 0", got)
+	if got := sliceIndex(releases, "v9"); got != 0 {
+		t.Errorf("sliceIndex = %d, want 0", got)
 	}
 }
 

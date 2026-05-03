@@ -42,7 +42,7 @@ next_action: "test"
 	writeTask(t, savepointRoot, "v1", "E01-old", "T001-old", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v2", "E03-live", "T001-live", data.ColumnInProgress)
 
-	model, err := newProjectModel(projectRoot)
+	model, err := newProjectModel(projectRoot, "", "")
 	if err != nil {
 		t.Fatalf("newProjectModel() error = %v", err)
 	}
@@ -89,7 +89,7 @@ next_action: "test"
 `)
 	writeTaskWithoutRelease(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T001-border-resize-fix", data.ColumnInProgress)
 
-	model, err := newProjectModel(projectRoot)
+	model, err := newProjectModel(projectRoot, "", "")
 	if err != nil {
 		t.Fatalf("newProjectModel() error = %v", err)
 	}
@@ -127,7 +127,7 @@ next_action: "Build v1.1 E03/T001"
 	writeTask(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T007-column-focus-border-stability", data.ColumnInProgress)
 	writeTask(t, savepointRoot, "v1.1", "E03-ui-visual-refinement", "T001-border-resize-fix", data.ColumnInProgress)
 
-	model, err := newProjectModel(projectRoot)
+	model, err := newProjectModel(projectRoot, "", "")
 	if err != nil {
 		t.Fatalf("newProjectModel() error = %v", err)
 	}
