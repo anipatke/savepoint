@@ -9,8 +9,8 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
-func TestNewProgramModelUsesBoardCore(t *testing.T) {
-	m := newProgramModel()
+func TestNewModelUsesBoardCore(t *testing.T) {
+	m := NewModel(nil, "v1", "E03-board-tui-core")
 	m.Width = 100
 
 	got := m.View()

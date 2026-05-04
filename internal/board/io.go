@@ -9,7 +9,7 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
-func writeRouterTaskCmd(root string, task data.Task) tea.Cmd {
+func writeRouterTaskCmd(root string, task data.Task, reader routerReader) tea.Cmd {
 	return func() tea.Msg {
 		routerPath := filepath.Join(root, "router.md")
 		fi, err := os.Stat(routerPath)
@@ -20,8 +20,7 @@ func writeRouterTaskCmd(root string, task data.Task) tea.Cmd {
 		if err != nil {
 			return errorMsg{message: err.Error()}
 		}
-		r := data.NewRouterReader()
-		state, err := r.ReadState(string(content))
+		state, err := reader.ReadState(string(content))
 		if err != nil {
 			return errorMsg{message: err.Error()}
 		}
@@ -38,7 +37,7 @@ func writeRouterTaskCmd(root string, task data.Task) tea.Cmd {
 	}
 }
 
-func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string) tea.Cmd {
+func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string, reader routerReader) tea.Cmd {
 	return func() tea.Msg {
 		routerPath := filepath.Join(root, "router.md")
 		fi, err := os.Stat(routerPath)
@@ -49,8 +48,7 @@ func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string) tea.C
 		if err != nil {
 			return errorMsg{message: err.Error()}
 		}
-		r := data.NewRouterReader()
-		state, err := r.ReadState(string(content))
+		state, err := reader.ReadState(string(content))
 		if err != nil {
 			return errorMsg{message: err.Error()}
 		}

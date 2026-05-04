@@ -39,7 +39,8 @@ func CheckConfig(root string) error {
 
 // CheckRouter validates router.md: valid state name, release/epic directories exist.
 // epicFilter, if non-empty, skips directory checks when the router epic doesn't match.
-func CheckRouter(root, epicFilter string) error {
+func CheckRouter(root, epicFilter string, overrides ...DoctorDependencies) error {
+	deps := doctorDependencies(overrides)
 	routerPath := filepath.Join(root, "router.md")
 	raw, err := os.ReadFile(routerPath)
 	if os.IsNotExist(err) {
@@ -49,8 +50,7 @@ func CheckRouter(root, epicFilter string) error {
 		return fmt.Errorf("router.md unreadable: %w", err)
 	}
 
-	reader := data.NewRouterReader()
-	state, err := reader.ReadState(string(raw))
+	state, err := deps.RouterReader.ReadState(string(raw))
 	if err != nil {
 		return fmt.Errorf("router.md invalid state block: %w", err)
 	}
@@ -98,9 +98,9 @@ func (p Problem) Error() string {
 
 // CheckStructure validates release/epic/task structure and YAML across the project.
 // epicFilter, if non-empty, restricts checks to matching epics.
-func CheckStructure(root string, epicFilter string) []Problem {
+func CheckStructure(root string, epicFilter string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
 	var problems []Problem
-	d := data.NewDiscover()
 
 	releasesPath := filepath.Join(root, "releases")
 	if _, err := os.Stat(releasesPath); os.IsNotExist(err) {
@@ -108,7 +108,7 @@ func CheckStructure(root string, epicFilter string) []Problem {
 		return problems
 	}
 
-	releases, err := d.ListReleases(root)
+	releases, err := deps.Discoverer.ListReleases(root)
 	if err != nil {
 		problems = append(problems, Problem{File: releasesPath, Message: fmt.Sprintf("listing releases: %v", err)})
 		return problems
@@ -120,9 +120,9 @@ func CheckStructure(root string, epicFilter string) []Problem {
 	}
 
 	for _, release := range releases {
-		checkReleasePRD(release.Path, release.ID, &problems)
+		checkReleasePRD(release.Path, release.ID, deps.Parser, &problems)
 
-		epics, err := d.ListEpics(root, release.ID)
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			problems = append(problems, Problem{
 				File:    filepath.Join(release.Path, "epics"),
@@ -136,9 +136,9 @@ func CheckStructure(root string, epicFilter string) []Problem {
 				continue
 			}
 
-			checkEpicDetail(epic.Path, epic.ID, &problems)
+			checkEpicDetail(epic.Path, epic.ID, deps.Parser, &problems)
 
-			tasks, err := d.ListTasks(root, release.ID, epic.ID)
+			tasks, err := deps.Discoverer.ListTasks(root, release.ID, epic.ID)
 			if err != nil {
 				problems = append(problems, Problem{
 					File:    filepath.Join(epic.Path, "tasks"),
@@ -148,7 +148,7 @@ func CheckStructure(root string, epicFilter string) []Problem {
 			}
 
 			for _, task := range tasks {
-				checkTaskFile(task.Path, &problems)
+				checkTaskFile(task.Path, deps.Parser, &problems)
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func CheckStructure(root string, epicFilter string) []Problem {
 	return problems
 }
 
-func checkReleasePRD(releasePath string, releaseID string, problems *[]Problem) {
+func checkReleasePRD(releasePath string, releaseID string, parser taskParser, problems *[]Problem) {
 	prdPath := filepath.Join(releasePath, releaseID+"-PRD.md")
 	raw, err := os.ReadFile(prdPath)
 	if os.IsNotExist(err) {
@@ -167,10 +167,10 @@ func checkReleasePRD(releasePath string, releaseID string, problems *[]Problem) 
 		*problems = append(*problems, Problem{File: prdPath, Message: fmt.Sprintf("unreadable: %v", err)})
 		return
 	}
-	validateFrontmatter(prdPath, string(raw), problems)
+	validateFrontmatter(prdPath, string(raw), parser, problems)
 }
 
-func checkEpicDetail(epicPath string, epicID string, problems *[]Problem) {
+func checkEpicDetail(epicPath string, epicID string, parser taskParser, problems *[]Problem) {
 	prefix := extractPrefix(epicID)
 	detailPath := filepath.Join(epicPath, prefix+"-Detail.md")
 	raw, err := os.ReadFile(detailPath)
@@ -182,7 +182,7 @@ func checkEpicDetail(epicPath string, epicID string, problems *[]Problem) {
 		*problems = append(*problems, Problem{File: detailPath, Message: fmt.Sprintf("unreadable: %v", err)})
 		return
 	}
-	validateFrontmatter(detailPath, string(raw), problems)
+	validateFrontmatter(detailPath, string(raw), parser, problems)
 }
 
 func extractPrefix(epicID string) string {
@@ -192,7 +192,7 @@ func extractPrefix(epicID string) string {
 	return epicID
 }
 
-func checkTaskFile(path string, problems *[]Problem) {
+func checkTaskFile(path string, parser taskParser, problems *[]Problem) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("unreadable: %v", err)})
@@ -200,7 +200,6 @@ func checkTaskFile(path string, problems *[]Problem) {
 	}
 
 	content := string(raw)
-	parser := data.NewParser()
 	fm, err := parser.ParseFrontmatter(content)
 	if err != nil {
 		line := extractYAMLLine(err)
@@ -256,8 +255,7 @@ func hasAcceptanceCriteria(content string) bool {
 	return section != ""
 }
 
-func validateFrontmatter(path, content string, problems *[]Problem) {
-	parser := data.NewParser()
+func validateFrontmatter(path, content string, parser taskParser, problems *[]Problem) {
 	_, err := parser.ParseFrontmatter(content)
 	if err != nil {
 		line := extractYAMLLine(err)
@@ -275,11 +273,11 @@ type taskDep struct {
 // CheckDependencies validates task dependency integrity:
 // missing deps, duplicate IDs, and dependency cycles.
 // epicFilter restricts checks to matching epics if non-empty.
-func CheckDependencies(root string, epicFilter string) []Problem {
+func CheckDependencies(root string, epicFilter string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
 	var problems []Problem
-	d := data.NewDiscover()
 
-	releases, err := d.ListReleases(root)
+	releases, err := deps.Discoverer.ListReleases(root)
 	if err != nil {
 		problems = append(problems, Problem{Message: fmt.Sprintf("listing releases: %v", err)})
 		return problems
@@ -289,7 +287,7 @@ func CheckDependencies(root string, epicFilter string) []Problem {
 	idSet := make(map[string]string) // id -> first file seen
 
 	for _, release := range releases {
-		epics, err := d.ListEpics(root, release.ID)
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			continue
 		}
@@ -297,12 +295,12 @@ func CheckDependencies(root string, epicFilter string) []Problem {
 			if epicFilter != "" && epic.ID != epicFilter && !strings.HasPrefix(epic.ID, epicFilter) {
 				continue
 			}
-			tasks, err := d.ListTasks(root, release.ID, epic.ID)
+			tasks, err := deps.Discoverer.ListTasks(root, release.ID, epic.ID)
 			if err != nil {
 				continue
 			}
 			for _, t := range tasks {
-				td := parseTaskDep(t.Path)
+				td := parseTaskDep(t.Path, deps.Parser)
 				if td == nil {
 					continue
 				}
@@ -346,12 +344,11 @@ func CheckDependencies(root string, epicFilter string) []Problem {
 	return problems
 }
 
-func parseTaskDep(path string) *taskDep {
+func parseTaskDep(path string, parser taskParser) *taskDep {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
-	parser := data.NewParser()
 	fm, err := parser.ParseFrontmatter(string(raw))
 	if err != nil {
 		return nil
@@ -441,9 +438,9 @@ func detectCycles(graph map[string][]string, idToFile map[string]string) []Probl
 }
 
 // CheckAuditState finds audit proposal files without matching audit-pending state in the router.
-func CheckAuditState(root string) []Problem {
+func CheckAuditState(root string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
 	var problems []Problem
-	d := data.NewDiscover()
 
 	routerPath := filepath.Join(root, "router.md")
 	raw, err := os.ReadFile(routerPath)
@@ -451,19 +448,18 @@ func CheckAuditState(root string) []Problem {
 		return problems
 	}
 
-	reader := data.NewRouterReader()
-	state, err := reader.ReadState(string(raw))
+	state, err := deps.RouterReader.ReadState(string(raw))
 	if err != nil {
 		return problems
 	}
 
-	releases, err := d.ListReleases(root)
+	releases, err := deps.Discoverer.ListReleases(root)
 	if err != nil {
 		return problems
 	}
 
 	for _, release := range releases {
-		epics, err := d.ListEpics(root, release.ID)
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			continue
 		}
@@ -486,47 +482,42 @@ func CheckAuditState(root string) []Problem {
 }
 
 // CheckOrphans finds tasks whose epic prefix in their ID does not match any existing epic directory.
-func CheckOrphans(root string) []Problem {
+func CheckOrphans(root string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
 	var problems []Problem
 
 	existingEpics := make(map[string]bool)
 	releasesPath := filepath.Join(root, "releases")
-	rd, err := os.ReadDir(releasesPath)
+	releaseDirs, err := deps.Discoverer.ListRootDirs(releasesPath)
 	if err != nil {
 		problems = append(problems, Problem{File: releasesPath, Message: fmt.Sprintf("listing releases: %v", err)})
 		return problems
 	}
 
-	for _, releaseDir := range rd {
-		if !releaseDir.IsDir() {
-			continue
-		}
-		epicsPath := filepath.Join(releasesPath, releaseDir.Name(), "epics")
-		epicEntries, err := os.ReadDir(epicsPath)
+	for _, release := range releaseDirs {
+		epicsPath := filepath.Join(releasesPath, release, "epics")
+		epics, err := deps.Discoverer.ListRootDirs(epicsPath)
 		if err != nil {
 			continue
 		}
-		for _, e := range epicEntries {
-			if e.IsDir() {
-				existingEpics[e.Name()] = true
-			}
+		for _, epic := range epics {
+			existingEpics[epic] = true
 		}
 	}
 
 	// Collect all tasks and check their epic references
-	d := data.NewDiscover()
-	allReleases, err := d.ListReleases(root)
+	allReleases, err := deps.Discoverer.ListReleases(root)
 	if err != nil {
 		return problems
 	}
 
 	for _, release := range allReleases {
-		epics, err := d.ListEpics(root, release.ID)
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			continue
 		}
 		for _, epic := range epics {
-			tasks, err := d.ListTasks(root, release.ID, epic.ID)
+			tasks, err := deps.Discoverer.ListTasks(root, release.ID, epic.ID)
 			if err != nil {
 				continue
 			}
@@ -535,8 +526,7 @@ func CheckOrphans(root string) []Problem {
 				if err != nil {
 					continue
 				}
-				parser := data.NewParser()
-				fm, err := parser.ParseFrontmatter(string(raw))
+				fm, err := deps.Parser.ParseFrontmatter(string(raw))
 				if err != nil {
 					continue
 				}

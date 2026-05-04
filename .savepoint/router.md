@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: epic-design
+state: task-building
 release: v1.1
-epic: ""
-task: ""
-next_action: Plan next epic
+epic: E14-structural-improvements
+task: E14-structural-improvements/T005-shell-tokenization
+next_action: Build E14-structural-improvements/T005-shell-tokenization.
 ```
 
 ## State → action

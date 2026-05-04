@@ -19,7 +19,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fileChangeMsg:
 		if m.Root != "" {
-			return m, reloadTasks(m.Root)
+			return m, reloadTasks(m.Root, m.Dependencies)
 		}
 	case reloadMsg:
 		m.AllTasks = msg.tasks
@@ -120,7 +120,7 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.StatusMessage = "Router not updated: no savepoint root"
 			return m, nil
 		}
-		return m, writeRouterTaskCmd(m.Root, task)
+		return m, writeRouterTaskCmd(m.Root, task, m.Dependencies.RouterReader)
 	}
 	if m.EpicPanelFocus {
 		if !m.epicPanelAvailable() {
@@ -258,7 +258,7 @@ func (m Model) handleEpicOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureFocusedTaskVisible()
 			m.Overlay = OverlayNone
 			if m.Root != "" {
-				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
+				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease, m.Dependencies.RouterReader)
 			}
 		}
 	}
@@ -287,7 +287,7 @@ func (m Model) handleReleaseOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureFocusedTaskVisible()
 			m.Overlay = OverlayNone
 			if m.Root != "" {
-				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
+				return m, writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease, m.Dependencies.RouterReader)
 			}
 		}
 	}
@@ -398,7 +398,7 @@ func (m *Model) selectEpicPanelEpic() tea.Cmd {
 	m.refreshTasks()
 	m.ensureFocusedTaskVisible()
 	if m.Root != "" {
-		return writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease)
+		return writeRouterReleaseEpicCmd(m.Root, m.SelectedEpic, m.SelectedRelease, m.Dependencies.RouterReader)
 	}
 	return nil
 }

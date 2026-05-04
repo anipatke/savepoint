@@ -40,6 +40,43 @@ func TestListReleases(t *testing.T) {
 	}
 }
 
+func TestListRootDirs(t *testing.T) {
+	d := NewDiscover()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "beta"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "alpha"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs, err := d.ListRootDirs(root)
+	if err != nil {
+		t.Fatalf("ListRootDirs() error = %v", err)
+	}
+
+	if len(dirs) != 2 || dirs[0] != "alpha" || dirs[1] != "beta" {
+		t.Fatalf("ListRootDirs() = %v, want [alpha beta]", dirs)
+	}
+}
+
+func TestListRootDirsRejectsFile(t *testing.T) {
+	d := NewDiscover()
+	root := t.TempDir()
+	path := filepath.Join(root, "not-dir")
+	if err := os.WriteFile(path, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := d.ListRootDirs(path)
+	if err == nil {
+		t.Fatal("ListRootDirs() error = nil, want not directory error")
+	}
+}
+
 func TestListEpics(t *testing.T) {
 	d := NewDiscover()
 	root := createDiscoveryFixture(t)

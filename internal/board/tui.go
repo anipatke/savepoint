@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/opencode/savepoint/internal/data"
 )
 
 // RunTUI launches the Bubble Tea board with optional release/epic filters.
@@ -16,7 +15,7 @@ func RunTUI(release, epic string) error {
 		return err
 	}
 
-	cfg, err := data.NewConfigReader().Read(filepath.Join(model.Root, "config.yml"))
+	cfg, err := model.Dependencies.ConfigReader.Read(filepath.Join(model.Root, "config.yml"))
 	if err != nil {
 		return err
 	}

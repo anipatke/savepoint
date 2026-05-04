@@ -113,9 +113,19 @@ func RenderEpicAuditTab(epicSlug, content string, overlayW, maxHeight, offset in
 	return styles.EpicDetailOverlay.Width(overlayW).Render(strings.Join(lines, "\n"))
 }
 
-var allowedSections = map[string]bool{
-	"Main Findings":     true,
-	"Code Style Review": true,
+var epicAuditHiddenSectionHeadings = map[string]struct{}{
+	"12. Distribution & build": {},
+	"Acceptance Criteria":      {},
+	"Architectural notes":      {},
+	"Boundaries":               {},
+	"Context Files":            {},
+	"Implemented As":           {},
+	"Implemented as":           {},
+	"Implementation Plan":      {},
+	"Manual audit override":    {},
+	"Proposed Changes":         {},
+	"Quality Review":           {},
+	"With":                     {},
 }
 
 func epicAuditBody(content string, width int) []string {
@@ -126,18 +136,18 @@ func epicAuditBody(content string, width int) []string {
 	lines := stripFrontmatter(content)
 
 	var body []string
-	inAllowedSection := false
+	inHiddenSection := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimRight(line, " \t\r")
 		switch {
 		case strings.HasPrefix(trimmed, "## "):
 			sectionName := strings.TrimPrefix(trimmed, "## ")
-			inAllowedSection = allowedSections[sectionName]
-			if inAllowedSection {
+			_, inHiddenSection = epicAuditHiddenSectionHeadings[sectionName]
+			if !inHiddenSection {
 				body = append(body, "", styles.EpicItemFocused.Render(sectionName))
 			}
-		case !inAllowedSection:
+		case inHiddenSection:
 		case strings.HasPrefix(trimmed, "### "):
 			body = append(body, styles.EpicItemFocused.Render(strings.TrimPrefix(trimmed, "### ")))
 		case strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] "):
@@ -236,5 +246,3 @@ func RenderEpicDropdown(epics []string, cursor int, width int) string {
 	lines = append(lines, "", styles.CardMeta.Render("↑↓:nav  enter:select  esc:cancel"))
 	return styles.EpicPanel.Width(width).Render(strings.Join(lines, "\n"))
 }
-
-

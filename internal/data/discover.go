@@ -85,6 +85,32 @@ func (d *Discover) ListReleases(root string) ([]ReleaseInfo, error) {
 	return releases, nil
 }
 
+// ListRootDirs returns sorted child directory names directly under root.
+func (d *Discover) ListRootDirs(root string) ([]string, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", root)
+	}
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+
+	sort.Strings(dirs)
+	return dirs, nil
+}
+
 func (d *Discover) ListEpics(root, release string) ([]EpicInfo, error) {
 	epicsPath := filepath.Join(root, "releases", release, "epics")
 	info, err := os.Stat(epicsPath)

@@ -29,23 +29,24 @@ func runPlainOutput(release, epic string) error {
 	return nil
 }
 
-func newProgramModel() Model {
-	return NewModel(nil, "v1", "E03-board-tui-core")
+func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
+	return newProjectModelWithDependencies(start, releaseFilter, epicFilter, defaultModelDependencies())
 }
 
-func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
-	d := data.NewDiscover()
-	root, err := d.FindSavepointRoot(start)
+func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, deps ModelDependencies) (Model, error) {
+	deps = modelDependencies([]ModelDependencies{deps})
+
+	root, err := deps.Discoverer.FindSavepointRoot(start)
 	if err != nil {
 		return Model{}, err
 	}
 
-	routerState, err := readRouterState(root)
+	routerState, err := readRouterState(root, deps.RouterReader)
 	if err != nil {
 		return Model{}, err
 	}
 
-	tasks, releaseIDs, releaseEpics, epicStatuses, err := loadBoardData(root)
+	tasks, releaseIDs, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
 	if err != nil {
 		return Model{}, err
 	}
@@ -62,7 +63,7 @@ func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
 	release := firstKnown(preferredRelease, releaseIDs)
 	epic := firstKnown(preferredEpic, releaseEpics[release])
 
-	model := NewModel(tasks, release, epic)
+	model := NewModel(tasks, release, epic, deps)
 	model.Root = root
 	model.RouterTask = routerState.Task
 	model.RouterState = routerState
@@ -81,9 +82,8 @@ func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
 	return model, nil
 }
 
-func loadBoardData(root string) ([]data.Task, []string, map[string][]string, map[string]string, error) {
-	d := data.NewDiscover()
-	releases, err := d.ListReleases(root)
+func loadBoardData(root string, discoverer taskDiscoverer, parser taskParser) ([]data.Task, []string, map[string][]string, map[string]string, error) {
+	releases, err := discoverer.ListReleases(root)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -95,13 +95,13 @@ func loadBoardData(root string) ([]data.Task, []string, map[string][]string, map
 
 	for _, release := range releases {
 		releaseIDs = append(releaseIDs, release.ID)
-		epics, err := d.ListEpics(root, release.ID)
+		epics, err := discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
 		for _, epic := range epics {
 			releaseEpics[release.ID] = append(releaseEpics[release.ID], epic.ID)
-			epicTasks, err := loadEpicTasks(d, root, release.ID, epic.ID)
+			epicTasks, err := loadEpicTasks(discoverer, parser, root, release.ID, epic.ID)
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}
@@ -109,7 +109,6 @@ func loadBoardData(root string) ([]data.Task, []string, map[string][]string, map
 
 			detailPath := filepath.Join(epic.Path, shortID(epic.ID)+"-Detail.md")
 			if raw, err := os.ReadFile(detailPath); err == nil {
-				parser := data.NewParser()
 				if fm, err := parser.ParseFrontmatter(string(raw)); err == nil {
 					if status, ok := fm["status"].(string); ok {
 						epicStatuses[epic.ID] = status
@@ -122,27 +121,21 @@ func loadBoardData(root string) ([]data.Task, []string, map[string][]string, map
 	return tasks, releaseIDs, releaseEpics, epicStatuses, nil
 }
 
-func loadAllTasks(root string) ([]data.Task, error) {
-	tasks, _, _, _, err := loadBoardData(root)
-	return tasks, err
-}
-
-func readRouterState(root string) (*data.RouterState, error) {
+func readRouterState(root string, reader routerReader) (*data.RouterState, error) {
 	content, err := os.ReadFile(filepath.Join(root, "router.md"))
 	if err != nil {
 		return nil, err
 	}
 
-	return data.NewRouterReader().ReadState(string(content))
+	return reader.ReadState(string(content))
 }
 
-func loadEpicTasks(d *data.Discover, root, release, epic string) ([]data.Task, error) {
-	taskInfos, err := d.ListTasks(root, release, epic)
+func loadEpicTasks(discoverer taskDiscoverer, parser taskParser, root, release, epic string) ([]data.Task, error) {
+	taskInfos, err := discoverer.ListTasks(root, release, epic)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := data.NewParser()
 	tasks := make([]data.Task, 0, len(taskInfos))
 	for _, taskInfo := range taskInfos {
 		content, err := os.ReadFile(taskInfo.Path)

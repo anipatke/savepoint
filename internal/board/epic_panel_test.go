@@ -687,6 +687,17 @@ func TestRenderEpicAuditTab_qualityReviewHidden(t *testing.T) {
 	}
 }
 
+func TestRenderEpicAuditTab_hiddenHeadingsRequireExactMatch(t *testing.T) {
+	content := "## Proposed Changes Appendix\nNear-match section is visible.\n\n## Proposed Changes\nHidden admin section.\n"
+	got := RenderEpicAuditTab("E06-test", content, 80, 50, 0, 1)
+	if !strings.Contains(got, "Near-match section is visible") {
+		t.Error("RenderEpicAuditTab should render headings that only partially match hidden headings")
+	}
+	if strings.Contains(got, "Hidden admin section") {
+		t.Error("RenderEpicAuditTab should hide exact Proposed Changes section")
+	}
+}
+
 func TestRenderEpicAuditTab_allCodeStyleRules(t *testing.T) {
 	rules := []string{
 		"One job per file",
@@ -850,6 +861,9 @@ func TestRenderEpicAuditTab_v11AuditFiles(t *testing.T) {
 		}
 		if strings.Contains(got, "Target File") {
 			t.Errorf("RenderEpicAuditTab(%s) should not render Proposed Changes", tt.path)
+		}
+		if strings.Contains(got, "Boundaries") || strings.Contains(got, "Implemented as") || strings.Contains(got, "Implemented As") {
+			t.Errorf("RenderEpicAuditTab(%s) should only render visible audit sections", tt.path)
 		}
 	}
 }

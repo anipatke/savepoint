@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/opencode/savepoint/internal/data"
 )
 
 // GateResult holds the outcome of a single quality gate.
@@ -22,10 +20,10 @@ type GateResult struct {
 }
 
 // RunQualityGates executes configured quality gates (lint, typecheck, test).
-func RunQualityGates(root string) []GateResult {
+func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult {
+	deps := doctorDependencies(overrides)
 	configPath := filepath.Join(root, "config.yml")
-	reader := data.NewConfigReader()
-	cfg, err := reader.Read(configPath)
+	cfg, err := deps.ConfigReader.Read(configPath)
 	if err != nil {
 		return []GateResult{{
 			Name:    "config",

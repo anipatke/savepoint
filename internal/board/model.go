@@ -17,17 +17,37 @@ const (
 	OverlayEpicDetail OverlayType = "detail-epic"
 )
 
-// Model holds all board state. Tasks are grouped by column for O(1) column access.
-type Model struct {
-	Theme             data.Theme
-	AllTasks          []data.Task
-	Tasks             map[data.ColumnType][]data.Task
-	FocusedColumn     data.ColumnType
-	FocusedTask       int
-	ColumnOffsets     map[data.ColumnType]int
-	DetailOffset      int
+// ViewConfig holds terminal and overlay presentation state.
+type ViewConfig struct {
+	Theme         data.Theme
+	Overlay       OverlayType
+	Width         int
+	Height        int
+	StatusMessage string
+}
+
+// DataState holds task, router, and filesystem state used by the board.
+type DataState struct {
+	AllTasks    []data.Task
+	Tasks       map[data.ColumnType][]data.Task
+	Root        string
+	EpicStatus  map[string]string
+	RouterTask  string
+	RouterState *data.RouterState
+	Watcher     *fsnotify.Watcher
+}
+
+// NavigationState holds board-column and detail scrolling state.
+type NavigationState struct {
+	FocusedColumn data.ColumnType
+	FocusedTask   int
+	ColumnOffsets map[data.ColumnType]int
+	DetailOffset  int
+}
+
+// EpicState holds epic list, sidebar, and detail overlay state.
+type EpicState struct {
 	SelectedEpic      string
-	SelectedRelease   string
 	Epics             []string
 	EpicCursor        int
 	EpicPanelFocus    bool
@@ -37,30 +57,54 @@ type Model struct {
 	EpicDetailContent string
 	EpicDetailTab     int    // 0=Detail, 1=Audit
 	EpicAuditContent  string // cached E##-Audit.md content
-	Releases          []string
-	ReleaseEpics      map[string][]string
-	ReleaseCursor     int
-	Overlay           OverlayType
-	Width             int
-	Height            int
-	StatusMessage     string
-	Root              string
-	EpicStatus        map[string]string
-	RouterTask        string
-	RouterState       *data.RouterState
-	Watcher           *fsnotify.Watcher
+}
+
+// ReleaseState holds release list and release picker state.
+type ReleaseState struct {
+	SelectedRelease string
+	Releases        []string
+	ReleaseEpics    map[string][]string
+	ReleaseCursor   int
+}
+
+// DataAccessState holds board data-access implementations.
+type DataAccessState struct {
+	Dependencies ModelDependencies
+}
+
+// Model holds all board state. Tasks are grouped by column for O(1) column access.
+type Model struct {
+	ViewConfig
+	DataState
+	NavigationState
+	EpicState
+	ReleaseState
+	DataAccessState
 }
 
 // NewModel groups tasks by column and returns an initialized Model.
-func NewModel(tasks []data.Task, release, epic string) Model {
+func NewModel(tasks []data.Task, release, epic string, deps ...ModelDependencies) Model {
 	m := Model{
-		AllTasks:        append([]data.Task(nil), tasks...),
-		FocusedColumn:   data.ColumnPlanned,
-		FocusedTask:     0,
-		ColumnOffsets:   newColumnOffsets(),
-		SelectedEpic:    epic,
-		SelectedRelease: release,
-		Overlay:         OverlayNone,
+		ViewConfig: ViewConfig{
+			Overlay: OverlayNone,
+		},
+		DataState: DataState{
+			AllTasks: append([]data.Task(nil), tasks...),
+		},
+		NavigationState: NavigationState{
+			FocusedColumn: data.ColumnPlanned,
+			FocusedTask:   0,
+			ColumnOffsets: newColumnOffsets(),
+		},
+		EpicState: EpicState{
+			SelectedEpic: epic,
+		},
+		ReleaseState: ReleaseState{
+			SelectedRelease: release,
+		},
+		DataAccessState: DataAccessState{
+			Dependencies: modelDependencies(deps),
+		},
 	}
 	m.refreshTasks()
 	return m

@@ -77,13 +77,13 @@ func watchFiles(w *fsnotify.Watcher) tea.Cmd {
 	}
 }
 
-func reloadTasks(root string) tea.Cmd {
+func reloadTasks(root string, deps ModelDependencies) tea.Cmd {
 	return func() tea.Msg {
-		tasks, releases, releaseEpics, epicStatuses, err := loadBoardData(root)
+		tasks, releases, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
 		if err != nil {
 			return errorMsg{message: "reload failed: " + err.Error()}
 		}
-		routerState, _ := readRouterState(root)
+		routerState, _ := readRouterState(root, deps.RouterReader)
 		return reloadMsg{tasks: tasks, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState}
 	}
 }
