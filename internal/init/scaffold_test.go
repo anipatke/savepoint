@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestScaffold_createsDirectories(t *testing.T) {
@@ -94,9 +96,7 @@ func TestScaffold_createsParentDirs(t *testing.T) {
 func TestScaffold_overwritesWithForce(t *testing.T) {
 	target := t.TempDir()
 	existingPath := filepath.Join(target, "file.txt")
-	if err := os.WriteFile(existingPath, []byte("old"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, existingPath, "old")
 
 	templates := fstest.MapFS{
 		"file.txt": &fstest.MapFile{Data: []byte("new")},
@@ -118,9 +118,7 @@ func TestScaffold_overwritesWithForce(t *testing.T) {
 func TestScaffold_overwritesExistingAfterValidation(t *testing.T) {
 	target := t.TempDir()
 	existingPath := filepath.Join(target, "file.txt")
-	if err := os.WriteFile(existingPath, []byte("old"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, existingPath, "old")
 
 	templates := fstest.MapFS{
 		"file.txt": &fstest.MapFile{Data: []byte("new")},

@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E14: Phase 2 — Structural Improvements
@@ -44,3 +44,11 @@ Address the remaining Phase 2 findings from the consolidated codebase audit (Opu
 **Out of scope:**
 - New UI features or commands
 - Audit Phase 3 hardening items (separate epic E15)
+
+## Implemented As
+
+- `Model` grouping landed as embedded state structs in `internal/board/model.go`, preserving existing call sites while separating view, data, navigation, epic, release, and data-access state.
+- Consumer-side interfaces landed in `internal/board/interfaces.go` and `internal/doctor/interfaces.go`; concrete `internal/data` types satisfy them without data-layer changes.
+- `TaskStatus` was removed. `ColumnType` is the canonical task lifecycle type, while `data.Task.Status` remains a string mirror for parsed frontmatter and board glyph compatibility.
+- `internal/testutil` was added for shared test filesystem and fixture helpers across board, doctor, data, and init tests.
+- Audit closeout preserved empty quoted shell arguments in `splitCommand` and advanced the router to `E15-hardening`.

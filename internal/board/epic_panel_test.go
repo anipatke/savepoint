@@ -11,21 +11,21 @@ import (
 )
 
 func TestRenderEpicSidebar_containsEpicsHeader(t *testing.T) {
-	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, false, 0, nil)
+	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, false, 0, nil, 999)
 	if !strings.Contains(got, "EPICS") {
 		t.Error("RenderEpicSidebar missing EPICS header")
 	}
 }
 
 func TestRenderEpicSidebar_activeEpicMarked(t *testing.T) {
-	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, false, 0, nil)
+	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, false, 0, nil, 999)
 	if !strings.Contains(got, epicActiveMarker) {
 		t.Errorf("RenderEpicSidebar missing active marker %q", epicActiveMarker)
 	}
 }
 
 func TestRenderEpicSidebar_focusedCursorMarked(t *testing.T) {
-	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, true, 1, nil)
+	got := RenderEpicSidebar([]string{"E01", "E02"}, "E01", 28, true, 1, nil, 999)
 	if !strings.Contains(got, epicActiveMarker+"   E02") {
 		t.Errorf("RenderEpicSidebar focused cursor missing marker, got %q", got)
 	}
@@ -33,7 +33,7 @@ func TestRenderEpicSidebar_focusedCursorMarked(t *testing.T) {
 
 func TestRenderEpicSidebar_allEpicsPresent(t *testing.T) {
 	epics := []string{"E01-foo", "E02-bar", "E03-baz"}
-	got := RenderEpicSidebar(epics, "E01-foo", 32, false, 0, nil)
+	got := RenderEpicSidebar(epics, "E01-foo", 32, false, 0, nil, 999)
 	for _, e := range epics {
 		if !strings.Contains(got, e) {
 			t.Errorf("RenderEpicSidebar missing epic %q", e)
@@ -42,14 +42,14 @@ func TestRenderEpicSidebar_allEpicsPresent(t *testing.T) {
 }
 
 func TestRenderEpicSidebar_emptyEpicsFallback(t *testing.T) {
-	got := RenderEpicSidebar(nil, "E03", 28, false, 0, nil)
+	got := RenderEpicSidebar(nil, "E03", 28, false, 0, nil, 999)
 	if !strings.Contains(got, "E03") {
 		t.Error("RenderEpicSidebar with empty list should show selected epic")
 	}
 }
 
 func TestRenderEpicSidebar_emptyBothShowsNone(t *testing.T) {
-	got := RenderEpicSidebar(nil, "", 28, false, 0, nil)
+	got := RenderEpicSidebar(nil, "", 28, false, 0, nil, 999)
 	if !strings.Contains(got, "(none)") {
 		t.Error("RenderEpicSidebar with no epics and no selected should show (none)")
 	}

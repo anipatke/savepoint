@@ -1,18 +1,17 @@
 package data
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestFindSavepointRoot(t *testing.T) {
 	d := NewDiscover()
 	savepointRoot := createDiscoveryFixture(t)
 	start := filepath.Join(filepath.Dir(savepointRoot), "nested", "child")
-	if err := os.MkdirAll(start, 0755); err != nil {
-		t.Fatal(err)
-	}
+	testutil.MkdirAll(t, start)
 
 	root, err := d.FindSavepointRoot(start)
 	if err != nil {
@@ -43,15 +42,9 @@ func TestListReleases(t *testing.T) {
 func TestListRootDirs(t *testing.T) {
 	d := NewDiscover()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "beta"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, "alpha"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("test"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.MkdirAll(t, filepath.Join(root, "beta"))
+	testutil.MkdirAll(t, filepath.Join(root, "alpha"))
+	testutil.WriteFile(t, filepath.Join(root, "notes.txt"), "test")
 
 	dirs, err := d.ListRootDirs(root)
 	if err != nil {
@@ -67,9 +60,7 @@ func TestListRootDirsRejectsFile(t *testing.T) {
 	d := NewDiscover()
 	root := t.TempDir()
 	path := filepath.Join(root, "not-dir")
-	if err := os.WriteFile(path, []byte("test"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, path, "test")
 
 	_, err := d.ListRootDirs(path)
 	if err == nil {
@@ -123,9 +114,7 @@ func createDiscoveryFixture(t *testing.T) string {
 		filepath.Join(savepointRoot, "releases", "v2", "epics"),
 	}
 	for _, path := range paths {
-		if err := os.MkdirAll(path, 0755); err != nil {
-			t.Fatal(err)
-		}
+		testutil.MkdirAll(t, path)
 	}
 
 	files := []string{
@@ -134,9 +123,7 @@ func createDiscoveryFixture(t *testing.T) string {
 		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "notes.txt"),
 	}
 	for _, file := range files {
-		if err := os.WriteFile(file, []byte("test"), 0644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteFile(t, file, "test")
 	}
 
 	return savepointRoot

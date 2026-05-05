@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func runInitPipeline(t *testing.T, dir string, force bool) string {
@@ -94,9 +96,7 @@ func TestIntegration_CompatibleProject(t *testing.T) {
 	dir := t.TempDir()
 
 	for _, name := range []string{"package.json", ".git", "README.md"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte{}, 0644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteFile(t, filepath.Join(dir, name), "")
 	}
 
 	prompt := runInitPipeline(t, dir, false)
@@ -163,9 +163,7 @@ func TestIntegration_InstallDependencies(t *testing.T) {
 	dir := t.TempDir()
 
 	packageJSON := filepath.Join(dir, "package.json")
-	if err := os.WriteFile(packageJSON, []byte(`{"name":"test","version":"0.0.0"}`), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, packageJSON, `{"name":"test","version":"0.0.0"}`)
 
 	if err := ValidateTarget(dir, false); err != nil {
 		t.Fatal(err)

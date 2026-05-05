@@ -28,17 +28,54 @@ func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offs
 	if len(tasks) == 0 {
 		lines = append(lines, styles.TaskItem.Render("(empty)"))
 	} else {
-		limit := visibleColumnTaskLimit(maxHeight)
-		end := min(offset+limit, len(tasks))
+		contentBudget := maxHeight - 2
+		if contentBudget < 1 {
+			contentBudget = 1
+		}
+
+		reserveAbove := 0
+		if offset > 0 {
+			reserveAbove = 1
+		}
+
+		type cardEntry struct {
+			card  string
+			lines int
+		}
+		cardEntries := make([]cardEntry, 0, len(tasks)-offset)
+		for i := offset; i < len(tasks); i++ {
+			c := RenderCard(tasks[i], inner, focused && i == focusedTask, routerState)
+			cardEntries = append(cardEntries, cardEntry{card: c, lines: strings.Count(c, "\n") + 1})
+		}
+
+		usedLines := reserveAbove
+		endIdx := 0
+		for endIdx < len(cardEntries) {
+			needsMore := endIdx < len(cardEntries)-1
+			bottomReserve := 0
+			if needsMore {
+				bottomReserve = 1
+			}
+			if usedLines+cardEntries[endIdx].lines+bottomReserve > contentBudget {
+				break
+			}
+			usedLines += cardEntries[endIdx].lines
+			endIdx++
+		}
+
+		if endIdx == 0 && len(cardEntries) > 0 {
+			endIdx = 1
+		}
+
 		if offset > 0 {
 			lines = append(lines, renderScrollIndicator("↑", offset, "above"))
 		}
-		for i, t := range tasks[offset:end] {
-			taskIndex := offset + i
-			lines = append(lines, RenderCard(t, inner, focused && taskIndex == focusedTask, routerState))
+		for i := 0; i < endIdx; i++ {
+			lines = append(lines, cardEntries[i].card)
 		}
-		if end < len(tasks) {
-			lines = append(lines, renderScrollIndicator("↓", len(tasks)-end, "more"))
+		if endIdx < len(cardEntries) {
+			remaining := len(tasks) - (offset + endIdx)
+			lines = append(lines, renderScrollIndicator("↓", remaining, "more"))
 		}
 	}
 

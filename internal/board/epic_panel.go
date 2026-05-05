@@ -173,7 +173,7 @@ const epicActiveMarker = "►"
 
 // RenderEpicSidebar renders the fixed left sidebar listing epics with active indicator.
 // If epics is empty and selected is non-empty, selected is shown as the sole entry.
-func RenderEpicSidebar(epics []string, selected string, width int, focus bool, cursor int, status map[string]string) string {
+func RenderEpicSidebar(epics []string, selected string, width int, focus bool, cursor int, status map[string]string, maxHeight int) string {
 	inner := width - epicPanelOverhead
 	if inner < 2 {
 		inner = 2
@@ -205,6 +205,20 @@ func RenderEpicSidebar(epics []string, selected string, width int, focus bool, c
 	}
 	if len(list) == 0 {
 		lines = append(lines, styles.TaskItem.Render("(none)"))
+	}
+	if maxHeight > 0 && len(lines) > maxHeight {
+		items := lines[2:]
+		available := maxHeight - 3
+		if available < 1 {
+			available = 1
+		}
+		clipped := make([]string, 0, maxHeight)
+		clipped = append(clipped, lines[0], lines[1])
+		clipped = append(clipped, items[:min(available, len(items))]...)
+		if len(items) > available {
+			clipped = append(clipped, renderScrollIndicator("↓", len(items)-available, "more"))
+		}
+		lines = clipped
 	}
 	style := styles.EpicPanel.Width(width)
 	if focus && len(epics) > 0 {

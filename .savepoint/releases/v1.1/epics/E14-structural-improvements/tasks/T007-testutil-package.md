@@ -1,6 +1,6 @@
 ---
 id: E14-structural-improvements/T007-testutil-package
-status: planned
+status: done
 objective: Create internal/testutil with shared fixtures to reduce duplication across board/doctor/data/init tests
 depends_on: []
 ---
@@ -14,15 +14,15 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] internal/testutil package created
-- [ ] Common fixture helpers extracted and shared
-- [ ] All existing tests still pass after refactoring to use shared helpers
-- [ ] No unnecessary exports in the public API
-- [ ] `go test ./...` passes with no regressions
+- [x] internal/testutil package created
+- [x] Common fixture helpers extracted and shared
+- [x] All existing tests still pass after refactoring to use shared helpers
+- [x] No unnecessary exports in the public API
+- [x] `go test ./...` passes with no regressions
 
 ## Implementation Plan
 
-- [ ] Survey existing test helpers for duplication patterns
-- [ ] Create internal/testutil with shared fixture functions
-- [ ] Refactor each test package to use shared helpers
-- [ ] Run `make build && make test`
+- [x] Survey existing test helpers for duplication patterns
+- [x] Create internal/testutil with shared fixture functions
+- [x] Refactor each test package to use shared helpers
+- [x] Run `make build && make test`

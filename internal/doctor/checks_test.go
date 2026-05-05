@@ -2,10 +2,11 @@ package doctor
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // --- CheckConfig ---
@@ -20,7 +21,7 @@ func TestCheckConfigMissing(t *testing.T) {
 
 func TestCheckConfigInvalidYAML(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "config.yml"), "theme: [broken")
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "theme: [broken")
 	err := CheckConfig(root)
 	if err == nil || !strings.Contains(err.Error(), "invalid YAML") {
 		t.Fatalf("CheckConfig() = %v, want invalid YAML error", err)
@@ -29,7 +30,7 @@ func TestCheckConfigInvalidYAML(t *testing.T) {
 
 func TestCheckConfigMissingQualityGates(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "config.yml"), "theme:\n  bg: \"#000\"\n")
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "theme:\n  bg: \"#000\"\n")
 	err := CheckConfig(root)
 	if err == nil || !strings.Contains(err.Error(), "quality_gates") {
 		t.Fatalf("CheckConfig() = %v, want quality_gates error", err)
@@ -38,7 +39,7 @@ func TestCheckConfigMissingQualityGates(t *testing.T) {
 
 func TestCheckConfigMissingTheme(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  block_on_failure: true\n")
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  block_on_failure: true\n")
 	err := CheckConfig(root)
 	if err == nil || !strings.Contains(err.Error(), "theme") {
 		t.Fatalf("CheckConfig() = %v, want theme error", err)
@@ -47,7 +48,7 @@ func TestCheckConfigMissingTheme(t *testing.T) {
 
 func TestCheckConfigValid(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  block_on_failure: true\ntheme:\n  bg: \"#000\"\n")
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  block_on_failure: true\ntheme:\n  bg: \"#000\"\n")
 	if err := CheckConfig(root); err != nil {
 		t.Fatalf("CheckConfig() = %v, want nil", err)
 	}
@@ -65,7 +66,7 @@ func TestCheckRouterMissing(t *testing.T) {
 
 func TestCheckRouterInvalidStateBlock(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "router.md"), "# no state block")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), "# no state block")
 	err := CheckRouter(root, "")
 	if err == nil || !strings.Contains(err.Error(), "invalid state block") {
 		t.Fatalf("CheckRouter() = %v, want invalid state block error", err)
@@ -74,7 +75,7 @@ func TestCheckRouterInvalidStateBlock(t *testing.T) {
 
 func TestCheckRouterPreImplementation(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("pre-implementation", "none", "none"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("pre-implementation", "none", "none"))
 	if err := CheckRouter(root, ""); err != nil {
 		t.Fatalf("CheckRouter() = %v, want nil", err)
 	}
@@ -82,7 +83,7 @@ func TestCheckRouterPreImplementation(t *testing.T) {
 
 func TestCheckRouterMissingReleaseDir(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "none"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "none"))
 	err := CheckRouter(root, "")
 	if err == nil || !strings.Contains(err.Error(), "release") {
 		t.Fatalf("CheckRouter() = %v, want release directory error", err)
@@ -91,8 +92,8 @@ func TestCheckRouterMissingReleaseDir(t *testing.T) {
 
 func TestCheckRouterMissingEpicDir(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1"), 0755)
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
 	err := CheckRouter(root, "")
 	if err == nil || !strings.Contains(err.Error(), "epic") {
 		t.Fatalf("CheckRouter() = %v, want epic directory error", err)
@@ -101,8 +102,8 @@ func TestCheckRouterMissingEpicDir(t *testing.T) {
 
 func TestCheckRouterValidWithDirs(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1", "epics", "E03-foo"), 0755)
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1", "epics", "E03-foo"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
 	if err := CheckRouter(root, ""); err != nil {
 		t.Fatalf("CheckRouter() = %v, want nil", err)
 	}
@@ -111,7 +112,7 @@ func TestCheckRouterValidWithDirs(t *testing.T) {
 func TestCheckRouterEpicFilterSkip(t *testing.T) {
 	root := t.TempDir()
 	// release dir missing — would fail without filter
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-foo"))
 	// filter doesn't match router epic → skip dir checks
 	if err := CheckRouter(root, "E99-other"); err != nil {
 		t.Fatalf("CheckRouter() = %v, want nil (filter skip)", err)
@@ -130,7 +131,7 @@ func TestCheckStructure_MissingReleasesDir(t *testing.T) {
 
 func TestCheckStructure_EmptyReleases(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases"), 0755)
+	testutil.MkdirAll(t, filepath.Join(root, "releases"))
 	problems := CheckStructure(root, "")
 	if len(problems) != 1 || !strings.Contains(problems[0].Message, "no release directories found") {
 		t.Fatalf("CheckStructure() = %v, want no releases error", problems)
@@ -139,7 +140,7 @@ func TestCheckStructure_EmptyReleases(t *testing.T) {
 
 func TestCheckStructure_MissingReleasePRD(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1", "epics"), 0755)
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1", "epics"))
 	problems := CheckStructure(root, "")
 	found := false
 	for _, p := range problems {
@@ -155,8 +156,8 @@ func TestCheckStructure_MissingReleasePRD(t *testing.T) {
 
 func TestCheckStructure_ReleasePRDValid(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1", "epics"), 0755)
-	writeReleasePRD(t, filepath.Join(root, "releases", "v1"))
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1", "epics"))
+	testutil.WriteReleasePRD(t, filepath.Join(root, "releases", "v1"))
 	problems := CheckStructure(root, "")
 	for _, p := range problems {
 		if strings.Contains(p.File, "v1-PRD.md") {
@@ -167,8 +168,8 @@ func TestCheckStructure_ReleasePRDValid(t *testing.T) {
 
 func TestCheckStructure_ReleasePRDCorruptYAML(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1", "epics"), 0755)
-	writeFile(t, filepath.Join(root, "releases", "v1", "v1-PRD.md"), "---\ntype: [broken\n---\n")
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1", "epics"))
+	testutil.WriteFile(t, filepath.Join(root, "releases", "v1", "v1-PRD.md"), "---\ntype: [broken\n---\n")
 	problems := CheckStructure(root, "")
 	found := false
 	for _, p := range problems {
@@ -186,9 +187,9 @@ func TestCheckStructure_ValidEpicDetail(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
-	os.MkdirAll(epicPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
 	problems := CheckStructure(root, "")
 	for _, p := range problems {
 		if strings.Contains(p.File, "Detail.md") {
@@ -201,8 +202,8 @@ func TestCheckStructure_MissingEpicDetail(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
-	os.MkdirAll(epicPath, 0755)
-	writeReleasePRD(t, releasePath)
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteReleasePRD(t, releasePath)
 	problems := CheckStructure(root, "")
 	found := false
 	for _, p := range problems {
@@ -221,10 +222,10 @@ func TestCheckStructure_ValidTask(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
 	problems := CheckStructure(root, "")
 	if len(problems) > 0 {
 		t.Fatalf("CheckStructure() = %v, want no problems", problems)
@@ -236,10 +237,10 @@ func TestCheckStructure_TaskMissingRequiredField(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nobjective: \"Do the thing\"\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nobjective: \"Do the thing\"\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
 	problems := CheckStructure(root, "")
 	found := false
 	for _, p := range problems {
@@ -258,10 +259,10 @@ func TestCheckStructure_TaskMissingAcceptanceCriteria(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\n---\n\n# T001: Task\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\n---\n\n# T001: Task\n")
 	problems := CheckStructure(root, "")
 	found := false
 	for _, p := range problems {
@@ -280,10 +281,10 @@ func TestCheckStructure_TaskCorruptYAML(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: \"unclosed\nstatus: planned\n---\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: \"unclosed\nstatus: planned\n---\n")
 	problems := CheckStructure(root, "")
 	foundLine := false
 	for _, p := range problems {
@@ -302,10 +303,10 @@ func TestCheckStructure_EpicFilter(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epic1Path := filepath.Join(releasePath, "epics", "E01-foo")
 	epic2Path := filepath.Join(releasePath, "epics", "E02-bar")
-	os.MkdirAll(epic1Path, 0755)
-	os.MkdirAll(epic2Path, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epic1Path, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.MkdirAll(t, epic1Path)
+	testutil.MkdirAll(t, epic2Path)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epic1Path, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
 	// E02 has no detail file — should not appear when filtering to E01
 	problems := CheckStructure(root, "E01-foo")
 	for _, p := range problems {
@@ -319,10 +320,10 @@ func TestCheckStructure_EpicFilterByPrefix(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
-	os.MkdirAll(epicPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	os.MkdirAll(filepath.Join(epicPath, "tasks"), 0755)
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.MkdirAll(t, filepath.Join(epicPath, "tasks"))
 	problems := CheckStructure(root, "E01")
 	if len(problems) > 0 {
 		t.Fatalf("CheckStructure() with epicFilter=E01 prefix = %v, want no problems", problems)
@@ -385,18 +386,18 @@ func TestCheckDependencies_DuplicateIDs(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
 
 	// Two epics, same task ID
 	epic2Path := filepath.Join(releasePath, "epics", "E02-bar")
 	tasks2Path := filepath.Join(epic2Path, "tasks")
-	os.MkdirAll(tasks2Path, 0755)
-	writeFile(t, filepath.Join(epic2Path, "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
+	testutil.MkdirAll(t, tasks2Path)
+	testutil.WriteFile(t, filepath.Join(epic2Path, "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
 
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
-	writeFile(t, filepath.Join(tasks2Path, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.WriteFile(t, filepath.Join(tasks2Path, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
 
 	problems := CheckDependencies(root, "")
 	found := false
@@ -480,16 +481,16 @@ func TestCheckDependencies_SelfReference(t *testing.T) {
 func TestCheckDependencies_EpicFilter(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")
-	os.MkdirAll(filepath.Join(releasePath, "epics", "E01-foo", "tasks"), 0755)
-	os.MkdirAll(filepath.Join(releasePath, "epics", "E02-bar", "tasks"), 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(releasePath, "epics", "E01-foo", "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(releasePath, "epics", "E02-bar", "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
+	testutil.MkdirAll(t, filepath.Join(releasePath, "epics", "E01-foo", "tasks"))
+	testutil.MkdirAll(t, filepath.Join(releasePath, "epics", "E02-bar", "tasks"))
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(releasePath, "epics", "E01-foo", "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(releasePath, "epics", "E02-bar", "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
 
 	// E02 has a missing dep — should be invisible with filter
 	taskE2 := `---\nid: E02-bar/T001-task\nstatus: planned\nobjective: \"B\"\ndepends_on: [\"E02-bar/T999-nonexistent\"]\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n`
-	writeFile(t, filepath.Join(releasePath, "epics", "E01-foo", "tasks", "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
-	writeFile(t, filepath.Join(releasePath, "epics", "E02-bar", "tasks", "T001-task.md"), strings.ReplaceAll(taskE2, "\\n", "\n"))
+	testutil.WriteFile(t, filepath.Join(releasePath, "epics", "E01-foo", "tasks", "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"A\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.WriteFile(t, filepath.Join(releasePath, "epics", "E02-bar", "tasks", "T001-task.md"), strings.ReplaceAll(taskE2, "\\n", "\n"))
 
 	problems := CheckDependencies(root, "E01-foo")
 	for _, p := range problems {
@@ -503,8 +504,8 @@ func TestCheckDependencies_EpicFilter(t *testing.T) {
 
 func TestCheckAuditState_NoAuditFiles(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "releases", "v1", "epics", "E01-foo"), 0755)
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E01-foo"))
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1", "epics", "E01-foo"))
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E01-foo"))
 	problems := CheckAuditState(root)
 	if len(problems) > 0 {
 		t.Fatalf("CheckAuditState() = %v, want no problems", problems)
@@ -514,9 +515,9 @@ func TestCheckAuditState_NoAuditFiles(t *testing.T) {
 func TestCheckAuditState_MatchesRouter(t *testing.T) {
 	root := t.TempDir()
 	epicPath := filepath.Join(root, "releases", "v1", "epics", "E01-foo")
-	os.MkdirAll(epicPath, 0755)
-	writeFile(t, filepath.Join(epicPath, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("audit-pending", "v1", "E01-foo"))
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("audit-pending", "v1", "E01-foo"))
 	problems := CheckAuditState(root)
 	if len(problems) > 0 {
 		t.Fatalf("CheckAuditState() = %v, want no problems when router matches", problems)
@@ -526,9 +527,9 @@ func TestCheckAuditState_MatchesRouter(t *testing.T) {
 func TestCheckAuditState_ProposalWithoutPending(t *testing.T) {
 	root := t.TempDir()
 	epicPath := filepath.Join(root, "releases", "v1", "epics", "E01-foo")
-	os.MkdirAll(epicPath, 0755)
-	writeFile(t, filepath.Join(epicPath, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E01-foo"))
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E01-foo"))
 	problems := CheckAuditState(root)
 	if len(problems) != 1 {
 		t.Fatalf("CheckAuditState() = %v, want 1 problem (audit file without audit-pending)", problems)
@@ -542,10 +543,10 @@ func TestCheckAuditState_DifferentEpicInRouter(t *testing.T) {
 	root := t.TempDir()
 	epic1Path := filepath.Join(root, "releases", "v1", "epics", "E01-foo")
 	epic2Path := filepath.Join(root, "releases", "v1", "epics", "E02-bar")
-	os.MkdirAll(epic1Path, 0755)
-	os.MkdirAll(epic2Path, 0755)
-	writeFile(t, filepath.Join(epic1Path, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("audit-pending", "v1", "E02-bar"))
+	testutil.MkdirAll(t, epic1Path)
+	testutil.MkdirAll(t, epic2Path)
+	testutil.WriteFile(t, filepath.Join(epic1Path, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("audit-pending", "v1", "E02-bar"))
 	problems := CheckAuditState(root)
 	if len(problems) != 1 {
 		t.Fatalf("CheckAuditState() = %v, want 1 problem (E01 audit but E02 in router)", problems)
@@ -559,11 +560,11 @@ func TestCheckAuditState_MultipleStale(t *testing.T) {
 	root := t.TempDir()
 	epic1Path := filepath.Join(root, "releases", "v1", "epics", "E01-foo")
 	epic2Path := filepath.Join(root, "releases", "v1", "epics", "E02-bar")
-	os.MkdirAll(epic1Path, 0755)
-	os.MkdirAll(epic2Path, 0755)
-	writeFile(t, filepath.Join(epic1Path, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
-	writeFile(t, filepath.Join(epic2Path, "E02-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-baz"))
+	testutil.MkdirAll(t, epic1Path)
+	testutil.MkdirAll(t, epic2Path)
+	testutil.WriteFile(t, filepath.Join(epic1Path, "E01-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
+	testutil.WriteFile(t, filepath.Join(epic2Path, "E02-Audit.md"), "---\ntype: audit-findings\n---\n\n# Audit\n")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E03-baz"))
 	problems := CheckAuditState(root)
 	if len(problems) != 2 {
 		t.Fatalf("CheckAuditState() = %v, want 2 problems (both audit files stale)", problems)
@@ -607,10 +608,10 @@ func TestCheckOrphans_CrossReleaseEpicRef(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E02-bar/T001-task\nstatus: planned\nobjective: \"Task\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E02-bar/T001-task\nstatus: planned\nobjective: \"Task\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
 	// E02-bar does not exist in any release
 	problems := CheckOrphans(root)
 	found := false
@@ -630,12 +631,12 @@ func TestCheckOrphans_ValidCrossReleaseRef(t *testing.T) {
 	releasePath := filepath.Join(root, "releases", "v1")
 	epic1Path := filepath.Join(releasePath, "epics", "E01-foo")
 	epic2Path := filepath.Join(releasePath, "epics", "E02-bar")
-	os.MkdirAll(filepath.Join(epic1Path, "tasks"), 0755)
-	os.MkdirAll(filepath.Join(epic2Path, "tasks"), 0755)
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epic1Path, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(epic2Path, "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
-	writeFile(t, filepath.Join(epic1Path, "tasks", "T001-task.md"), "---\nid: E02-bar/T001-task\nstatus: planned\nobjective: \"Task\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.MkdirAll(t, filepath.Join(epic1Path, "tasks"))
+	testutil.MkdirAll(t, filepath.Join(epic2Path, "tasks"))
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epic1Path, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(epic2Path, "E02-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E02: Bar\n")
+	testutil.WriteFile(t, filepath.Join(epic1Path, "tasks", "T001-task.md"), "---\nid: E02-bar/T001-task\nstatus: planned\nobjective: \"Task\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
 	// E02-bar exists
 	problems := CheckOrphans(root)
 	for _, p := range problems {
@@ -652,7 +653,7 @@ func TestCheckOrphans_EmptyID(t *testing.T) {
 	})
 	// Write a task with empty ID
 	tasksPath := filepath.Join(root, "releases", "v1", "epics", "E01-foo", "tasks")
-	writeFile(t, filepath.Join(tasksPath, "T002-bad.md"), "---\nstatus: planned\nobjective: \"No ID\"\ndepends_on: []\n---\n\n# T002\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T002-bad.md"), "---\nstatus: planned\nobjective: \"No ID\"\ndepends_on: []\n---\n\n# T002\n\n## Acceptance Criteria\n\n- it works\n")
 	problems := CheckOrphans(root)
 	// Should not crash, should handle missing ID gracefully
 	if len(problems) > 0 {
@@ -686,15 +687,15 @@ func setupMinimalProject(t *testing.T, root, releaseID, epicID string, tasks []t
 	releasePath := filepath.Join(root, "releases", releaseID)
 	epicPath := filepath.Join(releasePath, "epics", epicID)
 	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
+	testutil.MkdirAll(t, tasksPath)
 
 	prefix := epicID
 	if idx := strings.IndexByte(epicID, '-'); idx != -1 {
 		prefix = epicID[:idx]
 	}
 
-	writeReleasePRD(t, releasePath)
-	writeFile(t, filepath.Join(epicPath, prefix+"-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# Epic\n")
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, prefix+"-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# Epic\n")
 
 	for i, ts := range tasks {
 		depsYAML := "[]"
@@ -706,20 +707,8 @@ func setupMinimalProject(t *testing.T, root, releaseID, epicID string, tasks []t
 			depsYAML = "[" + strings.Join(quoted, ", ") + "]"
 		}
 		content := fmt.Sprintf("---\nid: %s\nstatus: planned\nobjective: \"Task %d\"\ndepends_on: %s\n---\n\n# T%03d\n\n## Acceptance Criteria\n\n- it works\n", ts.id, i, depsYAML, i+1)
-		writeFile(t, filepath.Join(tasksPath, fmt.Sprintf("T%03d-task.md", i+1)), content)
+		testutil.WriteFile(t, filepath.Join(tasksPath, fmt.Sprintf("T%03d-task.md", i+1)), content)
 	}
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func writeReleasePRD(t *testing.T, releasePath string) {
-	t.Helper()
-	writeFile(t, filepath.Join(releasePath, filepath.Base(releasePath)+"-PRD.md"), "---\ntype: project-prd\nstatus: active\n---\n\n# Release\n")
 }
 
 func routerContent(state, release, epic string) string {

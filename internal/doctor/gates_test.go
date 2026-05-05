@@ -141,6 +141,13 @@ func TestSplitCommand(t *testing.T) {
 		{"echo hello", []string{"echo", "hello"}},
 		{"go test ./...", []string{"go", "test", "./..."}},
 		{"\"c:\\program files\\go\\bin\\go\"", []string{"c:\\program files\\go\\bin\\go"}},
+		{"echo 'hello world'", []string{"echo", "hello world"}},
+		{"echo \"hello \\\"world\\\"\"", []string{"echo", "hello \"world\""}},
+		{"echo hello\\ world", []string{"echo", "hello world"}},
+		{"echo 'it''s'", []string{"echo", "its"}},
+		{"go test -run \"\" ./...", []string{"go", "test", "-run", "", "./..."}},
+		{"printf ''", []string{"printf", ""}},
+		{"echo trailing\\", []string{"echo", "trailing\\"}},
 		{"", nil},
 		{"   ", nil},
 	}

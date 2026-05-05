@@ -1,10 +1,10 @@
 package doctor
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestDiagnosticReport_HasProblems(t *testing.T) {
@@ -80,14 +80,10 @@ func TestDiagnosticReport_FormatShowsRepairs(t *testing.T) {
 
 func writeReportProject(t *testing.T, root string) {
 	t.Helper()
-	releasePath := filepath.Join(root, "releases", "v1")
-	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
-	tasksPath := filepath.Join(epicPath, "tasks")
-	os.MkdirAll(tasksPath, 0755)
-
-	writeFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  lint: null\n  typecheck: null\n  test: null\ntheme:\n  bg: \"#000\"\n")
-	writeFile(t, filepath.Join(root, "router.md"), routerContent("task-building", "v1", "E01-foo"))
-	writeFile(t, filepath.Join(releasePath, "v1-PRD.md"), "---\ntype: project-prd\nstatus: active\n---\n\n# Release\n")
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
-	writeFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Task\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- it works\n")
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
+		Slug:      "T001-task",
+		Status:    "planned",
+		Objective: "Task",
+	})
 }

@@ -9,13 +9,13 @@ const statusGlyphDefault = " "
 
 func statusGlyph(status string) string {
 	switch status {
-	case string(data.StatusPlanned):
+	case string(data.ColumnPlanned):
 		return styles.CardMeta.Render("○")
-	case string(data.StatusInProgress):
+	case string(data.ColumnInProgress):
 		return styles.GlyphBuild.Render("▶")
-	case string(data.StatusDone):
+	case string(data.ColumnDone):
 		return styles.TagDone.Render("◉")
-	case string(data.StatusAudited):
+	case "audited":
 		return styles.TagDone.Render("✓")
 	default:
 		return statusGlyphDefault

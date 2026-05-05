@@ -1,11 +1,11 @@
 package doctor
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 type stubDoctorRouterReader struct {
@@ -57,10 +57,8 @@ func (p *countingDoctorParser) ParseFrontmatter(content string) (map[string]any,
 
 func TestCheckRouterUsesInjectedRouterReader(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "router.md"), "# intentionally not a router state block")
-	if err := os.MkdirAll(filepath.Join(root, "releases", "v9", "epics", "E01-mock"), 0755); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), "# intentionally not a router state block")
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v9", "epics", "E01-mock"))
 
 	reader := &stubDoctorRouterReader{state: &data.RouterState{
 		State:   "task-building",
@@ -79,10 +77,8 @@ func TestCheckRouterUsesInjectedRouterReader(t *testing.T) {
 func TestCheckDependenciesUsesInjectedDiscovererAndParser(t *testing.T) {
 	root := t.TempDir()
 	taskPath := filepath.Join(root, "virtual", "T001-task.md")
-	if err := os.MkdirAll(filepath.Dir(taskPath), 0755); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, taskPath, "---\nid: E01-mock/T001-task\nstatus: planned\nobjective: Mock\ndepends_on: []\n---\n")
+	testutil.MkdirAll(t, filepath.Dir(taskPath))
+	testutil.WriteFile(t, taskPath, "---\nid: E01-mock/T001-task\nstatus: planned\nobjective: Mock\ndepends_on: []\n---\n")
 
 	discoverer := &stubDoctorDiscoverer{
 		releases: []data.ReleaseInfo{{ID: "v9", Path: filepath.Join(root, "virtual-release")}},

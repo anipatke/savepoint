@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func requireModel(t *testing.T, got tea.Model) Model {
@@ -317,9 +318,7 @@ func TestUpdate_spaceShowsPhaseTransitionMessage(t *testing.T) {
 func TestUpdate_spaceWarnsAfterStaleMtime(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T004-task.md")
 	content := "---\nid: E05/T004\nstatus: in_progress\nstage: build\nphase: build\n---\n\n# Task\n"
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, path, content)
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -367,7 +366,7 @@ func TestUpdate_spaceWarnsAfterStaleMtime(t *testing.T) {
 }
 
 func TestUpdate_backspaceShowsRetreatMessageAndSyncsStatus(t *testing.T) {
-	tasks := []data.Task{{ID: "E05/T004", Status: string(data.StatusDone), Column: data.ColumnDone}}
+	tasks := []data.Task{{ID: "E05/T004", Status: string(data.ColumnDone), Column: data.ColumnDone}}
 	m := NewModel(tasks, "v1.1", "E05")
 	m.FocusedColumn = data.ColumnDone
 
@@ -383,7 +382,7 @@ func TestUpdate_backspaceShowsRetreatMessageAndSyncsStatus(t *testing.T) {
 	if updated.AllTasks[0].Stage != data.StageAudit {
 		t.Errorf("Stage = %q, want audit", updated.AllTasks[0].Stage)
 	}
-	if updated.AllTasks[0].Status != string(data.StatusInProgress) {
+	if updated.AllTasks[0].Status != string(data.ColumnInProgress) {
 		t.Errorf("Status = %q, want in_progress", updated.AllTasks[0].Status)
 	}
 }
@@ -409,13 +408,9 @@ func TestUpdate_key1SwitchesToDetailTab(t *testing.T) {
 func TestUpdate_key2SwitchesToAuditTabAndLoadsContent(t *testing.T) {
 	root := t.TempDir()
 	auditDir := filepath.Join(root, "releases", "v1.1", "epics", "E06-audit-command")
-	if err := os.MkdirAll(auditDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	testutil.MkdirAll(t, auditDir)
 	auditContent := "# E06 Audit\n\n## Findings\n\n- [x] All good\n"
-	if err := os.WriteFile(filepath.Join(auditDir, "E06-Audit.md"), []byte(auditContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filepath.Join(auditDir, "E06-Audit.md"), auditContent)
 
 	m := NewModel(nil, "v1.1", "E06-audit-command")
 	m.Root = root
@@ -447,16 +442,10 @@ func TestUpdate_key2LoadsAuditForOpenedEpicWhenPanelCursorStale(t *testing.T) {
 	root := t.TempDir()
 	epicA := filepath.Join(root, "releases", "v1.1", "epics", "E02-cross-platform-compatibility")
 	epicB := filepath.Join(root, "releases", "v1.1", "epics", "E06-audit-command")
-	if err := os.MkdirAll(epicA, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(epicB, 0755); err != nil {
-		t.Fatal(err)
-	}
+	testutil.MkdirAll(t, epicA)
+	testutil.MkdirAll(t, epicB)
 	auditContent := "# E06 Audit\n\n## Main Findings\nE06 content\n"
-	if err := os.WriteFile(filepath.Join(epicB, "E06-Audit.md"), []byte(auditContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filepath.Join(epicB, "E06-Audit.md"), auditContent)
 
 	m := NewModel(nil, "v1.1", "E06-audit-command")
 	m.Root = root
@@ -568,10 +557,7 @@ func TestReloadMsgUpdatesRouterState(t *testing.T) {
 func writeRouterFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	content := "# Agent State Machine\n\n## Current state\n\n```yaml\nstate: task-building\nrelease: v1.1\nepic: E05\ntask: T001\nnext_action: Build T001.\n```\n"
-	if err := os.WriteFile(filepath.Join(root, "router.md"), []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteRouter(t, root, "task-building", "v1.1", "E05", "T001", "Build T001.")
 	return root
 }
 

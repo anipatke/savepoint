@@ -1,12 +1,12 @@
 package board
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestNewModelUsesBoardCore(t *testing.T) {
@@ -27,18 +27,7 @@ func TestNewModelUsesBoardCore(t *testing.T) {
 func TestNewProjectModelLoadsReleasesEpicsAndTasks(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeFile(t, filepath.Join(savepointRoot, "router.md"), `# Agent State Machine
-
-## Current state
-
-`+"```"+`yaml
-state: task-building
-release: v2
-epic: E03-live
-task: ""
-next_action: "test"
-`+"```"+`
-`)
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v2", "E03-live", "", "test")
 	writeTask(t, savepointRoot, "v1", "E01-old", "T001-old", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v2", "E03-live", "T001-live", data.ColumnInProgress)
 
@@ -75,18 +64,7 @@ next_action: "test"
 func TestNewProjectModelUsesPathReleaseForTaskWithoutReleaseFrontmatter(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeFile(t, filepath.Join(savepointRoot, "router.md"), `# Agent State Machine
-
-## Current state
-
-`+"```"+`yaml
-state: task-building
-release: v1.1
-epic: E01-tui-optimisation
-task: E01-tui-optimisation/T001-border-resize-fix
-next_action: "test"
-`+"```"+`
-`)
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1.1", "E01-tui-optimisation", "E01-tui-optimisation/T001-border-resize-fix", "test")
 	writeTaskWithoutRelease(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T001-border-resize-fix", data.ColumnInProgress)
 
 	model, err := newProjectModel(projectRoot, "", "")
@@ -112,18 +90,7 @@ next_action: "test"
 func TestNewProjectModelResolvesShortRouterEpicToFullEpicID(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeFile(t, filepath.Join(savepointRoot, "router.md"), `# Agent State Machine
-
-## Current state
-
-`+"```"+`yaml
-state: task-building
-release: v1.1
-epic: E03
-task: T001
-next_action: "Build v1.1 E03/T001"
-`+"```"+`
-`)
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1.1", "E03", "T001", "Build v1.1 E03/T001")
 	writeTask(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T007-column-focus-border-stability", data.ColumnInProgress)
 	writeTask(t, savepointRoot, "v1.1", "E03-ui-visual-refinement", "T001-border-resize-fix", data.ColumnInProgress)
 
@@ -173,51 +140,29 @@ func TestUpdateReloadMsgRefreshesReleaseEpicIndex(t *testing.T) {
 	}
 }
 
-func writeTask(t *testing.T, root, release, epic, task string, column data.ColumnType) {
+func writeTask(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
 	t.Helper()
-	path := filepath.Join(root, "releases", release, "epics", epic, "tasks", task+".md")
-	phase := ""
-	if column == data.ColumnInProgress {
-		phase = "phase: build\n"
+	tf := testutil.TaskFixture{
+		Slug:      taskSlug,
+		Release:   release,
+		Status:    string(column),
+		Objective: "Test task",
 	}
-	content := `---
-id: ` + epic + `/` + task + `
-release: ` + release + `
-status: ` + string(column) + `
-` + phase + `objective: "Test task"
-depends_on: []
----
-
-# Test task
-`
-	writeFile(t, path, content)
+	if column == data.ColumnInProgress {
+		tf.Phase = "build"
+	}
+	testutil.WriteTask(t, root, release, epic, tf)
 }
 
-func writeTaskWithoutRelease(t *testing.T, root, release, epic, task string, column data.ColumnType) {
+func writeTaskWithoutRelease(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
 	t.Helper()
-	path := filepath.Join(root, "releases", release, "epics", epic, "tasks", task+".md")
-	phase := ""
+	tf := testutil.TaskFixture{
+		Slug:      taskSlug,
+		Status:    string(column),
+		Objective: "Test task",
+	}
 	if column == data.ColumnInProgress {
-		phase = "phase: build\n"
+		tf.Phase = "build"
 	}
-	content := `---
-id: ` + epic + `/` + task + `
-status: ` + string(column) + `
-` + phase + `objective: "Test task"
-depends_on: []
----
-
-# Test task
-`
-	writeFile(t, path, content)
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteTask(t, root, release, epic, tf)
 }

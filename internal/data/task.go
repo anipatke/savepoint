@@ -26,15 +26,6 @@ const (
 	StageAudit ProgressStage = "audit"
 )
 
-type TaskStatus string
-
-const (
-	StatusPlanned    TaskStatus = "planned"
-	StatusInProgress TaskStatus = "in_progress"
-	StatusDone       TaskStatus = "done"
-	StatusAudited    TaskStatus = "audited"
-)
-
 type Progress struct {
 	Stage   ProgressStage `yaml:"stage"`
 	Started bool          `yaml:"started"`

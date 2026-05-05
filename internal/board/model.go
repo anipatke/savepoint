@@ -231,5 +231,5 @@ func (m *Model) clampColumnOffsets() {
 }
 
 func taskDone(task data.Task) bool {
-	return task.Column == data.ColumnDone || task.Status == string(data.StatusDone)
+	return task.Column == data.ColumnDone
 }

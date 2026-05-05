@@ -28,9 +28,18 @@ func (m Model) View() string {
 
 	header := m.renderHeader(w)
 	nextActivity := m.renderNextActivityLine(w)
-	layout := CalculateLayoutWithChrome(w, h, extraHeaderLines(nextActivity))
+	extra := extraHeaderLines(nextActivity)
+	layout := CalculateLayoutWithChrome(w, h, extra)
 	topDivider := dividerLine(w)
 	board := m.renderBoard(layout)
+	boardBudget := h - 8 - extra
+	if boardBudget < 0 {
+		boardBudget = 0
+	}
+	boardLines := strings.Split(board, "\n")
+	if len(boardLines) > boardBudget {
+		board = strings.Join(boardLines[:boardBudget], "\n")
+	}
 	bottomDivider := dividerLine(w)
 	footer := m.renderFooter(w)
 	sections := []string{header}
@@ -233,7 +242,7 @@ func (m Model) renderBoard(layout Layout) string {
 	cols := m.renderColumns(layout)
 	var content string
 	if layout.EpicPanelVisible {
-		epic := m.renderEpicPanel(layout.EpicPanelWidth)
+		epic := m.renderEpicPanel(layout.EpicPanelWidth, layout.ContentHeight)
 		content = lipgloss.JoinHorizontal(lipgloss.Top, epic, cols)
 	} else {
 		content = cols
@@ -253,8 +262,8 @@ func (m Model) renderColumns(layout Layout) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
 
-func (m Model) renderEpicPanel(w int) string {
-	return RenderEpicSidebar(m.Epics, m.SelectedEpic, w, m.EpicPanelFocus, m.EpicPanelCursor, m.EpicStatus)
+func (m Model) renderEpicPanel(w int, maxHeight int) string {
+	return RenderEpicSidebar(m.Epics, m.SelectedEpic, w, m.EpicPanelFocus, m.EpicPanelCursor, m.EpicStatus, maxHeight)
 }
 
 func (m Model) renderColumn(col data.ColumnType, colW, maxHeight int) string {

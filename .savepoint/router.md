@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.1
-epic: E14-structural-improvements
-task: E14-structural-improvements/T005-shell-tokenization
-next_action: Build E14-structural-improvements/T005-shell-tokenization.
+epic: E14
+task: E15-hardening/T001-benchmarks
+next_action: Build E15-hardening/T001-benchmarks.
 ```
 
 ## State → action

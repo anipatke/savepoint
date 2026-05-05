@@ -9,33 +9,31 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
-// writeRouterForIntegration creates a minimal router.md in the given savepoint root.
-func writeRouterForIntegration(t *testing.T, savepointRoot, release, epic string) {
-	t.Helper()
-	content := "# Agent State Machine\n\n## Current state\n\n```yaml\nstate: task-building\nrelease: " + release + "\nepic: " + epic + "\ntask: \"\"\nnext_action: \"test\"\n```\n"
-	writeFile(t, filepath.Join(savepointRoot, "router.md"), content)
-}
-
 // writeTaskWithBody creates a task file with a body section to verify content preservation.
-func writeTaskWithBody(t *testing.T, root, release, epic, task string, column data.ColumnType, body string) string {
+func writeTaskWithBody(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType, body string) string {
 	t.Helper()
-	path := filepath.Join(root, "releases", release, "epics", epic, "tasks", task+".md")
-	phase := ""
-	if column == data.ColumnInProgress {
-		phase = "phase: build\n"
+	tf := testutil.TaskFixture{
+		Slug:      taskSlug,
+		Release:   release,
+		Status:    string(column),
+		Objective: "Test task",
+		Body:      body,
 	}
-	content := "---\nid: " + epic + "/" + task + "\nrelease: " + release + "\nstatus: " + string(column) + "\n" + phase + "objective: \"Test task\"\ndepends_on: []\n---\n\n" + body
-	writeFile(t, path, content)
-	return path
+	if column == data.ColumnInProgress {
+		tf.Phase = "build"
+	}
+	testutil.WriteTask(t, root, release, epic, tf)
+	return filepath.Join(root, "releases", release, "epics", epic, "tasks", taskSlug+".md")
 }
 
 // TestBoardPipeline_endToEnd loads a real project from disk and renders the full board view.
 func TestBoardPipeline_endToEnd(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeRouterForIntegration(t, savepointRoot, "v1", "E01-init")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
 	writeTask(t, savepointRoot, "v1", "E01-init", "T001-scaffold", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v1", "E01-init", "T002-validate", data.ColumnInProgress)
 	writeTask(t, savepointRoot, "v1", "E01-init", "T003-done-task", data.ColumnDone)
@@ -63,7 +61,7 @@ func TestBoardPipeline_endToEnd(t *testing.T) {
 func TestRunPlainOutput_endToEnd(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeRouterForIntegration(t, savepointRoot, "v1", "E01-init")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
 	writeTask(t, savepointRoot, "v1", "E01-init", "T001-scaffold", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v1", "E01-init", "T002-validate", data.ColumnDone)
 
@@ -190,7 +188,7 @@ func TestMtimeConflict_boardWarns(t *testing.T) {
 func TestReleaseFilter_showsOnlyMatchingRelease(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeRouterForIntegration(t, savepointRoot, "v1", "E01-init")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
 	writeTask(t, savepointRoot, "v1", "E01-init", "T001-v1-task", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v2", "E01-init", "T001-v2-task", data.ColumnPlanned)
 
@@ -217,7 +215,7 @@ func TestReleaseFilter_showsOnlyMatchingRelease(t *testing.T) {
 func TestEpicFilter_showsOnlyMatchingEpic(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	writeRouterForIntegration(t, savepointRoot, "v1", "E01-init")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
 	writeTask(t, savepointRoot, "v1", "E01-init", "T001-alpha", data.ColumnPlanned)
 	writeTask(t, savepointRoot, "v1", "E02-build", "T001-beta", data.ColumnPlanned)
 

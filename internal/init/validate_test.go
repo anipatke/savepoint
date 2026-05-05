@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestValidateTarget_missing(t *testing.T) {
@@ -20,9 +22,7 @@ func TestValidateTarget_missing(t *testing.T) {
 func TestValidateTarget_notADirectory(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "file")
-	if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filePath, "content")
 
 	err := ValidateTarget(filePath, false)
 	if err == nil {
@@ -45,9 +45,7 @@ func TestValidateTarget_empty(t *testing.T) {
 func TestValidateTarget_hasCompatibleFiles(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"package.json", ".git", "README.md"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte{}, 0644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteFile(t, filepath.Join(dir, name), "")
 	}
 
 	err := ValidateTarget(dir, false)
@@ -87,9 +85,7 @@ func TestValidateTarget_existingSavepointWithForce(t *testing.T) {
 
 func TestValidateTarget_conflictingFile(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("existing"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), "existing")
 
 	err := ValidateTarget(dir, false)
 	if err == nil {
@@ -102,9 +98,7 @@ func TestValidateTarget_conflictingFile(t *testing.T) {
 
 func TestValidateTarget_conflictingFileWithForce(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("existing"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), "existing")
 
 	err := ValidateTarget(dir, true)
 	if err != nil {

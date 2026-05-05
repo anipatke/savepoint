@@ -27,7 +27,7 @@ func Advance(t *data.Task) {
 			t.Stage = ""
 		}
 	}
-	syncTaskStatus(t)
+	t.Status = string(t.Column)
 }
 
 // Retreat moves a task backward through the phase lifecycle.
@@ -51,10 +51,6 @@ func Retreat(t *data.Task) {
 			t.Stage = ""
 		}
 	}
-	syncTaskStatus(t)
-}
-
-func syncTaskStatus(t *data.Task) {
 	t.Status = string(t.Column)
 }
 

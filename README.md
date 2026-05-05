@@ -61,7 +61,6 @@ Built for a cinematic, technical feel without the bloat.
 | :----------------- | :--------------------------------------------------------------------------------------------------- |
 | `savepoint init`   | Scaffold the loop, write your `AGENTS.md` guide, drop the baby gates, and generate the magic prompt. |
 | `savepoint board`  | Launch the Atari-Noir Kanban TUI to track the vibe.                                                  |
-| `savepoint audit`  | Stop the AI. Sync the map with the territory.                                                        |
 | `savepoint doctor` | Check the integrity of the state machine.                                                            |
 
 ---

@@ -118,11 +118,14 @@ func TestRenderColumn_viewportShowsScrollIndicators(t *testing.T) {
 	if !strings.Contains(got, "↑ 1 above") {
 		t.Error("RenderColumn missing above indicator")
 	}
-	if !strings.Contains(got, "↓ 1 more") {
-		t.Error("RenderColumn missing more indicator")
+	if !strings.Contains(got, "↓ 2 more") {
+		t.Errorf("RenderColumn missing more indicator, got:\n%s", got)
 	}
 	if strings.Contains(got, "Task one") {
 		t.Error("RenderColumn should not render tasks above viewport")
+	}
+	if strings.Contains(got, "Task three") {
+		t.Error("RenderColumn should not render tasks that don't fit budget")
 	}
 	if strings.Contains(got, "Task four") {
 		t.Error("RenderColumn should not render tasks below viewport")

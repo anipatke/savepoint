@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 type stubBoardDiscoverer struct {
@@ -64,9 +65,9 @@ func TestNewProjectModelUsesInjectedInterfaces(t *testing.T) {
 	epicPath := filepath.Join(savepointRoot, "releases", "v9", "epics", "E01-mock")
 	taskPath := filepath.Join(epicPath, "tasks", "T001-mock.md")
 
-	writeFile(t, filepath.Join(savepointRoot, "router.md"), "# router")
-	writeFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# Epic\n")
-	writeFile(t, taskPath, "---\nid: E01-mock/T001-mock\nstatus: planned\nobjective: Mock task\ndepends_on: []\n---\n\n# Task\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "router.md"), "# router")
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# Epic\n")
+	testutil.WriteFile(t, taskPath, "---\nid: E01-mock/T001-mock\nstatus: planned\nobjective: Mock task\ndepends_on: []\n---\n\n# Task\n")
 
 	discoverer := &stubBoardDiscoverer{
 		root: savepointRoot,

@@ -88,7 +88,8 @@ make build && make test
 | `internal/board/` | TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, async update I/O commands, shared board utilities |
 | `internal/buildtool/` | Makefile helper, cross-compile, archives |
 | `internal/doctor/` | Read-only project diagnostics, integrity checks, timed quality gate execution, report formatting, typed repair suggestions |
-| `internal/data/` | Task/router models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery, canonical write helpers |
+| `internal/data/` | Task/router models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir traversal, unified task status constants, canonical write helpers |
+| `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
 | `internal/styles/` | Atari-Noir palette, TUI styles |
 | `templates/` | Scaffold markdown, YAML, prompts |
 | `agent-skills/` | Phase-specific skill guides |

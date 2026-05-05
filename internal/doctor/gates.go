@@ -123,24 +123,71 @@ func runGate(name, command string, root string, timeout time.Duration) GateResul
 func splitCommand(command string) []string {
 	var parts []string
 	current := strings.Builder{}
-	inQuote := false
+	inDoubleQuote := false
+	inSingleQuote := false
+	tokenStarted := false
+
+	flush := func() {
+		if tokenStarted || current.Len() > 0 {
+			parts = append(parts, current.String())
+			current.Reset()
+			tokenStarted = false
+		}
+	}
 
 	for i := 0; i < len(command); i++ {
 		c := command[i]
-		switch {
-		case c == '"':
-			inQuote = !inQuote
-		case c == ' ' && !inQuote:
-			if current.Len() > 0 {
-				parts = append(parts, current.String())
-				current.Reset()
+
+		if inSingleQuote {
+			tokenStarted = true
+			if c == '\'' {
+				inSingleQuote = false
+			} else {
+				current.WriteByte(c)
 			}
+			continue
+		}
+
+		if inDoubleQuote {
+			tokenStarted = true
+			if c == '\\' && i+1 < len(command) {
+				next := command[i+1]
+				if next == '"' || next == '\\' || next == '$' || next == '`' {
+					i++
+					current.WriteByte(command[i])
+					continue
+				}
+			}
+			if c == '"' {
+				inDoubleQuote = false
+				continue
+			}
+			current.WriteByte(c)
+			continue
+		}
+
+		switch c {
+		case '\\':
+			tokenStarted = true
+			if i+1 < len(command) {
+				i++
+				current.WriteByte(command[i])
+			} else {
+				current.WriteByte(c)
+			}
+		case '"':
+			tokenStarted = true
+			inDoubleQuote = true
+		case '\'':
+			tokenStarted = true
+			inSingleQuote = true
+		case ' ', '\t', '\n', '\r':
+			flush()
 		default:
+			tokenStarted = true
 			current.WriteByte(c)
 		}
 	}
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
+	flush()
 	return parts
 }

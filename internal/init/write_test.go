@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 func TestAtomicWrite_createsFile(t *testing.T) {
@@ -27,9 +29,7 @@ func TestAtomicWrite_createsFile(t *testing.T) {
 func TestAtomicWrite_replacesExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "output.txt")
-	if err := os.WriteFile(target, []byte("old"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteFile(t, target, "old")
 
 	if err := AtomicWrite(target, []byte("new")); err != nil {
 		t.Fatalf("AtomicWrite() error = %v", err)
@@ -62,9 +62,7 @@ func TestAtomicWrite_handlesNestedDirectories(t *testing.T) {
 	target := filepath.Join(dir, "deep", "nested", "output.txt")
 
 	// Parent directories must exist before calling AtomicWrite
-	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-		t.Fatal(err)
-	}
+	testutil.MkdirAll(t, filepath.Dir(target))
 
 	if err := AtomicWrite(target, []byte("nested")); err != nil {
 		t.Fatalf("AtomicWrite() error = %v", err)

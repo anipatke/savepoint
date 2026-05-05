@@ -1,6 +1,6 @@
 ---
 id: E14-structural-improvements/T006-unify-enums
-status: planned
+status: done
 objective: Consolidate ColumnType and TaskStatus into a single status type and remove syncTaskStatus
 depends_on: []
 ---
@@ -15,15 +15,15 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] ColumnType and TaskStatus consolidated into a single type
-- [ ] syncTaskStatus removed from transitions.go
-- [ ] All consumer references updated
-- [ ] `go test ./...` passes with no regressions
+- [x] ColumnType and TaskStatus consolidated into a single type
+- [x] syncTaskStatus removed from transitions.go
+- [x] All consumer references updated
+- [x] `go test ./...` passes with no regressions
 
 ## Implementation Plan
 
-- [ ] Choose the surviving type (ColumnType has wider usage)
-- [ ] Merge TaskStatus constants into ColumnType
-- [ ] Remove syncTaskStatus and inline any callers
-- [ ] Update all references across the codebase
-- [ ] Run `make build && make test`
+- [x] Choose the surviving type (ColumnType has wider usage)
+- [x] Merge TaskStatus constants into ColumnType
+- [x] Remove syncTaskStatus and inline any callers
+- [x] Update all references across the codebase
+- [x] Run `make build && make test`
