@@ -1,4 +1,4 @@
-.PHONY: build test run clean build-linux build-darwin build-all dist smoke-test
+.PHONY: build test run clean build-linux build-darwin build-all dist smoke-test ci
 
 VERSION ?=
 
@@ -27,3 +27,5 @@ dist:
 
 smoke-test:
 	go run ./internal/buildtool -version "$(VERSION)" smoke-test
+
+ci: test build

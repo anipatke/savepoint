@@ -3,15 +3,17 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type target struct {
@@ -24,6 +26,8 @@ var targets = []target{
 	{os: "linux", arch: "arm64"},
 	{os: "darwin", arch: "amd64"},
 	{os: "darwin", arch: "arm64"},
+	{os: "windows", arch: "amd64"},
+	{os: "windows", arch: "arm64"},
 }
 
 var versionOverride string
@@ -42,7 +46,7 @@ func run(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-all|dist|smoke-test>")
+		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-all|dist|smoke-test>")
 	}
 
 	switch flags.Arg(0) {
@@ -54,6 +58,8 @@ func run(args []string) error {
 		return buildMatching("linux")
 	case "build-darwin":
 		return buildMatching("darwin")
+	case "build-windows":
+		return buildMatching("windows")
 	case "build-all":
 		return buildAll()
 	case "dist":
@@ -99,8 +105,15 @@ func buildAll() error {
 	return nil
 }
 
+func executableName(goos string) string {
+	if goos == "windows" {
+		return "savepoint.exe"
+	}
+	return "savepoint"
+}
+
 func buildTarget(target target) error {
-	output := filepath.Join("dist", target.os+"-"+target.arch, "savepoint")
+	output := filepath.Join("dist", target.os+"-"+target.arch, executableName(target.os))
 	return runGoBuild(output, target.os, target.arch)
 }
 
@@ -123,13 +136,39 @@ func dist() error {
 	if err := buildAll(); err != nil {
 		return err
 	}
+	var archives []string
 	for _, target := range targets {
 		name := "savepoint-" + version() + "-" + target.os + "-" + target.arch + ".tar.gz"
-		source := filepath.Join("dist", target.os+"-"+target.arch, "savepoint")
+		source := filepath.Join("dist", target.os+"-"+target.arch, executableName(target.os))
 		archive := filepath.Join("dist", name)
-		if err := writeTarGz(archive, source, "savepoint"); err != nil {
+		if err := writeTarGz(archive, source, executableName(target.os)); err != nil {
 			return err
 		}
+		archives = append(archives, archive)
+	}
+	return writeChecksums(filepath.Join("dist", "checksums.txt"), archives)
+}
+
+func writeChecksums(dest string, archives []string) error {
+	var lines strings.Builder
+	for _, path := range archives {
+		f, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("checksum open %s: %w", path, err)
+		}
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			return fmt.Errorf("checksum read %s: %w", path, err)
+		}
+		f.Close()
+		lines.WriteString(hex.EncodeToString(h.Sum(nil)))
+		lines.WriteString("  ")
+		lines.WriteString(filepath.Base(path))
+		lines.WriteString("\n")
+	}
+	if err := os.WriteFile(dest, []byte(lines.String()), 0o644); err != nil {
+		return fmt.Errorf("write checksums: %w", err)
 	}
 	return nil
 }
@@ -208,4 +247,3 @@ func localExecutable() string {
 	}
 	return "savepoint"
 }
-

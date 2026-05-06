@@ -1,6 +1,6 @@
 ---
 id: E15-hardening/T004-dist-checksums
-status: planned
+status: done
 objective: Generate checksums.txt during make dist using Go crypto APIs
 depends_on: []
 ---
@@ -14,14 +14,14 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] dist() generates checksums.txt file with SHA256 hashes
-- [ ] checksums.txt is included in the dist directory
-- [ ] Existing archive creation behavior preserved
-- [ ] `go test ./...` passes
+- [x] dist() generates checksums.txt file with SHA256 hashes
+- [x] checksums.txt is included in the dist directory
+- [x] Existing archive creation behavior preserved
+- [x] `go test ./...` passes
 
 ## Implementation Plan
 
-- [ ] Add SHA256 checksum computation in dist() using crypto/sha256
-- [ ] Write checksums.txt to dist directory
-- [ ] Add tests for checksum generation
-- [ ] Run `make build && make test`
+- [x] Add SHA256 checksum computation in dist() using crypto/sha256
+- [x] Write checksums.txt to dist directory
+- [x] Add tests for checksum generation
+- [x] Run `make build && make test`

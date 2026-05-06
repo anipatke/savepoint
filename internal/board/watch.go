@@ -52,6 +52,7 @@ func watchFiles(w *fsnotify.Watcher) tea.Cmd {
 				if !ok {
 					return nil
 				}
+				debugf("watcher: event %s", event)
 				watchCreatedDir(w, event)
 				timer := time.NewTimer(100 * time.Millisecond)
 			drain:
@@ -62,11 +63,13 @@ func watchFiles(w *fsnotify.Watcher) tea.Cmd {
 							timer.Stop()
 							return nil
 						}
+						debugf("watcher: event %s", event)
 						watchCreatedDir(w, event)
 					case <-timer.C:
 						break drain
 					}
 				}
+				debugf("watcher: emitting fileChangeMsg")
 				return fileChangeMsg{}
 			case _, ok := <-w.Errors:
 				if !ok {
@@ -79,10 +82,13 @@ func watchFiles(w *fsnotify.Watcher) tea.Cmd {
 
 func reloadTasks(root string, deps ModelDependencies) tea.Cmd {
 	return func() tea.Msg {
+		debugf("reload: starting task reload from %q", root)
 		tasks, releases, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
 		if err != nil {
+			debugf("reload: error: %v", err)
 			return errorMsg{message: "reload failed: " + err.Error()}
 		}
+		debugf("reload: loaded %d tasks", len(tasks))
 		routerState, _ := readRouterState(root, deps.RouterReader)
 		return reloadMsg{tasks: tasks, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState}
 	}

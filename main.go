@@ -22,19 +22,24 @@ var projectTemplates embed.FS
 var version = "dev"
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
+	args, debug := stripDebugFlag(os.Args[1:])
+	if debug || os.Getenv("SAVEPOINT_DEBUG") != "" {
+		board.SetDebug(true)
+	}
+
+	if len(args) > 0 {
+		switch args[0] {
 		case "--version":
 			fmt.Println(version)
 			os.Exit(0)
 		case "init":
-			if err := cmd.RunInit(context.Background(), os.Args[2:], os.Stdout, initRunner); err != nil {
+			if err := cmd.RunInit(context.Background(), args[1:], os.Stdout, initRunner); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 			os.Exit(0)
 		case "board":
-			if err := cmd.RunBoard(context.Background(), os.Args[2:], os.Stdout, func(opts cmd.BoardOptions) error {
+			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
 				return board.RunWithFilters(opts.Release, opts.Epic)
 			}); err != nil {
 				fmt.Fprintln(os.Stderr, err)
@@ -42,7 +47,7 @@ func main() {
 			}
 			os.Exit(0)
 		case "doctor":
-			code, err := cmd.RunDoctor(context.Background(), os.Args[2:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
+			code, err := cmd.RunDoctor(context.Background(), args[1:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
 				return runDoctorChecks(opts)
 			})
 			if err != nil {
@@ -54,6 +59,20 @@ func main() {
 	if err := board.Run(); err != nil {
 		panic(err)
 	}
+}
+
+// stripDebugFlag removes --debug from args and reports whether it was present.
+func stripDebugFlag(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	found := false
+	for _, a := range args {
+		if a == "--debug" {
+			found = true
+		} else {
+			out = append(out, a)
+		}
+	}
+	return out, found
 }
 
 func runDoctorChecks(opts cmd.DoctorOptions) (int, error) {

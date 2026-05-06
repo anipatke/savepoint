@@ -1,6 +1,6 @@
 ---
 id: E15-hardening/T006-abbreviation-splitting
-status: planned
+status: done
 objective: Fix splitChecklistSentences to skip periods preceded by known abbreviations
 depends_on: []
 ---
@@ -13,14 +13,14 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] Known abbreviations (e.g., "e.g.", "i.e.") do not trigger sentence breaks
-- [ ] Existing sentence splitting behavior preserved for non-abbreviation periods
-- [ ] Abbreviation list is configurable/extensible
-- [ ] `go test ./...` passes with no regressions
+- [x] Known abbreviations (e.g., "e.g.", "i.e.") do not trigger sentence breaks
+- [x] Existing sentence splitting behavior preserved for non-abbreviation periods
+- [x] Abbreviation list is configurable/extensible
+- [x] `go test ./...` passes with no regressions
 
 ## Implementation Plan
 
-- [ ] Define known abbreviation set
-- [ ] Add abbreviation check before period-based sentence split
-- [ ] Add test cases for abbreviations in sentences
-- [ ] Run `make build && make test`
+- [x] Define known abbreviation set
+- [x] Add abbreviation check before period-based sentence split
+- [x] Add test cases for abbreviations in sentences
+- [x] Run `make build && make test`

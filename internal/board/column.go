@@ -33,11 +33,6 @@ func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offs
 			contentBudget = 1
 		}
 
-		reserveAbove := 0
-		if offset > 0 {
-			reserveAbove = 1
-		}
-
 		type cardEntry struct {
 			card  string
 			lines int
@@ -48,12 +43,17 @@ func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offs
 			cardEntries = append(cardEntries, cardEntry{card: c, lines: strings.Count(c, "\n") + 1})
 		}
 
+		// Standard window: fit as many cards as possible from the start of cardEntries.
+		reserveAbove := 0
+		if offset > 0 {
+			reserveAbove = 1
+		}
 		usedLines := reserveAbove
 		endIdx := 0
 		for endIdx < len(cardEntries) {
-			needsMore := endIdx < len(cardEntries)-1
+			hasMore := (offset + endIdx + 1) < len(tasks)
 			bottomReserve := 0
-			if needsMore {
+			if hasMore {
 				bottomReserve = 1
 			}
 			if usedLines+cardEntries[endIdx].lines+bottomReserve > contentBudget {
@@ -62,19 +62,49 @@ func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offs
 			usedLines += cardEntries[endIdx].lines
 			endIdx++
 		}
-
 		if endIdx == 0 && len(cardEntries) > 0 {
 			endIdx = 1
 		}
 
-		if offset > 0 {
-			lines = append(lines, renderScrollIndicator("↑", offset, "above"))
+		// Determine what portion of cardEntries to render.
+		renderStart := 0
+		renderEnd := endIdx
+
+		focusedRelIdx := focusedTask - offset
+		if focused && focusedRelIdx >= 0 && focusedRelIdx < len(cardEntries) && focusedRelIdx >= endIdx {
+			// Focused task is beyond the standard window.
+			// Anchor viewport at focused task: fill backward to use remaining budget.
+			bottomCost := 0
+			if focusedTask+1 < len(tasks) {
+				bottomCost = 1
+			}
+			cardsLines := cardEntries[focusedRelIdx].lines
+			newStart := focusedRelIdx
+			for newStart > 0 {
+				prev := cardEntries[newStart-1]
+				topCost := 1
+				if offset+newStart-1 == 0 {
+					topCost = 0
+				}
+				if cardsLines+prev.lines+topCost+bottomCost > contentBudget {
+					break
+				}
+				cardsLines += prev.lines
+				newStart--
+			}
+			renderStart = newStart
+			renderEnd = focusedRelIdx + 1
 		}
-		for i := 0; i < endIdx; i++ {
+
+		effectiveOffset := offset + renderStart
+		if effectiveOffset > 0 {
+			lines = append(lines, renderScrollIndicator("↑", effectiveOffset, "above"))
+		}
+		for i := renderStart; i < renderEnd; i++ {
 			lines = append(lines, cardEntries[i].card)
 		}
-		if endIdx < len(cardEntries) {
-			remaining := len(tasks) - (offset + endIdx)
+		if offset+renderEnd < len(tasks) {
+			remaining := len(tasks) - (offset + renderEnd)
 			lines = append(lines, renderScrollIndicator("↓", remaining, "more"))
 		}
 	}
@@ -124,4 +154,3 @@ func columnTitle(col data.ColumnType) string {
 		return strings.ToUpper(string(col))
 	}
 }
-

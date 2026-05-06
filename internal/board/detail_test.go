@@ -321,6 +321,54 @@ func TestUpdate_detailOverlayScrollsWithJK(t *testing.T) {
 	}
 }
 
+func TestSplitChecklistSentences_abbreviationEg(t *testing.T) {
+	got := splitChecklistSentences("Use e.g. a widget. Done.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences with e.g. = %d sentences, want 2: %v", len(got), got)
+	}
+	if got[0] != "Use e.g. a widget." {
+		t.Errorf("sentence[0] = %q, want %q", got[0], "Use e.g. a widget.")
+	}
+}
+
+func TestSplitChecklistSentences_abbreviationIe(t *testing.T) {
+	got := splitChecklistSentences("Call i.e. the function. Done.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences with i.e. = %d sentences, want 2: %v", len(got), got)
+	}
+}
+
+func TestSplitChecklistSentences_abbreviationDr(t *testing.T) {
+	got := splitChecklistSentences("Dr. Smith approved it. Done.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences with Dr. = %d sentences, want 2: %v", len(got), got)
+	}
+	if got[0] != "Dr. Smith approved it." {
+		t.Errorf("sentence[0] = %q, want %q", got[0], "Dr. Smith approved it.")
+	}
+}
+
+func TestSplitChecklistSentences_abbreviationEtc(t *testing.T) {
+	got := splitChecklistSentences("Add widgets, buttons, etc. to the panel. Done.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences with etc. = %d sentences, want 2: %v", len(got), got)
+	}
+}
+
+func TestSplitChecklistSentences_abbreviationCaseInsensitive(t *testing.T) {
+	got := splitChecklistSentences("See Fig. 3 for details. Done.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences with Fig. = %d sentences, want 2: %v", len(got), got)
+	}
+}
+
+func TestSplitChecklistSentences_normalSplitUnaffected(t *testing.T) {
+	got := splitChecklistSentences("First sentence. Second sentence.")
+	if len(got) != 2 {
+		t.Fatalf("splitChecklistSentences normal split = %d sentences, want 2: %v", len(got), got)
+	}
+}
+
 func TestOverlayWidth_clampMax(t *testing.T) {
 	if got := overlayWidth(120); got != 80 {
 		t.Errorf("overlayWidth(120) = %d, want 80", got)

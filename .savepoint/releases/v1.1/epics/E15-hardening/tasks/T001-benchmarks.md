@@ -1,6 +1,6 @@
 ---
 id: E15-hardening/T001-benchmarks
-status: planned
+status: done
 objective: Add benchmark tests for board render functions
 depends_on: []
 ---
@@ -16,16 +16,16 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] Benchmark added for RenderCard with varied content widths
-- [ ] Benchmark added for renderColumn with multiple tasks
-- [ ] Benchmark added for layout calculations at different widths
-- [ ] Benchmarks are repeatable with consistent results
-- [ ] Benchmarks don't modify package state
-- [ ] `go test -bench=. ./internal/board/` runs without errors
+- [x] Benchmark added for RenderCard with varied content widths
+- [x] Benchmark added for renderColumn with multiple tasks
+- [x] Benchmark added for layout calculations at different widths
+- [x] Benchmarks are repeatable with consistent results
+- [x] Benchmarks don't modify package state
+- [x] `go test -bench=. ./internal/board/` runs without errors
 
 ## Implementation Plan
 
-- [ ] Add benchmark functions in view_test.go, card_test.go, column_test.go
-- [ ] Create test data with representative task mixtures
-- [ ] Run benchmarks and document baseline
-- [ ] Run `make build && make test`
+- [x] Add benchmark functions in view_test.go, card_test.go, column_test.go
+- [x] Create test data with representative task mixtures
+- [x] Run benchmarks and document baseline
+- [x] Run `make build && make test`

@@ -252,3 +252,36 @@ func TestRenderCard_doneShowsDoneText(t *testing.T) {
 		t.Error("RenderCard missing DONE phase label")
 	}
 }
+
+func BenchmarkRenderCard_narrow(b *testing.B) {
+	task := data.Task{ID: "E06-atari-noir-layout/T004-component-refinement", Title: "Refine card layout", Stage: data.StageBuild}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderCard(task, 24, false, nil)
+	}
+}
+
+func BenchmarkRenderCard_standard(b *testing.B) {
+	task := data.Task{ID: "E06-atari-noir-layout/T004-component-refinement", Title: "Refine card layout for the board view", Stage: data.StageTest}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderCard(task, 40, false, nil)
+	}
+}
+
+func BenchmarkRenderCard_wide(b *testing.B) {
+	task := data.Task{ID: "E06-atari-noir-layout/T004-component-refinement", Title: "Refine card layout for the board view with extra details", Stage: data.StageAudit}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderCard(task, 60, false, nil)
+	}
+}
+
+func BenchmarkRenderCard_focused(b *testing.B) {
+	task := data.Task{ID: "E06-atari-noir-layout/T004-component-refinement", Title: "Refine card layout", Stage: data.StageBuild}
+	router := &data.RouterState{Release: "v1", Epic: "E06", Task: "T004"}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderCard(task, 40, true, router)
+	}
+}

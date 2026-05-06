@@ -85,6 +85,36 @@ func renderChecklistSentences(text, glyph string, width int, style lipgloss.Styl
 	return lines
 }
 
+// knownAbbreviations is the set of dot-terminated tokens that must not trigger
+// sentence splits. Add entries (lowercase, trailing dot) to extend the list.
+var knownAbbreviations = map[string]bool{
+	"e.g.":    true,
+	"i.e.":    true,
+	"vs.":     true,
+	"etc.":    true,
+	"fig.":    true,
+	"no.":     true,
+	"mr.":     true,
+	"mrs.":    true,
+	"dr.":     true,
+	"st.":     true,
+	"jr.":     true,
+	"sr.":     true,
+	"prof.":   true,
+	"approx.": true,
+	"est.":    true,
+}
+
+// isKnownAbbreviation reports whether the period at dotPos in s is the trailing
+// dot of a known abbreviation (e.g. "e.g.", "Dr.").
+func isKnownAbbreviation(s string, dotPos int) bool {
+	start := dotPos
+	for start > 0 && s[start-1] != ' ' {
+		start--
+	}
+	return knownAbbreviations[strings.ToLower(s[start:dotPos+1])]
+}
+
 func splitChecklistSentences(text string) []string {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
@@ -96,6 +126,9 @@ func splitChecklistSentences(text string) []string {
 	start := 0
 	for i, r := range normalized {
 		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		if r == '.' && isKnownAbbreviation(normalized, i) {
 			continue
 		}
 		end := i + len(string(r))

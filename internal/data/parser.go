@@ -88,9 +88,10 @@ type taskFrontmatter struct {
 	Progress    Progress      `yaml:"progress"`
 }
 
-// normalizeLineEndings replaces Windows line endings with Unix line endings.
+// normalizeLineEndings replaces Windows (CRLF) and legacy Mac (CR) line endings with LF.
 func normalizeLineEndings(s string) string {
-	return strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.ReplaceAll(s, "\r", "\n")
 }
 
 func extractFrontmatter(content string) (string, error) {

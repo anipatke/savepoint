@@ -18,10 +18,12 @@ var columnOrder = []data.ColumnType{
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fileChangeMsg:
+		debugf("dispatch: fileChangeMsg")
 		if m.Root != "" {
 			return m, reloadTasks(m.Root, m.Dependencies)
 		}
 	case reloadMsg:
+		debugf("dispatch: reloadMsg tasks=%d releases=%d", len(msg.tasks), len(msg.releases))
 		m.AllTasks = msg.tasks
 		m.Releases = append([]string(nil), msg.releases...)
 		m.ReleaseEpics = copyReleaseEpics(msg.releaseEpics)
@@ -519,6 +521,23 @@ func (m Model) columnPageSize() int {
 		h = defaultTermH
 	}
 	return visibleColumnTaskLimit(CalculateLayout(m.Width, h).ContentHeight)
+}
+
+// conservativeColumnPageSize reserves 2 lines for scroll indicators so that
+// ensureFocusedTaskVisible never sets an offset where the focused card is hidden
+// by a top or bottom indicator that wasn't accounted for in the page budget.
+func (m Model) conservativeColumnPageSize() int {
+	h := m.Height
+	if h == 0 {
+		h = defaultTermH
+	}
+	contentHeight := CalculateLayout(m.Width, h).ContentHeight
+	// contentHeight - 2 = card budget; subtract 2 more for both indicators.
+	limit := (contentHeight - 4) / 3
+	if limit < 1 {
+		return 1
+	}
+	return limit
 }
 
 func (m Model) detailPageSize() int {

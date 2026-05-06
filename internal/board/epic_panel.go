@@ -113,6 +113,8 @@ func RenderEpicAuditTab(epicSlug, content string, overlayW, maxHeight, offset in
 	return styles.EpicDetailOverlay.Width(overlayW).Render(strings.Join(lines, "\n"))
 }
 
+// epicAuditHiddenSectionHeadings lists markdown section headings suppressed in the audit tab overlay.
+// Sections that are implementation details or planning artifacts clutter the summary view.
 var epicAuditHiddenSectionHeadings = map[string]struct{}{
 	"12. Distribution & build": {},
 	"Acceptance Criteria":      {},

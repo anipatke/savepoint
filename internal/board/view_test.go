@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -298,6 +299,67 @@ func TestRenderNextActivityLine_truncatesAtNarrowWidth(t *testing.T) {
 	}
 	if !strings.Contains(got, "PLAN:") || !strings.Contains(got, "…") {
 		t.Fatalf("renderNextActivityLine() = %q, want PLAN tag and ellipsis", got)
+	}
+}
+
+func BenchmarkCalculateLayout_narrow(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		CalculateLayout(60, 24)
+	}
+}
+
+func BenchmarkCalculateLayout_standard(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		CalculateLayout(80, 24)
+	}
+}
+
+func BenchmarkCalculateLayout_wide(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		CalculateLayout(120, 24)
+	}
+}
+
+func BenchmarkCalculateLayout_extraWide(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		CalculateLayout(220, 50)
+	}
+}
+
+func BenchmarkView_empty(b *testing.B) {
+	m := NewModel(nil, "v1", "E03")
+	m.Width = 120
+	m.Height = 40
+	b.ReportAllocs()
+	for b.Loop() {
+		m.View()
+	}
+}
+
+func BenchmarkView_withTasks(b *testing.B) {
+	tasks := make([]data.Task, 15)
+	stages := []data.ProgressStage{data.StageBuild, data.StageTest, data.StageAudit}
+	cols := []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, data.ColumnDone}
+	for i := range tasks {
+		tasks[i] = data.Task{
+			ID:      fmt.Sprintf("E06-layout/T%03d-task-slug", i+1),
+			Title:   fmt.Sprintf("Task %d with a reasonable title length", i+1),
+			Column:  cols[i%3],
+			Stage:   stages[i%3],
+			Release: "v1.1",
+			Epic:    "E06-layout",
+		}
+	}
+	m := NewModel(tasks, "v1.1", "E06")
+	m.Width = 120
+	m.Height = 40
+	b.ReportAllocs()
+	for b.Loop() {
+		m.View()
 	}
 }
 

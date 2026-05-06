@@ -1,6 +1,6 @@
 ---
 id: E15-hardening/T005-windows-targets
-status: planned
+status: done
 objective: Add Windows amd64 and arm64 build targets to buildtool
 depends_on: []
 ---
@@ -13,16 +13,16 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] Windows amd64 target added
-- [ ] Windows arm64 target added
-- [ ] .exe suffix handled for Windows binaries
-- [ ] Existing Linux and Darwin targets preserved
-- [ ] `go test ./...` passes
+- [x] Windows amd64 target added
+- [x] Windows arm64 target added
+- [x] .exe suffix handled for Windows binaries
+- [x] Existing Linux and Darwin targets preserved
+- [x] `go test ./...` passes
 
 ## Implementation Plan
 
-- [ ] Add windows-amd64 and windows-arm64 to targets list
-- [ ] Handle .exe suffix in build output path
-- [ ] Update localExecutable to detect Windows
-- [ ] Update tests for new targets
-- [ ] Run `make build && make test`
+- [x] Add windows-amd64 and windows-arm64 to targets list
+- [x] Handle .exe suffix in build output path via `executableName(goos)`
+- [x] Update localExecutable to detect Windows (already done in prior task)
+- [x] Update tests for new targets
+- [x] Run `make build && make test`

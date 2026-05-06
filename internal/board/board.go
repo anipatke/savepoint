@@ -36,10 +36,12 @@ func newProjectModel(start, releaseFilter, epicFilter string) (Model, error) {
 func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, deps ModelDependencies) (Model, error) {
 	deps = modelDependencies([]ModelDependencies{deps})
 
+	debugf("board init: finding savepoint root from %q", start)
 	root, err := deps.Discoverer.FindSavepointRoot(start)
 	if err != nil {
 		return Model{}, err
 	}
+	debugf("board init: root = %q", root)
 
 	routerState, err := readRouterState(root, deps.RouterReader)
 	if err != nil {
@@ -50,6 +52,7 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 	if err != nil {
 		return Model{}, err
 	}
+	debugf("board init: loaded %d tasks across %d releases", len(tasks), len(releaseIDs))
 
 	preferredRelease := routerState.Release
 	if releaseFilter != "" {
@@ -78,6 +81,7 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 		return Model{}, err
 	}
 	model.Watcher = watcher
+	debugf("board init: file watcher started at %q", root)
 
 	return model, nil
 }

@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -135,5 +136,75 @@ func TestRenderColumn_viewportShowsScrollIndicators(t *testing.T) {
 func TestVisibleColumnTaskLimitDefaultsToFourAtStandardHeight(t *testing.T) {
 	if got := visibleColumnTaskLimit(CalculateLayout(100, 24).ContentHeight); got != 4 {
 		t.Errorf("visibleColumnTaskLimit(standard height) = %d, want 4", got)
+	}
+}
+
+func BenchmarkRenderColumn_empty(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderColumn(nil, data.ColumnPlanned, 30, 20, 0, 0, false, nil)
+	}
+}
+
+func BenchmarkRenderColumn_fewTasks(b *testing.B) {
+	tasks := []data.Task{
+		{ID: "E06/T001", Title: "First task", Column: data.ColumnPlanned, Stage: data.StageBuild},
+		{ID: "E06/T002", Title: "Second task", Column: data.ColumnPlanned, Stage: data.StageTest},
+		{ID: "E06/T003", Title: "Third task", Column: data.ColumnPlanned, Stage: data.StageAudit},
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderColumn(tasks, data.ColumnPlanned, 30, 20, 0, 0, false, nil)
+	}
+}
+
+func BenchmarkRenderColumn_manyTasks(b *testing.B) {
+	tasks := make([]data.Task, 20)
+	stages := []data.ProgressStage{data.StageBuild, data.StageTest, data.StageAudit}
+	for i := range tasks {
+		tasks[i] = data.Task{
+			ID:      fmt.Sprintf("E06/T%03d", i+1),
+			Title:   fmt.Sprintf("Task number %d with a reasonable length title", i+1),
+			Column:  data.ColumnPlanned,
+			Stage:   stages[i%3],
+			Release: "v1.1",
+		}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderColumn(tasks, data.ColumnPlanned, 40, 24, 0, 0, false, nil)
+	}
+}
+
+func BenchmarkRenderColumn_focused(b *testing.B) {
+	tasks := []data.Task{
+		{ID: "E06/T001", Title: "First task", Column: data.ColumnInProgress, Stage: data.StageBuild},
+		{ID: "E06/T002", Title: "Second task", Column: data.ColumnInProgress, Stage: data.StageTest},
+		{ID: "E06/T003", Title: "Third task", Column: data.ColumnInProgress, Stage: data.StageAudit},
+	}
+	router := &data.RouterState{Release: "v1", Epic: "E06", Task: "T001"}
+	b.ReportAllocs()
+	for b.Loop() {
+		RenderColumn(tasks, data.ColumnInProgress, 40, 20, 0, 0, true, router)
+	}
+}
+
+func TestRenderColumn_focusedLastTaskVisibleWhenScrolled(t *testing.T) {
+	// When scrolled (offset > 0) the top scroll indicator steals 1 line.
+	// The focused last-in-page task must still appear, not be cut off.
+	tasks := []data.Task{
+		{ID: "T1", Title: "Task one", Column: data.ColumnPlanned},
+		{ID: "T2", Title: "Task two", Column: data.ColumnPlanned},
+		{ID: "T3", Title: "Task three", Column: data.ColumnPlanned},
+		{ID: "T4", Title: "Task four", Column: data.ColumnPlanned},
+		{ID: "T5", Title: "Task five", Column: data.ColumnPlanned},
+	}
+	// offset=2, focusedTask=4 (last task), maxHeight=14 (24-line terminal)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 14, 2, 4, true, nil)
+	if !strings.Contains(got, "Task five") {
+		t.Errorf("focused last task must be visible when scrolled, got:\n%s", got)
+	}
+	if !strings.Contains(got, "↑") {
+		t.Error("scroll indicator above must appear when offset > 0")
 	}
 }

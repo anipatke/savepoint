@@ -40,17 +40,20 @@ func UpdateLastAudited(path, value string) error {
 // SplitFrontmatterBody splits content into frontmatter YAML and body.
 func SplitFrontmatterBody(content string) (yamlStr string, body string, err error) {
 	normalized := normalizeLineEndings(content)
-	raw, err := extractFrontmatter(normalized)
-	if err != nil {
-		return "", "", err
+	if !strings.HasPrefix(normalized, "---\n") {
+		return "", "", ErrNoFrontmatter
 	}
-	delimLen := 4
-	bodyStart := delimLen + len(raw) + delimLen
+	end := strings.Index(normalized[4:], "\n---")
+	if end == -1 {
+		return "", "", ErrNoClosingFrontmatter
+	}
+	yamlStr = strings.TrimSpace(normalized[4 : 4+end])
+	bodyStart := 4 + end + 4 // "---\n" + yaml + "\n---"
 	body = ""
 	if bodyStart < len(normalized) {
 		body = normalized[bodyStart:]
 	}
-	return raw, body, nil
+	return yamlStr, body, nil
 }
 
 func updateFrontmatterField(path, key, value string) error {

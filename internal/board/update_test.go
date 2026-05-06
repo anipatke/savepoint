@@ -554,6 +554,33 @@ func TestReloadMsgUpdatesRouterState(t *testing.T) {
 	}
 }
 
+func TestEnsureFocusedTaskVisible_lastTaskAlwaysVisible(t *testing.T) {
+	// 5 tasks, pageSize=4 at standard height. Pressing down past the page
+	// boundary must keep the focused task in the rendered window.
+	tasks := make([]data.Task, 5)
+	for i := range tasks {
+		tasks[i] = data.Task{ID: "T00" + string(rune('1'+i)), Column: data.ColumnPlanned}
+	}
+	m := NewModel(tasks, "v1", "E01")
+	m.Width = 100
+	m.Height = 24
+	m.FocusedColumn = data.ColumnPlanned
+	m.FocusedTask = 4
+
+	m.ensureFocusedTaskVisible()
+
+	offset := m.ColumnOffsets[data.ColumnPlanned]
+	pageSize := m.columnPageSize() // 4
+	if offset+pageSize-1 < 4 {
+		t.Errorf("offset=%d pageSize=%d: focused task 4 not in [offset, offset+pageSize-1]", offset, pageSize)
+	}
+	// Render must actually show the focused task (not cut off by scroll indicator).
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, CalculateLayout(100, 24).ContentHeight, offset, 4, true, nil)
+	if !strings.Contains(got, tasks[4].ID) {
+		t.Errorf("focused last task %q not visible in rendered column (offset=%d):\n%s", tasks[4].ID, offset, got)
+	}
+}
+
 func writeRouterFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

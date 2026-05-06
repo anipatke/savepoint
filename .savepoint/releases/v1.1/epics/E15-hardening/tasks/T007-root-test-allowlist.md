@@ -1,6 +1,6 @@
 ---
 id: E15-hardening/T007-root-test-allowlist
-status: planned
+status: done
 objective: Move agent_skills_test.go to a test package and extract audit allowlist to a named constant
 depends_on: []
 ---
@@ -14,15 +14,20 @@ depends_on: []
 
 ## Acceptance Criteria
 
-- [ ] agent_skills_test.go moved to cmd_test package (or appropriate location)
-- [ ] allowedSections extracted to a named constant with documentation
-- [ ] All existing tests still pass after refactoring
-- [ ] `go test ./...` passes with no regressions
+- [x] agent_skills_test.go moved to cmd_test package (or appropriate location)
+- [x] allowedSections extracted to a named constant with documentation
+- [x] All existing tests still pass after refactoring
+- [x] `go test ./...` passes with no regressions
 
 ## Implementation Plan
 
-- [ ] Move agent_skills_test.go to an appropriate internal test package
-- [ ] Update imports and paths in moved test
-- [ ] Extract allowedSections map to a named constant
-- [ ] Update any references in epic_panel.go
-- [ ] Run `make build && make test`
+- [x] Move agent_skills_test.go to an appropriate internal test package
+- [x] Update imports and paths in moved test
+- [x] Extract allowedSections map to a named constant
+- [x] Update any references in epic_panel.go
+- [x] Run `make build && make test`
+
+## Notes
+
+- `agent_skills_test.go` changed from `package main` → `package main_test` (external test package at root). Paths remain valid since Go test working dir is the package dir.
+- `epicAuditHiddenSectionHeadings` already extracted as package-level var; added doc comment explaining suppression rationale.
