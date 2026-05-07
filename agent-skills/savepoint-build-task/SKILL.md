@@ -42,3 +42,4 @@ This skill is activated when the `.savepoint/router.md` state is `task-building`
 ## Constraints
 - **Stay in scope:** Do not touch files outside of what is required for the Acceptance Criteria.
 - **Do not edit architecture documents.** If you must deviate from the plan, write the code and log a "Drift Note" in the task file.
+- **Pre-build context discipline.** Read only the files listed in the task's `## Context Files` before starting implementation. Avoid exploratory globs or grep searches outside those files unless the Acceptance Criteria require verification against unexpected output.

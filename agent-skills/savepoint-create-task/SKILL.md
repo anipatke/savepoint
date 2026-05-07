@@ -42,3 +42,4 @@ This skill is activated when the `.savepoint/router.md` state is `epic-task-brea
 ## Constraints
 - **Do not write code.** Your job is to plan the work, not execute it.
 - **Keep it isolated:** The task plan should touch as few files as possible. If a task plan requires modifying 15 files, it is too large and should be broken down further.
+- **Strict "create-only" read budget.** Read only the epic detail, the task file, and any explicitly referenced context files. Do not read source code, tests, or run exploratory searches unless the task description explicitly demands it.

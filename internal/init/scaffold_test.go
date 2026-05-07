@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -72,8 +73,127 @@ func TestScaffold_interpolatesReleaseNumber(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != "release: v1" {
-		t.Fatalf("AGENTS.md = %q, want %q", string(data), "release: v1")
+	if !strings.Contains(string(data), "release: v1") {
+		t.Fatalf("AGENTS.md = %q, want to contain %q", string(data), "release: v1")
+	}
+}
+
+func TestScaffold_agentGuideInsertsBlock(t *testing.T) {
+	target := t.TempDir()
+	existingPath := filepath.Join(target, "AGENTS.md")
+	testutil.WriteFile(t, existingPath, "# My Guide\n\nExisting content.")
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() error = %v", err)
+	}
+
+	data, err := os.ReadFile(existingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "# My Guide") {
+		t.Errorf("AGENTS.md missing existing content: %q", got)
+	}
+	if !strings.Contains(got, "# Savepoint Instructions") {
+		t.Errorf("AGENTS.md missing managed block content: %q", got)
+	}
+	if !strings.Contains(got, managedBegin) {
+		t.Errorf("AGENTS.md missing managed block begin marker: %q", got)
+	}
+}
+
+func TestScaffold_agentGuideIdempotent(t *testing.T) {
+	target := t.TempDir()
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	for i := range 2 {
+		if err := Scaffold(templates, target, "myapp", false); err != nil {
+			t.Fatalf("Scaffold() run %d error = %v", i+1, err)
+		}
+	}
+
+	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	count := strings.Count(got, managedBegin)
+	if count != 1 {
+		t.Errorf("AGENTS.md has %d managed begin markers, want 1: %q", count, got)
+	}
+}
+
+func TestScaffold_agentGuideCasingVariant(t *testing.T) {
+	target := t.TempDir()
+	variantPath := filepath.Join(target, "Agents.MD")
+	testutil.WriteFile(t, variantPath, "# My Guide")
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() error = %v", err)
+	}
+
+	// Exactly one agent guide file should exist (no duplicate created).
+	entries, _ := os.ReadDir(target)
+	guideCount := 0
+	for _, e := range entries {
+		if strings.ToLower(e.Name()) == "agents.md" {
+			guideCount++
+		}
+	}
+	if guideCount != 1 {
+		t.Errorf("expected 1 agent guide file, found %d", guideCount)
+	}
+
+	data, err := os.ReadFile(variantPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "# My Guide") {
+		t.Errorf("Agents.MD missing existing content: %q", got)
+	}
+	if !strings.Contains(got, "# Savepoint Instructions") {
+		t.Errorf("Agents.MD missing managed block content: %q", got)
+	}
+}
+
+func TestScaffold_agentGuideForcePreservesUserContent(t *testing.T) {
+	target := t.TempDir()
+	existingPath := filepath.Join(target, "AGENTS.md")
+	testutil.WriteFile(t, existingPath, "# My Guide\n\nUser content.\n\n"+managedBegin+"\nold block\n"+managedEnd+"\n")
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# New Savepoint Block")},
+	}
+
+	if err := Scaffold(templates, target, "myapp", true); err != nil {
+		t.Fatalf("Scaffold() with force error = %v", err)
+	}
+
+	data, err := os.ReadFile(existingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "User content.") {
+		t.Errorf("AGENTS.md missing user content after force: %q", got)
+	}
+	if strings.Contains(got, "old block") {
+		t.Errorf("AGENTS.md still has old managed block after force: %q", got)
+	}
+	if !strings.Contains(got, "# New Savepoint Block") {
+		t.Errorf("AGENTS.md missing new managed content after force: %q", got)
 	}
 }
 

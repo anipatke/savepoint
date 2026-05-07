@@ -36,3 +36,4 @@ This skill is activated when the `.savepoint/router.md` state is `epic-design` o
 - **Do not write code.**
 - **Do not break down tasks.** That is the job of the `create-plan` skill.
 - **Maintain Token Discipline:** Keep the `Design.md` concise. It is meant to be read by AI agents on every turn. Rambling design docs destroy context windows.
+- **Limit source reads.** Read only the implementation boundary files (e.g., existing code that the design must integrate with). Do not read full test suites or explore the codebase broadly before implementation starts — those reads belong in the build phase.

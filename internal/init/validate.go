@@ -16,7 +16,6 @@ var (
 )
 
 var conflictingFiles = []string{
-	"AGENTS.md",
 	"agent-skills",
 }
 

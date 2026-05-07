@@ -83,26 +83,23 @@ func TestValidateTarget_existingSavepointWithForce(t *testing.T) {
 	}
 }
 
-func TestValidateTarget_conflictingFile(t *testing.T) {
+func TestValidateTarget_existingAgentGuide(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), "existing")
+	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), "existing content")
 
 	err := ValidateTarget(dir, false)
-	if err == nil {
-		t.Fatal("ValidateTarget() expected error for conflicting AGENTS.md")
-	}
-	if !errors.Is(err, ErrConflict) {
-		t.Fatalf("ValidateTarget() error type = %v, want ErrConflict", err)
+	if err != nil {
+		t.Fatalf("ValidateTarget() error = %v, want nil for existing AGENTS.md", err)
 	}
 }
 
-func TestValidateTarget_conflictingFileWithForce(t *testing.T) {
+func TestValidateTarget_existingAgentGuideCasingVariant(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), "existing")
+	testutil.WriteFile(t, filepath.Join(dir, "Agents.MD"), "existing content")
 
-	err := ValidateTarget(dir, true)
+	err := ValidateTarget(dir, false)
 	if err != nil {
-		t.Fatalf("ValidateTarget() with --force error = %v, want nil", err)
+		t.Fatalf("ValidateTarget() error = %v, want nil for existing Agents.MD", err)
 	}
 }
 

@@ -40,6 +40,14 @@ func Scaffold(templates fs.FS, targetDir, projectName string, force bool) error 
 			return fmt.Errorf("create parent dirs for %s: %w", targetPath, err)
 		}
 
+		if path == "AGENTS.md" {
+			dest := FindAgentGuide(targetDir)
+			if dest == "" {
+				dest = targetPath
+			}
+			return MergeAgentGuide(dest, interpolated)
+		}
+
 		return AtomicWrite(targetPath, []byte(interpolated))
 	})
 }

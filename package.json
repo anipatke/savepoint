@@ -1,6 +1,6 @@
 {
   "name": "savepoint",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "It’s a simple, file-based state machine and cinematic Terminal UI (TUI) designed to force you—and your agent (Claude, Cursor, Aider, Gemini)—to slow down, write down what you're actually building, and check your work before moving on.",
   "keywords": [
     "board",
@@ -18,9 +18,16 @@
   "license": "MIT",
   "author": "anipatke",
   "bin": {
-    "savepoint": "./savepoint"
+    "savepoint": "./savepoint.exe"
   },
+  "files": [
+    "savepoint.exe",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "echo \"Run 'make test' for Go tests\""
+    "build": "go build -o savepoint.exe .",
+    "test": "echo \"Run 'make test' for Go tests\"",
+    "prepublishOnly": "npm run build"
   }
 }

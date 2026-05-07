@@ -155,6 +155,63 @@ func TestIntegration_ForceOverwritesExistingSavepoint(t *testing.T) {
 	}
 }
 
+func TestIntegration_ExistingAgentGuide(t *testing.T) {
+	dir := t.TempDir()
+	existingPath := filepath.Join(dir, "AGENTS.md")
+	testutil.WriteFile(t, existingPath, "# Team Guide\n\nOur custom rules.")
+
+	prompt := runInitPipeline(t, dir, false)
+
+	data, err := os.ReadFile(existingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "# Team Guide") {
+		t.Errorf("AGENTS.md missing existing content: %q", got)
+	}
+	if !strings.Contains(got, "Our custom rules.") {
+		t.Errorf("AGENTS.md missing existing custom rules: %q", got)
+	}
+	if !strings.Contains(got, "<!-- SAVEPOINT:BEGIN -->") {
+		t.Errorf("AGENTS.md missing managed block: %q", got)
+	}
+	if !strings.Contains(prompt, "AGENT") {
+		t.Errorf("prompt should contain AGENT marker")
+	}
+}
+
+func TestIntegration_ExistingAgentGuideCasingVariant(t *testing.T) {
+	dir := t.TempDir()
+	variantPath := filepath.Join(dir, "Agents.MD")
+	testutil.WriteFile(t, variantPath, "# Team Guide")
+
+	runInitPipeline(t, dir, false)
+
+	// Exactly one agent guide file should exist (no duplicate created).
+	entries, _ := os.ReadDir(dir)
+	guideCount := 0
+	for _, e := range entries {
+		if strings.ToLower(e.Name()) == "agents.md" {
+			guideCount++
+		}
+	}
+	if guideCount != 1 {
+		t.Errorf("expected 1 agent guide file, found %d", guideCount)
+	}
+
+	data, err := os.ReadFile(variantPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "# Team Guide") {
+		t.Errorf("Agents.MD missing original content: %q", string(data))
+	}
+	if !strings.Contains(string(data), "<!-- SAVEPOINT:BEGIN -->") {
+		t.Errorf("Agents.MD missing managed block: %q", string(data))
+	}
+}
+
 func TestIntegration_InstallDependencies(t *testing.T) {
 	if _, err := exec.LookPath("npm"); err != nil {
 		t.Skip("npm not found in PATH, skipping install test")

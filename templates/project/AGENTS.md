@@ -83,6 +83,12 @@ make build && make test
 | Module | Epic | Purpose |
 |--------|------|---------|
 
+## Context Budget
+
+- **Read only what you need.** Each phase has a strict read budget. Do not read files outside your current phase's context.
+- **No exploratory reads.** Read only the files listed in the task's `## Context Files`. Do not glob or search for new information unless explicitly instructed.
+- **Token awareness.** Every file read consumes context window. Before reading a file, ask: "Do I need this to complete my current phase?"
+
 ## CLI Rules
 
 **Never run `savepoint` commands.** The CLI is for the human. Edit files directly.
