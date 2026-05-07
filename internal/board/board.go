@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	xterm "github.com/charmbracelet/x/term"
 	"github.com/opencode/savepoint/internal/data"
@@ -152,6 +153,9 @@ func readRouterState(root string, reader routerReader) (*data.RouterState, error
 func loadEpicTasks(discoverer taskDiscoverer, parser taskParser, root, release, epic string) ([]data.Task, error) {
 	taskInfos, err := discoverer.ListTasks(root, release, epic)
 	if err != nil {
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "tasks directory not found") {
+			return nil, nil
+		}
 		return nil, err
 	}
 

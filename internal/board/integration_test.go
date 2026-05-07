@@ -239,6 +239,34 @@ func TestReleaseFilter_acceptsNamedRelease(t *testing.T) {
 	}
 }
 
+func TestReleaseFilter_allowsTasklessEpicInNamedRelease(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	release := "quiz-tales-journals"
+	testutil.WriteRouter(t, savepointRoot, "task-building", release, "E01-init", "", "test")
+	writeTask(t, savepointRoot, release, "E01-init", "T001-named-release-task", data.ColumnPlanned)
+	testutil.MkdirAll(t, filepath.Join(savepointRoot, "releases", release, "epics", "E04-THE_AUDIT"))
+
+	model, err := newProjectModel(projectRoot, release, "")
+	if err != nil {
+		t.Fatalf("newProjectModel: %v", err)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+
+	if model.SelectedRelease != release {
+		t.Errorf("SelectedRelease = %q, want %q", model.SelectedRelease, release)
+	}
+	if len(model.ReleaseEpics[release]) != 2 {
+		t.Fatalf("release epics = %v, want task epic and taskless audit epic", model.ReleaseEpics[release])
+	}
+	planned := model.Tasks[data.ColumnPlanned]
+	if len(planned) != 1 || planned[0].ID != "E01-init/T001-named-release-task" {
+		t.Fatalf("planned tasks = %v, want only named release task", planned)
+	}
+}
+
 func TestReleaseFilter_unknownReleaseReturnsError(t *testing.T) {
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
