@@ -64,7 +64,22 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 	}
 
 	release := firstKnown(preferredRelease, releaseIDs)
+	if releaseFilter != "" {
+		var ok bool
+		release, ok = knownValue(releaseFilter, releaseIDs)
+		if !ok {
+			return Model{}, fmt.Errorf("release %q not found", releaseFilter)
+		}
+	}
+
 	epic := firstKnown(preferredEpic, releaseEpics[release])
+	if epicFilter != "" {
+		var ok bool
+		epic, ok = knownValue(epicFilter, releaseEpics[release])
+		if !ok {
+			return Model{}, fmt.Errorf("epic %q not found in release %q", epicFilter, release)
+		}
+	}
 
 	model := NewModel(tasks, release, epic, deps)
 	model.Root = root
@@ -164,18 +179,25 @@ func loadEpicTasks(discoverer taskDiscoverer, parser taskParser, root, release, 
 }
 
 func firstKnown(preferred string, values []string) string {
-	for _, value := range values {
-		if value == preferred {
-			return preferred
-		}
-	}
-	for _, value := range values {
-		if shortID(value) == shortID(preferred) {
-			return value
-		}
+	if value, ok := knownValue(preferred, values); ok {
+		return value
 	}
 	if len(values) == 0 {
 		return ""
 	}
 	return values[0]
+}
+
+func knownValue(preferred string, values []string) (string, bool) {
+	for _, value := range values {
+		if value == preferred {
+			return value, true
+		}
+	}
+	for _, value := range values {
+		if shortID(value) == shortID(preferred) {
+			return value, true
+		}
+	}
+	return "", false
 }

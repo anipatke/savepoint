@@ -1,28 +1,25 @@
 # Agents Guide
 
-## Workflow
+## Startup
 
-1. Read `.savepoint/router.md` — state + next action
-2. Activate skill per table below
-3. Read: router → epic → task → source files
+1. Read `.savepoint/router.md` for state, release, epic, task, and next action.
+2. Activate the skill for the current state:
 
-## Skill Activation
-
-| State | Skill |
-|-------|-------|
-| pre-implementation | savepoint-draft-prd |
-| epic-design | savepoint-system-design |
-| epic-task-breakdown | savepoint-create-task |
-| task-building | savepoint-build-task |
-| audit-pending | savepoint-audit |
+   | State | Skill |
+   |-------|-------|
+   | pre-implementation | savepoint-draft-prd |
+   | epic-design | savepoint-system-design |
+   | epic-task-breakdown | savepoint-create-task |
+   | task-building | savepoint-build-task |
+   | audit-pending | savepoint-audit |
 
 Use the `skill` tool when the listed skill is available. If the agent says the skill is not found, read `agent-skills/{skill}/SKILL.md` directly and follow it as the active skill.
 
-Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only for architecture/audit.
+Read in order: router → active epic → active task → task `## Context Files` only. Read `.savepoint/PRD.md` only for vision changes, and `.savepoint/Design.md` only for architecture/audit.
 
 ## Task Status
 
-- `status`: only `planned`, `in_progress`, or `done`
+- `status` must be only `planned`, `in_progress`, or `done`.
 - `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
 - Never: todo, doing, blocked, review, audit
 - Agents may set a task to `status: in_progress` when starting implementation.
@@ -30,15 +27,13 @@ Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only fo
 
 ## Implementation
 
-1. Read task's `## Context Files` using `Read` tool — one call per file, no explore, no glob
-2. Read task's `## Acceptance Criteria` + `## Implementation Plan`
-3. When starting implementation, set task frontmatter to `status: in_progress` + `stage: build` (both required together)
-4. After setting `in_progress`, press `p` in the TUI to mark the focused task as router priority
-5. Execute in order, tick checkboxes
-6. Verify every AC has passing test/outcome
-7. Run quality gates (build + test)
-8. Update router.md: next task or `audit-pending`
-9. **Stop. Prompt user before continuing.**
+1. Read the task's `## Context Files` one file at a time; do not explore, glob, search broadly, or read files outside the task context unless explicitly required.
+2. Read the task's `## Acceptance Criteria` and `## Implementation Plan`.
+3. Set task frontmatter to `status: in_progress` and `stage: build`, then press `p` in the TUI to mark router priority.
+4. Execute the plan in order, tick checkboxes, and verify every AC with a passing test or outcome.
+5. Run `make build && make test`.
+6. Update `router.md` to the next task or `audit-pending`.
+7. Stop and prompt the user before continuing.
 
 ## Drift Check
 
@@ -47,17 +42,14 @@ Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only fo
 
 If yes → append `## Drift Notes` to task file.
 
-## Audit Handoff
+## Audit
 
-The agent that builds an epic **must not audit it**. Start a fresh session.
-
-## Audit File Structure
-
+- The builder must not audit its own epic; start a fresh audit session.
 - Audit is agent-led via `savepoint-audit`, not a `savepoint audit` CLI pipeline.
 - Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
-- The TUI Audit tab renders `## Main Findings` and `## Code Style Review` only.
-- Keep file-specific `### Target File` / `### Replace` / `### With` blocks under `## Proposed Changes` so admin apply details do not appear in the Epic Detail panel.
-- During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
+- The TUI Audit tab renders only `## Main Findings` and `## Code Style Review`.
+- Put file-specific `### Target File`, `### Replace`, and `### With` blocks under `## Proposed Changes`.
+- During audit apply/close, update the same `E##-Audit.md` visible sections so they describe the applied outcome, not stale blockers.
 
 ## Code Style
 
@@ -74,20 +66,12 @@ The agent that builds an epic **must not audit it**. Start a fresh session.
 
 ## Build
 
-```bash
-make build && make test
-```
+Build gate: `make build && make test`
 
 ## Codebase Map
 
 | Module | Epic | Purpose |
 |--------|------|---------|
-
-## Context Budget
-
-- **Read only what you need.** Each phase has a strict read budget. Do not read files outside your current phase's context.
-- **No exploratory reads.** Read only the files listed in the task's `## Context Files`. Do not glob or search for new information unless explicitly instructed.
-- **Token awareness.** Every file read consumes context window. Before reading a file, ask: "Do I need this to complete my current phase?"
 
 ## CLI Rules
 

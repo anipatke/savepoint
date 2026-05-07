@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v1.1
 epic: E16-pre-prod-refinement
-task: E16-pre-prod-refinement/T004-init-board-release-skeleton
-next_action: Build E16-pre-prod-refinement/T004-init-board-release-skeleton.
+task: E16-pre-prod-refinement/T005-simplify-agents-template
+next_action: Build E16-pre-prod-refinement/T005-simplify-agents-template.
 ```
 
 ## State → action

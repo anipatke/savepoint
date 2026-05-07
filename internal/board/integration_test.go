@@ -211,6 +211,49 @@ func TestReleaseFilter_showsOnlyMatchingRelease(t *testing.T) {
 	}
 }
 
+func TestReleaseFilter_acceptsNamedRelease(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	release := "quiz-tales-journals"
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
+	writeTask(t, savepointRoot, "v1", "E01-init", "T001-v1-task", data.ColumnPlanned)
+	writeTask(t, savepointRoot, release, "E01-init", "T001-named-release-task", data.ColumnPlanned)
+
+	model, err := newProjectModel(projectRoot, release, "")
+	if err != nil {
+		t.Fatalf("newProjectModel: %v", err)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+
+	if model.SelectedRelease != release {
+		t.Errorf("SelectedRelease = %q, want %q", model.SelectedRelease, release)
+	}
+	planned := model.Tasks[data.ColumnPlanned]
+	if len(planned) != 1 {
+		t.Fatalf("planned tasks = %v, want one named release task", planned)
+	}
+	if planned[0].Release != release {
+		t.Errorf("task release = %q, want %q", planned[0].Release, release)
+	}
+}
+
+func TestReleaseFilter_unknownReleaseReturnsError(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
+	writeTask(t, savepointRoot, "v1", "E01-init", "T001-v1-task", data.ColumnPlanned)
+
+	_, err := newProjectModel(projectRoot, "quiz-tales-journals", "")
+	if err == nil {
+		t.Fatal("newProjectModel error = nil, want unknown release error")
+	}
+	if !strings.Contains(err.Error(), `release "quiz-tales-journals" not found`) {
+		t.Fatalf("newProjectModel error = %v, want unknown release message", err)
+	}
+}
+
 // TestEpicFilter_showsOnlyMatchingEpic verifies the --epic flag filters tasks.
 func TestEpicFilter_showsOnlyMatchingEpic(t *testing.T) {
 	projectRoot := t.TempDir()
