@@ -59,6 +59,7 @@ Built for a cinematic, technical feel without the bloat.
 
 | Command            | Action                                                                                               |
 | :----------------- | :--------------------------------------------------------------------------------------------------- |
+| `savepoint --version` | Print the installed Savepoint version.                                                            |
 | `savepoint init`   | Scaffold the loop, write your `AGENTS.md` guide, drop the baby gates, and generate the magic prompt. |
 | `savepoint board`  | Launch the Atari-Noir Kanban TUI to track the vibe.                                                  |
 | `savepoint doctor` | Check the integrity of the state machine.                                                            |

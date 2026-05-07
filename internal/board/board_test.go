@@ -140,6 +140,30 @@ func TestUpdateReloadMsgRefreshesReleaseEpicIndex(t *testing.T) {
 	}
 }
 
+func TestNewProjectModelFreshInit(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "pre-implementation", "v1", "none", "", "")
+	testutil.MkdirAll(t, filepath.Join(savepointRoot, "releases", "v1", "epics"))
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel() error = %v (board must not fail after fresh init)", err)
+	}
+	if model.Root != savepointRoot {
+		t.Errorf("Root = %q, want %q", model.Root, savepointRoot)
+	}
+	if len(model.Releases) != 1 || model.Releases[0] != "v1" {
+		t.Errorf("Releases = %v, want [v1]", model.Releases)
+	}
+	if len(model.Epics) != 0 {
+		t.Errorf("Epics = %v, want empty for zero-epic project", model.Epics)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+}
+
 func writeTask(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
 	t.Helper()
 	tf := testutil.TaskFixture{

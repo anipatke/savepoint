@@ -260,6 +260,32 @@ func TestScaffold_overwritesExistingAfterValidation(t *testing.T) {
 	}
 }
 
+func TestScaffold_createsReleaseSkeleton(t *testing.T) {
+	target := t.TempDir()
+	templates := fstest.MapFS{
+		".savepoint/releases/v1/epics":      &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/releases/v1/v1-PRD.md":  &fstest.MapFile{Data: []byte("# v{{RELEASE_NUMBER}} PRD for {{PROJECT_NAME}}")},
+	}
+
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() error = %v", err)
+	}
+
+	epicsPath := filepath.Join(target, ".savepoint", "releases", "v1", "epics")
+	if info, err := os.Stat(epicsPath); err != nil || !info.IsDir() {
+		t.Errorf(".savepoint/releases/v1/epics not created as directory: %v", err)
+	}
+
+	prdPath := filepath.Join(target, ".savepoint", "releases", "v1", "v1-PRD.md")
+	data, err := os.ReadFile(prdPath)
+	if err != nil {
+		t.Errorf(".savepoint/releases/v1/v1-PRD.md not created: %v", err)
+	}
+	if got := string(data); !strings.Contains(got, "v1 PRD for myapp") {
+		t.Errorf("v1-PRD.md = %q, want interpolated content", got)
+	}
+}
+
 func TestProjectNameFromDir(t *testing.T) {
 	dir := t.TempDir()
 	name := filepath.Base(dir)

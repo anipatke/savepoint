@@ -19,6 +19,7 @@ Refine the pre-production workflow before release by tightening init safety and 
 - Savepoint phase skills define explicit read budgets and phase-specific allowed reads.
 - Scaffolded skill templates carry the same context-discipline rules as bundled skills.
 - "Create epic/task only" workflows explicitly prohibit source-code reads, broad searches, tests, and status checks.
+- The CLI exposes a simple version-reporting entry point such as `savepoint --version`.
 
 ## Components
 
@@ -33,6 +34,8 @@ Refine the pre-production workflow before release by tightening init safety and 
 | `agent-skills/` | Update live phase skill guides with read-budget and tool-discipline rules |
 | `templates/project/agent-skills/` | Update scaffolded phase skill templates to match live skills |
 | `templates/project/AGENTS.md` | Add concise context-budget rules for generated projects |
+| `main.go` | Expose and test the version-reporting CLI surface |
+| `cmd/` | Keep command parsing behavior consistent with the version surface if parsing changes are needed |
 
 ## Boundaries
 
@@ -43,9 +46,10 @@ Refine the pre-production workflow before release by tightening init safety and 
 - Unit and integration tests for init behavior
 - Skill and skill-template guidance that enforces minimal file reads by phase
 - Context-budget guidance for planning-only and create-only workflows
+- A narrow version-reporting CLI surface such as `savepoint --version`, `savepoint version`, or equivalent
 
 **Out of scope:**
-- New CLI flags or prompts
+- New CLI flags or prompts other than the version-reporting surface
 - Changing the magic prompt contract unless required by casing behavior
 - Modifying generated Savepoint instruction content beyond managed markers
 - Changing `agent-skills` conflict behavior

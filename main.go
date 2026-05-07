@@ -15,7 +15,7 @@ import (
 )
 
 //go:embed templates/project
-//go:embed templates/project/.savepoint
+//go:embed all:templates/project/.savepoint
 //go:embed templates/prompts
 var projectTemplates embed.FS
 
