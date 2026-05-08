@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
+state: audit-pending
 release: v1.1
 epic: E16-pre-prod-refinement
-task: E16-pre-prod-refinement/T005-simplify-agents-template
-next_action: Build E16-pre-prod-refinement/T005-simplify-agents-template.
+task: E16-pre-prod-refinement/T006-upgrade-assets-command
+next_action: Audit E16-pre-prod-refinement — all 6 tasks done.
 ```
 
 ## State → action

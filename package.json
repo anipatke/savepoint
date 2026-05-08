@@ -28,6 +28,7 @@
   "scripts": {
     "build": "go build -o savepoint.exe .",
     "test": "echo \"Run 'make test' for Go tests\"",
+    "postinstall": "node -e \"console.log('Run \\\"savepoint upgrade-assets\\\" in each existing Savepoint project to refresh agent skills and templates.')\"",
     "prepublishOnly": "npm run build"
   }
 }

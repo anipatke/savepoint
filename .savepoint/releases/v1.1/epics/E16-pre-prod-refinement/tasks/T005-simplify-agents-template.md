@@ -1,7 +1,6 @@
 ---
 id: E16-pre-prod-refinement/T005-simplify-agents-template
-status: in_progress
-stage: test
+status: done
 objective: Reduce scaffolded `AGENTS.md` line count and context overhead while preserving Savepoint operating rules
 depends_on: []
 ---

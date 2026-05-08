@@ -54,6 +54,12 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 			}
 			os.Exit(code)
+		case "upgrade-assets":
+			if err := cmd.RunUpgradeAssets(context.Background(), args[1:], os.Stdout, upgradeAssetsRunner); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
 		}
 	}
 	if err := board.Run(); err != nil {
@@ -89,6 +95,21 @@ func runDoctorChecks(opts cmd.DoctorOptions) (int, error) {
 		return 1, nil
 	}
 	return 0, nil
+}
+
+func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) error {
+	sub, err := fs.Sub(projectTemplates, "templates/project")
+	if err != nil {
+		return fmt.Errorf("cannot load templates: %w", err)
+	}
+
+	report, err := savepointinit.UpgradeProjectAssets(sub, opts.Dir, opts.DryRun, opts.Force)
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(report.Format())
+	return nil
 }
 
 func initRunner(ctx context.Context, opts cmd.InitOptions) error {

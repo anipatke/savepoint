@@ -62,7 +62,23 @@ Built for a cinematic, technical feel without the bloat.
 | `savepoint --version` | Print the installed Savepoint version.                                                            |
 | `savepoint init`   | Scaffold the loop, write your `AGENTS.md` guide, drop the baby gates, and generate the magic prompt. |
 | `savepoint board`  | Launch the Atari-Noir Kanban TUI to track the vibe.                                                  |
-| `savepoint doctor` | Check the integrity of the state machine.                                                            |
+| `savepoint doctor` | Check the integrity of the state machine.                            |
+| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned templates and agent skills in an existing Savepoint project without touching project state. |
+
+---
+
+## 📦 Updating
+
+After updating the Savepoint package:
+
+```bash
+npm update -g savepoint
+savepoint upgrade-assets
+```
+
+The `upgrade-assets` command refreshes bundled `agent-skills/**/SKILL.md` files and the Savepoint-managed block in `AGENTS.md` from the latest templates. It never overwrites `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/releases/**`, or any task/epic/audit files.
+
+Use `--dry-run` to preview changes before applying them.
 
 ---
 
