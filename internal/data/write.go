@@ -194,7 +194,7 @@ func WriteRouterState(root string, state *RouterState, expectedMtime time.Time) 
 
 	normalized := normalizeLineEndings(string(content))
 
-	startIdx := strings.Index(normalized, stateBlockStart)
+	startIdx := strings.Index(strings.ToLower(normalized), strings.ToLower(stateBlockStart))
 	if startIdx == -1 {
 		return fmt.Errorf("no Current state block found")
 	}

@@ -25,23 +25,26 @@ func NewRouterReader() *RouterReader {
 }
 
 func (r *RouterReader) ReadState(content string) (*RouterState, error) {
-	startIdx := strings.Index(content, stateBlockStart)
+	normalized := normalizeLineEndings(content)
+	lower := strings.ToLower(normalized)
+
+	startIdx := strings.Index(lower, strings.ToLower(stateBlockStart))
 	if startIdx == -1 {
 		return nil, fmt.Errorf("no Current state block found")
 	}
 
-	yamlStart := strings.Index(content[startIdx:], "```yaml")
+	yamlStart := strings.Index(normalized[startIdx:], "```yaml")
 	if yamlStart == -1 {
 		return nil, fmt.Errorf("no yaml code block found")
 	}
 
 	yamlStart += startIdx + len("```yaml")
-	yamlEnd := strings.Index(content[yamlStart:], "```")
+	yamlEnd := strings.Index(normalized[yamlStart:], "```")
 	if yamlEnd == -1 {
 		return nil, fmt.Errorf("no closing code block found")
 	}
 
-	yamlContent := strings.TrimSpace(content[yamlStart : yamlStart+yamlEnd])
+	yamlContent := strings.TrimSpace(normalized[yamlStart : yamlStart+yamlEnd])
 
 	var state RouterState
 	if err := yaml.Unmarshal([]byte(yamlContent), &state); err != nil {

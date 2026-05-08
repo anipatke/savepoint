@@ -24,6 +24,19 @@ func TestRouterReaderReadState(t *testing.T) {
 	}
 }
 
+func TestRouterReaderCapitalizedHeading(t *testing.T) {
+	r := NewRouterReader()
+	content := "## Current State\n\n```yaml\nstate: task-building\nrelease: v1\nepic: E01\ntask: E01/T001\nnext_action: \"Do thing\"\n```\n"
+
+	state, err := r.ReadState(content)
+	if err != nil {
+		t.Fatalf("ReadState() error = %v", err)
+	}
+	if state.State != "task-building" {
+		t.Errorf("State = %v, want task-building", state.State)
+	}
+}
+
 func TestRouterReaderMissing(t *testing.T) {
 	r := NewRouterReader()
 	content := "# No state block here"
