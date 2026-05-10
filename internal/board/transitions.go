@@ -64,10 +64,14 @@ func taskTransitionMessage(prefix string, task data.Task) string {
 // CanAdvance checks whether a task is allowed to advance to its next phase.
 // It validates phase adjacency and dependency completion.
 // Returns (true, "") if allowed, or (false, reason) if blocked.
-func CanAdvance(t *data.Task, allTasks []data.Task) (bool, string) {
+func CanAdvance(t *data.Task, allTasks []data.Task, epicStatuses ...map[string]string) (bool, string) {
+	scopedEpicStatuses := map[string]string(nil)
+	if len(epicStatuses) > 0 {
+		scopedEpicStatuses = epicStatuses[0]
+	}
 	switch t.Column {
 	case data.ColumnPlanned:
-		return dependenciesDone(t, allTasks)
+		return dependenciesDone(t, allTasks, scopedEpicStatuses)
 	case data.ColumnInProgress:
 		stage := t.Stage
 		if stage == "" {
@@ -79,7 +83,7 @@ func CanAdvance(t *data.Task, allTasks []data.Task) (bool, string) {
 		case data.StageTest:
 			return true, ""
 		case data.StageAudit:
-			return dependenciesDone(t, allTasks)
+			return dependenciesDone(t, allTasks, scopedEpicStatuses)
 		default:
 			return false, fmt.Sprintf("unknown stage %q", stage)
 		}
@@ -90,24 +94,21 @@ func CanAdvance(t *data.Task, allTasks []data.Task) (bool, string) {
 	}
 }
 
-func dependenciesDone(t *data.Task, allTasks []data.Task) (bool, string) {
+func dependenciesDone(t *data.Task, allTasks []data.Task, epicStatuses map[string]string) (bool, string) {
 	for _, depID := range t.DependsOn {
-		dep := findTask(depID, allTasks)
-		if dep == nil {
+		dep := data.ResolveDependency(depID, *t, allTasks, epicStatuses)
+		switch dep.Kind {
+		case data.DependencyTask:
+			if dep.TaskStatus != data.ColumnDone {
+				return false, fmt.Sprintf("dependency %q is not done", depID)
+			}
+		case data.DependencyEpic:
+			if dep.EpicStatus != "audited" {
+				return false, fmt.Sprintf("dependency %q is not audited", depID)
+			}
+		default:
 			return false, fmt.Sprintf("dependency %q not found", depID)
-		}
-		if dep.Column != data.ColumnDone {
-			return false, fmt.Sprintf("dependency %q is not done", depID)
 		}
 	}
 	return true, ""
-}
-
-func findTask(id string, tasks []data.Task) *data.Task {
-	for i := range tasks {
-		if tasks[i].ID == id {
-			return &tasks[i]
-		}
-	}
-	return nil
 }

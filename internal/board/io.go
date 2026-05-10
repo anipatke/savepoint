@@ -1,6 +1,7 @@
 package board
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -64,6 +65,9 @@ func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string, reade
 func writeTaskStatusCmd(orig, next data.Task, expectedMtime time.Time, prefix string) tea.Cmd {
 	return func() tea.Msg {
 		if err := data.WriteTaskStatus(next.Path, &next, expectedMtime); err != nil {
+			if errors.Is(err, data.ErrMtimeConflict) {
+				return retryTaskStatusAfterConflict(orig, next, prefix)
+			}
 			return errorMsg{message: taskWriteErrorMessage(err)}
 		}
 		fi, err := os.Stat(next.Path)
@@ -73,6 +77,74 @@ func writeTaskStatusCmd(orig, next data.Task, expectedMtime time.Time, prefix st
 		next.Mtime = fi.ModTime()
 		return taskWriteMsg{prefix: prefix, next: next}
 	}
+}
+
+func retryTaskStatusAfterConflict(orig, next data.Task, prefix string) tea.Msg {
+	current, err := readTaskFromDisk(orig.Path, orig.Release, orig.Epic)
+	if err != nil {
+		return errorMsg{message: taskWriteErrorMessage(err)}
+	}
+	debugf("mtime conflict for %s: expected=%s current=%s", orig.ID, orig.Mtime.Format(time.RFC3339Nano), current.Mtime.Format(time.RFC3339Nano))
+	if !sameTransitionBase(orig, current) {
+		return taskRefreshMsg{
+			task:    current,
+			message: "task changed on disk: refreshed, retry if still intended",
+		}
+	}
+
+	next.Mtime = current.Mtime
+	if err := data.WriteTaskStatus(next.Path, &next, current.Mtime); err != nil {
+		return errorMsg{message: taskWriteErrorMessage(err)}
+	}
+	fi, err := os.Stat(next.Path)
+	if err != nil {
+		return errorMsg{message: err.Error()}
+	}
+	next.Mtime = fi.ModTime()
+	debugf("mtime conflict retry succeeded for %s", orig.ID)
+	return taskWriteMsg{prefix: prefix, next: next}
+}
+
+func readTaskFromDisk(path, release, epic string) (data.Task, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return data.Task{}, err
+	}
+	task, err := data.NewParser().ParseTaskFile(path, string(raw))
+	if err != nil {
+		return data.Task{}, err
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return data.Task{}, err
+	}
+	task.Path = path
+	task.Mtime = fi.ModTime()
+	task.Release = release
+	task.Epic = epic
+	return *task, nil
+}
+
+func sameTransitionBase(orig, current data.Task) bool {
+	return orig.ID == current.ID &&
+		orig.Column == current.Column &&
+		orig.Stage == current.Stage
+}
+
+func sameTaskRecord(a, b data.Task) bool {
+	if a.Path != "" && b.Path != "" {
+		return a.Path == b.Path
+	}
+	if a.ID != b.ID {
+		return false
+	}
+	if a.Release != "" && b.Release != "" && a.Release != b.Release {
+		return false
+	}
+	if a.Epic != "" && b.Epic != "" && a.Epic != b.Epic {
+		return false
+	}
+	return true
 }
 
 func readEpicDetailCmd(epicDir, shortIDStr string) tea.Cmd {

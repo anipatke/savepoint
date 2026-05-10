@@ -315,35 +315,87 @@ func TestUpdate_spaceShowsPhaseTransitionMessage(t *testing.T) {
 	}
 }
 
-func TestUpdate_spaceWarnsAfterStaleMtime(t *testing.T) {
+func TestUpdate_spaceUsesSelectedReleaseWhenTaskIDsRepeat(t *testing.T) {
+	dir := t.TempDir()
+	v11Path := filepath.Join(dir, "v1.1-T001.md")
+	v12Path := filepath.Join(dir, "v1.2-T001.md")
+	testutil.WriteFile(t, v11Path, "---\nid: E17/T001\nstatus: done\n---\n\n# Task\n")
+	testutil.WriteFile(t, v12Path, "---\nid: E17/T001\nstatus: planned\n---\n\n# Task\n")
+	v11Info, err := os.Stat(v11Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v12Info, err := os.Stat(v12Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tasks := []data.Task{
+		{ID: "E17/T001", Column: data.ColumnDone, Path: v11Path, Mtime: v11Info.ModTime(), Release: "v1.1", Epic: "E17"},
+		{ID: "E17/T001", Column: data.ColumnPlanned, Path: v12Path, Mtime: v12Info.ModTime(), Release: "v1.2", Epic: "E17"},
+	}
+	m := NewModel(tasks, "v1.2", "E17")
+	m.FocusedColumn = data.ColumnPlanned
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd == nil {
+		t.Fatal("expected write command")
+	}
+	msg := cmd()
+	got2, _ := requireModel(t, got).Update(msg)
+	updated := requireModel(t, got2)
+
+	rawV11, err := os.ReadFile(v11Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(rawV11), "status: done") {
+		t.Fatalf("v1.1 task was unexpectedly changed:\n%s", rawV11)
+	}
+	rawV12, err := os.ReadFile(v12Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(rawV12), "status: in_progress") || !strings.Contains(string(rawV12), "phase: build") {
+		t.Fatalf("v1.2 task was not advanced:\n%s", rawV12)
+	}
+	if updated.AllTasks[0].Column != data.ColumnDone {
+		t.Errorf("v1.1 model column = %q, want done", updated.AllTasks[0].Column)
+	}
+	if updated.AllTasks[1].Column != data.ColumnInProgress {
+		t.Errorf("v1.2 model column = %q, want in_progress", updated.AllTasks[1].Column)
+	}
+}
+
+func TestUpdate_spaceRetriesAfterStaleMtimeWhenTaskUnchanged(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T004-task.md")
-	content := "---\nid: E05/T004\nstatus: in_progress\nstage: build\nphase: build\n---\n\n# Task\n"
+	content := "---\nid: E05/T004\nstatus: planned\n---\n\n# Task\n"
 	testutil.WriteFile(t, path, content)
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tasks := []data.Task{{
-		ID:     "E05/T004",
-		Column: data.ColumnInProgress,
-		Stage:  data.StageBuild,
-		Path:   path,
-		Mtime:  fi.ModTime().Add(-time.Hour),
+		ID:      "E05/T004",
+		Column:  data.ColumnPlanned,
+		Path:    path,
+		Mtime:   fi.ModTime().Add(-time.Hour),
+		Release: "v1.1",
+		Epic:    "E05",
 	}}
 	m := NewModel(tasks, "v1.1", "E05")
-	m.FocusedColumn = data.ColumnInProgress
+	m.FocusedColumn = data.ColumnPlanned
 
 	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
-	// cmd should be errorMsg since mtime is stale
 	msg := cmd()
-	if _, ok := msg.(errorMsg); !ok {
-		t.Fatalf("expected errorMsg, got %T", msg)
+	if _, ok := msg.(taskWriteMsg); !ok {
+		t.Fatalf("expected taskWriteMsg after safe retry, got %T", msg)
 	}
 	updated := requireModel(t, got)
 	got2, _ := updated.Update(msg)
 	updated2 := requireModel(t, got2)
 
-	if updated2.StatusMessage != "mtime conflict: refresh before retrying" {
+	if updated2.StatusMessage != "Moved T004 to build" {
 		t.Fatalf("StatusMessage = %q", updated2.StatusMessage)
 	}
 	raw, err := os.ReadFile(path)
@@ -354,14 +406,80 @@ func TestUpdate_spaceWarnsAfterStaleMtime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.Stage != data.StageBuild {
-		t.Errorf("persisted Stage = %q, want build", parsed.Stage)
+	if parsed.Column != data.ColumnInProgress || parsed.Stage != data.StageBuild {
+		t.Errorf("persisted state = %q/%q, want in_progress/build", parsed.Column, parsed.Stage)
 	}
-	if !strings.Contains(string(raw), "stage:") {
-		t.Error("legacy stage field should remain when write is rejected")
+	if updated2.AllTasks[0].Column != data.ColumnInProgress || updated2.AllTasks[0].Stage != data.StageBuild {
+		t.Errorf("model state = %q/%q, want in_progress/build", updated2.AllTasks[0].Column, updated2.AllTasks[0].Stage)
 	}
-	if updated2.AllTasks[0].Stage != data.StageBuild {
-		t.Errorf("model Stage = %q after rejected write, want build", updated2.AllTasks[0].Stage)
+}
+
+func TestUpdate_spaceRefreshesAfterStaleMtimeWhenTaskChanged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "T004-task.md")
+	content := "---\nid: E05/T004\nstatus: in_progress\nphase: test\n---\n\n# Task\n"
+	testutil.WriteFile(t, path, content)
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := []data.Task{{
+		ID:      "E05/T004",
+		Column:  data.ColumnPlanned,
+		Path:    path,
+		Mtime:   fi.ModTime().Add(-time.Hour),
+		Release: "v1.1",
+		Epic:    "E05",
+	}}
+	m := NewModel(tasks, "v1.1", "E05")
+	m.FocusedColumn = data.ColumnPlanned
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	msg := cmd()
+	if _, ok := msg.(taskRefreshMsg); !ok {
+		t.Fatalf("expected taskRefreshMsg, got %T", msg)
+	}
+	updated := requireModel(t, got)
+	got2, _ := updated.Update(msg)
+	updated2 := requireModel(t, got2)
+
+	if updated2.StatusMessage != "task changed on disk: refreshed, retry if still intended" {
+		t.Fatalf("StatusMessage = %q", updated2.StatusMessage)
+	}
+	if updated2.AllTasks[0].Column != data.ColumnInProgress || updated2.AllTasks[0].Stage != data.StageTest {
+		t.Errorf("model state = %q/%q, want in_progress/test", updated2.AllTasks[0].Column, updated2.AllTasks[0].Stage)
+	}
+}
+
+func TestUpdate_ctrlRReloadsTasks(t *testing.T) {
+	projectRoot := t.TempDir()
+	root := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, root, "task-building", "v1", "E01", "", "Build")
+	writeTask(t, root, "v1", "E01", "T001-refresh", data.ColumnPlanned)
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel() error = %v", err)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+
+	path := filepath.Join(root, "releases", "v1", "epics", "E01", "tasks", "T001-refresh.md")
+	testutil.WriteFile(t, path, "---\nid: E01/T001-refresh\nstatus: in_progress\nphase: build\nobjective: Test task\n---\n\n# Task\n")
+
+	got, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	if cmd == nil {
+		t.Fatal("expected reload command for ctrl+r")
+	}
+	msg := cmd()
+	got2, _ := requireModel(t, got).Update(msg)
+	updated := requireModel(t, got2)
+
+	if updated.StatusMessage != "Refreshed" {
+		t.Fatalf("StatusMessage = %q, want Refreshed", updated.StatusMessage)
+	}
+	if len(updated.Tasks[data.ColumnInProgress]) != 1 {
+		t.Fatalf("in-progress tasks = %v, want refreshed task", updated.Tasks[data.ColumnInProgress])
 	}
 }
 
@@ -575,7 +693,7 @@ func TestEnsureFocusedTaskVisible_lastTaskAlwaysVisible(t *testing.T) {
 		t.Errorf("offset=%d pageSize=%d: focused task 4 not in [offset, offset+pageSize-1]", offset, pageSize)
 	}
 	// Render must actually show the focused task (not cut off by scroll indicator).
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, CalculateLayout(100, 24).ContentHeight, offset, 4, true, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, CalculateLayout(100, 24).ContentHeight, offset, 4, true, nil, nil)
 	if !strings.Contains(got, tasks[4].ID) {
 		t.Errorf("focused last task %q not visible in rendered column (offset=%d):\n%s", tasks[4].ID, offset, got)
 	}

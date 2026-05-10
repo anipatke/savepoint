@@ -2,7 +2,9 @@ package data
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -214,6 +216,69 @@ func extractChecklistItems(content, heading string) []CheckItem {
 		}
 	}
 	return items
+}
+
+type defectFrontmatter struct {
+	ID         string         `yaml:"id"`
+	Release    string         `yaml:"release"`
+	Status     ColumnType     `yaml:"status"`
+	Severity   DefectSeverity `yaml:"severity"`
+	Introduced string         `yaml:"introduced,omitempty"`
+	Reference  string         `yaml:"reference,omitempty"`
+	Stage      ProgressStage  `yaml:"stage,omitempty"`
+	Title      string         `yaml:"title"`
+	Objective  string         `yaml:"objective"`
+}
+
+func (p *Parser) ParseDefectFile(path string, content string) (*Defect, error) {
+	fm, body, err := SplitFrontmatterBody(normalizeLineEndings(content))
+	if err != nil {
+		return nil, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	var fields defectFrontmatter
+	if err := yaml.Unmarshal([]byte(fm), &fields); err != nil {
+		return nil, fmt.Errorf("parse error for %s: failed to parse YAML: %w", path, err)
+	}
+
+	defect := &Defect{
+		ID:         fields.ID,
+		Release:    fields.Release,
+		Status:     fields.Status,
+		Severity:   fields.Severity,
+		Introduced: fields.Introduced,
+		Reference:  fields.Reference,
+		Stage:      fields.Stage,
+		Title:      firstNonEmpty(fields.Title, fields.Objective),
+		Body:       body,
+	}
+
+	if err := validateDefectLifecycle(defect); err != nil {
+		return nil, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	return defect, nil
+}
+
+func (p *Parser) ParseDefectFileFromDisk(path string) (*Defect, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+
+	defect, err := p.ParseDefectFile(path, string(content))
+	if err != nil {
+		return nil, err
+	}
+
+	defect.Path = path
+	defect.Mtime = fi.ModTime().Truncate(time.Second)
+	return defect, nil
 }
 
 func extractChecklistSection(content, heading string) []string {

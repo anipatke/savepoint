@@ -45,6 +45,11 @@ func (d *stubDoctorDiscoverer) ListTasks(root, release, epic string) ([]data.Tas
 	return d.tasks[release+"/"+epic], nil
 }
 
+func (d *stubDoctorDiscoverer) ListDefects(root, release string) ([]data.DefectInfo, error) {
+	d.calls++
+	return nil, nil
+}
+
 type countingDoctorParser struct {
 	parser *data.Parser
 	calls  int
@@ -53,6 +58,11 @@ type countingDoctorParser struct {
 func (p *countingDoctorParser) ParseFrontmatter(content string) (map[string]any, error) {
 	p.calls++
 	return p.parser.ParseFrontmatter(content)
+}
+
+func (p *countingDoctorParser) ParseDefectFile(path, content string) (*data.Defect, error) {
+	p.calls++
+	return p.parser.ParseDefectFile(path, content)
 }
 
 func TestCheckRouterUsesInjectedRouterReader(t *testing.T) {

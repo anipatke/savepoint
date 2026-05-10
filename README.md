@@ -67,6 +67,39 @@ Built for a cinematic, technical feel without the bloat.
 
 ---
 
+## 🐛 Defect Workflow
+
+When a bug surfaces during a build or after a release, create a defect file instead of a new task. Defects live in `.savepoint/releases/{release}/defects/` and are tracked separately from the epic backlog so the audit trail stays clean.
+
+```
+.savepoint/releases/v1/defects/
+  D001-auth-crash.md
+  D002-slow-query.md
+```
+
+Each defect file uses YAML frontmatter:
+
+```yaml
+---
+id: v1/D001-auth-crash
+release: v1
+status: planned          # planned | in_progress | done
+severity: high           # critical | high | medium | low
+title: "Auth crash on empty token"
+introduced: v1.0.3       # optional: version where bug appeared
+reference: E12-slug/T003-slug  # optional: related task ID
+---
+```
+
+- Press **`d`** on the board to open the defect overlay and see all defects for the current release.
+- `savepoint doctor` validates defect files and reports malformed frontmatter, invalid status, and broken task references.
+
+**Use a defect when:** a regression is found in TUI testing, a build breaks after a merged epic, or a production bug is traced to a known release.
+
+**Do NOT use a defect when:** a planned task needs rework (update the task instead), a scope changes (that is an epic), or something is a future enhancement.
+
+---
+
 ## 📦 Updating
 
 After updating the Savepoint package:
@@ -92,4 +125,3 @@ I’m sharing it to prove a point: The real power of AI isn't just the size of t
 
 **License:** MIT  
 **Status:** Recursive Construction (v1 MVP in progress)
-us:** Recursive Construction (v1 MVP in progress)

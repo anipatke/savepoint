@@ -126,6 +126,27 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 		}
 
 		if dryRun {
+			if path == "AGENTS.md" {
+				dest := FindAgentGuide(absTarget)
+				if dest == "" {
+					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUpdated})
+					return nil
+				}
+
+				existingContent, err := os.ReadFile(dest)
+				if err != nil {
+					return fmt.Errorf("read existing %s: %w", path, err)
+				}
+				block := managedBegin + "\n" + strings.TrimSpace(string(content)) + "\n" + managedEnd
+				merged := replaceManagedBlock(string(existingContent), block)
+				if merged == string(existingContent) {
+					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUnchanged})
+				} else {
+					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionMerged})
+				}
+				return nil
+			}
+
 			if _, err := os.Stat(targetPath); err != nil {
 				if os.IsNotExist(err) {
 					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUpdated})
@@ -137,14 +158,10 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 				if err != nil {
 					return fmt.Errorf("read existing %s: %w", path, err)
 				}
-				if isSkill {
-					if string(existingContent) == string(content) {
-						report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUnchanged})
-					} else {
-						report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUpdated})
-					}
+				if string(existingContent) == string(content) {
+					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUnchanged})
 				} else {
-					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionMerged})
+					report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionUpdated})
 				}
 			}
 			return nil

@@ -15,6 +15,8 @@ const (
 	OverlayRelease    OverlayType = "release"
 	OverlayDetail     OverlayType = "detail"
 	OverlayEpicDetail OverlayType = "detail-epic"
+	OverlayDefect       OverlayType = "defect"
+	OverlayDefectDetail OverlayType = "detail-defect"
 )
 
 // ViewConfig holds terminal and overlay presentation state.
@@ -29,6 +31,7 @@ type ViewConfig struct {
 // DataState holds task, router, and filesystem state used by the board.
 type DataState struct {
 	AllTasks    []data.Task
+	AllDefects  []data.Defect
 	Tasks       map[data.ColumnType][]data.Task
 	Root        string
 	EpicStatus  map[string]string
@@ -39,10 +42,12 @@ type DataState struct {
 
 // NavigationState holds board-column and detail scrolling state.
 type NavigationState struct {
-	FocusedColumn data.ColumnType
-	FocusedTask   int
-	ColumnOffsets map[data.ColumnType]int
-	DetailOffset  int
+	FocusedColumn     data.ColumnType
+	FocusedTask       int
+	ColumnOffsets     map[data.ColumnType]int
+	DetailOffset      int
+	DefectCursor      int
+	DefectDetailOffset int
 }
 
 // EpicState holds epic list, sidebar, and detail overlay state.

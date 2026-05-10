@@ -13,10 +13,12 @@ import (
 type fileChangeMsg struct{}
 type reloadMsg struct {
 	tasks        []data.Task
+	defects      []data.Defect
 	releases     []string
 	releaseEpics map[string][]string
 	epicStatuses map[string]string
 	routerState  *data.RouterState
+	message      string
 }
 
 type routerWriteMsg struct {
@@ -29,6 +31,11 @@ type taskWriteMsg struct {
 	prefix string
 	next   data.Task
 	err    error
+}
+
+type taskRefreshMsg struct {
+	task    data.Task
+	message string
 }
 
 type epicDetailMsg struct {
@@ -81,16 +88,20 @@ func watchFiles(w *fsnotify.Watcher) tea.Cmd {
 }
 
 func reloadTasks(root string, deps ModelDependencies) tea.Cmd {
+	return reloadTasksWithMessage(root, deps, "")
+}
+
+func reloadTasksWithMessage(root string, deps ModelDependencies, message string) tea.Cmd {
 	return func() tea.Msg {
 		debugf("reload: starting task reload from %q", root)
-		tasks, releases, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
+		tasks, defects, releases, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
 		if err != nil {
 			debugf("reload: error: %v", err)
 			return errorMsg{message: "reload failed: " + err.Error()}
 		}
 		debugf("reload: loaded %d tasks", len(tasks))
 		routerState, _ := readRouterState(root, deps.RouterReader)
-		return reloadMsg{tasks: tasks, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState}
+		return reloadMsg{tasks: tasks, defects: defects, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState, message: message}
 	}
 }
 

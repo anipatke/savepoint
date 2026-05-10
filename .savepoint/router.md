@@ -13,10 +13,10 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 
 ```yaml
 state: audit-pending
-release: v1.1
-epic: E16-pre-prod-refinement
-task: E16-pre-prod-refinement/T006-upgrade-assets-command
-next_action: Audit E16-pre-prod-refinement — all 6 tasks done.
+release: v1.2
+epic: E17-defect-workflow-tui
+task: E17-defect-workflow-tui/T009-defect-warning-glyph
+next_action: Audit E17-defect-workflow-tui before progressing.
 ```
 
 ## State → action

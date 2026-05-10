@@ -362,6 +362,81 @@ func TestCheckDependencies_ValidDeps(t *testing.T) {
 	}
 }
 
+func TestCheckDependencies_ShortSameEpicTaskDepAccepted(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+		{id: "E01-foo/T002-task", deps: []string{"T001"}},
+	})
+	problems := CheckDependencies(root, "")
+	if len(problems) > 0 {
+		t.Fatalf("CheckDependencies() = %v, want no problems for short same-epic task dep", problems)
+	}
+}
+
+func TestCheckDependencies_ShortTaskDepMissingOutsideSameEpic(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{"T009"}},
+	})
+	setupMinimalProject(t, root, "v1", "E02-bar", []taskSpec{
+		{id: "E02-bar/T009-task", deps: []string{}},
+	})
+	problems := CheckDependencies(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "T009") && strings.Contains(p.Message, "non-existent") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDependencies() = %v, want missing same-epic short task dependency problem", problems)
+	}
+}
+
+func TestCheckDependencies_ShortEpicDepAccepted(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E03-canvas-baseline", nil)
+	setupMinimalProject(t, root, "v1", "E06-canvas-polish", []taskSpec{
+		{id: "E06-canvas-polish/T001-task", deps: []string{"E03"}},
+	})
+	problems := CheckDependencies(root, "")
+	if len(problems) > 0 {
+		t.Fatalf("CheckDependencies() = %v, want no problems for short epic dep", problems)
+	}
+}
+
+func TestCheckDependencies_FullEpicDepAccepted(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E03-canvas-baseline", nil)
+	setupMinimalProject(t, root, "v1", "E06-canvas-polish", []taskSpec{
+		{id: "E06-canvas-polish/T001-task", deps: []string{"E03-canvas-baseline"}},
+	})
+	problems := CheckDependencies(root, "")
+	if len(problems) > 0 {
+		t.Fatalf("CheckDependencies() = %v, want no problems for full epic dep", problems)
+	}
+}
+
+func TestCheckDependencies_EpicDepMissing(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E06-canvas-polish", []taskSpec{
+		{id: "E06-canvas-polish/T001-task", deps: []string{"E03"}},
+	})
+	problems := CheckDependencies(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "E03") && strings.Contains(p.Message, "non-existent") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDependencies() = %v, want missing epic dependency problem", problems)
+	}
+}
+
 func TestCheckDependencies_MissingDep(t *testing.T) {
 	root := t.TempDir()
 	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
@@ -713,4 +788,205 @@ func setupMinimalProject(t *testing.T, root, releaseID, epicID string, tasks []t
 
 func routerContent(state, release, epic string) string {
 	return "## Current state\n\n```yaml\nstate: " + state + "\nrelease: " + release + "\nepic: " + epic + "\ntask: none\nnext_action: \"\"\n```\n"
+}
+
+// --- CheckDefects ---
+
+func writeDefect(t *testing.T, defectsDir, filename, content string) {
+	t.Helper()
+	testutil.MkdirAll(t, defectsDir)
+	testutil.WriteFile(t, filepath.Join(defectsDir, filename), content)
+}
+
+func TestCheckDefects_NoDefectsDir(t *testing.T) {
+	root := t.TempDir()
+	testutil.MkdirAll(t, filepath.Join(root, "releases", "v1"))
+	testutil.WriteReleasePRD(t, filepath.Join(root, "releases", "v1"))
+	problems := CheckDefects(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckDefects() = %v, want no problems when defects dir absent", problems)
+	}
+}
+
+func TestCheckDefects_ValidDefect(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-crash.md",
+		"---\nid: v1/D001-crash\nstatus: planned\nseverity: high\ntitle: Auth crash\n---\n\n## Problem\n\nIt crashes.\n")
+	problems := CheckDefects(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckDefects() = %v, want no problems for valid defect", problems)
+	}
+}
+
+func TestCheckDefects_MalformedYAML(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-bad.md", "---\n: bad: [yaml\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "parse error") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want parse error problem", problems)
+	}
+}
+
+func TestCheckDefects_InvalidStatus(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-bad-status.md",
+		"---\nid: v1/D001-bad-status\nstatus: blocked\nseverity: low\ntitle: Bad\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "parse error") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want parse error for invalid status", problems)
+	}
+}
+
+func TestCheckDefects_InProgressMissingStage(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-in-progress.md",
+		"---\nid: v1/D001-in-progress\nstatus: in_progress\nseverity: medium\ntitle: In progress\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "stage is required") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want missing stage problem", problems)
+	}
+}
+
+func TestCheckDefects_InvalidStageWhenInProgress(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-bad-stage.md",
+		"---\nid: v1/D001-bad-stage\nstatus: in_progress\nstage: review\nseverity: high\ntitle: Bad stage\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "parse error") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want parse error for invalid stage", problems)
+	}
+}
+
+func TestCheckDefects_MissingID(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-no-id.md",
+		"---\nstatus: planned\nseverity: low\ntitle: No ID\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "missing required frontmatter field: id") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want missing id problem", problems)
+	}
+}
+
+func TestCheckDefects_MissingSeverity(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-no-severity.md",
+		"---\nid: v1/D001-no-severity\nstatus: planned\ntitle: No Severity\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "missing required frontmatter field: severity") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want missing severity problem", problems)
+	}
+}
+
+func TestCheckDefects_BrokenReferenceEmptyComponent(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-bad-ref.md",
+		"---\nid: v1/D001-bad-ref\nstatus: planned\nseverity: low\ntitle: Bad ref\nreference: \"/T003\"\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "empty epic or task component") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want broken reference problem", problems)
+	}
+}
+
+func TestCheckDefects_ReferenceNoSlashIsAccepted(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-plain-ref.md",
+		"---\nid: v1/D001-plain-ref\nstatus: planned\nseverity: low\ntitle: Plain ref\nreference: \"v1.0.5\"\n---\n")
+	problems := CheckDefects(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckDefects() = %v, want no problems for non-slash reference", problems)
+	}
+}
+
+func TestCheckDefects_ReferenceMatchesExistingTask(t *testing.T) {
+	root := t.TempDir()
+	// Set up a real task
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-valid-ref.md",
+		"---\nid: v1/D001-valid-ref\nstatus: planned\nseverity: low\ntitle: Valid ref\nreference: \"E01-foo/T001-task\"\n---\n")
+	problems := CheckDefects(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckDefects() = %v, want no problems when reference matches task", problems)
+	}
+}
+
+func TestCheckDefects_ReferenceDoesNotMatchTask(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-bad-ref.md",
+		"---\nid: v1/D001-bad-ref\nstatus: planned\nseverity: low\ntitle: Bad ref\nreference: \"E01-foo/T999-ghost\"\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "does not match any known task ID") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want missing task reference problem", problems)
+	}
 }

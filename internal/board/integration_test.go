@@ -144,10 +144,10 @@ func TestMtimeConflict_directDetection(t *testing.T) {
 	}
 }
 
-// TestMtimeConflict_boardWarns verifies the board surfaces an mtime conflict instead of overwriting external edits.
-func TestMtimeConflict_boardWarns(t *testing.T) {
+// TestMtimeConflict_boardRefreshesChangedTask verifies the board refreshes instead of overwriting external edits.
+func TestMtimeConflict_boardRefreshesChangedTask(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T001.md")
-	content := "---\nid: E01/T001\nstatus: in_progress\nphase: build\n---\n\n# Task\n"
+	content := "---\nid: E01/T001\nstatus: in_progress\nphase: test\n---\n\n# Task\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -171,16 +171,16 @@ func TestMtimeConflict_boardWarns(t *testing.T) {
 	got2, _ := got.Update(msg)
 	updated := requireModel(t, got2)
 
-	if !strings.Contains(updated.StatusMessage, "mtime conflict") {
-		t.Errorf("StatusMessage = %q, want mtime conflict warning", updated.StatusMessage)
+	if !strings.Contains(updated.StatusMessage, "task changed on disk") {
+		t.Errorf("StatusMessage = %q, want changed-on-disk warning", updated.StatusMessage)
 	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "phase: build") {
-		t.Errorf("task file was overwritten despite mtime conflict:\n%s", raw)
+	if !strings.Contains(string(raw), "phase: test") {
+		t.Errorf("task file was overwritten despite changed-on-disk refresh:\n%s", raw)
 	}
 }
 

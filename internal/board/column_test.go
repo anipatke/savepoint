@@ -10,7 +10,7 @@ import (
 )
 
 func TestRenderColumn_headerContainsLabel(t *testing.T) {
-	got := RenderColumn(nil, data.ColumnPlanned, 30, 0, 0, 0, false, nil)
+	got := RenderColumn(nil, data.ColumnPlanned, 30, 0, 0, 0, false, nil, nil)
 	if !strings.Contains(got, "PLANNED") {
 		t.Error("RenderColumn missing PLANNED label")
 	}
@@ -18,14 +18,14 @@ func TestRenderColumn_headerContainsLabel(t *testing.T) {
 
 func TestRenderColumn_headerContainsCount(t *testing.T) {
 	tasks := []data.Task{{ID: "T1", Title: "Task one", Column: data.ColumnPlanned}}
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, false, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, false, nil, nil)
 	if !strings.Contains(got, "(1)") {
 		t.Error("RenderColumn missing task count")
 	}
 }
 
 func TestRenderColumn_emptyShowsPlaceholder(t *testing.T) {
-	got := RenderColumn(nil, data.ColumnDone, 30, 0, 0, 0, false, nil)
+	got := RenderColumn(nil, data.ColumnDone, 30, 0, 0, 0, false, nil, nil)
 	if !strings.Contains(got, "(empty)") {
 		t.Error("RenderColumn missing (empty) for empty column")
 	}
@@ -33,7 +33,7 @@ func TestRenderColumn_emptyShowsPlaceholder(t *testing.T) {
 
 func TestRenderColumn_focusedDoesNotPanic(t *testing.T) {
 	tasks := []data.Task{{ID: "T1", Column: data.ColumnInProgress}}
-	got := RenderColumn(tasks, data.ColumnInProgress, 30, 0, 0, 0, true, nil)
+	got := RenderColumn(tasks, data.ColumnInProgress, 30, 0, 0, 0, true, nil, nil)
 	if got == "" {
 		t.Error("RenderColumn returned empty string for focused column")
 	}
@@ -49,7 +49,7 @@ func TestRenderColumn_allColumnTitles(t *testing.T) {
 		{data.ColumnDone, "DONE"},
 	}
 	for _, tc := range cases {
-		got := RenderColumn(nil, tc.col, 30, 0, 0, 0, false, nil)
+		got := RenderColumn(nil, tc.col, 30, 0, 0, 0, false, nil, nil)
 		if !strings.Contains(got, tc.label) {
 			t.Errorf("RenderColumn missing label %q for col %q", tc.label, tc.col)
 		}
@@ -58,7 +58,7 @@ func TestRenderColumn_allColumnTitles(t *testing.T) {
 
 func TestRenderColumn_taskTitleRendered(t *testing.T) {
 	tasks := []data.Task{{ID: "T2", Title: "Build it", Column: data.ColumnPlanned}}
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, false, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, false, nil, nil)
 	if !strings.Contains(got, "Build it") {
 		t.Error("RenderColumn missing task title")
 	}
@@ -66,7 +66,7 @@ func TestRenderColumn_taskTitleRendered(t *testing.T) {
 
 func TestRenderColumn_rendersTaskCards(t *testing.T) {
 	tasks := []data.Task{{ID: "T2", Title: "Build it", Column: data.ColumnPlanned, Stage: data.StageAudit}}
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, true, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, 0, true, nil, nil)
 	if !strings.Contains(got, glyphAudit) {
 		t.Error("RenderColumn should render task phase glyph from card")
 	}
@@ -77,8 +77,8 @@ func TestRenderColumn_rendersTaskCards(t *testing.T) {
 
 func TestRenderColumn_focusStatesUseStableBorderDimensions(t *testing.T) {
 	tasks := []data.Task{{ID: "T2", Title: "Build it", Column: data.ColumnPlanned, Stage: data.StageAudit}}
-	unfocused := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, -1, false, nil)
-	focused := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, -1, true, nil)
+	unfocused := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, -1, false, nil, nil)
+	focused := RenderColumn(tasks, data.ColumnPlanned, 30, 0, 0, -1, true, nil, nil)
 
 	if !strings.Contains(unfocused, "┌") {
 		t.Error("unfocused column should render a single-line border")
@@ -100,7 +100,7 @@ func TestRenderColumn_focusStatesUseStableBorderDimensions(t *testing.T) {
 }
 
 func TestRenderColumn_emptyCountIsZero(t *testing.T) {
-	got := RenderColumn(nil, data.ColumnPlanned, 30, 0, 0, 0, false, nil)
+	got := RenderColumn(nil, data.ColumnPlanned, 30, 0, 0, 0, false, nil, nil)
 	if !strings.Contains(got, "(0)") {
 		t.Error("RenderColumn missing (0) count for empty column")
 	}
@@ -114,7 +114,7 @@ func TestRenderColumn_viewportShowsScrollIndicators(t *testing.T) {
 		{ID: "T4", Title: "Task four", Column: data.ColumnPlanned},
 	}
 
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, 8, 1, 1, true, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 8, 1, 1, true, nil, nil)
 
 	if !strings.Contains(got, "↑ 1 above") {
 		t.Error("RenderColumn missing above indicator")
@@ -142,7 +142,7 @@ func TestVisibleColumnTaskLimitDefaultsToFourAtStandardHeight(t *testing.T) {
 func BenchmarkRenderColumn_empty(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		RenderColumn(nil, data.ColumnPlanned, 30, 20, 0, 0, false, nil)
+		RenderColumn(nil, data.ColumnPlanned, 30, 20, 0, 0, false, nil, nil)
 	}
 }
 
@@ -154,7 +154,7 @@ func BenchmarkRenderColumn_fewTasks(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		RenderColumn(tasks, data.ColumnPlanned, 30, 20, 0, 0, false, nil)
+		RenderColumn(tasks, data.ColumnPlanned, 30, 20, 0, 0, false, nil, nil)
 	}
 }
 
@@ -172,7 +172,7 @@ func BenchmarkRenderColumn_manyTasks(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		RenderColumn(tasks, data.ColumnPlanned, 40, 24, 0, 0, false, nil)
+		RenderColumn(tasks, data.ColumnPlanned, 40, 24, 0, 0, false, nil, nil)
 	}
 }
 
@@ -185,7 +185,7 @@ func BenchmarkRenderColumn_focused(b *testing.B) {
 	router := &data.RouterState{Release: "v1", Epic: "E06", Task: "T001"}
 	b.ReportAllocs()
 	for b.Loop() {
-		RenderColumn(tasks, data.ColumnInProgress, 40, 20, 0, 0, true, router)
+		RenderColumn(tasks, data.ColumnInProgress, 40, 20, 0, 0, true, router, nil)
 	}
 }
 
@@ -200,7 +200,7 @@ func TestRenderColumn_focusedLastTaskVisibleWhenScrolled(t *testing.T) {
 		{ID: "T5", Title: "Task five", Column: data.ColumnPlanned},
 	}
 	// offset=2, focusedTask=4 (last task), maxHeight=14 (24-line terminal)
-	got := RenderColumn(tasks, data.ColumnPlanned, 30, 14, 2, 4, true, nil)
+	got := RenderColumn(tasks, data.ColumnPlanned, 30, 14, 2, 4, true, nil, nil)
 	if !strings.Contains(got, "Task five") {
 		t.Errorf("focused last task must be visible when scrolled, got:\n%s", got)
 	}

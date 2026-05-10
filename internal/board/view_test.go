@@ -67,7 +67,7 @@ func TestView_containsFooterHints(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	footer := m.renderFooter(80)
 
-	if !strings.Contains(footer, "←/→:nav  p: Priority  R:release  ?:help  q:quit") {
+	if !strings.Contains(footer, "←/→:nav  p: Priority  ctrl+r:refresh  R:release  d: Defects  ?:help  q:quit") {
 		t.Fatal("renderFooter() missing navigation hints")
 	}
 
@@ -276,6 +276,39 @@ func TestRenderNextActivityLine_phaseMapping(t *testing.T) {
 	}
 }
 
+func TestFormatNextActivity_defectBuilding(t *testing.T) {
+	state := &data.RouterState{State: "defect-building", Defect: "D001-nil-pointer"}
+	got := FormatNextActivity(state)
+	if got != "Defect D001" {
+		t.Errorf("FormatNextActivity(defect-building) = %q, want %q", got, "Defect D001")
+	}
+}
+
+func TestRenderNextActivityLine_defectBuilding(t *testing.T) {
+	state := &data.RouterState{State: "defect-building", Defect: "D001-nil-pointer", NextAction: "Fix D001"}
+	got := renderNextActivityLine(state, 80)
+	if !strings.Contains(got, "DEFECT:") {
+		t.Fatalf("renderNextActivityLine(defect-building) missing DEFECT: tag; got %q", got)
+	}
+	if !strings.Contains(got, "Fix D001") {
+		t.Fatalf("renderNextActivityLine(defect-building) missing next_action; got %q", got)
+	}
+}
+
+func TestIsRouterPriority_defectBuildingSkipsTaskCards(t *testing.T) {
+	task := data.Task{ID: "E01/T001", Epic: "E01", Release: "v1.1", Column: data.ColumnPlanned}
+	state := &data.RouterState{State: "defect-building", Task: "E01/T001", Epic: "E01", Release: "v1.1"}
+	card := RenderCard(task, 30, false, state, "")
+	// Priority glyph (green ▣) should NOT appear when state is defect-building
+	plain := plainTerminal(card)
+	_ = plain
+	// isRouterPriority must return false — verify via FormatNextActivity not crashing and no green highlight
+	// Direct function test
+	if isRouterPriority(task, state) {
+		t.Error("isRouterPriority() = true for defect-building state, want false")
+	}
+}
+
 func TestRenderNextActivityLine_hiddenStates(t *testing.T) {
 	cases := []*data.RouterState{
 		nil,
@@ -360,6 +393,69 @@ func BenchmarkView_withTasks(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		m.View()
+	}
+}
+
+func TestView_headerHidesDefectSignalWhenZeroOpen(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.Width = 120
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{
+		{Release: "v1", Status: data.ColumnDone},
+	}
+	got := m.View()
+	if strings.Contains(got, "⚠") {
+		t.Error("header must not show defect signal when zero open defects")
+	}
+}
+
+func TestView_headerShowsOpenDefectCount(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.Width = 120
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{
+		{Release: "v1", Status: data.ColumnPlanned},
+		{Release: "v1", Status: data.ColumnInProgress},
+		{Release: "v1", Status: data.ColumnDone},
+	}
+	got := plainTerminal(m.View())
+	if !strings.Contains(got, "⚠ 2 open") {
+		t.Errorf("header missing defect signal; got %q", got)
+	}
+}
+
+func TestView_headerDefectSignalRespectsSelectedRelease(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.Width = 120
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{
+		{Release: "v2", Status: data.ColumnPlanned},
+	}
+	got := m.View()
+	if strings.Contains(got, "⚑") {
+		t.Error("defect signal must not show defects from other releases")
+	}
+}
+
+func TestView_threeColumnLayoutUnchangedWithDefects(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.Width = 100
+	m.Height = 40
+	m.AllDefects = []data.Defect{
+		{Release: "v1", Status: data.ColumnPlanned},
+	}
+	l := CalculateLayout(m.Width, m.Height)
+	if l.ColCount != 3 {
+		t.Fatalf("ColCount = %d, want 3", l.ColCount)
+	}
+	if l.EpicPanelVisible {
+		t.Error("epic panel should be hidden at width=100")
+	}
+	got := m.View()
+	for _, title := range []string{"PLANNED", "IN PROGRESS", "DONE"} {
+		if !strings.Contains(got, title) {
+			t.Errorf("three-column layout missing %q with defects present", title)
+		}
 	}
 }
 

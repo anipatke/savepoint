@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.1/E15-hardening
+last_audited: v1.1/E16-pre-prod-refinement
 ---
 
 # Savepoint — System Architecture
@@ -14,7 +14,7 @@ last_audited: v1.1/E15-hardening
 
 - **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
 - **Agent routing:** AGENTS.md → `.savepoint/router.md` → template prompts. See AGENTS.md Workflow section.
-- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-build-task`, `savepoint-audit`) to enforce each phase of the state machine.
+- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-create-defect`, `savepoint-build-task`, `savepoint-audit`) to enforce the state machine and capture release-level defects.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
@@ -22,9 +22,10 @@ last_audited: v1.1/E15-hardening
   - Anything that breaks these bounds violates the wedge.
 - **Go data-reader boundary:** established in epic `E02-data-readers` (2026-05-01). `internal/data` owns Savepoint file parsing and discovery for the Go implementation: task frontmatter models, markdown YAML extraction, router state parsing, config theme defaults, release/epic/task directory listing, task lifecycle validation/defaulting, write-time status validation, and boundary error sentinels.
 - **Template assets** live under `templates/` with helpers in `src/templates/` (epic E04).
-- **Init command** (`savepoint init`) validates target directories, scaffolds rendered copies of `templates/project/`, prints the rendered magic prompt, attempts best-effort clipboard copy, and optionally runs `npm install` after scaffolding (v1.1 E07).
-- **Board command** (`savepoint board`, and bare `savepoint`) reads project state, renders the Atari-Noir TUI board when stdout is a TTY, falls back to a deterministic plain table in non-TTY mode, supports `--release`/`--epic` filtering, detail overlays, task status transitions with mtime-guarded writes, release/epic-scoped router priority markers, fsnotify-based task auto-refresh (epic E06), header Next Activity display, height-aware column/detail viewport scrolling, stable focused/unfocused column border geometry (v1.1 E01), dedicated phase-colored Next Activity line below the header, sentence-boundary checklist rendering in task details, shared status glyph mapping for task cards and the epic sidebar, a forced ANSI256 Lipgloss color profile for board startup (v1.1 E03), a focusable wide-screen epic sidebar with purple epic focus, epic detail overlays, and status glyphs loaded from epic detail frontmatter (v1.1 E04), and an epic Detail/Audit tab switch that renders user-facing audit findings from `{epic}/E##-Audit.md` (v1.1 E06).
-- **Doctor command** (`savepoint doctor`, `savepoint doctor --epic E##`) runs read-only integrity diagnostics for config, router state, release/epic/task structure, frontmatter validity, acceptance criteria presence, dependencies, duplicate task IDs, stale audit files, orphaned task IDs, and configured quality gates. It prints a human-readable report with repair suggestions and exits 0 when clean, 1 when problems are diagnosed, and 2 for internal or invocation failures.
+- **Init command** (`savepoint init`) validates target directories, scaffolds rendered copies of `templates/project/`, merges Savepoint instructions into an existing root agent guide using a managed block while preserving user content and casing variants, creates the initial `.savepoint/releases/v1/epics` skeleton plus release PRD, prints the rendered magic prompt, attempts best-effort clipboard copy, and optionally runs `npm install` after scaffolding (v1.1 E07, refined in E16).
+- **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned `agent-skills/**/SKILL.md` files and the managed block in the root agent guide from embedded templates for existing Savepoint projects, while skipping `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/releases/**`, and other project state.
+- **Board command** (`savepoint board`, and bare `savepoint`) reads project state, renders the Atari-Noir TUI board when stdout is a TTY, falls back to a deterministic plain table in non-TTY mode, supports `--release`/`--epic` filtering, detail overlays, task status transitions with mtime-guarded writes, release/epic-scoped router priority markers, fsnotify-based task and defect auto-refresh, header Next Activity display, height-aware column/detail viewport scrolling, stable focused/unfocused column border geometry (v1.1 E01), dedicated phase-colored Next Activity line below the header including `DEFECT` router state, sentence-boundary checklist rendering in task details, shared status glyph mapping for task cards and the epic sidebar, a forced ANSI256 Lipgloss color profile for board startup (v1.1 E03), a focusable wide-screen epic sidebar with purple epic focus, epic detail overlays, status glyphs loaded from epic detail frontmatter (v1.1 E04), an epic Detail/Audit tab switch that renders user-facing audit findings from `{epic}/E##-Audit.md` (v1.1 E06), release-scoped open-defect counts, a keyboard-driven `d` defect overlay, defect detail overlays, and related-defect task card markers (v1.2 E17).
+- **Doctor command** (`savepoint doctor`, `savepoint doctor --epic E##`) runs read-only integrity diagnostics for config, router state, release/epic/task/defect structure, frontmatter validity, acceptance criteria presence, dependencies, duplicate task IDs, stale audit files, orphaned task IDs, broken defect references, and configured quality gates. It prints a human-readable report with repair suggestions and exits 0 when clean, 1 when problems are diagnosed, and 2 for internal or invocation failures.
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
@@ -44,6 +45,8 @@ last_audited: v1.1/E15-hardening
     └── releases/
         └── {release}/              ← e.g. v1, v1.1
             ├── {release}-PRD.md    ← release-scoped PRD
+            ├── defects/
+            │   └── D001-slug.md    ← release-level repair record
             └── epics/
                 └── E##-{epic-name}/
                     ├── E##-Detail.md   ← epic delta
@@ -61,6 +64,7 @@ AGENTS.md at root (uppercase, cross-vendor spec). Design.md in `.savepoint/` (wo
 | **Release**  | The thing being built. One PRD per release. v1 = MVP.                                  |
 | **Epic**     | A major feature within a release. Has its own E##-Detail.md (delta from project Design). |
 | **Task**     | Independently buildable. Objective-led. **Requires implementation plan before build.** |
+| **Defect**   | Release-level repair artifact for observed bugs or regressions; separate from planned epic/task scope. |
 | **Sub-task** | Inline checklist item — _evidence of the implementation plan_, not standalone work.    |
 
 ## 4. Status model & gates
@@ -79,19 +83,22 @@ Three statuses, with explicit gates and ownership boundaries:
 - Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
 - Verification mode: see `config.yml`.
 
+Defects use the same `planned`, `in_progress`, and `done` status vocabulary. `stage` is required while a defect is `in_progress`. Router state may enter `defect-building` with a `defect` field naming the active repair item, which the board renders as a `DEFECT` Next Activity line.
+
 ## 5. Dependencies
 
 - Declared in YAML frontmatter: `depends_on: [E##-epic/T###-task-id, ...]` (repo-relative IDs).
 - `src/validation/dependencies.ts` detects duplicate task IDs, missing dependencies, and dependency cycles.
 - Cross-epic deps allowed but warned (signal that epic boundaries may be wrong).
 
-## 6. CLI surface (3 commands, no extras)
+## 6. CLI surface
 
 | Command                | Purpose                                                                           |
 | ---------------------- | --------------------------------------------------------------------------------- |
-| `savepoint init`       | Scaffold `.savepoint/`, print magic prompt to stdout + clipboard                  |
+| `savepoint init`       | Scaffold `.savepoint/`, merge the managed agent guide block, print magic prompt to stdout + clipboard |
 | `savepoint board`      | Launch TUI; auto-falls-back to plain table on non-TTY                             |
 | `savepoint doctor`     | Integrity check + ad-hoc quality-gate run + Layer-2 prompt for AI semantic review |
+| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned agent skills and the managed agent-guide block without touching project state |
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.

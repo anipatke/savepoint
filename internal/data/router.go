@@ -12,9 +12,10 @@ const stateBlockEnd = "```"
 
 type RouterState struct {
 	State      string `yaml:"state"`
-	Release   string `yaml:"release"`
-	Epic      string `yaml:"epic"`
-	Task      string `yaml:"task"`
+	Release    string `yaml:"release"`
+	Epic       string `yaml:"epic"`
+	Task       string `yaml:"task"`
+	Defect     string `yaml:"defect,omitempty"`
 	NextAction string `yaml:"next_action"`
 }
 

@@ -58,6 +58,14 @@ func SuggestRepair(err error) string {
 		return "Set router state to audit-pending for the matching epic, or remove stale audit files"
 	case strings.Contains(msg, "orphaned"):
 		return "Move the task directory to the correct epic or create the referenced epic"
+	case strings.Contains(msg, "defect parse error"):
+		return "Fix the defect frontmatter — required fields: id, severity, title (or objective); status must be planned, in_progress, or done"
+	case strings.Contains(msg, "defect missing required frontmatter field"):
+		return "Add the missing field to the defect frontmatter"
+	case strings.Contains(msg, "defect reference") && strings.Contains(msg, "empty"):
+		return "Fix the reference field — format must be 'EPIC-slug/TASK-slug' with non-empty parts"
+	case strings.Contains(msg, "defect reference") && strings.Contains(msg, "does not match"):
+		return "Update the reference field to match an existing task ID, or remove it if the task was deleted"
 	case strings.Contains(msg, "quality gate"):
 		return "Fix the issue reported by the quality gate tool"
 	default:

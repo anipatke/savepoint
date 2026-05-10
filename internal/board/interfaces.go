@@ -8,12 +8,14 @@ type taskDiscoverer interface {
 	ListReleases(root string) ([]data.ReleaseInfo, error)
 	ListEpics(root, release string) ([]data.EpicInfo, error)
 	ListTasks(root, release, epic string) ([]data.TaskInfo, error)
+	ListDefects(root, release string) ([]data.DefectInfo, error)
 }
 
 // taskParser parses Savepoint frontmatter and task files for board loading.
 type taskParser interface {
 	ParseFrontmatter(content string) (map[string]any, error)
 	ParseTaskFile(path string, content string) (*data.Task, error)
+	ParseDefectFile(path string, content string) (*data.Defect, error)
 }
 
 // configReader reads board display configuration.

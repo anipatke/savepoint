@@ -45,9 +45,9 @@ func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
 	}
 
 	templates := fstest.MapFS{
-		".savepoint":                        &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/PRD.md":                 &fstest.MapFile{Data: []byte("# PRD")},
-		".savepoint/Design.md":              &fstest.MapFile{Data: []byte("# Design")},
+		".savepoint":                            &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/PRD.md":                     &fstest.MapFile{Data: []byte("# PRD")},
+		".savepoint/Design.md":                  &fstest.MapFile{Data: []byte("# Design")},
 		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
 	}
 
@@ -409,6 +409,36 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 	if guideCount != 1 {
 		t.Errorf("expected 1 agent guide file, found %d", guideCount)
 	}
+}
+
+func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	variantPath := filepath.Join(target, "Agents.MD")
+	testutil.WriteFile(t, variantPath, "# My Guide")
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, true, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
+	}
+
+	for _, e := range report.Actions {
+		if e.Path == "AGENTS.md" {
+			if e.Action != ActionMerged {
+				t.Errorf("dry-run action = %v, want merged", e.Action)
+			}
+			return
+		}
+	}
+	t.Fatal("AGENTS.md not in dry-run report")
 }
 
 func TestUpgradeProjectAssets_multipleSkills(t *testing.T) {

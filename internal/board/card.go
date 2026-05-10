@@ -10,16 +10,18 @@ import (
 )
 
 const (
-	glyphBuild = "▣"
-	glyphTest  = "◇"
-	glyphAudit = "◆"
+	glyphBuild    = "▣"
+	glyphTest     = "◇"
+	glyphAudit    = "◆"
+	glyphWarning  = "⚠"
 
 	cardOverhead = 4 // border (2) + padding (2×1)
 )
 
 // RenderCard renders a task card with phase glyph, truncated ID+title, and focus styling.
 // When router state matches t's release/epic/task, a green priority glyph replaces the phase glyph.
-func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterState) string {
+// defectMarker is an optional compact string (e.g. "! D003") appended to the id line when width allows.
+func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterState, defectMarker string) string {
 	inner := width - cardOverhead
 	if inner < 2 {
 		inner = 2
@@ -38,6 +40,12 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 	idLine := fmt.Sprintf("%s %s", glyph, truncate(shortID(t.ID), idWidth))
 	if phase != "" && lipgloss.Width(idLine)+1+lipgloss.Width(phase) <= inner {
 		idLine += " " + phase
+	}
+	if defectMarker != "" {
+		markerStyled := styles.CardMeta.Render(defectMarker)
+		if lipgloss.Width(idLine)+1+lipgloss.Width(markerStyled) <= inner {
+			idLine += " " + markerStyled
+		}
 	}
 	titleLine := styles.CardMeta.Render(strings.Join(WrapText(t.Title, inner), "\n"))
 
@@ -89,6 +97,9 @@ func phaseGlyphStyled(stage data.ProgressStage) string {
 
 func isRouterPriority(t data.Task, state *data.RouterState) bool {
 	if state == nil || state.Task == "" {
+		return false
+	}
+	if state.State == "defect-building" {
 		return false
 	}
 	if shortID(t.ID) != shortID(state.Task) {

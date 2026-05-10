@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E16: Pre-Production Refinement
@@ -36,6 +36,15 @@ Refine the pre-production workflow before release by tightening init safety and 
 | `templates/project/AGENTS.md` | Add concise context-budget rules for generated projects |
 | `main.go` | Expose and test the version-reporting CLI surface |
 | `cmd/` | Keep command parsing behavior consistent with the version surface if parsing changes are needed |
+
+## Implemented as
+
+- `internal/init/agents.go` owns agent-guide casing detection plus managed block insertion/replacement.
+- `internal/init/scaffold.go` routes `AGENTS.md` scaffold writes through the managed merge path and now scaffolds the release skeleton from template assets.
+- `cmd/upgrade-assets.go` adds the CLI parser for `upgrade-assets [dir] [--dry-run] [--force]`.
+- `internal/init/upgrade.go` owns existing-project validation, package-owned asset allowlisting, dry-run reporting, idempotent skill refresh, and managed agent-guide block refresh.
+- `templates/project/.savepoint/releases/v1/v1-PRD.md` seeds the release PRD referenced by the scaffolded router.
+- `package.json` postinstall prints a notice only; project mutation remains explicit via `savepoint upgrade-assets`.
 
 ## Boundaries
 

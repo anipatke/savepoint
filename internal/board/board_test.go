@@ -178,6 +178,51 @@ func writeTask(t *testing.T, root, release, epic, taskSlug string, column data.C
 	testutil.WriteTask(t, root, release, epic, tf)
 }
 
+func TestNewProjectModelLoadsDefectsForRelease(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v2", "E01-alpha", "", "")
+	writeTask(t, savepointRoot, "v2", "E01-alpha", "T001-task", data.ColumnPlanned)
+	writeDefect(t, savepointRoot, "v2", "D001-crash", data.ColumnPlanned)
+	writeDefect(t, savepointRoot, "v2", "D002-done-bug", data.ColumnDone)
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel() error = %v", err)
+	}
+	if len(model.AllDefects) != 2 {
+		t.Fatalf("AllDefects len = %d, want 2", len(model.AllDefects))
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+}
+
+func TestNewProjectModelZeroDefectsWhenNoDefectDir(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "pre-implementation", "v1", "none", "", "")
+	testutil.MkdirAll(t, filepath.Join(savepointRoot, "releases", "v1", "epics"))
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel() error = %v", err)
+	}
+	if len(model.AllDefects) != 0 {
+		t.Errorf("AllDefects = %v, want empty", model.AllDefects)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+}
+
+func writeDefect(t *testing.T, root, release, slug string, status data.ColumnType) {
+	t.Helper()
+	content := "---\nid: " + slug + "\nrelease: " + release + "\nstatus: " + string(status) + "\nseverity: medium\ntitle: " + slug + "\n---\n\n# " + slug + "\n"
+	path := filepath.Join(root, "releases", release, "defects", slug+".md")
+	testutil.WriteFile(t, path, content)
+}
+
 func writeTaskWithoutRelease(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
 	t.Helper()
 	tf := testutil.TaskFixture{

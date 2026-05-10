@@ -18,6 +18,7 @@ type DiagnosticReport struct {
 	Dependencies   []Problem
 	AuditState     []Problem
 	Orphans        []Problem
+	Defects        []Problem
 	Gates          QualityGateReport
 	EpicFilter     string
 }
@@ -34,6 +35,7 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report.Dependencies = CheckDependencies(root, epicFilter)
 	report.AuditState = CheckAuditState(root)
 	report.Orphans = CheckOrphans(root)
+	report.Defects = CheckDefects(root)
 	report.Gates.Results = RunQualityGates(root)
 
 	return report
@@ -57,6 +59,9 @@ func (r *DiagnosticReport) HasProblems() bool {
 		return true
 	}
 	if len(r.Orphans) > 0 {
+		return true
+	}
+	if len(r.Defects) > 0 {
 		return true
 	}
 	for _, g := range r.Gates.Results {
@@ -94,6 +99,9 @@ func (r *DiagnosticReport) Format() string {
 
 	sectionHeader(&b, "Orphan Check")
 	printProblems(&b, "orphan", r.Orphans)
+
+	sectionHeader(&b, "Defect Check")
+	printProblems(&b, "defect", r.Defects)
 
 	sectionHeader(&b, "Quality Gates")
 	for _, g := range r.Gates.Results {

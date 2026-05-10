@@ -43,7 +43,7 @@ func TestRenderPolicy_noBackgroundEscapes(t *testing.T) {
 
 	cases := map[string]string{
 		"board":            m.View(),
-		"card":             RenderCard(task, 30, true, m.RouterState),
+		"card":             RenderCard(task, 30, true, m.RouterState, ""),
 		"detail":           RenderDetail(task, 60, m.RouterState, 0, 0),
 		"epic dropdown":    RenderEpicDropdown([]string{"E05-tasking-permissions"}, 0, 40),
 		"release dropdown": RenderReleaseDropdown([]string{"v1.1"}, 0, 40),

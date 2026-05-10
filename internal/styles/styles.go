@@ -122,6 +122,10 @@ var (
 				Foreground(clrGreen).
 				Bold(true)
 
+	FooterPhaseDefect = lipgloss.NewStyle().
+				Foreground(clrOrange).
+				Bold(true)
+
 	FooterDivider = lipgloss.NewStyle().
 			Foreground(clrBorder)
 

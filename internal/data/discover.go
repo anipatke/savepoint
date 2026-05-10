@@ -144,6 +144,42 @@ func (d *Discover) ListEpics(root, release string) ([]EpicInfo, error) {
 	return epics, nil
 }
 
+func (d *Discover) ListDefects(root, release string) ([]DefectInfo, error) {
+	defectsPath := filepath.Join(root, "releases", release, "defects")
+	info, err := os.Stat(defectsPath)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("stat defects dir: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("defects is not a directory")
+	}
+
+	entries, err := os.ReadDir(defectsPath)
+	if err != nil {
+		return nil, fmt.Errorf("read defects dir: %w", err)
+	}
+
+	var defects []DefectInfo
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+		id := entry.Name()[:len(entry.Name())-3]
+		defects = append(defects, DefectInfo{
+			ID:   id,
+			Path: filepath.Join(defectsPath, entry.Name()),
+		})
+	}
+
+	sort.Slice(defects, func(i, j int) bool {
+		return defects[i].ID < defects[j].ID
+	})
+	return defects, nil
+}
+
 func (d *Discover) ListTasks(root, release, epic string) ([]TaskInfo, error) {
 	tasksPath := filepath.Join(root, "releases", release, "epics", epic, "tasks")
 	info, err := os.Stat(tasksPath)

@@ -9,7 +9,8 @@ import (
 )
 
 // RenderColumn renders a board column: header with label+count, task viewport, bordered container.
-func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offset, focusedTask int, focused bool, routerState *data.RouterState) string {
+// taskMarkers maps task ID to a compact defect marker string (e.g. "! D003"); pass nil when unused.
+func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offset, focusedTask int, focused bool, routerState *data.RouterState, taskMarkers map[string]string) string {
 	inner := width - colOverhead
 	if inner < minColWidth {
 		inner = minColWidth
@@ -39,7 +40,8 @@ func RenderColumn(tasks []data.Task, col data.ColumnType, width, maxHeight, offs
 		}
 		cardEntries := make([]cardEntry, 0, len(tasks)-offset)
 		for i := offset; i < len(tasks); i++ {
-			c := RenderCard(tasks[i], inner, focused && i == focusedTask, routerState)
+			marker := taskMarkers[tasks[i].ID]
+			c := RenderCard(tasks[i], inner, focused && i == focusedTask, routerState, marker)
 			cardEntries = append(cardEntries, cardEntry{card: c, lines: strings.Count(c, "\n") + 1})
 		}
 

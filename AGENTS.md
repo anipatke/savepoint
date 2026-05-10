@@ -15,6 +15,9 @@
 | epic-task-breakdown | savepoint-create-task |
 | task-building | savepoint-build-task |
 | audit-pending | savepoint-audit |
+| defect-building | savepoint-build-task |
+
+Use `savepoint-create-defect` when the user reports a concrete bug, regression, or broken expectation that should be captured as a release-level defect before repair starts.
 
 Use the `skill` tool when the listed skill is available. If the agent says the skill is not found, read `agent-skills/{skill}/SKILL.md` directly and follow it as the active skill.
 
@@ -27,6 +30,16 @@ Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only fo
 - Never: todo, doing, blocked, review, audit
 - Agents may set a task to `status: in_progress` when starting implementation.
 - Only the user may set a task to `status: done` or retreat a task to an earlier status.
+
+## Defect Workflow
+
+Use a defect conversation when the user reports a concrete bug, regression, broken behavior, or failed expectation that should be repaired without reshaping the planned epic/task backlog.
+
+- Defects live at `.savepoint/releases/{release}/defects/D###-slug.md`.
+- Use `agent-skills/savepoint-create-defect/SKILL.md` to capture a new defect file.
+- Router state may be `defect-building` with a `defect` field naming the active defect id.
+- A defect in progress follows the same `status: in_progress` plus `stage: build|test|audit` rule as tasks.
+- Use the board `d` overlay to inspect defects; do not turn defects into a fourth task column.
 
 ## Implementation
 
@@ -82,17 +95,17 @@ make build && make test
 
 | Module | Purpose |
 |--------|---------|
-| `main.go` | CLI entrypoint, --version |
-| `cmd/` | CLI command arg parsing and dispatch for init, board, and doctor |
-| `internal/init/` | Target validation, scaffold writing from templates |
-| `internal/board/` | TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, shared board utilities |
+| `main.go` | CLI entrypoint, --version, embedded template wiring for init and upgrade-assets |
+| `cmd/` | CLI command arg parsing and dispatch for init, board, doctor, and upgrade-assets |
+| `internal/init/` | Target validation, scaffold writing from templates, managed AGENTS.md merge behavior, and safe project asset refresh |
+| `internal/board/` | TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, shared board utilities |
 | `internal/buildtool/` | Makefile helper, cross-compile including Windows targets, archives, distribution checksums |
-| `internal/doctor/` | Read-only project diagnostics, integrity checks, timed quality gate execution, report formatting, typed repair suggestions |
-| `internal/data/` | Task/router models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir traversal, unified task status constants, canonical write helpers |
+| `internal/doctor/` | Read-only project diagnostics, integrity checks, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
+| `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers |
 | `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
 | `internal/styles/` | Atari-Noir palette, TUI styles |
-| `templates/` | Scaffold markdown, YAML, prompts |
-| `agent-skills/` | Phase-specific skill guides |
+| `templates/` | Scaffold markdown, YAML, prompts, and defect workflow guidance |
+| `agent-skills/` | Phase-specific skill guides, including defect capture guidance |
 
 ## Context Budget
 

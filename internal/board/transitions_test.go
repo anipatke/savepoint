@@ -73,6 +73,95 @@ func TestCanAdvance_plannedAllowedWhenDependenciesDone(t *testing.T) {
 	}
 }
 
+func TestCanAdvance_shortTaskDependencyAllowedWithinSameEpic(t *testing.T) {
+	allTasks := []data.Task{
+		{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"T003"}},
+		{ID: "E06-canvas-polish/T003-prereq", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnDone},
+		{ID: "E07-other/T003-prereq", Release: "v1", Epic: "E07-other", Column: data.ColumnPlanned},
+	}
+	ok, reason := CanAdvance(&allTasks[0], allTasks)
+	if !ok {
+		t.Errorf("CanAdvance(short same-epic dep) = false %q, want true", reason)
+	}
+}
+
+func TestCanAdvance_shortTaskDependencyBlockedWhenNotDone(t *testing.T) {
+	allTasks := []data.Task{
+		{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"T003"}},
+		{ID: "E06-canvas-polish/T003-prereq", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnInProgress},
+	}
+	ok, reason := CanAdvance(&allTasks[0], allTasks)
+	if ok {
+		t.Fatal("CanAdvance(short unfinished dep) = true, want false")
+	}
+	if reason != "dependency \"T003\" is not done" {
+		t.Errorf("reason = %q, want dependency warning", reason)
+	}
+}
+
+func TestCanAdvance_shortTaskDependencyMissingOutsideSameEpic(t *testing.T) {
+	allTasks := []data.Task{
+		{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"T003"}},
+		{ID: "E07-other/T003-prereq", Release: "v1", Epic: "E07-other", Column: data.ColumnDone},
+	}
+	ok, reason := CanAdvance(&allTasks[0], allTasks)
+	if ok {
+		t.Fatal("CanAdvance(short missing same-epic dep) = true, want false")
+	}
+	if reason != "dependency \"T003\" not found" {
+		t.Errorf("reason = %q, want not found", reason)
+	}
+}
+
+func TestCanAdvance_fullTaskDependencyStillWorks(t *testing.T) {
+	allTasks := []data.Task{
+		{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"E06-canvas-polish/T003-prereq"}},
+		{ID: "E06-canvas-polish/T003-prereq", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnDone},
+	}
+	ok, reason := CanAdvance(&allTasks[0], allTasks)
+	if !ok {
+		t.Errorf("CanAdvance(full task dep) = false %q, want true", reason)
+	}
+}
+
+func TestCanAdvance_shortEpicDependencyAllowedWhenAudited(t *testing.T) {
+	task := data.Task{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"E03"}}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E03-canvas-baseline": "audited"})
+	if !ok {
+		t.Errorf("CanAdvance(short audited epic dep) = false %q, want true", reason)
+	}
+}
+
+func TestCanAdvance_shortEpicDependencyBlockedWhenNotAudited(t *testing.T) {
+	task := data.Task{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"E03"}}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E03-canvas-baseline": "planned"})
+	if ok {
+		t.Fatal("CanAdvance(short unaudited epic dep) = true, want false")
+	}
+	if reason != "dependency \"E03\" is not audited" {
+		t.Errorf("reason = %q, want not audited", reason)
+	}
+}
+
+func TestCanAdvance_shortEpicDependencyMissing(t *testing.T) {
+	task := data.Task{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"E03"}}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E04-other": "audited"})
+	if ok {
+		t.Fatal("CanAdvance(short missing epic dep) = true, want false")
+	}
+	if reason != "dependency \"E03\" not found" {
+		t.Errorf("reason = %q, want not found", reason)
+	}
+}
+
+func TestCanAdvance_fullEpicDependencyStillWorks(t *testing.T) {
+	task := data.Task{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"E03-canvas-baseline"}}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E03-canvas-baseline": "audited"})
+	if !ok {
+		t.Errorf("CanAdvance(full audited epic dep) = false %q, want true", reason)
+	}
+}
+
 func TestCanAdvance_plannedBlockedByDependency(t *testing.T) {
 	allTasks := []data.Task{
 		{ID: "T1", Column: data.ColumnPlanned, DependsOn: []string{"T2"}},

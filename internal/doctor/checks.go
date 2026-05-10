@@ -267,6 +267,8 @@ func validateFrontmatter(path, content string, parser taskParser, problems *[]Pr
 type taskDep struct {
 	File      string
 	ID        string
+	Release   string
+	Epic      string
 	DependsOn []string
 }
 
@@ -285,13 +287,16 @@ func CheckDependencies(root string, epicFilter string, overrides ...DoctorDepend
 
 	var allTasks []taskDep
 	idSet := make(map[string]string) // id -> first file seen
+	epicsByRelease := make(map[string]map[string]string)
 
 	for _, release := range releases {
 		epics, err := deps.Discoverer.ListEpics(root, release.ID)
 		if err != nil {
 			continue
 		}
+		epicsByRelease[release.ID] = make(map[string]string, len(epics))
 		for _, epic := range epics {
+			epicsByRelease[release.ID][epic.ID] = readEpicStatus(epic.Path, epic.ID, deps.Parser)
 			if epicFilter != "" && epic.ID != epicFilter && !strings.HasPrefix(epic.ID, epicFilter) {
 				continue
 			}
@@ -304,6 +309,8 @@ func CheckDependencies(root string, epicFilter string, overrides ...DoctorDepend
 				if td == nil {
 					continue
 				}
+				td.Release = release.ID
+				td.Epic = epic.ID
 				allTasks = append(allTasks, *td)
 				if existing, ok := idSet[td.ID]; ok {
 					problems = append(problems, Problem{
@@ -320,15 +327,28 @@ func CheckDependencies(root string, epicFilter string, overrides ...DoctorDepend
 	// Check for missing dependencies and cycles
 	graph := make(map[string][]string) // id -> list of dependencies
 	idToFile := make(map[string]string)
+	resolverTasks := make([]data.Task, 0, len(allTasks))
 
 	for _, td := range allTasks {
 		idToFile[td.ID] = td.File
-		graph[td.ID] = td.DependsOn
+		resolverTasks = append(resolverTasks, data.Task{
+			ID:      td.ID,
+			Release: td.Release,
+			Epic:    td.Epic,
+			Column:  data.ColumnPlanned,
+		})
+		graph[td.ID] = nil
 	}
 
 	for _, td := range allTasks {
+		dependent := data.Task{ID: td.ID, Release: td.Release, Epic: td.Epic}
 		for _, dep := range td.DependsOn {
-			if _, exists := idSet[dep]; !exists {
+			resolved := data.ResolveDependency(dep, dependent, resolverTasks, epicsByRelease[td.Release])
+			switch resolved.Kind {
+			case data.DependencyTask:
+				graph[td.ID] = append(graph[td.ID], resolved.ID)
+			case data.DependencyEpic:
+			default:
 				problems = append(problems, Problem{
 					File:    td.File,
 					Message: fmt.Sprintf("depends_on references non-existent task %q", dep),
@@ -342,6 +362,20 @@ func CheckDependencies(root string, epicFilter string, overrides ...DoctorDepend
 	problems = append(problems, cycleProblems...)
 
 	return problems
+}
+
+func readEpicStatus(epicPath, epicID string, parser taskParser) string {
+	prefix := extractPrefix(epicID)
+	raw, err := os.ReadFile(filepath.Join(epicPath, prefix+"-Detail.md"))
+	if err != nil {
+		return ""
+	}
+	fm, err := parser.ParseFrontmatter(string(raw))
+	if err != nil {
+		return ""
+	}
+	status, _ := fm["status"].(string)
+	return status
 }
 
 func parseTaskDep(path string, parser taskParser) *taskDep {
@@ -550,6 +584,123 @@ func CheckOrphans(root string, overrides ...DoctorDependencies) []Problem {
 	}
 
 	return problems
+}
+
+// CheckDefects validates all defect files across the project:
+// frontmatter validity, status/stage lifecycle, and reference format.
+func CheckDefects(root string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
+	var problems []Problem
+
+	releases, err := deps.Discoverer.ListReleases(root)
+	if err != nil {
+		return problems
+	}
+
+	taskIDs := collectTaskIDs(root, deps)
+
+	for _, release := range releases {
+		defects, err := deps.Discoverer.ListDefects(root, release.ID)
+		if err != nil {
+			problems = append(problems, Problem{
+				File:    filepath.Join(root, "releases", release.ID, "defects"),
+				Message: fmt.Sprintf("listing defects in release %q: %v", release.ID, err),
+			})
+			continue
+		}
+		for _, d := range defects {
+			checkDefectFile(d.Path, deps.Parser, taskIDs, &problems)
+		}
+	}
+
+	return problems
+}
+
+func checkDefectFile(path string, parser taskParser, taskIDs map[string]bool, problems *[]Problem) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("unreadable: %v", err)})
+		return
+	}
+
+	defect, err := parser.ParseDefectFile(path, string(raw))
+	if err != nil {
+		line := extractYAMLLine(err)
+		*problems = append(*problems, Problem{File: path, Line: line, Message: fmt.Sprintf("defect parse error: %v", err)})
+		return
+	}
+
+	if defect.ID == "" {
+		*problems = append(*problems, Problem{File: path, Message: "defect missing required frontmatter field: id"})
+	}
+	if defect.Severity == "" {
+		*problems = append(*problems, Problem{File: path, Message: "defect missing required frontmatter field: severity"})
+	}
+
+	checkDefectReference(path, defect.Reference, taskIDs, problems)
+	checkDefectReference(path, defect.Introduced, taskIDs, problems)
+}
+
+// checkDefectReference validates a reference field that looks like a task ref (contains /).
+func checkDefectReference(path, ref string, taskIDs map[string]bool, problems *[]Problem) {
+	if ref == "" {
+		return
+	}
+	idx := strings.IndexByte(ref, '/')
+	if idx == -1 {
+		return
+	}
+	if idx == 0 || idx == len(ref)-1 {
+		*problems = append(*problems, Problem{
+			File:    path,
+			Message: fmt.Sprintf("defect reference %q has empty epic or task component", ref),
+		})
+		return
+	}
+	if len(taskIDs) > 0 && !taskIDs[ref] {
+		*problems = append(*problems, Problem{
+			File:    path,
+			Message: fmt.Sprintf("defect reference %q does not match any known task ID", ref),
+		})
+	}
+}
+
+// collectTaskIDs reads all task frontmatter IDs across the project.
+func collectTaskIDs(root string, deps DoctorDependencies) map[string]bool {
+	ids := make(map[string]bool)
+
+	releases, err := deps.Discoverer.ListReleases(root)
+	if err != nil {
+		return ids
+	}
+
+	for _, release := range releases {
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
+		if err != nil {
+			continue
+		}
+		for _, epic := range epics {
+			tasks, err := deps.Discoverer.ListTasks(root, release.ID, epic.ID)
+			if err != nil {
+				continue
+			}
+			for _, t := range tasks {
+				raw, err := os.ReadFile(t.Path)
+				if err != nil {
+					continue
+				}
+				fm, err := deps.Parser.ParseFrontmatter(string(raw))
+				if err != nil {
+					continue
+				}
+				if id, ok := fm["id"].(string); ok && id != "" {
+					ids[id] = true
+				}
+			}
+		}
+	}
+
+	return ids
 }
 
 func extractYAMLLine(err error) int {

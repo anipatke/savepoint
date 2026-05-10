@@ -49,7 +49,7 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 		return Model{}, err
 	}
 
-	tasks, releaseIDs, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
+	tasks, defects, releaseIDs, releaseEpics, epicStatuses, err := loadBoardData(root, deps.Discoverer, deps.Parser)
 	if err != nil {
 		return Model{}, err
 	}
@@ -86,6 +86,7 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 	model.Root = root
 	model.RouterTask = routerState.Task
 	model.RouterState = routerState
+	model.AllDefects = defects
 	model.Releases = releaseIDs
 	model.ReleaseEpics = releaseEpics
 	model.EpicStatus = epicStatuses
@@ -102,28 +103,29 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 	return model, nil
 }
 
-func loadBoardData(root string, discoverer taskDiscoverer, parser taskParser) ([]data.Task, []string, map[string][]string, map[string]string, error) {
+func loadBoardData(root string, discoverer taskDiscoverer, parser taskParser) ([]data.Task, []data.Defect, []string, map[string][]string, map[string]string, error) {
 	releases, err := discoverer.ListReleases(root)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	releaseIDs := make([]string, 0, len(releases))
 	releaseEpics := make(map[string][]string, len(releases))
 	var tasks []data.Task
+	var defects []data.Defect
 	epicStatuses := make(map[string]string)
 
 	for _, release := range releases {
 		releaseIDs = append(releaseIDs, release.ID)
 		epics, err := discoverer.ListEpics(root, release.ID)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 		for _, epic := range epics {
 			releaseEpics[release.ID] = append(releaseEpics[release.ID], epic.ID)
 			epicTasks, err := loadEpicTasks(discoverer, parser, root, release.ID, epic.ID)
 			if err != nil {
-				return nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, err
 			}
 			tasks = append(tasks, epicTasks...)
 
@@ -136,9 +138,44 @@ func loadBoardData(root string, discoverer taskDiscoverer, parser taskParser) ([
 				}
 			}
 		}
+
+		releaseDefects, err := loadReleaseDefects(discoverer, parser, root, release.ID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		defects = append(defects, releaseDefects...)
 	}
 
-	return tasks, releaseIDs, releaseEpics, epicStatuses, nil
+	return tasks, defects, releaseIDs, releaseEpics, epicStatuses, nil
+}
+
+func loadReleaseDefects(discoverer taskDiscoverer, parser taskParser, root, release string) ([]data.Defect, error) {
+	infos, err := discoverer.ListDefects(root, release)
+	if err != nil {
+		return nil, err
+	}
+	defects := make([]data.Defect, 0, len(infos))
+	for _, info := range infos {
+		raw, err := os.ReadFile(info.Path)
+		if err != nil {
+			return nil, err
+		}
+		d, err := parser.ParseDefectFile(info.Path, string(raw))
+		if err != nil {
+			return nil, err
+		}
+		fi, err := os.Stat(info.Path)
+		if err != nil {
+			return nil, err
+		}
+		d.Path = info.Path
+		d.Mtime = fi.ModTime()
+		if d.Release == "" {
+			d.Release = release
+		}
+		defects = append(defects, *d)
+	}
+	return defects, nil
 }
 
 func readRouterState(root string, reader routerReader) (*data.RouterState, error) {

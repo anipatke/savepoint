@@ -33,6 +33,10 @@ func (d *stubBoardDiscoverer) ListTasks(root, release, epic string) ([]data.Task
 	return d.tasks[release+"/"+epic], nil
 }
 
+func (d *stubBoardDiscoverer) ListDefects(root, release string) ([]data.DefectInfo, error) {
+	return nil, nil
+}
+
 type countingBoardParser struct {
 	parser           *data.Parser
 	frontmatterCalls int
@@ -47,6 +51,10 @@ func (p *countingBoardParser) ParseFrontmatter(content string) (map[string]any, 
 func (p *countingBoardParser) ParseTaskFile(path string, content string) (*data.Task, error) {
 	p.taskFileCalls++
 	return p.parser.ParseTaskFile(path, content)
+}
+
+func (p *countingBoardParser) ParseDefectFile(path string, content string) (*data.Defect, error) {
+	return p.parser.ParseDefectFile(path, content)
 }
 
 type stubBoardRouterReader struct {

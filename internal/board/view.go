@@ -64,6 +64,22 @@ func (m Model) View() string {
 		return overlayOnBase(dimLines(base), help, w, h)
 	}
 
+	if m.Overlay == OverlayDefect {
+		defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
+		overlay := RenderDefectsOverlay(defects, m.DefectCursor, min(overlayWidth(w), 60))
+		return overlayOnBase(dimLines(base), overlay, w, h)
+	}
+
+	if m.Overlay == OverlayDefectDetail {
+		defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
+		if m.DefectCursor >= 0 && m.DefectCursor < len(defects) {
+			ow := overlayWidth(w)
+			detail := RenderDefectDetail(defects[m.DefectCursor], ow, detailMaxHeight(h), m.DefectDetailOffset)
+			return overlayOnBase(dimLines(base), detail, w, h)
+		}
+		return base
+	}
+
 	if m.Overlay == OverlayDetail {
 		task, ok := m.focusedTask()
 		if !ok {
@@ -93,7 +109,30 @@ func (m Model) renderHeader(w int) string {
 	icon := styles.HeaderIcon.Render("▣")
 	text := styles.HeaderText.Render("S A V E P O I N T")
 	left := icon + "  " + text
+
+	count := m.openDefectCount()
+	if count > 0 {
+		right := styles.HeaderRight.Render(fmt.Sprintf("⚠ %d open", count))
+		inner := w - 2 // HeaderFrame padding(1,1)
+		gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
+		if gap > 0 {
+			return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
+		}
+	}
 	return styles.HeaderFrame.Width(w).Render(left)
+}
+
+func (m Model) openDefectCount() int {
+	count := 0
+	for _, d := range m.AllDefects {
+		if m.SelectedRelease != "" && d.Release != m.SelectedRelease {
+			continue
+		}
+		if d.Status != data.ColumnDone {
+			count++
+		}
+	}
+	return count
 }
 
 func extraHeaderLines(line string) int {
@@ -132,6 +171,8 @@ func nextActivityPhase(state *data.RouterState) (string, lipgloss.Style, bool) {
 		return "BUILD", styles.FooterPhaseBuild, true
 	case "audit-pending":
 		return "AUDIT", styles.FooterPhaseAudit, true
+	case "defect-building":
+		return "DEFECT", styles.FooterPhaseDefect, true
 	case "pre-implementation", "epic-design", "epic-task-breakdown":
 		return "PLAN", styles.FooterPhasePlan, true
 	default:
@@ -151,6 +192,8 @@ func FormatNextActivity(state *data.RouterState) string {
 		s = fmt.Sprintf("Build %s %s/%s", state.Release, shortID(state.Epic), shortID(state.Task))
 	case "audit-pending":
 		s = fmt.Sprintf("Audit %s", shortID(state.Epic))
+	case "defect-building":
+		s = fmt.Sprintf("Defect %s", shortID(state.Defect))
 	case "epic-design":
 		s = fmt.Sprintf("Design %s", shortID(state.Epic))
 	case "epic-task-breakdown":
@@ -162,8 +205,6 @@ func FormatNextActivity(state *data.RouterState) string {
 	}
 	return xansi.Truncate(s, 20, "…")
 }
-
-
 
 func (m Model) focusedTask() (data.Task, bool) {
 	tasks := m.Tasks[m.FocusedColumn]
@@ -268,7 +309,23 @@ func (m Model) renderEpicPanel(w int, maxHeight int) string {
 
 func (m Model) renderColumn(col data.ColumnType, colW, maxHeight int) string {
 	focused := !m.EpicPanelFocus && m.FocusedColumn == col
-	return RenderColumn(m.Tasks[col], col, colW, maxHeight, m.ColumnOffsets[col], m.FocusedTask, focused, m.RouterState)
+	markers := buildTaskMarkers(m.Tasks[col], m.AllDefects)
+	return RenderColumn(m.Tasks[col], col, colW, maxHeight, m.ColumnOffsets[col], m.FocusedTask, focused, m.RouterState, markers)
+}
+
+// buildTaskMarkers returns a map from task ID to defect marker string for any
+// task in the slice that is referenced by a defect.
+func buildTaskMarkers(tasks []data.Task, defects []data.Defect) map[string]string {
+	if len(defects) == 0 {
+		return nil
+	}
+	markers := map[string]string{}
+	for _, t := range tasks {
+		if m := defectMarkerForTask(t.ID, defects); m != "" {
+			markers[t.ID] = m
+		}
+	}
+	return markers
 }
 
 func detailMaxHeight(termH int) int {
@@ -290,7 +347,7 @@ func (m Model) renderFooter(termW int) string {
 			styles.FooterDivider.Render(" │ ")+
 			styles.FooterPhaseAudit.Render("AUDIT"),
 	)
-	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  p: Priority  R:release  ?:help  q:quit"))
+	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  p: Priority  ctrl+r:refresh  R:release  d: Defects  ?:help  q:quit"))
 	status := ""
 	if m.StatusMessage != "" {
 		status = styles.StatusBar.Render(m.StatusMessage)

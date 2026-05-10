@@ -25,6 +25,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case reloadMsg:
 		debugf("dispatch: reloadMsg tasks=%d releases=%d", len(msg.tasks), len(msg.releases))
 		m.AllTasks = msg.tasks
+		m.AllDefects = msg.defects
 		m.Releases = append([]string(nil), msg.releases...)
 		m.ReleaseEpics = copyReleaseEpics(msg.releaseEpics)
 		m.EpicStatus = msg.epicStatuses
@@ -32,6 +33,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.RouterState = msg.routerState
 			m.RouterTask = msg.routerState.Task
 		}
+		m.StatusMessage = msg.message
 		m.SelectedRelease = firstKnown(m.SelectedRelease, m.Releases)
 		m.refreshEpicsForRelease()
 		m.refreshTasks()
@@ -57,12 +59,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.RouterTask = msg.taskID
 	case taskWriteMsg:
 		for i, t := range m.AllTasks {
-			if t.ID == msg.next.ID {
+			if sameTaskRecord(t, msg.next) {
 				m.AllTasks[i] = msg.next
 				break
 			}
 		}
 		m.StatusMessage = taskTransitionMessage(msg.prefix, msg.next)
+		m.refreshTasks()
+		m.ensureFocusedTaskVisible()
+	case taskRefreshMsg:
+		for i, t := range m.AllTasks {
+			if sameTaskRecord(t, msg.task) {
+				m.AllTasks[i] = msg.task
+				break
+			}
+		}
+		m.StatusMessage = msg.message
 		m.refreshTasks()
 		m.ensureFocusedTaskVisible()
 	case epicDetailMsg:
@@ -87,6 +99,10 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDetailOverlay(msg)
 	case OverlayEpicDetail:
 		return m.handleEpicDetailOverlay(msg)
+	case OverlayDefect:
+		return m.handleDefectOverlay(msg)
+	case OverlayDefectDetail:
+		return m.handleDefectDetailOverlay(msg)
 	}
 	return m, nil
 }
@@ -106,9 +122,20 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.Overlay = OverlayRelease
 		m.ReleaseCursor = sliceIndex(m.Releases, m.SelectedRelease)
 		return m, nil
+	case "d":
+		m.Overlay = OverlayDefect
+		m.DefectCursor = 0
+		return m, nil
 	case "?":
 		m.Overlay = OverlayHelp
 		return m, nil
+	case "ctrl+r":
+		if m.Root == "" {
+			m.StatusMessage = "Refresh failed: no savepoint root"
+			return m, nil
+		}
+		m.StatusMessage = ""
+		return m, reloadTasksWithMessage(m.Root, m.Dependencies, "Refreshed")
 	case "p":
 		task, ok := m.focusedTask()
 		if !ok {
@@ -185,13 +212,13 @@ func (m Model) handleAdvanceTask() (tea.Model, tea.Cmd) {
 	tasks := m.Tasks[m.FocusedColumn]
 	if len(tasks) > 0 && m.FocusedTask < len(tasks) {
 		task := tasks[m.FocusedTask]
-		if ok, reason := CanAdvance(&task, m.AllTasks); !ok {
+		if ok, reason := CanAdvance(&task, m.AllTasks, m.selectedReleaseEpicStatuses()); !ok {
 			m.StatusMessage = reason
 			return m, nil
 		}
 		m.StatusMessage = ""
 		for i, t := range m.AllTasks {
-			if t.ID == task.ID {
+			if sameTaskRecord(t, task) {
 				next := m.AllTasks[i]
 				Advance(&next)
 				if next.Path != "" {
@@ -208,13 +235,27 @@ func (m Model) handleAdvanceTask() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) selectedReleaseEpicStatuses() map[string]string {
+	if len(m.ReleaseEpics) == 0 {
+		return m.EpicStatus
+	}
+	epics := m.ReleaseEpics[m.SelectedRelease]
+	statuses := make(map[string]string, len(epics))
+	for _, epic := range epics {
+		if status, ok := m.EpicStatus[epic]; ok {
+			statuses[epic] = status
+		}
+	}
+	return statuses
+}
+
 func (m Model) handleRetreatTask() (tea.Model, tea.Cmd) {
 	tasks := m.Tasks[m.FocusedColumn]
 	if len(tasks) > 0 && m.FocusedTask < len(tasks) {
 		task := tasks[m.FocusedTask]
 		m.StatusMessage = ""
 		for i, t := range m.AllTasks {
-			if t.ID == task.ID {
+			if sameTaskRecord(t, task) {
 				next := m.AllTasks[i]
 				Retreat(&next)
 				if next.Path != "" {
@@ -554,6 +595,49 @@ func (m Model) epicPanelPageSize() int {
 
 func (m Model) epicPanelAvailable() bool {
 	return len(m.Epics) > 0 && CalculateLayout(m.Width, m.Height).EpicPanelVisible
+}
+
+func (m Model) handleDefectOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "up", "k":
+		if m.DefectCursor > 0 {
+			m.DefectCursor--
+		}
+	case "down", "j":
+		if len(defects) > 0 && m.DefectCursor < len(defects)-1 {
+			m.DefectCursor++
+		}
+	case "enter":
+		if len(defects) > 0 && m.DefectCursor < len(defects) {
+			m.DefectDetailOffset = 0
+			m.Overlay = OverlayDefectDetail
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleDefectDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayDefect
+	case "up", "k":
+		if m.DefectDetailOffset > 0 {
+			m.DefectDetailOffset--
+		}
+	case "down", "j":
+		m.DefectDetailOffset++
+	case "pgup":
+		m.DefectDetailOffset -= m.detailPageSize()
+		if m.DefectDetailOffset < 0 {
+			m.DefectDetailOffset = 0
+		}
+	case "pgdown":
+		m.DefectDetailOffset += m.detailPageSize()
+	}
+	return m, nil
 }
 
 func prevColumn(col data.ColumnType) data.ColumnType {

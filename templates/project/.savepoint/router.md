@@ -97,6 +97,14 @@ Task is `in_progress`. All `depends_on` are `done`.
 
 **Do not start the next task without user acknowledgment.**
 
+### `state: defect-building`
+
+A release-level defect is the active repair item. This is not epic planning and not normal task-building.
+
+**Next action:** Read the active defect file from `.savepoint/releases/{release}/defects/{defect}.md`, then read only the source/test files needed to reproduce and fix it. Keep the defect file as the repair ledger, run the full quality-gate suite, update resolution notes, and stop for user review.
+
+**Do not** convert a defect into an epic or task unless the user explicitly decides it is scope rather than repair.
+
 ### `state: audit-pending`
 
 The last task in an epic is `done`. Audit must run before the next epic starts.
@@ -113,19 +121,20 @@ Prefer delta-only edits (`Insert After`, `Replace`, `Delete`) anchored to exact 
 
 Proposal format:
 
-```md
-## Target File
+````md
+### Target File
+path/to/file.md
 
-`path/to/file.md`
-
-## Replace
-
-<exact old heading, marker, or section>
-
-## With
-
-<new content>
+### Replace
 ```
+exact old text
+```
+
+### With
+```
+replacement text
+```
+````
 
 Quality review section format:
 
@@ -142,6 +151,14 @@ Quality review section format:
 After proposals are approved, apply approved proposals to live files, mark the epic `E##-Detail.md` as `status: audited`, update project `Design.md` `last_audited`, refresh `AGENTS.md` Codebase Map if needed, and advance this router to the next epic state.
 
 Stop. The user reviews proposals in the TUI before commit actions.
+
+## Manual defect capture
+
+If the user reports a concrete bug, regression, broken behavior, or failed expectation and asks to record it, use `savepoint-create-defect` even if the current router state is not defect-related.
+
+- Create the defect under `.savepoint/releases/{release}/defects/`.
+- Leave this router state unchanged unless the user explicitly wants to start repair now.
+- If repair starts immediately, set `state: defect-building`, set `defect: {release}/D###-slug`, and keep `task` empty or `none`.
 
 ## Capability check
 
