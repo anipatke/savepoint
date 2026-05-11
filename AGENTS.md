@@ -6,6 +6,8 @@
 2. Activate skill per table below
 3. Read: router → epic → task → source files
 
+The phase skill is the canonical workflow source. This guide defines routing, terminology, and repo rules only; do not duplicate phase-by-phase prompt instructions here.
+
 ## Skill Activation
 
 | State | Skill |
@@ -23,10 +25,11 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 
 Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only for architecture/audit.
 
-## Task Status
+## Terminology
 
-- `status`: only `planned`, `in_progress`, or `done`
-- `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
+- Router `state`: the current phase, such as `epic-design`, `task-building`, or `audit-pending`
+- Task `status`: only `planned`, `in_progress`, or `done`
+- Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
 - Never: todo, doing, blocked, review, audit
 - Agents may set a task to `status: in_progress` when starting implementation.
 - Only the user may set a task to `status: done` or retreat a task to an earlier status.
@@ -47,11 +50,8 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 2. Read task's `## Acceptance Criteria` + `## Implementation Plan`
 3. When starting implementation, set task frontmatter to `status: in_progress` + `stage: build` (both required together)
 4. After setting `in_progress`, press `p` in the TUI to mark the focused task as router priority
-5. Execute in order, tick checkboxes
-6. Verify every AC has passing test/outcome
-7. Run quality gates (build + test)
-8. Update router.md: next task or `audit-pending`
-9. **Stop. Prompt user before continuing.**
+5. Follow `savepoint-build-task` for execution, checklist updates, AC verification, quality gates, context log, and handoff.
+6. **Stop. Prompt user before continuing.**
 
 ## Drift Check
 

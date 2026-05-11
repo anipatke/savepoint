@@ -1,69 +1,56 @@
 # Agents Guide
 
-## Startup
+## Workflow
 
-1. Read `.savepoint/router.md` for state, release, epic, task, and next action.
-2. Activate the skill for the current state:
+1. Read `.savepoint/router.md` — state + next action
+2. Activate skill per table below
+3. Read: router → epic → task → source files
 
-   | State | Skill |
-   |-------|-------|
-   | pre-implementation | savepoint-draft-prd |
-   | epic-design | savepoint-system-design |
-   | epic-task-breakdown | savepoint-create-task |
-   | task-building | savepoint-build-task |
-   | audit-pending | savepoint-audit |
-   | defect-building | savepoint-build-task |
+The phase skill is the canonical workflow source. This guide defines routing, terminology, and repo rules only; do not duplicate phase-by-phase prompt instructions here.
+
+## Skill Activation
+
+| State | Skill |
+|-------|-------|
+| pre-implementation | savepoint-draft-prd |
+| epic-design | savepoint-system-design |
+| epic-task-breakdown | savepoint-create-task |
+| task-building | savepoint-build-task |
+| audit-pending | savepoint-audit |
+| defect-building | savepoint-build-task |
 
 Use the `skill` tool when the listed skill is available. If the agent says the skill is not found, read `agent-skills/{skill}/SKILL.md` directly and follow it as the active skill.
 
 Use `savepoint-create-defect` when the user reports a concrete bug, regression, or broken expectation that should be captured as a release-level defect before repair starts.
 
-Read in order: router → active epic → active task → task `## Context Files` only. Read `.savepoint/PRD.md` only for vision changes, and `.savepoint/Design.md` only for architecture/audit.
+Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only for architecture/audit.
 
-## Task Status
+## Terminology
 
-- `status` must be only `planned`, `in_progress`, or `done`.
-- `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
+- Router `state`: the current phase, such as `epic-design`, `task-building`, or `audit-pending`
+- Task `status`: only `planned`, `in_progress`, or `done`
+- Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
 - Never: todo, doing, blocked, review, audit
 - Agents may set a task to `status: in_progress` when starting implementation.
 - Only the user may set a task to `status: done` or retreat a task to an earlier status.
 
-## Defect Lane
+## Defect Workflow
 
-Use a defect file when a bug is discovered **during or after a build phase** — not when a planned task is reworked. Defects are tracked separately from epics so the audit trail stays clean.
+Use a defect conversation when the user reports a concrete bug, regression, broken behavior, or failed expectation that should be repaired without reshaping the planned epic/task backlog.
 
-- **Location:** `.savepoint/releases/{release}/defects/D###-slug.md`
-- **When to create:** regression found in TUI testing, broken build caused by a merged epic, or a production issue traced to a known release
-- **When NOT to create:** a planned task that needs rework (update the task instead), a scope change (that is an epic), or a future enhancement
-- **Capture skill:** `agent-skills/savepoint-create-defect/SKILL.md`
-
-Defect frontmatter:
-
-```yaml
----
-id: {release}/D###-slug
-release: {release}
-status: open             # open | in_progress | resolved
-severity: high           # critical | high | medium | low
-title: "One-line description"
-introduced: v1.0.3       # optional: version where bug appeared
-reference: E12-slug/T003-slug  # optional: related task ID
----
-```
-
-Press `d` on the board to open the defect overlay. The `savepoint doctor` command validates defect files and reports malformed frontmatter, invalid status, missing in-progress stage, and broken references.
-
-If the router is in `defect-building`, treat the session as repair work for the named defect rather than normal epic planning or task-building.
+- Defects live at `.savepoint/releases/{release}/defects/D###-slug.md`.
+- Use `agent-skills/savepoint-create-defect/SKILL.md` to capture a new defect file.
+- Router state may be `defect-building` with a `defect` field naming the active defect id.
+- Defect lifecycle: `open` → `in_progress` (requires `stage: build|test|audit`) → `resolved`. Never use task-style `planned` or `done` in defect files.
+- Use the board `d` overlay to inspect defects; do not turn defects into a fourth task column.
 
 ## Implementation
 
 1. Read the task's `## Context Files` one file at a time; do not explore, glob, search broadly, or read files outside the task context unless explicitly required.
 2. Read the task's `## Acceptance Criteria` and `## Implementation Plan`.
 3. Set task frontmatter to `status: in_progress` and `stage: build`, then press `p` in the TUI to mark router priority.
-4. Execute the plan in order, tick checkboxes, and verify every AC with a passing test or outcome.
-5. Run `make build && make test`.
-6. Update `router.md` to the next task or `audit-pending`.
-7. Stop and prompt the user before continuing.
+4. Follow `savepoint-build-task` for execution, checklist updates, AC verification, quality gates, context log, and handoff.
+5. Stop and prompt the user before continuing.
 
 ## Drift Check
 

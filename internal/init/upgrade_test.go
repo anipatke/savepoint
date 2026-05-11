@@ -321,6 +321,36 @@ func TestUpgradeProjectAssets_skipsNonAllowlistedFiles(t *testing.T) {
 	}
 }
 
+func TestUpgradeProjectAssets_skipsPromptTemplates(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := fstest.MapFS{
+		"templates/prompts/task-building.prompt.md": &fstest.MapFile{Data: []byte("stale phase prompt")},
+		"prompts/task-building.prompt.md":           &fstest.MapFile{Data: []byte("stale phase prompt")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	if len(report.Actions) != len(templates) {
+		t.Fatalf("actions = %d, want %d", len(report.Actions), len(templates))
+	}
+	for _, e := range report.Actions {
+		if e.Action != ActionSkipped {
+			t.Errorf("path %s = %v, want skipped", e.Path, e.Action)
+		}
+		if _, err := os.Stat(filepath.Join(target, e.Path)); !os.IsNotExist(err) {
+			t.Errorf("prompt path %s should not be written, stat err = %v", e.Path, err)
+		}
+	}
+}
+
 func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 	target := t.TempDir()
 	savepointDir := filepath.Join(target, ".savepoint")

@@ -3,85 +3,92 @@ name: savepoint-audit
 description: Performs Savepoint audit-pending work for a completed epic, reviewing implementation against task acceptance criteria and writing the required E##-Audit.md handoff file.
 ---
 
-# Savepoint Skill: Audit (`audit`)
+# Savepoint Skill: Audit
 
-## Objective
-At the end of an epic, review the implemented code against the Epic objectives and Task Acceptance Criteria, and reconcile any documentation "Drift".
+## Purpose
 
-## Context
-The Audit Gate is Savepoint's wedge. It prevents projects from degrading into chaos. The `audit` agent acts as the Quality Assurance and Documentation Lead. It reviews the work of the `build-task` agent with "fresh eyes," ensuring that the `Design.md` and the `AGENTS.md` Codebase Map reflect the actual reality of the codebase before the next Epic begins.
+Review a completed epic with fresh eyes, verify task acceptance criteria, capture drift, and write one audit handoff file.
 
 ## Trigger
-This skill is activated when the `.savepoint/router.md` state is `audit-pending`.
 
-## Input
-- `.savepoint/releases/{release}/epics/{E##-slug}/E##-Detail.md` (the epic design).
-- `.savepoint/Design.md` (project architecture).
-- `AGENTS.md` (agent guide and codebase map).
-- The source and test files modified during the Epic.
+Use this skill when router `state` is `audit-pending`, or when the user explicitly asks for an epic audit.
+
+## Read
+
+- `.savepoint/router.md`
+- Active epic detail file
+- Task files for the active epic
+- `.savepoint/Design.md`
+- `AGENTS.md`
+- Scoped source/test files changed by the epic
 
 ## Workflow
 
-1.  **Fresh Eyes Check:** If you are the exact same agent session that just built the `build-task` code for this Epic, you MUST STOP. Tell the user: "Epic complete. Start a new agent session for the audit."
-2.  **Verify ACs:** Review the completed tasks for the Epic. Ensure the Acceptance Criteria were actually met by the committed code. Also confirm each task file has a `## Context Files` section — flag any missing ones under `## Main Findings` as a process gap.
-3.  **Process Drift Notes (Reconciliation):** Read every task file in the Epic and look for `## Drift Notes`.
-4.  **Draft Audit File:** Based on the code changes and the Drift Notes, write exactly ONE file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`. It must use this format:
-    ````md
-    ---
-    type: audit-findings
-    audited: YYYY-MM-DD
-    ---
-    # Audit Findings: E## {Epic Name}
+1. Stop if you are the same agent session that just built the epic.
+2. Verify every completed task against its acceptance criteria and context log.
+3. Review task `## Drift Notes`.
+4. Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
+5. Put user-facing findings under `## Main Findings` and code-style checks under `## Code Style Review`.
+6. Put admin replacement blocks only under `## Proposed Changes`.
+7. Stop and ask the user to review the audit before any proposals are applied.
 
-    ## Main Findings
-    [human-readable audit summary only: AC verification, important drift, and notable risks. Do not include per-file replacement blocks here.]
+## Artifact Template
 
-    ## Code Style Review
-    - [ ] One job per file
-    - [ ] One-sentence functions
-    - [ ] Test branches
-    - [ ] Types are documentation
-    - [ ] Build, don't speculate
-    - [ ] Errors at boundaries
-    - [ ] One source of truth
-    - [ ] Comments explain WHY
-    - [ ] Content in data files
-    - [ ] Small diffs
+Write `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md` with this structure:
 
-    ## Proposed Changes
-    ### Target File
-    path/to/file.md
+````markdown
+---
+type: audit-findings
+audited: {date}
+---
 
-    ### Replace
-    ```
-    exact old text
-    ```
+# Audit Findings: E## Epic Title
 
-    ### With
-    ```
-    replacement text
-    ```
-    ````
-    The TUI Audit tab renders only `## Main Findings` and `## Code Style Review`. Keep `## Proposed Changes` as admin/apply metadata so the Epic Detail panel does not show stale file-change blocks.
-5.  **Review Format:** Use `### Target File`, `### Replace`, and `### With` formatting only inside `## Proposed Changes`. Include proposals for:
-    *   **Design.md:** Merge the epic's architectural changes into the project-level `Design.md`.
-    *   **AGENTS.md:** Refresh the Codebase Map table with new or changed modules.
-    *   **Epic E##-Detail.md:** Add "Implemented as:" notes showing where reality deviated from the original plan.
-    *   **Implementation fixes:** Include any must-fix code or test changes found during audit.
-6.  **Handoff:** Do not apply the proposals yourself. Do not mark the epic audited. Stop and prompt the user to review `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md` (via the TUI Audit tab). Tell them: "Review the audit tab. When ready, say 'apply audit' to apply proposals and close the epic."
-7.  **Apply + Close** (only when the user approves by saying "apply audit" or equivalent):
-    1.  Read `E##-Audit.md` — extract every `### Target File` / `### Replace` / `### With` block from `## Proposed Changes`.
-    2.  For each pair, apply the replacement to the target file named in the preceding `### Target File` line.
-    3.  Update `E##-Audit.md` visible sections: rewrite `## Main Findings` and `## Code Style Review` so the TUI Audit tab reflects the applied outcome, resolved findings, remaining risks if any, and final code-style status. Keep `## Proposed Changes` intact as admin/apply trace unless the user asks to remove it.
-    4.  Update `E##-Detail.md` frontmatter: set `status: audited`.
-    5.  Update `.savepoint/Design.md` frontmatter: set `last_audited: {release}/{E##-slug}`.
-    6.  Read `.savepoint/router.md` current state. Advance:
-        - If more epics remain in the release: set `state: epic-design`, `epic: {next-epic-slug}`, `task: ""`, `next_action: "Draft epic design"`.
-        - If no more epics: set `state: epic-design`, `epic: ""`, `next_action: "Plan next epic"`.
-    7.  Print apply summary: "Applied X proposals. Updated audit findings. Epic {E##} closed as audited. Router → {new state}."
+## Main Findings
 
-## Constraints
-- **Do not write product code.** You are an auditor.
-- **Do not apply the changes immediately.** Write the proposals document first.
-- **One proposals file.** Do not create multiple proposal files.
-- **No CLI audit pipeline.** Savepoint audit is agent-led and skill-driven; do not invoke or design around a `savepoint audit` command.
+User-facing audit summary, including concrete verification outcomes and any unresolved findings.
+
+## Code Style Review
+
+- [ ] One job per file
+- [ ] One job per function
+- [ ] Test branches
+- [ ] Types document intent
+- [ ] Build only what is needed
+- [ ] Handle errors at boundaries
+- [ ] One source of truth
+- [ ] Comments explain WHY
+- [ ] Content in data files
+- [ ] Small diffs
+
+## Proposed Changes
+
+### Target File
+path/to/file
+
+### Replace
+```md
+Existing text to replace.
+```
+
+### With
+```md
+Replacement text.
+```
+````
+
+## Apply + Close
+
+Only after the user says to apply the audit:
+
+1. Apply approved `## Proposed Changes` blocks.
+2. Update `E##-Audit.md` visible sections to describe the applied outcome.
+3. Mark the epic audited and advance the router.
+4. Report: "Updated audit findings."
+
+## Rules
+
+- Do not write product code during audit.
+- Do not apply proposals before approval.
+- Do not create more than one audit file for an epic.
+- Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.

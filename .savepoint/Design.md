@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.2/E17-defect-workflow-tui
+last_audited: v1.2/E18-template-skill-optimisation
 ---
 
 # Savepoint — System Architecture
@@ -13,7 +13,7 @@ last_audited: v1.2/E17-defect-workflow-tui
 ## 1. Architecture model
 
 - **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
-- **Agent routing:** AGENTS.md → `.savepoint/router.md` → template prompts. See AGENTS.md Workflow section.
+- **Agent routing:** AGENTS.md → `.savepoint/router.md` → phase skills. See AGENTS.md Workflow section.
 - **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-create-defect`, `savepoint-build-task`, `savepoint-audit`) to enforce the state machine and capture release-level defects.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
