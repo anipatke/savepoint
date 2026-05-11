@@ -3,37 +3,81 @@ name: savepoint-system-design
 description: Produces Savepoint system or epic design documents from the PRD when the router is in epic-design or the user asks for architectural design.
 ---
 
-# Savepoint Skill: System Design (`system-design`)
+# Savepoint Skill: System Design
 
-## Objective
-Translate the Product Requirements Document (PRD) into the initial architectural blueprint (`Design.md`) before the planning phase breaks the work down into Epics.
+## Purpose
 
-## Context
-Before any tasks can be planned, the project needs a high-level technical direction. The `system-design` skill acts as the Staff Engineer. It reads the vision and constraints from the PRD and makes authoritative technical decisions regarding architecture, directory layout, dependency strategies, and workflow rules.
+Turn approved product scope into a concise technical design. For project design, update `.savepoint/Design.md`. For epic design, update the active `.savepoint/releases/{release}/epics/{E##-slug}/E##-Detail.md`.
 
 ## Trigger
-This skill is activated when the `.savepoint/router.md` state is `epic-design` or when the user explicitly asks to design the system based on the PRD.
 
-## Input
-- `.savepoint/PRD.md` (The source of truth for "what" and "why").
-- Any existing template or shell in `.savepoint/Design.md`.
+Use this skill when router `state` is `epic-design`, or when the user explicitly asks for architecture/design work.
+
+## Read
+
+- `.savepoint/router.md`
+- Active PRD or release PRD only when the design depends on product scope
+- Active epic detail file when designing an epic
+- `.savepoint/Design.md` only for architecture context
 
 ## Workflow
 
-1.  **Read the PRD:** Analyze `.savepoint/PRD.md` to understand the goal, constraints (e.g., tech stack, budget), and what is out of scope.
-2.  **Architectural Mapping:** Make firm, opinionated technical decisions that solve the PRD's goals. Do not offer options unless absolutely necessary; pick a path and justify it briefly.
-3.  **Draft `.savepoint/Design.md`:** Write or update the architectural design document. It must include:
-    *   **Architecture Model:** The core pattern (e.g., "File-only state machine," "Client-side React with Firebase," "CLI Tool").
-    *   **Directory Layout:** A clear, visual tree mapping out the structure of the project (`src/`, `test/`, etc.).
-    *   **Hierarchy Semantics:** Definitions of what constitutes an Epic vs. a Task.
-    *   **Status Model & Gates:** How work moves from `planned` to `done`.
-    *   **Dependencies:** How modules or tasks rely on each other.
-    *   **CLI Surface/API Contract:** If applicable, define the boundary interactions.
-4.  **Review Against Constraints:** Ensure your design strictly adheres to the constraints and out-of-scope items listed in the PRD. If the PRD says "no database," do not add a database to the architecture.
-5.  **Handoff:** Update `.savepoint/router.md` to `state: planning`. Instruct the user to review the `Design.md` and then prompt the agent to start the epic breakdown.
+1. Read the router and the design inputs needed for the active scope.
+2. Describe what the scope adds, which components it touches, and the architectural delta.
+3. Record firm implementation boundaries and out-of-scope items.
+4. Keep task breakdown and build steps out of the design.
+5. When the design is ready, update the router toward `epic-task-breakdown` for the active epic.
 
-## Constraints
-- **Do not write code.**
-- **Do not break down tasks.** That is the job of the `create-plan` skill.
-- **Maintain Token Discipline:** Keep the `Design.md` concise. It is meant to be read by AI agents on every turn. Rambling design docs destroy context windows.
-- **Limit source reads.** Read only the implementation boundary files (e.g., existing code that the design must integrate with). Do not read full test suites or explore the codebase broadly before implementation starts — those reads belong in the build phase.
+## Artifact Template
+
+Write `.savepoint/releases/{release}/epics/{E##-slug}/E##-Detail.md` with this structure:
+
+```markdown
+---
+type: epic-design
+status: planned
+---
+
+# E##: Epic Title
+
+## Purpose
+
+Short statement of why this epic exists.
+
+## What this epic adds
+
+- User-facing or workflow capability this epic adds
+
+## Components and files
+
+| Module | Purpose |
+|--------|---------|
+| `path/or/module` | Responsibility in this epic |
+
+## Architectural delta
+
+What changes from the current system design.
+
+## Boundaries
+
+**In scope:**
+- Included work
+
+**Out of scope:**
+- Excluded work
+
+## Quality gates
+
+- Required verification outcome
+
+## Open decisions
+
+None.
+```
+
+## Rules
+
+- Do not write product code.
+- Do not create detailed task implementation plans.
+- Keep design documents short enough to be read every session.
+- Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.

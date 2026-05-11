@@ -3,43 +3,38 @@ name: savepoint-build-task
 description: Executes Savepoint task-building work when .savepoint/router.md state is task-building, including implementing one active task, checking acceptance criteria, running quality gates, and stopping for user review.
 ---
 
-# Savepoint Skill: Build Task (`build-task`)
+# Savepoint Skill: Build Task
 
-## Objective
-Act as a disciplined coding agent that strictly follows Savepoint's implementation loop.
+## Purpose
 
-## Context
-The `build-task` skill is the execution engine. It reads the detailed task plan, writes the code, and proves that the Acceptance Criteria (ACs) have been met. It is strictly constrained to the scope of the single active task. It does not rewrite architecture, and it does not fix unrelated bugs.
+Implement one active task exactly as planned, prove each acceptance criterion, run the quality gates, and hand control back to the user.
 
 ## Trigger
-This skill is activated when the `.savepoint/router.md` state is `task-building` and points to a specific task file.
 
-## Input
-- `.savepoint/router.md` (Current state).
-- The active epic E##-Detail.md: `.savepoint/releases/v1/epics/{E##-epic}/E##-Detail.md`.
-- The active task file: `.savepoint/releases/v1/epics/{E##-epic}/tasks/{T###}-*.md`.
-- Directly touched source/test files.
+Use this skill when router `state` is `task-building`, or `defect-building` for a release defect repair.
+
+## Read
+
+- `.savepoint/router.md`
+- Active epic detail file or active defect file
+- Active task file when in `task-building`
+- Only the files listed in the task `## Context Files`, unless the task itself requires a targeted verification read
 
 ## Workflow
 
-1.  **Read the Task Plan:** Review the `## Acceptance Criteria` and the `## Implementation Plan`.
-2.  **Test-First Implementation:** If testing is part of the project constraints, write the focused tests for the required behavior first.
-3.  **Execute:** Write the code to check off every item in the `## Implementation Plan`.
-4.  **Validate ACs:** You must verify that every single item in the `## Acceptance Criteria` has been met. A task is not done just because the code is written; it is done when the ACs are demonstrably true.
-5.  **Run Quality Gates:** Run the project's build, lint, and test commands (e.g., `npm run build && npm test` or `go test ./...`).
-6.  **Log Context:** Fill out the `## Context Log` at the bottom of the task file:
-    *   List files read/edited.
-    *   Estimate tokens used.
-    *   Record the result of the quality gates.
-7.  **Log Drift Notes:** **CRITICAL STEP.** Ask yourself:
-    *   Did I add new source files, modules, or exports not listed in the `AGENTS.md` Codebase Map?
-    *   Did I change the architecture from what `.savepoint/Design.md` describes?
-    *   If YES to either, append a `## Drift Notes` section to the bottom of the task file explaining what changed. DO NOT edit `Design.md` or `AGENTS.md` yourself. The `audit` agent will handle that later.
-8.  **Status Update:** Change the task frontmatter to `status: done`.
-9.  **Handoff:** Update `router.md` to point to the next unblocked task. If all tasks in the Epic are done, update it to `state: audit-pending`.
-10. **Stop:** Prompt the user: "Task {id} is done. Quality gates passed. Review the changes, then tell me to continue." Do not start the next task automatically.
+1. Read the task acceptance criteria and implementation plan.
+2. Set the task frontmatter to `status: in_progress` and `stage: build` when starting.
+3. Mark the focused task as router priority in the TUI when available.
+4. Implement the checklist in order and tick completed items.
+5. Verify every acceptance criterion with a concrete outcome.
+6. Run `make build && make test`.
+7. Fill the task `## Context Log` with files read/edited and quality-gate results.
+8. Add `## Drift Notes` only if files/modules or architecture changed beyond the documented map/design.
+9. Stop for user review; only the user may mark the task `done`.
 
-## Constraints
-- **Stay in scope:** Do not touch files outside of what is required for the Acceptance Criteria.
-- **Do not edit architecture documents.** If you must deviate from the plan, write the code and log a "Drift Note" in the task file.
-- **Pre-build context discipline.** Read only the files listed in the task's `## Context Files` before starting implementation. Avoid exploratory globs or grep searches outside those files unless the Acceptance Criteria require verification against unexpected output.
+## Rules
+
+- Stay within the active task scope.
+- Do not audit the epic you just built.
+- Do not use Savepoint CLI commands; edit files directly.
+- Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.

@@ -20,16 +20,16 @@ func runInitPipeline(t *testing.T, dir string, force bool) string {
 	}
 
 	templates := fstest.MapFS{
-		".savepoint":                                    &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/config.yml":                         &fstest.MapFile{Data: []byte("key: value")},
-		".savepoint/Design.md":                          &fstest.MapFile{Data: []byte("# {{PROJECT_NAME}} Design")},
-		".savepoint/PRD.md":                             &fstest.MapFile{Data: []byte("PRD: {{PROJECT_NAME}}")},
-		".savepoint/router.md":                          &fstest.MapFile{Data: []byte("# Router")},
-		".savepoint/visual-identity.md":                 &fstest.MapFile{Data: []byte("# Visual Identity")},
-		".savepoint/releases/v1/epics":                  &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/releases/v1/v1-PRD.md":              &fstest.MapFile{Data: []byte("# v1 PRD for {{PROJECT_NAME}}")},
-		"AGENTS.md":                                     &fstest.MapFile{Data: []byte("# Agents Guide\n\nBuild: npm run build")},
-		"agent-skills/savepoint-audit/SKILL.md":         &fstest.MapFile{Data: []byte("# Audit Skill")},
+		".savepoint":                            &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/config.yml":                 &fstest.MapFile{Data: []byte("key: value")},
+		".savepoint/Design.md":                  &fstest.MapFile{Data: []byte("# {{PROJECT_NAME}} Design")},
+		".savepoint/PRD.md":                     &fstest.MapFile{Data: []byte("PRD: {{PROJECT_NAME}}")},
+		".savepoint/router.md":                  &fstest.MapFile{Data: []byte("# Router")},
+		".savepoint/visual-identity.md":         &fstest.MapFile{Data: []byte("# Visual Identity")},
+		".savepoint/releases/v1/epics":          &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/releases/v1/v1-PRD.md":      &fstest.MapFile{Data: []byte("# v1 PRD for {{PROJECT_NAME}}")},
+		"AGENTS.md":                             &fstest.MapFile{Data: []byte("# Agents Guide\n\nBuild: npm run build")},
+		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
 	}
 
 	projectName := ProjectNameFromDir(dir)
@@ -256,6 +256,27 @@ func TestIntegration_MagicPromptInOutput(t *testing.T) {
 	for _, part := range expectedParts {
 		if !strings.Contains(prompt, part) {
 			t.Errorf("prompt missing %q", part)
+		}
+	}
+}
+
+func TestIntegration_MagicPromptDoesNotCarryPhaseWorkflow(t *testing.T) {
+	dir := t.TempDir()
+	prompt := runInitPipeline(t, dir, false)
+
+	stalePhaseInstructions := []string{
+		"pre-implementation",
+		"epic-design",
+		"epic-task-breakdown",
+		"task-building",
+		"audit-pending",
+		"defect-building",
+		"phase prompt",
+		"prompt-based phase",
+	}
+	for _, stale := range stalePhaseInstructions {
+		if strings.Contains(prompt, stale) {
+			t.Fatalf("prompt contains stale phase workflow text %q", stale)
 		}
 	}
 }

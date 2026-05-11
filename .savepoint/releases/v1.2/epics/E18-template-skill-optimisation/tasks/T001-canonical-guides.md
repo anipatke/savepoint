@@ -1,6 +1,6 @@
 ---
 id: E18-template-skill-optimisation/T001-canonical-guides
-status: planned
+status: done
 objective: Make skills the single source of truth for workflow guidance and remove duplicate prompt-style instructions from AGENTS docs
 depends_on: []
 ---
@@ -31,21 +31,22 @@ The live and scaffolded workflow docs repeat the same phase instructions in diff
 
 ## Acceptance Criteria
 
-- [ ] The live and scaffolded AGENTS docs clearly state that skills are the canonical phase workflow source
-- [ ] The live and scaffolded AGENTS docs no longer conflict on state, status, or stage terminology
-- [ ] The root skills and scaffolded skill copies use the same simplified phase instructions
-- [ ] Prompt-style duplication is removed from the workflow guidance text
-- [ ] `make build && make test` passes after the doc updates
+- [x] The live and scaffolded AGENTS docs clearly state that skills are the canonical phase workflow source
+- [x] The live and scaffolded AGENTS docs no longer conflict on state, status, or stage terminology
+- [x] The root skills and scaffolded skill copies use the same simplified phase instructions
+- [x] Prompt-style duplication is removed from the workflow guidance text
+- [x] `make build && make test` passes after the doc updates
 
 ## Implementation Plan
 
-- [ ] Rewrite the live and scaffolded AGENTS guidance to remove redundant phase narration
-- [ ] Align the root skill files and scaffolded skill copies so they describe the same workflow contract
-- [ ] Normalize terminology so `state`, `status`, and `stage` are used consistently
-- [ ] Run `make build && make test`
+- [x] Rewrite the live and scaffolded AGENTS guidance to remove redundant phase narration
+- [x] Align the root skill files and scaffolded skill copies so they describe the same workflow contract
+- [x] Normalize terminology so `state`, `status`, and `stage` are used consistently
+- [x] Run `make build && make test`
 
 ## Context Log
 
-- Files read:
-- Estimated input tokens:
-- Notes:
+- Files read: `.savepoint/router.md`, `.savepoint/releases/v1.2/epics/E18-template-skill-optimisation/E18-Detail.md`, `.savepoint/releases/v1.2/epics/E18-template-skill-optimisation/tasks/T001-canonical-guides.md`, all files listed in `## Context Files`, plus `internal/init/template_freshness_test.go` to resolve a failing freshness assertion.
+- Files edited: `AGENTS.md`, `templates/project/AGENTS.md`, `templates/project/.savepoint/router.md`, root `agent-skills/savepoint-*/SKILL.md`, scaffolded `templates/project/agent-skills/savepoint-*/SKILL.md`.
+- Estimated input tokens: ~24k
+- Notes: Verified mirrored root/scaffold skill copies with `Compare-Object`. `make build && make test` passed.

@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: epic-design
+state: task-building
 release: v1.2
-epic: E18-template-skill-optimisation
-task: ""
-next_action: Draft epic design
+epic: E19
+task: E19-task-complexity-field/T001-task-complexity-model
+next_action: Build E19-task-complexity-field/T001-task-complexity-model.
 ```
 
 ## State → action
