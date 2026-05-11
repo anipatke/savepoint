@@ -7,30 +7,30 @@ import (
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-var defectStatusOrder = []data.ColumnType{
-	data.ColumnPlanned,
-	data.ColumnInProgress,
-	data.ColumnDone,
+var defectStatusOrder = []data.DefectStatus{
+	data.DefectOpen,
+	data.DefectInProgress,
+	data.DefectResolved,
 }
 
-var defectSectionLabel = map[data.ColumnType]string{
-	data.ColumnPlanned:    "OPEN",
-	data.ColumnInProgress: "IN PROGRESS",
-	data.ColumnDone:       "RESOLVED",
+var defectSectionLabel = map[data.DefectStatus]string{
+	data.DefectOpen:       "OPEN",
+	data.DefectInProgress: "IN PROGRESS",
+	data.DefectResolved:   "RESOLVED",
 }
 
 // defectsForOverlay returns defects filtered to release and sorted by status
 // order (open → in-progress → resolved), preserving discovery order within
 // each group.
 func defectsForOverlay(all []data.Defect, release string) []data.Defect {
-	buckets := map[data.ColumnType][]data.Defect{}
+	buckets := map[data.DefectStatus][]data.Defect{}
 	for _, d := range all {
 		if release != "" && d.Release != release {
 			continue
 		}
 		col := d.Status
 		if col == "" {
-			col = data.ColumnPlanned
+			col = data.DefectOpen
 		}
 		buckets[col] = append(buckets[col], d)
 	}
@@ -56,11 +56,11 @@ func RenderDefectsOverlay(defects []data.Defect, cursor, width int) string {
 	if len(defects) == 0 {
 		lines = append(lines, styles.TaskItem.Render("(no defects)"))
 	} else {
-		lastSection := data.ColumnType("")
+		lastSection := data.DefectStatus("")
 		for i, d := range defects {
 			col := d.Status
 			if col == "" {
-				col = data.ColumnPlanned
+				col = data.DefectOpen
 			}
 			if col != lastSection {
 				if lastSection != "" {
@@ -82,7 +82,7 @@ func RenderDefectsOverlay(defects []data.Defect, cursor, width int) string {
 		}
 	}
 
-	lines = append(lines, "", styles.CardMeta.Render("↑↓:nav  esc:close"))
+	lines = append(lines, "", styles.CardMeta.Render("↑↓:nav  space:resolve  esc:close"))
 	return styles.EpicPanel.Width(width).Render(strings.Join(lines, "\n"))
 }
 

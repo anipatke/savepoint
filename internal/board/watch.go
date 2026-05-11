@@ -33,6 +33,10 @@ type taskWriteMsg struct {
 	err    error
 }
 
+type defectWriteMsg struct {
+	next data.Defect
+}
+
 type taskRefreshMsg struct {
 	task    data.Task
 	message string

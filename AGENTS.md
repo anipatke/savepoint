@@ -38,7 +38,7 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 - Defects live at `.savepoint/releases/{release}/defects/D###-slug.md`.
 - Use `agent-skills/savepoint-create-defect/SKILL.md` to capture a new defect file.
 - Router state may be `defect-building` with a `defect` field naming the active defect id.
-- A defect in progress follows the same `status: in_progress` plus `stage: build|test|audit` rule as tasks.
+- Defect lifecycle: `open` → `in_progress` (requires `stage: build|test|audit`) → `resolved`. Never use task-style `planned` or `done` in defect files.
 - Use the board `d` overlay to inspect defects; do not turn defects into a fourth task column.
 
 ## Implementation

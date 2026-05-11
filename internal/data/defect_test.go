@@ -12,7 +12,7 @@ func TestParseDefectFile_Valid(t *testing.T) {
 	content := `---
 id: v1.1/D001-auth-crash
 release: v1.1
-status: planned
+status: open
 severity: high
 title: Auth crash on empty token
 ---
@@ -28,8 +28,8 @@ Token validation panics on empty input.
 	if defect.ID != "v1.1/D001-auth-crash" {
 		t.Errorf("ID = %q, want %q", defect.ID, "v1.1/D001-auth-crash")
 	}
-	if defect.Status != ColumnPlanned {
-		t.Errorf("Status = %q, want planned", defect.Status)
+	if defect.Status != DefectOpen {
+		t.Errorf("Status = %q, want open", defect.Status)
 	}
 	if defect.Severity != SeverityHigh {
 		t.Errorf("Severity = %q, want high", defect.Severity)
@@ -43,7 +43,7 @@ func TestParseDefectFile_ObjectiveFallback(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D002-missing-title
-status: done
+status: resolved
 severity: low
 objective: Fix via objective field
 ---
@@ -91,11 +91,11 @@ title: Staged defect
 	}
 }
 
-func TestParseDefectFile_DoneStatus(t *testing.T) {
+func TestParseDefectFile_ResolvedStatus(t *testing.T) {
 	p := NewParser()
 	content := `---
-id: v1.1/D005-done
-status: done
+id: v1.1/D005-resolved
+status: resolved
 severity: low
 title: Fixed defect
 ---
@@ -104,19 +104,19 @@ title: Fixed defect
 	if err != nil {
 		t.Fatalf("ParseDefectFile() error = %v", err)
 	}
-	if defect.Status != ColumnDone {
-		t.Errorf("Status = %q, want done", defect.Status)
+	if defect.Status != DefectResolved {
+		t.Errorf("Status = %q, want resolved", defect.Status)
 	}
 	if defect.Stage != "" {
-		t.Errorf("Stage = %q, want empty for done defect", defect.Stage)
+		t.Errorf("Stage = %q, want empty for resolved defect", defect.Stage)
 	}
 }
 
 func TestParseDefectFile_StageOnlyValidInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
-id: v1.1/D005-done
-status: done
+id: v1.1/D005-resolved
+status: resolved
 stage: audit
 severity: low
 title: Fixed defect
@@ -132,7 +132,7 @@ func TestParseDefectFile_OptionalFields(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D006-optional
-status: planned
+status: open
 severity: medium
 introduced: v1.0.5
 reference: E12/T003
@@ -199,7 +199,7 @@ title: Bad stage defect
 	}
 }
 
-func TestParseDefectFile_EmptyStatusDefaultsToPlanned(t *testing.T) {
+func TestParseDefectFile_EmptyStatusDefaultsToOpen(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D009-no-status
@@ -211,8 +211,8 @@ title: No status defect
 	if err != nil {
 		t.Fatalf("ParseDefectFile() error = %v", err)
 	}
-	if defect.Status != ColumnPlanned {
-		t.Errorf("Status = %q, want planned (default)", defect.Status)
+	if defect.Status != DefectOpen {
+		t.Errorf("Status = %q, want open (default)", defect.Status)
 	}
 }
 

@@ -1,7 +1,7 @@
 ---
 id: v1.2/D004-closed-no-epic-placeholder
 release: v1.2
-status: done
+status: resolved
 severity: low
 title: "Closed no-epic placeholder defect"
 ---

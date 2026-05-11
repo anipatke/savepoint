@@ -1,6 +1,8 @@
 package board
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,9 +23,9 @@ func TestRenderDefectsOverlay_emptyState(t *testing.T) {
 
 func TestRenderDefectsOverlay_showsDefectRows(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "D001-crash", Title: "App crashes on start", Severity: data.SeverityCritical, Status: data.ColumnPlanned},
-		{ID: "D002-auth", Title: "Auth broken", Severity: data.SeverityHigh, Status: data.ColumnInProgress},
-		{ID: "D003-typo", Title: "Typo in message", Severity: data.SeverityLow, Status: data.ColumnDone},
+		{ID: "D001-crash", Title: "App crashes on start", Severity: data.SeverityCritical, Status: data.DefectOpen},
+		{ID: "D002-auth", Title: "Auth broken", Severity: data.SeverityHigh, Status: data.DefectInProgress},
+		{ID: "D003-typo", Title: "Typo in message", Severity: data.SeverityLow, Status: data.DefectResolved},
 	}
 	got := plainTerminal(RenderDefectsOverlay(defects, 0, 60))
 	if !strings.Contains(got, "D001") {
@@ -39,9 +41,9 @@ func TestRenderDefectsOverlay_showsDefectRows(t *testing.T) {
 
 func TestRenderDefectsOverlay_showsStatusSections(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "D001", Title: "open", Severity: data.SeverityMedium, Status: data.ColumnPlanned},
-		{ID: "D002", Title: "in progress", Severity: data.SeverityMedium, Status: data.ColumnInProgress},
-		{ID: "D003", Title: "done", Severity: data.SeverityMedium, Status: data.ColumnDone},
+		{ID: "D001", Title: "open", Severity: data.SeverityMedium, Status: data.DefectOpen},
+		{ID: "D002", Title: "in progress", Severity: data.SeverityMedium, Status: data.DefectInProgress},
+		{ID: "D003", Title: "done", Severity: data.SeverityMedium, Status: data.DefectResolved},
 	}
 	got := plainTerminal(RenderDefectsOverlay(defects, 0, 60))
 	if !strings.Contains(got, "OPEN") {
@@ -57,7 +59,7 @@ func TestRenderDefectsOverlay_showsStatusSections(t *testing.T) {
 
 func TestRenderDefectsOverlay_showsReference(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "D001", Title: "crash", Severity: data.SeverityHigh, Status: data.ColumnPlanned, Reference: "E03/T002"},
+		{ID: "D001", Title: "crash", Severity: data.SeverityHigh, Status: data.DefectOpen, Reference: "E03/T002"},
 	}
 	got := plainTerminal(RenderDefectsOverlay(defects, 0, 60))
 	if !strings.Contains(got, "E03/T002") {
@@ -70,12 +72,15 @@ func TestRenderDefectsOverlay_containsNavHint(t *testing.T) {
 	if !strings.Contains(got, "esc:close") {
 		t.Error("overlay missing esc:close hint")
 	}
+	if !strings.Contains(got, "space:resolve") {
+		t.Error("overlay missing space resolve hint")
+	}
 }
 
 func TestDefectsForOverlay_filtersByRelease(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "D001", Release: "v1", Status: data.ColumnPlanned},
-		{ID: "D002", Release: "v2", Status: data.ColumnPlanned},
+		{ID: "D001", Release: "v1", Status: data.DefectOpen},
+		{ID: "D002", Release: "v2", Status: data.DefectOpen},
 	}
 	got := defectsForOverlay(defects, "v1")
 	if len(got) != 1 || got[0].ID != "D001" {
@@ -85,9 +90,9 @@ func TestDefectsForOverlay_filtersByRelease(t *testing.T) {
 
 func TestDefectsForOverlay_ordersByStatus(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "D003", Status: data.ColumnDone},
-		{ID: "D001", Status: data.ColumnPlanned},
-		{ID: "D002", Status: data.ColumnInProgress},
+		{ID: "D003", Status: data.DefectResolved},
+		{ID: "D001", Status: data.DefectOpen},
+		{ID: "D002", Status: data.DefectInProgress},
 	}
 	got := defectsForOverlay(defects, "")
 	if len(got) != 3 {
@@ -134,8 +139,8 @@ func TestUpdate_defectOverlayNavigatesDown(t *testing.T) {
 	m := NewModel(nil, "v1", "E01")
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", ID: "D001", Status: data.ColumnPlanned},
-		{Release: "v1", ID: "D002", Status: data.ColumnPlanned},
+		{Release: "v1", ID: "D001", Status: data.DefectOpen},
+		{Release: "v1", ID: "D002", Status: data.DefectOpen},
 	}
 	m.Overlay = OverlayDefect
 	m.DefectCursor = 0
@@ -151,8 +156,8 @@ func TestUpdate_defectOverlayNavigatesUp(t *testing.T) {
 	m := NewModel(nil, "v1", "E01")
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", ID: "D001", Status: data.ColumnPlanned},
-		{Release: "v1", ID: "D002", Status: data.ColumnPlanned},
+		{Release: "v1", ID: "D001", Status: data.DefectOpen},
+		{Release: "v1", ID: "D002", Status: data.DefectOpen},
 	}
 	m.Overlay = OverlayDefect
 	m.DefectCursor = 1
@@ -180,7 +185,7 @@ func TestUpdate_defectOverlayCursorClampsAtBottom(t *testing.T) {
 	m := NewModel(nil, "v1", "E01")
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", ID: "D001", Status: data.ColumnPlanned},
+		{Release: "v1", ID: "D001", Status: data.DefectOpen},
 	}
 	m.Overlay = OverlayDefect
 	m.DefectCursor = 0
@@ -192,13 +197,113 @@ func TestUpdate_defectOverlayCursorClampsAtBottom(t *testing.T) {
 	}
 }
 
+func TestUpdate_defectOverlaySpaceResolvesPlannedDefect(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "D001.md")
+	content := `---
+id: v1/D001
+release: v1
+status: open
+severity: high
+title: "Crash"
+reference: E01/T001
+---
+
+# Body`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewModel(nil, "v1", "E01")
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{{
+		ID: "v1/D001", Release: "v1", Status: data.DefectOpen,
+		Severity: data.SeverityHigh, Title: "Crash", Path: path, Mtime: fi.ModTime(),
+	}}
+	m.Overlay = OverlayDefect
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	updated := requireModel(t, got)
+	if cmd == nil {
+		t.Fatal("space on planned defect returned nil command")
+	}
+	msg := cmd()
+	got, _ = updated.Update(msg)
+	updated = requireModel(t, got)
+
+	if updated.Overlay != OverlayDefect {
+		t.Errorf("Overlay = %q, want defect", updated.Overlay)
+	}
+	if updated.DefectCursor != 0 {
+		t.Errorf("DefectCursor = %d, want 0", updated.DefectCursor)
+	}
+	if updated.AllDefects[0].Status != data.DefectResolved {
+		t.Errorf("Status = %q, want resolved", updated.AllDefects[0].Status)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(result), "status: resolved") {
+		t.Errorf("defect file missing status: resolved; got %s", result)
+	}
+	if !strings.Contains(string(result), "reference: E01/T001") {
+		t.Error("unrelated frontmatter field not preserved")
+	}
+}
+
+func TestUpdate_defectOverlaySpaceDoneIsNoop(t *testing.T) {
+	m := NewModel(nil, "v1", "E01")
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{{Release: "v1", ID: "D001", Status: data.DefectResolved}}
+	m.Overlay = OverlayDefect
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	updated := requireModel(t, got)
+
+	if cmd != nil {
+		t.Fatal("space on done defect returned command, want no-op")
+	}
+	if updated.StatusMessage != "Defect already resolved" {
+		t.Errorf("StatusMessage = %q, want already resolved", updated.StatusMessage)
+	}
+	if updated.AllDefects[0].Status != data.DefectResolved {
+		t.Errorf("Status = %q, want resolved", updated.AllDefects[0].Status)
+	}
+}
+
+func TestUpdate_defectOverlaySpaceInProgressIsNoop(t *testing.T) {
+	m := NewModel(nil, "v1", "E01")
+	m.SelectedRelease = "v1"
+	m.AllDefects = []data.Defect{{Release: "v1", ID: "D001", Status: data.DefectInProgress, Stage: data.StageBuild}}
+	m.Overlay = OverlayDefect
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	updated := requireModel(t, got)
+
+	if cmd != nil {
+		t.Fatal("space on in-progress defect returned command, want clear no-op")
+	}
+	if !strings.Contains(updated.StatusMessage, "in progress") {
+		t.Errorf("StatusMessage = %q, want in progress no-op", updated.StatusMessage)
+	}
+	if updated.AllDefects[0].Status != data.DefectInProgress {
+		t.Errorf("Status = %q, want in_progress (noop)", updated.AllDefects[0].Status)
+	}
+}
+
 func TestView_defectOverlayRendered(t *testing.T) {
 	m := NewModel(nil, "v1", "E01")
 	m.Width = 100
 	m.Height = 30
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", ID: "D001-crash", Title: "App crash", Severity: data.SeverityCritical, Status: data.ColumnPlanned},
+		{Release: "v1", ID: "D001-crash", Title: "App crash", Severity: data.SeverityCritical, Status: data.DefectOpen},
 	}
 	m.Overlay = OverlayDefect
 	got := plainTerminal(m.View())

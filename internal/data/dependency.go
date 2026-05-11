@@ -25,8 +25,9 @@ func ResolveDependency(ref string, dependent Task, tasks []Task, epicStatuses ma
 	}
 
 	if isShortTaskRef(ref) {
+		shortRef := taskShortID(ref)
 		for _, task := range tasks {
-			if taskShortID(task.ID) == ref && sameRelease(dependent.Release, task.Release) && sameEpic(dependent.Epic, task.Epic) {
+			if taskShortID(task.ID) == shortRef && sameRelease(dependent.Release, task.Release) && sameEpic(dependent.Epic, task.Epic) {
 				return DependencyResolution{Kind: DependencyTask, ID: task.ID, TaskStatus: task.Column}
 			}
 		}
@@ -56,7 +57,11 @@ func sameEpic(a, b string) bool {
 }
 
 func isShortTaskRef(ref string) bool {
-	return len(ref) == 4 && ref[0] == 'T' && allDigits(ref[1:])
+	if strings.Contains(ref, "/") {
+		return false
+	}
+	short := taskShortID(ref)
+	return len(short) == 4 && short[0] == 'T' && allDigits(short[1:])
 }
 
 func isShortEpicRef(ref string) bool {

@@ -21,6 +21,7 @@ func RenderHelp(width int) string {
 		helpRow("h / left", "previous column"),
 		helpRow("l / right", "next column"),
 		helpRow("enter", "open task detail / select item"),
+		helpRow("space", "advance focused task / resolve selected defect"),
 		helpRow("d", "open defects overlay"),
 		helpRow("e", "open epic selector on narrow screens"),
 		helpRow("r", "open release selector"),

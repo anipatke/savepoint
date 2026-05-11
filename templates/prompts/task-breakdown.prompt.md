@@ -44,7 +44,7 @@ depends_on: []
 
 1. **Each task must be independently buildable.** A task should compile, pass its own tests, and leave the repo in a valid state when done.
 2. **Objective is one sentence.** If you need more words, split the task.
-3. **depends_on must be explicit.** List full task IDs. Avoid circular dependencies.
+3. **depends_on must be explicit.** Prefer full task IDs (`E##-slug/T###-slug`). Same-epic dependencies may use `T###` or the filename stem (`T###-slug`). Avoid circular dependencies.
 4. **Acceptance criteria come first.** Every task needs `## Acceptance Criteria` (observable outcomes that define "done") before `## Implementation Plan` (the build checklist that satisfies them).
 5. **Checkboxes are the plan.** Use inline `- [ ]` items under `## Implementation Plan` before any code is written.
 6. **Use only canonical task status.** New task frontmatter must use `status: planned`. Do not write `todo`, `doing`, `blocked`, `review`, `audit`, or phase names into `status`.

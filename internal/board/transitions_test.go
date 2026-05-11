@@ -85,6 +85,18 @@ func TestCanAdvance_shortTaskDependencyAllowedWithinSameEpic(t *testing.T) {
 	}
 }
 
+func TestCanAdvance_filenameStyleTaskDependencyAllowedWithinSameEpic(t *testing.T) {
+	allTasks := []data.Task{
+		{ID: "E17-defect-workflow-tui/T010-defect-resolve-hotkey", Release: "v1.2", Epic: "E17-defect-workflow-tui", Column: data.ColumnInProgress, Stage: data.StageAudit, DependsOn: []string{"T004-defects-overlay"}},
+		{ID: "E17-defect-workflow-tui/T004-defects-overlay", Release: "v1.2", Epic: "E17-defect-workflow-tui", Column: data.ColumnDone},
+		{ID: "E18-template-skill-optimisation/T004-defects-overlay", Release: "v1.2", Epic: "E18-template-skill-optimisation", Column: data.ColumnPlanned},
+	}
+	ok, reason := CanAdvance(&allTasks[0], allTasks)
+	if !ok {
+		t.Errorf("CanAdvance(filename-style same-epic dep) = false %q, want true", reason)
+	}
+}
+
 func TestCanAdvance_shortTaskDependencyBlockedWhenNotDone(t *testing.T) {
 	allTasks := []data.Task{
 		{ID: "E06-canvas-polish/T004-current", Release: "v1", Epic: "E06-canvas-polish", Column: data.ColumnPlanned, DependsOn: []string{"T003"}},

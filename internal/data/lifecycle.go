@@ -27,12 +27,12 @@ func ValidateTaskLifecycle(task *Task) error {
 
 func validateDefectLifecycle(d *Defect) error {
 	if d.Status == "" {
-		d.Status = ColumnPlanned
+		d.Status = DefectOpen
 	}
-	if !IsCanonicalColumn(d.Status) {
-		return fmt.Errorf("invalid defect status %q: use planned, in_progress, or done", d.Status)
+	if !IsCanonicalDefectStatus(d.Status) {
+		return fmt.Errorf("invalid defect status %q: use open, in_progress, or resolved", d.Status)
 	}
-	if d.Status == ColumnInProgress {
+	if d.Status == DefectInProgress {
 		if d.Stage == "" {
 			return fmt.Errorf("stage is required when defect status is in_progress")
 		}
@@ -45,6 +45,15 @@ func validateDefectLifecycle(d *Defect) error {
 		return fmt.Errorf("stage field %q is only valid when defect status is in_progress", d.Stage)
 	}
 	return nil
+}
+
+func IsCanonicalDefectStatus(value DefectStatus) bool {
+	switch value {
+	case DefectOpen, DefectInProgress, DefectResolved:
+		return true
+	default:
+		return false
+	}
 }
 
 func IsCanonicalColumn(value ColumnType) bool {

@@ -59,7 +59,7 @@ func SuggestRepair(err error) string {
 	case strings.Contains(msg, "orphaned"):
 		return "Move the task directory to the correct epic or create the referenced epic"
 	case strings.Contains(msg, "defect parse error"):
-		return "Fix the defect frontmatter — required fields: id, severity, title (or objective); status must be planned, in_progress, or done"
+		return "Fix the defect frontmatter — required fields: id, severity, title (or objective); status must be open, in_progress, or resolved"
 	case strings.Contains(msg, "defect missing required frontmatter field"):
 		return "Add the missing field to the defect frontmatter"
 	case strings.Contains(msg, "defect reference") && strings.Contains(msg, "empty"):

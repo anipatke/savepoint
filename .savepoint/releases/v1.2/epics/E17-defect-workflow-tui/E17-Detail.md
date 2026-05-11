@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E17: Defect Workflow TUI
@@ -16,6 +16,7 @@ Introduce first-class defect documentation and TUI visibility for observed corre
 - Router support for `defect-building` priority.
 - A header or Next Activity defect signal showing open defect count.
 - A keyboard-driven Defects overlay for browsing open, in-progress, and resolved defects.
+- A defect overlay hotkey for resolving an open defect from the keyboard.
 - A defect detail overlay showing symptom, expected behavior, reproduction, impact, fix plan, acceptance criteria, and resolution notes.
 - Optional related-defect markers on task cards when defects reference the selected epic/task.
 - Doctor diagnostics for defect frontmatter, status/stage rules, and broken references.
@@ -32,12 +33,13 @@ Introduce first-class defect documentation and TUI visibility for observed corre
 
 ## Implemented As
 
-- Defect model, parser, release-scoped discovery, and lifecycle validation live in `internal/data`.
+- Defect model, parser, release-scoped discovery, and lifecycle validation live in `internal/data` using the defect-specific statuses `open`, `in_progress`, and `resolved`.
 - Board loading reads release defects alongside tasks and renders an open-defect header signal without adding a fourth column.
 - The `d` key opens a defect overlay; enter opens a defect detail overlay that renders the evidence sections from the defect markdown body.
+- Pressing `space` on an `open` defect in the overlay resolves it through the canonical defect write helper while preserving unrelated frontmatter and body content.
 - Related task cards can show compact defect markers when a defect `reference` matches a visible task.
 - Doctor validates defect files for parse errors, required fields, invalid status/stage, and broken task-like references.
-- Scaffolded AGENTS/router templates and README now document the defect lane, but `defect-building` state guidance needs the audit proposal updates before close.
+- Scaffolded AGENTS/router templates, defect skill guidance, and README now document the defect lane and defect-specific lifecycle language.
 
 ## Boundaries
 

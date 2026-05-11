@@ -33,7 +33,7 @@ This skill is activated by an explicit defect-capture request, or when the user 
    ---
    id: {release}/D###-slug
    release: {release}
-   status: planned
+   status: open
    severity: medium
    title: "One-line bug title"
    reference: E##-epic/T###-task # optional
@@ -66,4 +66,5 @@ This skill is activated by an explicit defect-capture request, or when the user 
 - **Do not create an epic or task for the defect itself.** Defects are release-level records.
 - **Do not set `status: in_progress` unless repair is starting now.** If status becomes `in_progress`, include `stage: build`.
 - **Do not run broad code searches.** Capture the report from the user's evidence and named files only.
-- **Do not mark defects `done`.** Resolution happens after repair and verification.
+- **Do not mark defects `resolved` prematurely.** Resolution happens after repair and verification.
+- **Defect lifecycle:** `open` → `in_progress` (with `stage: build|test|audit`) → `resolved`. Never use task-style `planned` or `done`.

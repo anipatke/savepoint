@@ -77,6 +77,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.StatusMessage = msg.message
 		m.refreshTasks()
 		m.ensureFocusedTaskVisible()
+	case defectWriteMsg:
+		for i, d := range m.AllDefects {
+			if sameDefectRecord(d, msg.next) {
+				m.AllDefects[i] = msg.next
+				break
+			}
+		}
+		m.StatusMessage = "Resolved " + shortID(msg.next.ID)
+		m.clampDefectCursor()
 	case epicDetailMsg:
 		m.EpicDetailContent = msg.content
 	case auditContentMsg:
@@ -556,6 +565,33 @@ func (m *Model) scrollFocusedColumn(delta int) {
 	m.FocusedTask = min(offset, len(tasks)-1)
 }
 
+func (m *Model) clampDefectCursor() {
+	defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
+	if len(defects) == 0 {
+		m.DefectCursor = 0
+		return
+	}
+	if m.DefectCursor >= len(defects) {
+		m.DefectCursor = len(defects) - 1
+	}
+	if m.DefectCursor < 0 {
+		m.DefectCursor = 0
+	}
+}
+
+func sameDefectRecord(a, b data.Defect) bool {
+	if a.Path != "" && b.Path != "" {
+		return a.Path == b.Path
+	}
+	if a.ID != b.ID {
+		return false
+	}
+	if a.Release != "" && b.Release != "" && a.Release != b.Release {
+		return false
+	}
+	return true
+}
+
 func (m Model) columnPageSize() int {
 	h := m.Height
 	if h == 0 {
@@ -614,6 +650,28 @@ func (m Model) handleDefectOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(defects) > 0 && m.DefectCursor < len(defects) {
 			m.DefectDetailOffset = 0
 			m.Overlay = OverlayDefectDetail
+		}
+	case " ":
+		if len(defects) == 0 || m.DefectCursor >= len(defects) {
+			return m, nil
+		}
+		defect := defects[m.DefectCursor]
+		switch defect.Status {
+		case "", data.DefectOpen:
+			if defect.Path == "" {
+				m.StatusMessage = "Defect not updated: missing file path"
+				return m, nil
+			}
+			next := defect
+			next.Status = data.DefectResolved
+			next.Stage = ""
+			return m, writeDefectStatusCmd(next, defect.Mtime)
+		case data.DefectResolved:
+			m.StatusMessage = "Defect already resolved"
+		case data.DefectInProgress:
+			m.StatusMessage = "Defect in progress: resolve after lifecycle stage is closed"
+		default:
+			m.StatusMessage = "Defect not updated: invalid status " + string(defect.Status)
 		}
 	}
 	return m, nil

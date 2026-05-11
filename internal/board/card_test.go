@@ -176,6 +176,14 @@ func TestRenderCard_routerSameTaskNumberDifferentEpicNoMatch(t *testing.T) {
 	}
 }
 
+func TestRenderCard_routerSameTaskNumberDifferentReleaseNoMatch(t *testing.T) {
+	task := data.Task{ID: "E01/T001", Release: "v2", Epic: "E01", Stage: data.StageBuild}
+	router := &data.RouterState{Release: "v1", Epic: "E01", Task: "T001"}
+	if isRouterPriority(task, router) {
+		t.Error("router priority should not match same task number in a different release")
+	}
+}
+
 func TestRenderCard_doneTaskUsesOrangeBuildGlyph(t *testing.T) {
 	task := data.Task{ID: "E03/T001", Release: "v1", Epic: "E03", Column: data.ColumnDone, Stage: data.StageTest}
 	router := &data.RouterState{Release: "v1", Epic: "E03", Task: "T001"}

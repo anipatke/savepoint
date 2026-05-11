@@ -12,7 +12,7 @@ func sampleDefect() data.Defect {
 	return data.Defect{
 		ID:       "v1.1/D003-auth-crash",
 		Title:    "Auth crash on empty token",
-		Status:   data.ColumnPlanned,
+		Status:   data.DefectOpen,
 		Severity: data.SeverityHigh,
 		Release:  "v1.1",
 	}
@@ -48,7 +48,7 @@ func TestRenderDefectDetail_containsSeverity(t *testing.T) {
 
 func TestRenderDefectDetail_containsStatus(t *testing.T) {
 	got := RenderDefectDetail(sampleDefect(), 60, 0, 0)
-	if !strings.Contains(got, "planned") {
+	if !strings.Contains(got, "open") {
 		t.Error("RenderDefectDetail missing status")
 	}
 }
@@ -173,27 +173,27 @@ func TestRenderDefectDetail_scrollsWithOffset(t *testing.T) {
 
 func TestDefectMarkerForTask_matchesFullID(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "v1.1/D003-auth-crash", Reference: "E12/T003", Status: data.ColumnPlanned},
+		{ID: "v1.1/D003-auth-crash", Reference: "E12/T003", Status: data.DefectOpen},
 	}
 	got := defectMarkerForTask("E12/T003", defects)
-	if got != "⚠ D003" {
-		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠ D003")
+	if got != "⚠  1/0" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  1/0")
 	}
 }
 
 func TestDefectMarkerForTask_matchesShortID(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "v1.1/D005-crash", Reference: "T007", Status: data.ColumnPlanned},
+		{ID: "v1.1/D005-crash", Reference: "T007", Status: data.DefectOpen},
 	}
 	got := defectMarkerForTask("E03/T007-some-slug", defects)
-	if got != "⚠ D005" {
-		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠ D005")
+	if got != "⚠  1/0" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  1/0")
 	}
 }
 
 func TestDefectMarkerForTask_noMatchWhenDifferentRef(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "v1.1/D001-foo", Reference: "T999", Status: data.ColumnPlanned},
+		{ID: "v1.1/D001-foo", Reference: "T999", Status: data.DefectOpen},
 	}
 	got := defectMarkerForTask("T001", defects)
 	if got != "" {
@@ -203,7 +203,7 @@ func TestDefectMarkerForTask_noMatchWhenDifferentRef(t *testing.T) {
 
 func TestDefectMarkerForTask_noMatchWhenNoReference(t *testing.T) {
 	defects := []data.Defect{
-		{ID: "v1.1/D002-bar", Reference: "", Status: data.ColumnPlanned},
+		{ID: "v1.1/D002-bar", Reference: "", Status: data.DefectOpen},
 	}
 	got := defectMarkerForTask("T001", defects)
 	if got != "" {
@@ -211,10 +211,55 @@ func TestDefectMarkerForTask_noMatchWhenNoReference(t *testing.T) {
 	}
 }
 
+func TestDefectMarkerForTask_aggregatesMultipleOpenDefects(t *testing.T) {
+	defects := []data.Defect{
+		{ID: "v1.1/D001-foo", Reference: "T005", Status: data.DefectOpen},
+		{ID: "v1.1/D002-bar", Reference: "T005", Status: data.DefectInProgress},
+		{ID: "v1.1/D003-baz", Reference: "T005", Status: data.DefectResolved},
+	}
+	got := defectMarkerForTask("T005", defects)
+	if got != "⚠  2/1" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  2/1")
+	}
+}
+
+func TestDefectMarkerForTask_allResolved(t *testing.T) {
+	defects := []data.Defect{
+		{ID: "v1.1/D001-foo", Reference: "T005", Status: data.DefectResolved},
+		{ID: "v1.1/D002-bar", Reference: "T005", Status: data.DefectResolved},
+	}
+	got := defectMarkerForTask("T005", defects)
+	if got != "⚠  0/2" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  0/2")
+	}
+}
+
+func TestDefectMarkerForTask_inProgressCountsAsOpen(t *testing.T) {
+	defects := []data.Defect{
+		{ID: "v1.1/D004-qux", Reference: "E05/T002", Status: data.DefectInProgress},
+	}
+	got := defectMarkerForTask("E05/T002", defects)
+	if got != "⚠  1/0" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  1/0")
+	}
+}
+
+func TestDefectMarkerForTask_mixedRefStylesCounted(t *testing.T) {
+	// One defect uses the full task ID, another uses the short task ID — both must match.
+	defects := []data.Defect{
+		{ID: "v1.2/D010-x", Reference: "E09/T003-some-slug", Status: data.DefectOpen},
+		{ID: "v1.2/D011-y", Reference: "T003", Status: data.DefectResolved},
+	}
+	got := defectMarkerForTask("E09/T003-some-slug", defects)
+	if got != "⚠  1/1" {
+		t.Errorf("defectMarkerForTask = %q, want %q", got, "⚠  1/1")
+	}
+}
+
 func TestRenderCard_defectMarkerAppearsWhenWidthPermits(t *testing.T) {
 	task := data.Task{ID: "T1", Title: "Fix bug", Stage: data.StageBuild}
-	got := RenderCard(task, 40, false, nil, "⚠ D003")
-	if !strings.Contains(got, "⚠ D003") {
+	got := RenderCard(task, 40, false, nil, "⚠  D003")
+	if !strings.Contains(got, "⚠  D003") {
 		t.Error("RenderCard missing defect marker when width permits")
 	}
 }
@@ -222,7 +267,7 @@ func TestRenderCard_defectMarkerAppearsWhenWidthPermits(t *testing.T) {
 func TestRenderCard_defectMarkerOmittedWhenTooNarrow(t *testing.T) {
 	task := data.Task{ID: "T1", Title: "Fix", Stage: data.StageBuild}
 	// At width 10, id + glyph + marker won't fit — marker must be omitted.
-	got := plainTerminal(RenderCard(task, 10, false, nil, "⚠ D003"))
+	got := plainTerminal(RenderCard(task, 10, false, nil, "⚠  D003"))
 	// Title and ID must still appear.
 	if !strings.Contains(got, "T1") {
 		t.Error("RenderCard missing task ID at narrow width")

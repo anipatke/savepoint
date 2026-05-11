@@ -79,6 +79,23 @@ func writeTaskStatusCmd(orig, next data.Task, expectedMtime time.Time, prefix st
 	}
 }
 
+func writeDefectStatusCmd(next data.Defect, expectedMtime time.Time) tea.Cmd {
+	return func() tea.Msg {
+		if err := data.WriteDefectStatus(next.Path, &next, expectedMtime); err != nil {
+			if errors.Is(err, data.ErrMtimeConflict) {
+				return errorMsg{message: "defect changed on disk: refresh before retrying"}
+			}
+			return errorMsg{message: err.Error()}
+		}
+		fi, err := os.Stat(next.Path)
+		if err != nil {
+			return errorMsg{message: err.Error()}
+		}
+		next.Mtime = fi.ModTime()
+		return defectWriteMsg{next: next}
+	}
+}
+
 func retryTaskStatusAfterConflict(orig, next data.Task, prefix string) tea.Msg {
 	current, err := readTaskFromDisk(orig.Path, orig.Release, orig.Epic)
 	if err != nil {

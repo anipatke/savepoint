@@ -374,6 +374,18 @@ func TestCheckDependencies_ShortSameEpicTaskDepAccepted(t *testing.T) {
 	}
 }
 
+func TestCheckDependencies_FilenameStyleSameEpicTaskDepAccepted(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+		{id: "E01-foo/T002-task", deps: []string{"T001-task"}},
+	})
+	problems := CheckDependencies(root, "")
+	if len(problems) > 0 {
+		t.Fatalf("CheckDependencies() = %v, want no problems for filename-style same-epic task dep", problems)
+	}
+}
+
 func TestCheckDependencies_ShortTaskDepMissingOutsideSameEpic(t *testing.T) {
 	root := t.TempDir()
 	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
@@ -812,7 +824,7 @@ func TestCheckDefects_ValidDefect(t *testing.T) {
 	root := t.TempDir()
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-crash.md",
-		"---\nid: v1/D001-crash\nstatus: planned\nseverity: high\ntitle: Auth crash\n---\n\n## Problem\n\nIt crashes.\n")
+		"---\nid: v1/D001-crash\nstatus: open\nseverity: high\ntitle: Auth crash\n---\n\n## Problem\n\nIt crashes.\n")
 	problems := CheckDefects(root)
 	if len(problems) > 0 {
 		t.Fatalf("CheckDefects() = %v, want no problems for valid defect", problems)
@@ -894,7 +906,7 @@ func TestCheckDefects_MissingID(t *testing.T) {
 	root := t.TempDir()
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-no-id.md",
-		"---\nstatus: planned\nseverity: low\ntitle: No ID\n---\n")
+		"---\nstatus: open\nseverity: low\ntitle: No ID\n---\n")
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {
@@ -912,7 +924,7 @@ func TestCheckDefects_MissingSeverity(t *testing.T) {
 	root := t.TempDir()
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-no-severity.md",
-		"---\nid: v1/D001-no-severity\nstatus: planned\ntitle: No Severity\n---\n")
+		"---\nid: v1/D001-no-severity\nstatus: open\ntitle: No Severity\n---\n")
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {
@@ -930,7 +942,7 @@ func TestCheckDefects_BrokenReferenceEmptyComponent(t *testing.T) {
 	root := t.TempDir()
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-bad-ref.md",
-		"---\nid: v1/D001-bad-ref\nstatus: planned\nseverity: low\ntitle: Bad ref\nreference: \"/T003\"\n---\n")
+		"---\nid: v1/D001-bad-ref\nstatus: open\nseverity: low\ntitle: Bad ref\nreference: \"/T003\"\n---\n")
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {
@@ -948,7 +960,7 @@ func TestCheckDefects_ReferenceNoSlashIsAccepted(t *testing.T) {
 	root := t.TempDir()
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-plain-ref.md",
-		"---\nid: v1/D001-plain-ref\nstatus: planned\nseverity: low\ntitle: Plain ref\nreference: \"v1.0.5\"\n---\n")
+		"---\nid: v1/D001-plain-ref\nstatus: open\nseverity: low\ntitle: Plain ref\nreference: \"v1.0.5\"\n---\n")
 	problems := CheckDefects(root)
 	if len(problems) > 0 {
 		t.Fatalf("CheckDefects() = %v, want no problems for non-slash reference", problems)
@@ -963,7 +975,7 @@ func TestCheckDefects_ReferenceMatchesExistingTask(t *testing.T) {
 	})
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-valid-ref.md",
-		"---\nid: v1/D001-valid-ref\nstatus: planned\nseverity: low\ntitle: Valid ref\nreference: \"E01-foo/T001-task\"\n---\n")
+		"---\nid: v1/D001-valid-ref\nstatus: open\nseverity: low\ntitle: Valid ref\nreference: \"E01-foo/T001-task\"\n---\n")
 	problems := CheckDefects(root)
 	if len(problems) > 0 {
 		t.Fatalf("CheckDefects() = %v, want no problems when reference matches task", problems)
@@ -977,7 +989,7 @@ func TestCheckDefects_ReferenceDoesNotMatchTask(t *testing.T) {
 	})
 	defectsDir := filepath.Join(root, "releases", "v1", "defects")
 	writeDefect(t, defectsDir, "D001-bad-ref.md",
-		"---\nid: v1/D001-bad-ref\nstatus: planned\nseverity: low\ntitle: Bad ref\nreference: \"E01-foo/T999-ghost\"\n---\n")
+		"---\nid: v1/D001-bad-ref\nstatus: open\nseverity: low\ntitle: Bad ref\nreference: \"E01-foo/T999-ghost\"\n---\n")
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {

@@ -221,7 +221,7 @@ func extractChecklistItems(content, heading string) []CheckItem {
 type defectFrontmatter struct {
 	ID         string         `yaml:"id"`
 	Release    string         `yaml:"release"`
-	Status     ColumnType     `yaml:"status"`
+	Status     DefectStatus   `yaml:"status"`
 	Severity   DefectSeverity `yaml:"severity"`
 	Introduced string         `yaml:"introduced,omitempty"`
 	Reference  string         `yaml:"reference,omitempty"`

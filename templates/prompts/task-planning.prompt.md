@@ -44,7 +44,7 @@ depends_on: ["..."]
 ## Rules
 
 1. **One task only.** Do not touch other tasks, the epic Design, or the release PRD.
-2. **Respect existing depends_on.** Do not remove dependencies; you may add them if the task truly requires prior work.
+2. **Respect existing depends_on.** Do not remove dependencies; you may add them if the task truly requires prior work. Prefer full task IDs (`E##-slug/T###-slug`) for new dependencies; same-epic dependencies may use `T###` or the filename stem (`T###-slug`).
 3. **Acceptance criteria come first.** Write `## Acceptance Criteria` (observable outcomes) before `## Implementation Plan` (build checklist).
 4. **Plan before code.** Every task must have checkboxes before an agent implements it.
 5. **Use only canonical task status.** Planned task frontmatter must use `status: planned`. Do not write `todo`, `doing`, `blocked`, `review`, `audit`, or phase names into `status`.

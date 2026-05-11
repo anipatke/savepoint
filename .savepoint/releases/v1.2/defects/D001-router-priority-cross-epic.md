@@ -1,7 +1,7 @@
 ---
 id: v1.2/D001-router-priority-cross-epic
 release: v1.2
-status: planned
+status: resolved
 severity: medium
 title: "Router priority icon appears on matching task numbers across epics"
 ---
@@ -35,11 +35,11 @@ The board can suggest the wrong active task, which weakens the router priority s
 
 ## Acceptance Criteria
 
-- [ ] A router-priority task in one epic does not mark a same-numbered task in another epic.
-- [ ] The intended task still shows the green priority icon.
-- [ ] Matching remains scoped to the router release.
-- [ ] Regression tests cover duplicate task numbers across epics.
+- [x] A router-priority task in one epic does not mark a same-numbered task in another epic.
+- [x] The intended task still shows the green priority icon.
+- [x] Matching remains scoped to the router release.
+- [x] Regression tests cover duplicate task numbers across epics.
 
 ## Resolution Notes
 
-Pending.
+`isRouterPriority` in `internal/board/card.go` already compared release, epic (via `shortID`), and task — the cross-epic leak never made it to ship. Regression tests added: `TestRenderCard_routerSameTaskNumberDifferentEpicNoMatch` (cross-epic) and `TestRenderCard_routerSameTaskNumberDifferentReleaseNoMatch` (cross-release).

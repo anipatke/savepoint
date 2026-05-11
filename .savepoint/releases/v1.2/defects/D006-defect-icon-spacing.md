@@ -1,7 +1,7 @@
 ---
 id: v1.2/D006-defect-icon-spacing
 release: v1.2
-status: planned
+status: resolved
 severity: low
 title: "Defect icon spacing is too tight in the board header and task cards"
 reference: E17-defect-workflow-tui/T009-defect-warning-glyph
@@ -34,10 +34,10 @@ Increase the spacing around the defect icon in the board header and task cards, 
 
 ## Acceptance Criteria
 
-- [ ] The defect icon no longer appears too close to the adjacent text in the board header.
-- [ ] The defect icon no longer appears too close to the adjacent text on task cards.
-- [ ] The spacing is visually consistent with the surrounding elements in both contexts.
+- [x] The defect icon no longer appears too close to the adjacent text in the board header.
+- [x] The defect icon no longer appears too close to the adjacent text on task cards.
+- [x] The spacing is visually consistent with the surrounding elements in both contexts.
 
 ## Resolution Notes
 
-Pending.
+Increased spacing after `⚠` from one space to two in both the board header (`view.go`) and the task-card defect marker (`defect_detail.go`). Updated all related tests. All tests pass.

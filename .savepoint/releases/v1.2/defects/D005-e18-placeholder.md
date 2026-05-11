@@ -1,7 +1,7 @@
 ---
 id: v1.2/D005-e18-placeholder
 release: v1.2
-status: planned
+status: resolved
 severity: medium
 title: "E18 placeholder defect"
 reference: E18-template-skill-optimisation

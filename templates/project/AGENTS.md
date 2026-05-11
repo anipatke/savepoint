@@ -43,7 +43,7 @@ Defect frontmatter:
 ---
 id: {release}/D###-slug
 release: {release}
-status: planned          # planned | in_progress | done
+status: open             # open | in_progress | resolved
 severity: high           # critical | high | medium | low
 title: "One-line description"
 introduced: v1.0.3       # optional: version where bug appeared

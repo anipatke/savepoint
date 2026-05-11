@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
@@ -113,20 +114,29 @@ func shortDefectID(id string) string {
 	return id
 }
 
-// defectMarkerForTask returns a compact marker string (e.g. "⚠ D003") when any
-// defect in the slice references the given task, otherwise returns "".
-// The match uses the defect Reference field compared against the full task ID
-// and the short task ID.
+// defectMarkerForTask returns a compact count marker (e.g. "⚠ 2/1") summarising
+// how many defects reference the given task: open count (open+in_progress) / resolved count.
+// Returns "" when no defects match.
+// Matching uses the defect Reference field against both the full task ID and the short task ID.
 func defectMarkerForTask(taskID string, defects []data.Defect) string {
 	short := shortID(taskID)
+	var open, resolved int
 	for _, d := range defects {
 		if d.Reference == "" {
 			continue
 		}
 		ref := d.Reference
-		if ref == taskID || ref == short {
-			return glyphWarning + " " + shortDefectID(d.ID)
+		if ref != taskID && ref != short {
+			continue
+		}
+		if d.Status == data.DefectResolved {
+			resolved++
+		} else {
+			open++
 		}
 	}
-	return ""
+	if open+resolved == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s  %d/%d", glyphWarning, open, resolved)
 }

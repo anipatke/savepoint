@@ -1,7 +1,7 @@
 ---
 id: v1.2/D003-open-e17-placeholder
 release: v1.2
-status: planned
+status: resolved
 severity: medium
 title: "Open E17 placeholder defect"
 reference: E17-defect-workflow-tui

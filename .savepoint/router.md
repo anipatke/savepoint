@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: audit-pending
+state: epic-design
 release: v1.2
-epic: E17-defect-workflow-tui
-task: E17-defect-workflow-tui/T009-defect-warning-glyph
-next_action: Audit E17-defect-workflow-tui before progressing.
+epic: E18-template-skill-optimisation
+task: ""
+next_action: Draft epic design
 ```
 
 ## State → action

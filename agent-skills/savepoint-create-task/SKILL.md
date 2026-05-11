@@ -35,9 +35,16 @@ This skill is activated when the `.savepoint/router.md` state is `epic-task-brea
     ```
     No globs. No directories. Exact paths only.
 5.  **Add Context Log Shell:** Ensure the bottom of the task file includes a `## Context Log` section with placeholders for `Files read:`, `Estimated input tokens:`, and `Notes:`.
-5.  **Define Dependencies:** If this task relies on another task being completed first, explicitly declare it in the YAML frontmatter (e.g., `depends_on: [T001-setup]`).
-6.  **Status Update:** Change the task frontmatter to `status: planned`.
-7.  **Handoff:** Update `.savepoint/router.md` to `state: in-progress` and ensure it points to the newly planned task. Prompt the user to approve the task plan before building begins.
+6.  **Populate Required Frontmatter:** Ensure every task has non-empty YAML frontmatter fields required by doctor and board parsing:
+    ```yaml
+    id: E##-epic-slug/T###-task-slug
+    status: planned
+    objective: One-line task objective
+    ```
+    Use the epic directory name and task filename slug for `id`. Use `objective` as the board title source unless a separate `title` field is intentionally added.
+7.  **Define Dependencies:** If this task relies on another task being completed first, explicitly declare it in the YAML frontmatter. Prefer full task IDs for clarity (e.g., `depends_on: [E01-example/T001-setup]`). Same-epic shorthand may use either the bare task number (`T001`) or the task filename stem (`T001-setup`).
+8.  **Status Update:** Change the task frontmatter to `status: planned`.
+9.  **Handoff:** Update `.savepoint/router.md` to `state: in-progress` and ensure it points to the newly planned task. Prompt the user to approve the task plan before building begins.
 
 ## Constraints
 - **Do not write code.** Your job is to plan the work, not execute it.

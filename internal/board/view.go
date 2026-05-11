@@ -112,7 +112,7 @@ func (m Model) renderHeader(w int) string {
 
 	count := m.openDefectCount()
 	if count > 0 {
-		right := styles.HeaderRight.Render(fmt.Sprintf("⚠ %d open", count))
+		right := styles.HeaderRight.Render(fmt.Sprintf("⚠  %d open", count))
 		inner := w - 2 // HeaderFrame padding(1,1)
 		gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
 		if gap > 0 {
@@ -128,7 +128,7 @@ func (m Model) openDefectCount() int {
 		if m.SelectedRelease != "" && d.Release != m.SelectedRelease {
 			continue
 		}
-		if d.Status != data.ColumnDone {
+		if d.Status != data.DefectResolved {
 			count++
 		}
 	}

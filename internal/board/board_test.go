@@ -183,8 +183,8 @@ func TestNewProjectModelLoadsDefectsForRelease(t *testing.T) {
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
 	testutil.WriteRouter(t, savepointRoot, "task-building", "v2", "E01-alpha", "", "")
 	writeTask(t, savepointRoot, "v2", "E01-alpha", "T001-task", data.ColumnPlanned)
-	writeDefect(t, savepointRoot, "v2", "D001-crash", data.ColumnPlanned)
-	writeDefect(t, savepointRoot, "v2", "D002-done-bug", data.ColumnDone)
+	writeDefect(t, savepointRoot, "v2", "D001-crash", data.DefectOpen)
+	writeDefect(t, savepointRoot, "v2", "D002-done-bug", data.DefectResolved)
 
 	model, err := newProjectModel(projectRoot, "", "")
 	if err != nil {
@@ -216,7 +216,7 @@ func TestNewProjectModelZeroDefectsWhenNoDefectDir(t *testing.T) {
 	}
 }
 
-func writeDefect(t *testing.T, root, release, slug string, status data.ColumnType) {
+func writeDefect(t *testing.T, root, release, slug string, status data.DefectStatus) {
 	t.Helper()
 	content := "---\nid: " + slug + "\nrelease: " + release + "\nstatus: " + string(status) + "\nseverity: medium\ntitle: " + slug + "\n---\n\n# " + slug + "\n"
 	path := filepath.Join(root, "releases", release, "defects", slug+".md")

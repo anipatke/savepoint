@@ -1,10 +1,10 @@
 ---
 id: v1.2/D002-closed-e17-placeholder
 release: v1.2
-status: done
+status: resolved
 severity: low
 title: "Closed E17 placeholder defect"
-reference: E17-defect-workflow-tui
+reference: E17-defect-workflow-tui/T010-defect-resolve-hotkey
 ---
 
 # D002: Closed E17 Placeholder Defect

@@ -26,7 +26,7 @@ Defects need to be represented as first-class release repair artifacts without o
 - [ ] A typed `Defect` model represents id, release, status, severity, optional introduced/reference fields, stage, title, and body sections
 - [ ] Defects are discovered from `.savepoint/releases/{release}/defects/*.md`
 - [ ] Missing `defects/` directories are treated as zero defects, not project corruption
-- [ ] Defect status is limited to `planned`, `in_progress`, and `done`
+- [ ] Defect status is limited to `open`, `in_progress`, and `resolved`
 - [ ] `stage` is required when defect status is `in_progress`
 - [ ] Defect parsing preserves the sections needed by the TUI detail view
 - [ ] Unit tests cover valid defects, missing directories, malformed frontmatter, invalid statuses, and missing in-progress stage
@@ -47,4 +47,3 @@ Defects need to be represented as first-class release repair artifacts without o
 - Files edited: parser.go, discover.go, lifecycle.go
 - Files created: defect.go, defect_test.go
 - Quality gates: make build && make test PASS
-

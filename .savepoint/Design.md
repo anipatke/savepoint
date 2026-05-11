@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.1/E16-pre-prod-refinement
+last_audited: v1.2/E17-defect-workflow-tui
 ---
 
 # Savepoint — System Architecture
@@ -83,12 +83,12 @@ Three statuses, with explicit gates and ownership boundaries:
 - Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
 - Verification mode: see `config.yml`.
 
-Defects use the same `planned`, `in_progress`, and `done` status vocabulary. `stage` is required while a defect is `in_progress`. Router state may enter `defect-building` with a `defect` field naming the active repair item, which the board renders as a `DEFECT` Next Activity line.
+Defects use defect-specific lifecycle statuses: `open`, `in_progress`, and `resolved`. `stage` is required while a defect is `in_progress`, and must be absent once the defect is `open` or `resolved`. Router state may enter `defect-building` with a `defect` field naming the active repair item, which the board renders as a `DEFECT` Next Activity line.
 
 ## 5. Dependencies
 
-- Declared in YAML frontmatter: `depends_on: [E##-epic/T###-task-id, ...]` (repo-relative IDs).
-- `src/validation/dependencies.ts` detects duplicate task IDs, missing dependencies, and dependency cycles.
+- Declared in YAML frontmatter. Full task IDs (`E##-epic/T###-task-id`) are preferred; same-epic shorthand may use either `T###` or the task filename stem (`T###-task-id`). The board transition gate and doctor diagnostics resolve these forms through `internal/data.ResolveDependency`.
+- Doctor dependency checks detect duplicate task IDs, missing dependencies, and dependency cycles.
 - Cross-epic deps allowed but warned (signal that epic boundaries may be wrong).
 
 ## 6. CLI surface

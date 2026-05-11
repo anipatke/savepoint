@@ -621,3 +621,91 @@ status: planned
 		t.Fatal("WriteTaskStatus() expected invalid lifecycle error")
 	}
 }
+
+func TestWriteDefectStatus_updatesStatusAndPreservesBody(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "D001.md")
+	content := `---
+id: v1/D001
+release: v1
+status: open
+severity: high
+title: "Crash"
+reference: E01/T001
+---
+
+# Body
+
+Keep this text.`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defect := &Defect{
+		ID:       "v1/D001",
+		Release:  "v1",
+		Status:   DefectResolved,
+		Severity: SeverityHigh,
+		Title:    "Crash",
+	}
+
+	if err := WriteDefectStatus(path, defect, fi.ModTime()); err != nil {
+		t.Fatalf("WriteDefectStatus() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := NewParser().ParseDefectFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseDefectFile() error = %v", err)
+	}
+	if parsed.Status != DefectResolved {
+		t.Errorf("Status = %v, want resolved", parsed.Status)
+	}
+	if !strings.Contains(string(result), "reference: E01/T001") {
+		t.Error("unrelated frontmatter field not preserved")
+	}
+	if !strings.Contains(string(result), "Keep this text.") {
+		t.Error("body content not preserved")
+	}
+}
+
+func TestWriteDefectStatus_removesStageWhenDone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "D002.md")
+	content := `---
+id: v1/D002
+release: v1
+status: in_progress
+stage: build
+severity: medium
+title: "Bug"
+---
+
+# Body`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	defect := &Defect{ID: "v1/D002", Release: "v1", Status: DefectResolved, Severity: SeverityMedium, Title: "Bug"}
+
+	if err := WriteDefectStatus(path, defect, fi.ModTime()); err != nil {
+		t.Fatalf("WriteDefectStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if strings.Contains(string(result), "stage:") {
+		t.Error("stage field should be removed when defect status is resolved")
+	}
+}

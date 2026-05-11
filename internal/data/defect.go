@@ -11,10 +11,18 @@ const (
 	SeverityLow      DefectSeverity = "low"
 )
 
+type DefectStatus string
+
+const (
+	DefectOpen       DefectStatus = "open"
+	DefectInProgress DefectStatus = "in_progress"
+	DefectResolved   DefectStatus = "resolved"
+)
+
 type Defect struct {
 	ID         string         `yaml:"id"`
 	Release    string         `yaml:"release"`
-	Status     ColumnType     `yaml:"status"`
+	Status     DefectStatus   `yaml:"status"`
 	Severity   DefectSeverity `yaml:"severity"`
 	Introduced string         `yaml:"introduced,omitempty"`
 	Reference  string         `yaml:"reference,omitempty"`

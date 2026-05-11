@@ -20,6 +20,7 @@ func TestRenderHelp_containsShortcuts(t *testing.T) {
 		"h / left",
 		"l / right",
 		"enter",
+		"space",
 		"e",
 		"r",
 		"p",

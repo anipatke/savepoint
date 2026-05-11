@@ -401,7 +401,7 @@ func TestView_headerHidesDefectSignalWhenZeroOpen(t *testing.T) {
 	m.Width = 120
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", Status: data.ColumnDone},
+		{Release: "v1", Status: data.DefectResolved},
 	}
 	got := m.View()
 	if strings.Contains(got, "⚠") {
@@ -414,12 +414,12 @@ func TestView_headerShowsOpenDefectCount(t *testing.T) {
 	m.Width = 120
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v1", Status: data.ColumnPlanned},
-		{Release: "v1", Status: data.ColumnInProgress},
-		{Release: "v1", Status: data.ColumnDone},
+		{Release: "v1", Status: data.DefectOpen},
+		{Release: "v1", Status: data.DefectInProgress},
+		{Release: "v1", Status: data.DefectResolved},
 	}
 	got := plainTerminal(m.View())
-	if !strings.Contains(got, "⚠ 2 open") {
+	if !strings.Contains(got, "⚠  2 open") {
 		t.Errorf("header missing defect signal; got %q", got)
 	}
 }
@@ -429,7 +429,7 @@ func TestView_headerDefectSignalRespectsSelectedRelease(t *testing.T) {
 	m.Width = 120
 	m.SelectedRelease = "v1"
 	m.AllDefects = []data.Defect{
-		{Release: "v2", Status: data.ColumnPlanned},
+		{Release: "v2", Status: data.DefectOpen},
 	}
 	got := m.View()
 	if strings.Contains(got, "⚑") {
@@ -442,7 +442,7 @@ func TestView_threeColumnLayoutUnchangedWithDefects(t *testing.T) {
 	m.Width = 100
 	m.Height = 40
 	m.AllDefects = []data.Defect{
-		{Release: "v1", Status: data.ColumnPlanned},
+		{Release: "v1", Status: data.DefectOpen},
 	}
 	l := CalculateLayout(m.Width, m.Height)
 	if l.ColCount != 3 {
