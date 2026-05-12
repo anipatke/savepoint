@@ -261,6 +261,44 @@ func TestRenderCard_doneShowsDoneText(t *testing.T) {
 	}
 }
 
+func TestRenderCard_showsComplexityTier(t *testing.T) {
+	for _, tc := range []struct {
+		tier  data.ComplexityTier
+		label string
+	}{
+		{data.ComplexityLow, "· low"},
+		{data.ComplexityMedium, "· med"},
+		{data.ComplexityHigh, "· high"},
+		{data.ComplexitySpike, "· spike"},
+	} {
+		t.Run(string(tc.tier), func(t *testing.T) {
+			task := data.Task{ID: "T1", Title: "title", Stage: data.StageBuild, ComplexityTier: tc.tier}
+			got := RenderCard(task, 30, false, nil, "")
+			if !strings.Contains(got, tc.label) {
+				t.Errorf("RenderCard missing complexity label %q", tc.label)
+			}
+		})
+	}
+}
+
+func TestRenderCard_noComplexityWhenEmpty(t *testing.T) {
+	task := data.Task{ID: "T1", Title: "title", Stage: data.StageBuild}
+	got := RenderCard(task, 30, false, nil, "")
+	for _, label := range []string{"· low", "· med", "· high", "· spike"} {
+		if strings.Contains(got, label) {
+			t.Errorf("RenderCard should not show complexity label %q when tier is empty", label)
+		}
+	}
+}
+
+func TestRenderCard_complexityNarrowDoesNotPanic(t *testing.T) {
+	task := data.Task{ID: "T1", Title: "title", Stage: data.StageBuild, ComplexityTier: data.ComplexityHigh}
+	got := RenderCard(task, 10, false, nil, "")
+	if got == "" {
+		t.Error("RenderCard with complexity and narrow width returned empty string")
+	}
+}
+
 func BenchmarkRenderCard_narrow(b *testing.B) {
 	task := data.Task{ID: "E06-atari-noir-layout/T004-component-refinement", Title: "Refine card layout", Stage: data.StageBuild}
 	b.ReportAllocs()

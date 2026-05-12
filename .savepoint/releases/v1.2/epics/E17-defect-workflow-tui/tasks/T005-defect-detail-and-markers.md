@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T005-defect-detail-and-markers
 status: done
 objective: Add defect detail rendering and lightweight related-defect markers on task cards
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T004-defects-overlay]
+complexity_tier: medium
+complexity_reason: "New detail overlay plus width-sensitive card markers across two rendering contexts"
 ---
 
 # T005: Defect Detail And Related Markers

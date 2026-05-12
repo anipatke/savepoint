@@ -3,6 +3,8 @@ id: E18-template-skill-optimisation/T001-canonical-guides
 status: done
 objective: Make skills the single source of truth for workflow guidance and remove duplicate prompt-style instructions from AGENTS docs
 depends_on: []
+complexity_tier: medium
+complexity_reason: "Consistency pass across live and scaffolded docs and skills; many files but no production code changes"
 ---
 
 # T001: Canonical Guides

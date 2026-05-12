@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T008-footer-defects-shortcut
 status: done
 objective: Add the defects overlay shortcut to the board footer helper line
 depends_on: [E17-defect-workflow-tui/T004-defects-overlay]
+complexity_tier: low
+complexity_reason: "Small board footer copy change advertising an existing shortcut"
 ---
 
 # T008: Footer Defects Shortcut

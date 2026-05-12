@@ -50,6 +50,9 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 	titleLine := styles.CardMeta.Render(strings.Join(WrapText(t.Title, inner), "\n"))
 
 	content := idLine + "\n" + titleLine
+	if t.ComplexityTier != "" {
+		content += "\n" + styles.CardMeta.Render(complexityCardLabel(t.ComplexityTier))
+	}
 
 	if focused {
 		return styles.CardFocused.Width(width).Render(content)
@@ -135,6 +138,21 @@ func shortID(id string) string {
 		id = id[:idx]
 	}
 	return id
+}
+
+func complexityCardLabel(tier data.ComplexityTier) string {
+	switch tier {
+	case data.ComplexityLow:
+		return "· low"
+	case data.ComplexityMedium:
+		return "· med"
+	case data.ComplexityHigh:
+		return "· high"
+	case data.ComplexitySpike:
+		return "· spike"
+	default:
+		return "· " + string(tier)
+	}
 }
 
 

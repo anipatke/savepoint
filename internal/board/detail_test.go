@@ -369,6 +369,60 @@ func TestSplitChecklistSentences_normalSplitUnaffected(t *testing.T) {
 	}
 }
 
+func TestRenderDetail_showsComplexityTierAndReason(t *testing.T) {
+	tk := sampleTask()
+	tk.ComplexityTier = data.ComplexityHigh
+	tk.ComplexityReason = "handles multiple parse and write paths"
+	got := RenderDetail(tk, 60, nil, 0, 0)
+	if !strings.Contains(got, "Complexity:") {
+		t.Error("RenderDetail missing Complexity: label")
+	}
+	if !strings.Contains(got, "high") {
+		t.Error("RenderDetail missing complexity tier")
+	}
+	if !strings.Contains(got, "handles multiple") {
+		t.Error("RenderDetail missing complexity reason text")
+	}
+}
+
+func TestRenderDetail_complexityNoReason(t *testing.T) {
+	tk := sampleTask()
+	tk.ComplexityTier = data.ComplexityMedium
+	got := RenderDetail(tk, 60, nil, 0, 0)
+	if !strings.Contains(got, "Complexity:") {
+		t.Error("RenderDetail missing Complexity: label when reason is empty")
+	}
+	if !strings.Contains(got, "medium") {
+		t.Error("RenderDetail missing complexity tier")
+	}
+	if strings.Contains(got, "—") {
+		t.Error("RenderDetail should not include dash separator when reason is empty")
+	}
+}
+
+func TestRenderDetail_noComplexityWhenEmpty(t *testing.T) {
+	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
+	if strings.Contains(got, "Complexity:") {
+		t.Error("RenderDetail should not show Complexity row when tier is empty")
+	}
+}
+
+func TestRenderDetail_complexityReasonWrapsNarrow(t *testing.T) {
+	tk := sampleTask()
+	tk.ComplexityTier = data.ComplexitySpike
+	tk.ComplexityReason = "requires deep investigation of unknown system boundaries and significant research"
+	got := plainTerminal(RenderDetail(tk, 30, nil, 0, 0))
+	if !strings.Contains(got, "Complexity:") {
+		t.Error("RenderDetail missing Complexity: on narrow width")
+	}
+	if strings.Contains(got, tk.ComplexityReason) {
+		t.Error("RenderDetail should wrap long complexity reason on narrow width")
+	}
+	if !strings.Contains(got, "spike") {
+		t.Error("RenderDetail missing tier on narrow complexity row")
+	}
+}
+
 func TestOverlayWidth_clampMax(t *testing.T) {
 	if got := overlayWidth(120); got != 80 {
 		t.Errorf("overlayWidth(120) = %d, want 80", got)

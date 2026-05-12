@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T004-defects-overlay
 status: done
 objective: Add a keyboard-driven Defects overlay for browsing release defects by status
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T003-board-defect-summary]
+complexity_tier: high
+complexity_reason: "Full new keyboard-driven overlay with grouping, navigation, empty state, and help text integration"
 ---
 
 # T004: Defects Overlay

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -242,6 +243,152 @@ Notes here.`
 	}
 	if task.Checklist[1].Text != "Second checklist item." || !task.Checklist[1].Done {
 		t.Errorf("Task.Checklist[1] = %+v, want {Text:\"Second checklist item.\", Done:true}", task.Checklist[1])
+	}
+}
+
+func TestParseTaskFile_complexityRoundTrip(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E19/T001
+status: planned
+objective: "Complexity test"
+complexity_tier: high
+complexity_reason: "Requires coordinated changes across multiple packages."
+depends_on: []
+---
+
+# Task
+
+## Acceptance Criteria
+
+- Works.`
+
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if task.ComplexityTier != ComplexityHigh {
+		t.Errorf("ComplexityTier = %q, want high", task.ComplexityTier)
+	}
+	if task.ComplexityReason != "Requires coordinated changes across multiple packages." {
+		t.Errorf("ComplexityReason = %q, want reason", task.ComplexityReason)
+	}
+}
+
+func TestParseTaskFile_complexityAbsentIsCompatible(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E19/T002
+status: planned
+objective: "No complexity"
+depends_on: []
+---
+
+# Task
+
+## Acceptance Criteria
+
+- Works.`
+
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if task.ComplexityTier != "" {
+		t.Errorf("ComplexityTier = %q, want empty", task.ComplexityTier)
+	}
+	if task.ComplexityReason != "" {
+		t.Errorf("ComplexityReason = %q, want empty", task.ComplexityReason)
+	}
+}
+
+func TestParseTaskFile_invalidComplexityTierRejected(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E19/T003
+status: planned
+objective: "Bad tier"
+complexity_tier: extreme
+complexity_reason: "Some reason here."
+depends_on: []
+---
+
+# Task
+
+## Acceptance Criteria
+
+- Works.`
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected error for invalid complexity_tier")
+	}
+	if !strings.Contains(err.Error(), "invalid complexity_tier") {
+		t.Fatalf("ParseTaskFile() error = %v, want invalid complexity_tier message", err)
+	}
+}
+
+func TestParseTaskFile_complexityTierWithoutReasonRejected(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E19/T004
+status: planned
+objective: "Tier no reason"
+complexity_tier: medium
+depends_on: []
+---
+
+# Task
+
+## Acceptance Criteria
+
+- Works.`
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected error for complexity_tier without reason")
+	}
+	if !strings.Contains(err.Error(), "complexity_reason is required") {
+		t.Fatalf("ParseTaskFile() error = %v, want reason required message", err)
+	}
+}
+
+func TestParseTaskFile_complexityReasonWithoutTierRejected(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E19/T005
+status: planned
+objective: "Reason no tier"
+complexity_reason: "Some reason here."
+depends_on: []
+---
+
+# Task
+
+## Acceptance Criteria
+
+- Works.`
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected error for complexity_reason without tier")
+	}
+	if !strings.Contains(err.Error(), "complexity_tier is required") {
+		t.Fatalf("ParseTaskFile() error = %v, want tier required message", err)
+	}
+}
+
+func TestParseTaskFile_complexityReasonTooLongRejected(t *testing.T) {
+	p := NewParser()
+	longReason := strings.Repeat("x", MaxComplexityReasonLen+1)
+	content := "---\nid: E19/T006\nstatus: planned\nobjective: \"Long reason\"\ncomplexity_tier: low\ncomplexity_reason: \"" + longReason + "\"\ndepends_on: []\n---\n\n# Task\n\n## Acceptance Criteria\n\n- Works.\n"
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected error for oversized complexity_reason")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("ParseTaskFile() error = %v, want exceeds message", err)
 	}
 }
 

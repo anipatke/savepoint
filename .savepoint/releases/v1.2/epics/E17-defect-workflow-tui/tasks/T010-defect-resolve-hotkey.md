@@ -4,6 +4,8 @@ id: E17-defect-workflow-tui/T010-defect-resolve-hotkey
 status: done
 objective: Allow a user to resolve an open defect directly from the Defects overlay by pressing `space` on the focused defect row.
 depends_on: [T004-defects-overlay, T005-defect-detail-and-markers]
+complexity_tier: medium
+complexity_reason: "Adds mutation behavior from the overlay and must preserve defect lifecycle rules"
 ---
 
 # T010: Defect Resolve Hotkey

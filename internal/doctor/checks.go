@@ -211,6 +211,7 @@ func checkTaskFile(path string, parser taskParser, problems *[]Problem) {
 	checkRequiredString(fm, path, "status", problems)
 	checkRequiredString(fm, path, "objective", problems)
 	checkDependsOn(fm, path, problems)
+	checkComplexity(fm, path, problems)
 
 	if !hasAcceptanceCriteria(content) {
 		*problems = append(*problems, Problem{File: path, Message: "task missing ## Acceptance Criteria section"})
@@ -238,6 +239,17 @@ func checkDependsOn(fm map[string]any, path string, problems *[]Problem) {
 	case []any, []string:
 	default:
 		*problems = append(*problems, Problem{File: path, Message: "task frontmatter field depends_on must be a list"})
+	}
+}
+
+func checkComplexity(fm map[string]any, path string, problems *[]Problem) {
+	var tier data.ComplexityTier
+	if v, ok := fm["complexity_tier"].(string); ok {
+		tier = data.ComplexityTier(v)
+	}
+	reason, _ := fm["complexity_reason"].(string)
+	if err := data.ValidateComplexity(tier, reason); err != nil {
+		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("task complexity invalid: %v", err)})
 	}
 }
 

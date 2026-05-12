@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T011-task-defect-count-marker
 status: done
 objective: Show related defect counts on task cards instead of a single defect number
 depends_on: [E17-defect-workflow-tui/T005-defect-detail-and-markers, E17-defect-workflow-tui/T009-defect-warning-glyph]
+complexity_tier: medium
+complexity_reason: "Changes card marker aggregation and rendering for related defect counts"
 ---
 
 # T011: Task Defect Count Marker

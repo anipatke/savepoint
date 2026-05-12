@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T003-board-defect-summary
 status: done
 objective: Load defects into board state and show a compact open-defect signal without changing the three-column board layout
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model]
+complexity_tier: medium
+complexity_reason: "Adds defect pressure signal to board header while preserving three-column layout and breakpoints"
 ---
 
 # T003: Board Defect Summary Signal

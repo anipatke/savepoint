@@ -3,6 +3,10 @@ package data
 import "fmt"
 
 func ValidateTaskLifecycle(task *Task) error {
+	if err := ValidateComplexity(task.ComplexityTier, task.ComplexityReason); err != nil {
+		return err
+	}
+
 	if !IsCanonicalColumn(task.Column) {
 		return fmt.Errorf("invalid status %q: use planned, in_progress, or done. Add 'status: planned' or 'status: in_progress' to task frontmatter", task.Column)
 	}
@@ -22,6 +26,27 @@ func ValidateTaskLifecycle(task *Task) error {
 		return fmt.Errorf("phase field %q is only valid when status is in_progress. Remove 'phase' or change status to in_progress", task.Stage)
 	}
 
+	return nil
+}
+
+// ValidateComplexity checks that complexity_tier and complexity_reason are
+// mutually consistent and within allowed bounds.
+func ValidateComplexity(tier ComplexityTier, reason string) error {
+	if tier == "" && reason == "" {
+		return nil
+	}
+	if tier != "" && !IsCanonicalComplexityTier(tier) {
+		return fmt.Errorf("invalid complexity_tier %q: use low, medium, high, or spike", tier)
+	}
+	if tier != "" && reason == "" {
+		return fmt.Errorf("complexity_reason is required when complexity_tier is set")
+	}
+	if reason != "" && tier == "" {
+		return fmt.Errorf("complexity_tier is required when complexity_reason is set")
+	}
+	if len(reason) > MaxComplexityReasonLen {
+		return fmt.Errorf("complexity_reason exceeds %d characters", MaxComplexityReasonLen)
+	}
 	return nil
 }
 
@@ -68,6 +93,15 @@ func IsCanonicalColumn(value ColumnType) bool {
 func IsCanonicalStage(value ProgressStage) bool {
 	switch value {
 	case StageBuild, StageTest, StageAudit:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsCanonicalComplexityTier(tier ComplexityTier) bool {
+	switch tier {
+	case ComplexityLow, ComplexityMedium, ComplexityHigh, ComplexitySpike:
 		return true
 	default:
 		return false

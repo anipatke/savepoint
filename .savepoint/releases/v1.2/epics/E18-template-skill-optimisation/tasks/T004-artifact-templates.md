@@ -3,6 +3,8 @@ id: E18-template-skill-optimisation/T004-artifact-templates
 status: done
 objective: Add explicit artifact template blocks to savepoint-audit, savepoint-create-task, and savepoint-system-design skills so any agent produces consistent E##-Audit.md, T###-slug.md, and E##-Detail.md files across all projects
 depends_on: [E18-template-skill-optimisation/T001-canonical-guides]
+complexity_tier: medium
+complexity_reason: "Adds canonical artifact templates across multiple skills and scaffolded copies"
 ---
 
 # T004: Artifact Templates
