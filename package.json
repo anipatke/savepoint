@@ -18,15 +18,16 @@
   "license": "MIT",
   "author": "anipatke",
   "bin": {
-    "savepoint": "./savepoint.exe"
+    "savepoint": "./bin/savepoint.js"
   },
   "files": [
-    "savepoint.exe",
+    "bin/savepoint.js",
+    "dist/npm",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "go build -o savepoint.exe .",
+    "build": "go run ./internal/buildtool build-npm",
     "test": "echo \"Run 'make test' for Go tests\"",
     "postinstall": "node -e \"console.log('Run \\\"savepoint upgrade-assets\\\" in each existing Savepoint project to refresh agent skills and templates.')\"",
     "prepublishOnly": "npm run build"

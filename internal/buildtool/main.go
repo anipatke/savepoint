@@ -32,6 +32,8 @@ var targets = []target{
 
 var versionOverride string
 
+const npmDistDir = "dist/npm"
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -46,7 +48,7 @@ func run(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-all|dist|smoke-test>")
+		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|smoke-test>")
 	}
 
 	switch flags.Arg(0) {
@@ -60,6 +62,8 @@ func run(args []string) error {
 		return buildMatching("darwin")
 	case "build-windows":
 		return buildMatching("windows")
+	case "build-npm":
+		return buildNPM()
 	case "build-all":
 		return buildAll()
 	case "dist":
@@ -73,6 +77,24 @@ func run(args []string) error {
 
 func buildLocal() error {
 	return runGoBuild(localExecutable(), runtime.GOOS, runtime.GOARCH)
+}
+
+func buildNPM() error {
+	if err := os.RemoveAll(npmDistDir); err != nil {
+		return fmt.Errorf("clean npm dist: %w", err)
+	}
+	for _, target := range targets {
+		output := filepath.Join(npmDistDir, target.os+"-"+target.arch, executableName(target.os))
+		if err := runGoBuild(output, target.os, target.arch); err != nil {
+			return err
+		}
+		if target.os == "windows" {
+			if err := requireWindowsExecutable(output); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func clean() error {
@@ -128,6 +150,23 @@ func runGoBuild(output, goos, goarch string) error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build %s/%s: %w", goos, goarch, err)
+	}
+	return nil
+}
+
+func requireWindowsExecutable(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open npm executable: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 2)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return fmt.Errorf("read npm executable header: %w", err)
+	}
+	if string(header) != "MZ" {
+		return fmt.Errorf("npm executable %s is not a Windows PE binary", path)
 	}
 	return nil
 }
