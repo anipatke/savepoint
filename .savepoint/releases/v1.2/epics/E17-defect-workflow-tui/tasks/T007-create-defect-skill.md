@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T007-create-defect-skill
 status: done
 objective: Add a create-defect skill and scaffold guidance for capturing release-level defects before repair work starts
 depends_on: [E17-defect-workflow-tui/T006-doctor-docs-and-templates]
+complexity_tier: medium
+complexity_reason: "Adds a new workflow skill plus scaffold copy and guidance across template and live docs"
 ---
 
 # T007: Create Defect Skill

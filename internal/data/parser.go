@@ -42,24 +42,30 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 
 	rawColumn := firstColumn(fields.Column, fields.Status)
 	task := &Task{
-		ID:          fields.ID,
-		Title:       firstNonEmpty(fields.Title, fields.Objective),
-		Description: fields.Description,
-		Epic:        firstNonEmpty(fields.Epic, extractEpicFromID(fields.ID)),
-		Release:     firstNonEmpty(fields.Release, "v1"),
-		Column:      normalizeColumn(rawColumn),
-		Stage:       firstStage(fields.Phase, fields.Stage),
-		Priority:    fields.Priority,
-		Points:      fields.Points,
-		Tags:        fields.Tags,
-		Acceptance:  firstList(fields.Acceptance, extractChecklistSection(content, "## Acceptance Criteria")),
-		Checklist:   extractChecklistItems(content, "## Implementation Plan"),
-		Notes:       fields.Notes,
-		DependsOn:   fields.DependsOn,
-		Progress:    fields.Progress,
+		ID:               fields.ID,
+		Title:            firstNonEmpty(fields.Title, fields.Objective),
+		Description:      fields.Description,
+		Epic:             firstNonEmpty(fields.Epic, extractEpicFromID(fields.ID)),
+		Release:          firstNonEmpty(fields.Release, "v1"),
+		Column:           normalizeColumn(rawColumn),
+		Stage:            firstStage(fields.Phase, fields.Stage),
+		Priority:         fields.Priority,
+		Points:           fields.Points,
+		Tags:             fields.Tags,
+		Acceptance:       firstList(fields.Acceptance, extractChecklistSection(content, "## Acceptance Criteria")),
+		Checklist:        extractChecklistItems(content, "## Implementation Plan"),
+		Notes:            fields.Notes,
+		DependsOn:        fields.DependsOn,
+		Progress:         fields.Progress,
+		ComplexityTier:   fields.ComplexityTier,
+		ComplexityReason: fields.ComplexityReason,
 	}
 
 	if err := validateParsedTaskLifecycle(rawColumn, *task); err != nil {
+		return nil, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	if err := ValidateComplexity(task.ComplexityTier, task.ComplexityReason); err != nil {
 		return nil, fmt.Errorf("parse error for %s: %w", path, err)
 	}
 
@@ -71,23 +77,25 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 }
 
 type taskFrontmatter struct {
-	ID          string        `yaml:"id"`
-	Title       string        `yaml:"title"`
-	Objective   string        `yaml:"objective"`
-	Description string        `yaml:"description"`
-	Epic        string        `yaml:"epic"`
-	Release     string        `yaml:"release"`
-	Status      ColumnType    `yaml:"status"`
-	Column      ColumnType    `yaml:"column"`
-	Phase       ProgressStage `yaml:"phase"`
-	Stage       ProgressStage `yaml:"stage"`
-	Priority    string        `yaml:"priority"`
-	Points      int           `yaml:"points"`
-	Tags        []string      `yaml:"tags"`
-	Acceptance  []string      `yaml:"acceptance"`
-	Notes       string        `yaml:"notes"`
-	DependsOn   []string      `yaml:"depends_on"`
-	Progress    Progress      `yaml:"progress"`
+	ID               string         `yaml:"id"`
+	Title            string         `yaml:"title"`
+	Objective        string         `yaml:"objective"`
+	Description      string         `yaml:"description"`
+	Epic             string         `yaml:"epic"`
+	Release          string         `yaml:"release"`
+	Status           ColumnType     `yaml:"status"`
+	Column           ColumnType     `yaml:"column"`
+	Phase            ProgressStage  `yaml:"phase"`
+	Stage            ProgressStage  `yaml:"stage"`
+	Priority         string         `yaml:"priority"`
+	Points           int            `yaml:"points"`
+	Tags             []string       `yaml:"tags"`
+	Acceptance       []string       `yaml:"acceptance"`
+	Notes            string         `yaml:"notes"`
+	DependsOn        []string       `yaml:"depends_on"`
+	Progress         Progress       `yaml:"progress"`
+	ComplexityTier   ComplexityTier `yaml:"complexity_tier"`
+	ComplexityReason string         `yaml:"complexity_reason"`
 }
 
 // normalizeLineEndings replaces Windows (CRLF) and legacy Mac (CR) line endings with LF.

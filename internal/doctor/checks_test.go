@@ -802,6 +802,67 @@ func routerContent(state, release, epic string) string {
 	return "## Current state\n\n```yaml\nstate: " + state + "\nrelease: " + release + "\nepic: " + epic + "\ntask: none\nnext_action: \"\"\n```\n"
 }
 
+// --- CheckStructure complexity ---
+
+func TestCheckStructure_TaskInvalidComplexityTier(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"),
+		"---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\ncomplexity_tier: extreme\ncomplexity_reason: \"Some reason.\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- It works\n")
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "complexity") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want complexity invalid problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskValidComplexity(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"),
+		"---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\ncomplexity_tier: medium\ncomplexity_reason: \"Touches parser and write paths.\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- It works\n")
+	problems := CheckStructure(root, "")
+	for _, p := range problems {
+		if strings.Contains(p.Message, "complexity") {
+			t.Fatalf("CheckStructure() unexpected complexity problem: %v", p)
+		}
+	}
+}
+
+func TestCheckStructure_TaskComplexityAbsentNoProblems(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"),
+		"---\nid: E01-foo/T001-task\nstatus: planned\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001\n\n## Acceptance Criteria\n\n- It works\n")
+	problems := CheckStructure(root, "")
+	for _, p := range problems {
+		if strings.Contains(p.Message, "complexity") {
+			t.Fatalf("CheckStructure() unexpected complexity problem for absent fields: %v", p)
+		}
+	}
+}
+
 // --- CheckDefects ---
 
 func writeDefect(t *testing.T, defectsDir, filename, content string) {

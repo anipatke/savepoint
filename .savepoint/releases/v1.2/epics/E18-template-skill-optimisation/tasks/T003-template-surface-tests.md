@@ -3,6 +3,8 @@ id: E18-template-skill-optimisation/T003-template-surface-tests
 status: done
 objective: Add regression coverage that locks in the simplified template surface and canonical workflow wording
 depends_on: [E18-template-skill-optimisation/T001-canonical-guides, E18-template-skill-optimisation/T002-prune-prompts]
+complexity_tier: low
+complexity_reason: "Test-only additions protecting the simplified template surface and canonical workflow wording"
 ---
 
 # T003: Template Surface Tests

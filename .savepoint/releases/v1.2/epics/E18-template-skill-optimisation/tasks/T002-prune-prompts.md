@@ -3,6 +3,8 @@ id: E18-template-skill-optimisation/T002-prune-prompts
 status: done
 objective: Remove redundant phase prompt templates and keep only the init bootstrap prompt
 depends_on: [E18-template-skill-optimisation/T001-canonical-guides]
+complexity_tier: low
+complexity_reason: "Deletes obsolete prompt templates and updates tests to match the reduced prompt surface"
 ---
 
 # T002: Prompt Pruning

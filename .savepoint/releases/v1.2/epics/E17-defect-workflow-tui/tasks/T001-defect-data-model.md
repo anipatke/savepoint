@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T001-defect-data-model
 status: done
 objective: Add the release-level defect data model, parser, discovery, and validation primitives
 depends_on: []
+complexity_tier: medium
+complexity_reason: "New typed model with discovery, validation, and parser tests spanning multiple data-layer files"
 ---
 
 # T001: Defect Data Model And Discovery

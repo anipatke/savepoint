@@ -31,6 +31,13 @@ func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxH
 		detailRow("Status", string(t.Column), inner),
 		detailRow("Phase", phaseLabel(t.Stage), inner),
 	}
+	if t.ComplexityTier != "" {
+		complexityVal := string(t.ComplexityTier)
+		if t.ComplexityReason != "" {
+			complexityVal += " — " + t.ComplexityReason
+		}
+		body = append(body, detailRow("Complexity", complexityVal, inner))
+	}
 
 	if t.Description != "" {
 		body = append(body,

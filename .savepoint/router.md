@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
-release: v1.2
-epic: E19
-task: E19-task-complexity-field/T001-task-complexity-model
-next_action: Build E19-task-complexity-field/T001-task-complexity-model.
+state: pre-implementation
+release: none
+epic: none
+task: none
+next_action: v1.2 is audited. Define the next release or start a new PRD.
 ```
 
 ## State → action

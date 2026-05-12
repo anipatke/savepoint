@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T006-doctor-docs-and-templates
 status: done
 objective: Document the defect workflow and add doctor diagnostics for malformed defect files
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T002-defect-router-priority]
+complexity_tier: low
+complexity_reason: "Doctor diagnostics follow existing check patterns; scope is validation rules and documentation only"
 ---
 
 # T006: Doctor, Docs, And Templates

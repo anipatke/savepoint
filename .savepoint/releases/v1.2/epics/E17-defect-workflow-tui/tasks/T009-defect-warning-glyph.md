@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T009-defect-warning-glyph
 status: done
 objective: Standardize defect indicators on a terminal-safe warning glyph
 depends_on: [E17-defect-workflow-tui/T005-defect-detail-and-markers]
+complexity_tier: low
+complexity_reason: "Glyph standardization is a narrow rendering constant and expectation update"
 ---
 
 # T009: Defect Warning Glyph

@@ -3,6 +3,8 @@ id: E17-defect-workflow-tui/T002-defect-router-priority
 status: done
 objective: Extend router state and board priority formatting so a defect can become the active repair item
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model]
+complexity_tier: medium
+complexity_reason: "Extends router with new defect state and wires distinct Next Activity rendering in the board view"
 ---
 
 # T002: Defect Router Priority

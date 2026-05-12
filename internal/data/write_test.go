@@ -622,6 +622,86 @@ status: planned
 	}
 }
 
+func TestWriteTaskStatus_rejectsInvalidComplexityOnInProgress(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E19/T011
+status: planned
+objective: "Invalid complexity"
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:               "E19/T011",
+		Column:           ColumnInProgress,
+		Stage:            StageBuild,
+		ComplexityTier:   ComplexityTier("extreme"),
+		ComplexityReason: "Invalid tier should be rejected before writing.",
+	}
+
+	err := WriteTaskStatus(path, task, fi.ModTime())
+	if err == nil {
+		t.Fatal("WriteTaskStatus() expected invalid complexity error")
+	}
+	if !strings.Contains(err.Error(), "invalid complexity_tier") {
+		t.Fatalf("WriteTaskStatus() error = %v, want invalid complexity_tier", err)
+	}
+}
+
+func TestWriteTaskStatus_preservesComplexityFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E19/T001
+status: planned
+complexity_tier: high
+complexity_reason: "Requires coordinated changes across multiple packages."
+objective: "Complexity test"
+---
+
+# Body`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:     "E19/T001",
+		Column: ColumnInProgress,
+		Stage:  StageBuild,
+	}
+
+	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if !strings.Contains(string(result), "complexity_tier: high") {
+		t.Error("complexity_tier not preserved after WriteTaskStatus")
+	}
+	if !strings.Contains(string(result), "complexity_reason:") {
+		t.Error("complexity_reason not preserved after WriteTaskStatus")
+	}
+
+	p := NewParser()
+	parsed, err := p.ParseTaskFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if parsed.ComplexityTier != ComplexityHigh {
+		t.Errorf("ComplexityTier = %q, want high", parsed.ComplexityTier)
+	}
+	if parsed.ComplexityReason != "Requires coordinated changes across multiple packages." {
+		t.Errorf("ComplexityReason = %q, want reason text", parsed.ComplexityReason)
+	}
+}
+
 func TestWriteDefectStatus_updatesStatusAndPreservesBody(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "D001.md")
