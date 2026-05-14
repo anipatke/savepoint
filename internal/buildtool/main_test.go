@@ -210,6 +210,32 @@ func TestWriteTarGzPreservesWindowsExecutableName(t *testing.T) {
 	}
 }
 
+func TestRequireWindowsExecutableAcceptsMZHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "savepoint.exe")
+	if err := os.WriteFile(path, []byte("MZfake-pe"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := requireWindowsExecutable(path); err != nil {
+		t.Fatalf("requireWindowsExecutable: %v", err)
+	}
+}
+
+func TestRequireWindowsExecutableRejectsELFHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "savepoint.exe")
+	if err := os.WriteFile(path, []byte{0x7f, 'E', 'L', 'F'}, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := requireWindowsExecutable(path)
+	if err == nil {
+		t.Fatal("expected ELF header to be rejected")
+	}
+	if !strings.Contains(err.Error(), "not a Windows PE binary") {
+		t.Fatalf("error = %q, want Windows PE binary message", err)
+	}
+}
+
 func TestLocalExecutable(t *testing.T) {
 	got := localExecutable()
 	if runtime.GOOS == "windows" {

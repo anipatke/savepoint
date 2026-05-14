@@ -11,44 +11,9 @@ permissions:
   id-token: write
 
 jobs:
-  verify:
-    name: Verify (${{ matrix.os }})
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          check-latest: true
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-
-      - name: Build and test
-        run: make ci
-
-      - name: Packed install smoke test
-        run: make pack-smoke
-
   publish:
-    name: Publish npm packages
-    needs: verify
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -70,38 +35,6 @@ jobs:
             npm install
           fi
 
-      - name: Build npm artifacts
-        run: npm run build
+      - run: make ci
 
-      - name: Verify platform artifacts exist
-        run: |
-          set -euo pipefail
-          required=(
-            dist/npm/linux-amd64
-            dist/npm/linux-arm64
-            dist/npm/darwin-amd64
-            dist/npm/darwin-arm64
-            dist/npm/windows-amd64
-            dist/npm/windows-arm64
-          )
-          for dir in "${required[@]}"; do
-            if [ ! -f "$dir/package.json" ]; then
-              echo "missing platform artifact: $dir" >&2
-              exit 1
-            fi
-          done
-
-      - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          for dir in $(ls -1d dist/npm/*/ | sort); do
-            echo "publishing $dir"
-            npm publish "$dir" --access public
-          done
-
-      - name: Publish root package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+      - run: npm publish

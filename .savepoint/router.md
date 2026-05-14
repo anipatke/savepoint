@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: pre-implementation
 release: v1.2
-epic: none
-task: ""
-next_action: E20 audited and v1.2 epics are complete. Define the next release before planning more epics.
+epic: E17
+task: none
+next_action: Review v1.2/D009 repair. Full make test still fails on existing agent-skills/savepoint-audit/SKILL.md frontmatter issue.
 ```
 
 ## State → action

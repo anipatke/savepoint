@@ -100,17 +100,7 @@ reference: E12-slug/T003-slug  # optional: related task ID
 
 ---
 
-## 📦 Installing & Updating
-
-Savepoint ships as a small root npm package plus one optional platform package per supported OS/CPU (`savepoint-{linux,darwin,windows}-{amd64,arm64}`). Your package manager selects the right native binary automatically through npm's `optionalDependencies` + `os`/`cpu` filters — no separate download step.
-
-Install globally or run on demand:
-
-```bash
-npm install -g savepoint
-# or
-npx savepoint init
-```
+## 📦 Updating
 
 After updating the Savepoint package:
 
@@ -122,8 +112,6 @@ savepoint upgrade-assets
 The `upgrade-assets` command refreshes bundled `agent-skills/**/SKILL.md` files and the Savepoint-managed block in `AGENTS.md` from the latest templates. It never overwrites `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/releases/**`, or any task/epic/audit files.
 
 Use `--dry-run` to preview changes before applying them.
-
-If a platform binary fails to install (offline mirror, locked-down registry), reinstall Savepoint after restoring access — the root CLI prints the missing platform package name when invoked.
 
 ---
 

@@ -1,34 +1,34 @@
 #!/usr/bin/env node
-"use strict";
 
 const { spawnSync } = require("node:child_process");
-const { resolvePlatform } = require("../lib/resolve-platform.js");
-const { locateBinary } = require("../lib/locate-binary.js");
+const path = require("node:path");
 
-function main() {
-  const resolved = resolvePlatform({
-    platform: process.platform,
-    arch: process.arch,
-  });
-  if (!resolved.supported) {
-    console.error(resolved.error);
-    process.exit(1);
-  }
+const platformMap = {
+  darwin: "darwin",
+  linux: "linux",
+  win32: "windows",
+};
 
-  const binary = locateBinary(resolved);
-  if (!binary) {
-    console.error(
-      `savepoint platform package ${resolved.packageName} is not installed; reinstall savepoint to fetch the binary for ${resolved.goos}/${resolved.goarch}`,
-    );
-    process.exit(1);
-  }
+const archMap = {
+  arm64: "arm64",
+  x64: "amd64",
+};
 
-  const result = spawnSync(binary, process.argv.slice(2), { stdio: "inherit" });
-  if (result.error) {
-    console.error(result.error.message);
-    process.exit(1);
-  }
-  process.exit(result.status ?? 0);
+const goos = platformMap[process.platform];
+const goarch = archMap[process.arch];
+
+if (!goos || !goarch) {
+  console.error(`savepoint does not support ${process.platform}/${process.arch}`);
+  process.exit(1);
 }
 
-main();
+const executable = goos === "windows" ? "savepoint.exe" : "savepoint";
+const binary = path.join(__dirname, "..", "dist", "npm", `${goos}-${goarch}`, executable);
+const result = spawnSync(binary, process.argv.slice(2), { stdio: "inherit" });
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 0);

@@ -1,6 +1,6 @@
 {
   "name": "savepoint",
-  "version": "1.2.4",
+  "version": "1.2.3",
   "description": "It’s a simple, file-based state machine and cinematic Terminal UI (TUI) designed to force you—and your agent (Claude, Cursor, Aider, Gemini)—to slow down, write down what you're actually building, and check your work before moving on.",
   "keywords": [
     "board",
@@ -22,23 +22,14 @@
   },
   "files": [
     "bin/savepoint.js",
-    "lib/",
+    "dist/npm",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "go run ./internal/buildtool build-npm",
-    "test": "node --test test/resolve-platform.test.js",
-    "pack-smoke": "go run ./internal/buildtool pack-smoke",
+    "test": "echo \"Run 'make test' for Go tests\"",
     "postinstall": "node -e \"console.log('Run \\\"savepoint upgrade-assets\\\" in each existing Savepoint project to refresh agent skills and templates.')\"",
     "prepublishOnly": "npm run build"
-  },
-  "optionalDependencies": {
-    "savepoint-linux-amd64": "1.2.3",
-    "savepoint-linux-arm64": "1.2.3",
-    "savepoint-darwin-amd64": "1.2.3",
-    "savepoint-darwin-arm64": "1.2.3",
-    "savepoint-windows-amd64": "1.2.3",
-    "savepoint-windows-arm64": "1.2.3"
   }
 }

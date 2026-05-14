@@ -48,7 +48,7 @@ func run(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|smoke-test|pack-smoke>")
+		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|smoke-test>")
 	}
 
 	switch flags.Arg(0) {
@@ -70,8 +70,6 @@ func run(args []string) error {
 		return dist()
 	case "smoke-test":
 		return smokeTest()
-	case "pack-smoke":
-		return packSmoke()
 	default:
 		return fmt.Errorf("unknown build target %q", flags.Arg(0))
 	}
@@ -85,25 +83,15 @@ func buildNPM() error {
 	if err := os.RemoveAll(npmDistDir); err != nil {
 		return fmt.Errorf("clean npm dist: %w", err)
 	}
-	version, err := readRootPackageVersion("package.json")
-	if err != nil {
-		return err
-	}
 	for _, target := range targets {
-		packageDir := filepath.Join(npmDistDir, target.os+"-"+target.arch)
-		output := filepath.Join(packageDir, "bin", executableName(target.os))
+		output := filepath.Join(npmDistDir, target.os+"-"+target.arch, executableName(target.os))
 		if err := runGoBuild(output, target.os, target.arch); err != nil {
 			return err
 		}
-		if err := validateBinaryFormat(target, output); err != nil {
-			return err
-		}
-		manifest, err := buildNPMManifest(target, version)
-		if err != nil {
-			return err
-		}
-		if err := writeNPMManifest(packageDir, manifest); err != nil {
-			return err
+		if target.os == "windows" {
+			if err := requireWindowsExecutable(output); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -162,6 +150,23 @@ func runGoBuild(output, goos, goarch string) error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build %s/%s: %w", goos, goarch, err)
+	}
+	return nil
+}
+
+func requireWindowsExecutable(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open npm executable: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 2)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return fmt.Errorf("read npm executable header: %w", err)
+	}
+	if string(header) != "MZ" {
+		return fmt.Errorf("npm executable %s is not a Windows PE binary", path)
 	}
 	return nil
 }
