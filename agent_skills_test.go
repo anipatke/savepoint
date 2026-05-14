@@ -73,7 +73,7 @@ func assertSavepointSkillsHaveFrontmatter(t *testing.T, root string) {
 			t.Fatalf("ReadFile(%q) error = %v", path, err)
 		}
 
-		text := string(content)
+		text := strings.ReplaceAll(string(content), "\r\n", "\n")
 		if !strings.HasPrefix(text, "---\n") {
 			t.Fatalf("%s missing YAML frontmatter", path)
 		}
