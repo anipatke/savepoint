@@ -16,7 +16,7 @@ state: pre-implementation
 release: v1.2
 epic: E17
 task: none
-next_action: Review v1.2/D009 repair. Full make test still fails on existing agent-skills/savepoint-audit/SKILL.md frontmatter issue.
+next_action: D009 repair reviewed; make test passes. Confirm next v1.2 priority before starting more work.
 ```
 
 ## State → action

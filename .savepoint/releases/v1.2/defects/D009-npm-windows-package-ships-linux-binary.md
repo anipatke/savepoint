@@ -66,4 +66,4 @@ Verification:
 - `node .\bin\savepoint.js --version` launched the Windows npm binary and printed `v1.2.2`.
 - `node .\bin\savepoint.js upgrade-assets C:\Users\User\Branding\03-VIBE-LAB\payment-initiation --dry-run` launched successfully and produced an upgrade report.
 - `make build` passed.
-- `make test` still fails on `TestBundledSavepointSkillsHaveDiscoveryFrontmatter` because `agent-skills\savepoint-audit\SKILL.md` is missing YAML frontmatter; that failure is outside this defect repair.
+- `make test` passes.
