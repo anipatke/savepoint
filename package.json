@@ -22,14 +22,23 @@
   },
   "files": [
     "bin/savepoint.js",
-    "dist/npm",
+    "lib/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "go run ./internal/buildtool build-npm",
-    "test": "echo \"Run 'make test' for Go tests\"",
+    "test": "node --test test/resolve-platform.test.js",
+    "pack-smoke": "go run ./internal/buildtool pack-smoke",
     "postinstall": "node -e \"console.log('Run \\\"savepoint upgrade-assets\\\" in each existing Savepoint project to refresh agent skills and templates.')\"",
     "prepublishOnly": "npm run build"
+  },
+  "optionalDependencies": {
+    "savepoint-linux-amd64": "1.2.3",
+    "savepoint-linux-arm64": "1.2.3",
+    "savepoint-darwin-amd64": "1.2.3",
+    "savepoint-darwin-arm64": "1.2.3",
+    "savepoint-windows-amd64": "1.2.3",
+    "savepoint-windows-arm64": "1.2.3"
   }
 }

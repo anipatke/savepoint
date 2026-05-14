@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.2/E19-task-complexity-field
+last_audited: v1.2/E20-strategic-npm-packaging
 ---
 
 # Savepoint — System Architecture
@@ -29,6 +29,7 @@ last_audited: v1.2/E19-task-complexity-field
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
+- **Strategic npm packaging** (v1.2 E20) splits npm delivery into a small root `savepoint` launcher package plus optional platform packages named `savepoint-{linux,darwin,windows}-{amd64,arm64}`. The JS launcher resolves the installed platform package, `internal/buildtool` generates platform manifests and validates PE, ELF, and Mach-O artifacts before packaging, packed install smoke tests exercise npm tarballs, and publish automation verifies the package set before publishing platform packages ahead of the root package.
 - **Agent audit workflow** is skill-driven, not a CLI pipeline. At `audit-pending`, a fresh audit agent writes one epic-local `E##-Audit.md`; the user reviews its Audit tab, then asks an agent to apply the admin proposal blocks, update the visible audit findings to reflect the applied outcome, and close the epic.
 
 ## 2. Directory layout
@@ -188,9 +189,12 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 - **License:** MIT.
 - **Runtime:** Go CLI binary. Source builds with `go build`; tests run with `go test ./...`.
 - **Local build:** `make build` delegates to `internal/buildtool`, builds `savepoint` or `savepoint.exe`, and injects `main.version` from `VERSION` or the latest git tag.
-- **Cross-platform builds:** `make build-all` cross-compiles linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64, and windows-arm64 raw binaries into `dist/{platform}-{arch}/savepoint` or `savepoint.exe` for Windows. `make ci` runs the repo-local verification sequence used by CI.
+- **Cross-platform builds:** `internal/buildtool build-all` cross-compiles linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64, and windows-arm64 raw binaries into `dist/{platform}-{arch}/savepoint` or `savepoint.exe` for Windows. `make ci` runs the repo-local verification sequence used by CI.
+- **npm packages:** The root `savepoint` package ships `bin/savepoint.js` and `lib/` resolver helpers only. Native binaries live in generated optional platform packages under `dist/npm/{platform}-{arch}` with npm `os`/`cpu` metadata and package versions read from the root `package.json`.
+- **Binary validation:** npm artifact generation validates each generated binary before packaging: Windows must be PE (`MZ`), Linux must be ELF with the expected machine architecture, and Darwin must be 64-bit Mach-O with the expected CPU type.
 - **Artifacts:** `make dist` creates versioned `.tar.gz` archives in `dist/` for Linux, Darwin, and Windows targets using Go archive APIs, not shell `tar`, and writes SHA256 hashes to `dist/checksums.txt`.
-- **Smoke validation:** `make smoke-test` builds the local binary and runs `--version` as a headless exit-0 check.
+- **Smoke validation:** `make smoke-test` builds the local binary and runs `--version` as a headless exit-0 check. `make pack-smoke` builds npm artifacts, packs the root and host platform packages, installs those tarballs into a temporary npm project, and runs `savepoint --version`, `savepoint init`, and `savepoint upgrade-assets --dry-run`.
+- **Publish workflow:** `.github/workflows/publish.yml` verifies `make ci` and `make pack-smoke` across Ubuntu, Windows, and macOS before publish. The publish job rebuilds npm artifacts, checks required platform package manifests exist, publishes platform packages in deterministic order, and publishes the root package last with npm auth scoped to publish steps.
 - **No telemetry.** Ever.
 
 ## 13. Testing
