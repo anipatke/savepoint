@@ -140,8 +140,8 @@ func WriteTaskStatus(path string, task *Task, expectedMtime time.Time) error {
 		removeMappingField(mapping, "phase")
 		removeMappingField(mapping, "stage")
 	} else {
-		setMappingField(mapping, "phase", string(task.Stage))
-		removeMappingField(mapping, "stage")
+		setMappingField(mapping, "stage", string(task.Stage))
+		removeMappingField(mapping, "phase")
 	}
 
 	out, err := yaml.Marshal(&doc)

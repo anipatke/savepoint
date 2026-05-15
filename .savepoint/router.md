@@ -16,7 +16,7 @@ state: pre-implementation
 release: v1.2
 epic: E17
 task: none
-next_action: D009 repair reviewed; make test passes. Confirm next v1.2 priority before starting more work.
+next_action: D011 repair complete; make build and make test pass. Confirm next v1.2 priority before starting more work.
 ```
 
 ## State → action

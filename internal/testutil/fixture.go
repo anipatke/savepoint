@@ -40,10 +40,11 @@ func WriteEpicDetail(t testing.TB, epicPath, prefix string) {
 
 // TaskFixture describes a task file to create.
 type TaskFixture struct {
-	Slug      string            // e.g. "T001-task" — becomes filename
-	Release   string            // optional; omitted if empty
+	Slug      string // e.g. "T001-task" — becomes filename
+	Release   string // optional; omitted if empty
 	Status    string
-	Phase     string            // optional; omitted if empty
+	Stage     string // optional canonical stage; omitted if empty
+	Phase     string // optional legacy phase; omitted if empty
 	Objective string
 	DependsOn []string          // optional; defaults to empty list
 	Body      string            // optional; defaults to minimal body
@@ -63,7 +64,9 @@ func WriteTask(t testing.TB, root, release, epic string, task TaskFixture) {
 		b.WriteString("release: " + task.Release + "\n")
 	}
 	b.WriteString("status: " + task.Status + "\n")
-	if task.Phase != "" {
+	if task.Stage != "" {
+		b.WriteString("stage: " + task.Stage + "\n")
+	} else if task.Phase != "" {
 		b.WriteString("phase: " + task.Phase + "\n")
 	}
 	b.WriteString("objective: \"" + task.Objective + "\"\n")

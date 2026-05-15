@@ -23,7 +23,7 @@ func writeTaskWithBody(t *testing.T, root, release, epic, taskSlug string, colum
 		Body:      body,
 	}
 	if column == data.ColumnInProgress {
-		tf.Phase = "build"
+		tf.Stage = "build"
 	}
 	testutil.WriteTask(t, root, release, epic, tf)
 	return filepath.Join(root, "releases", release, "epics", epic, "tasks", taskSlug+".md")
@@ -127,7 +127,7 @@ func TestStatusWrite_preservesTaskBody(t *testing.T) {
 func TestMtimeConflict_directDetection(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "T001.md")
-	content := "---\nid: E01/T001\nstatus: planned\nphase: build\n---\n\n# Task\n"
+	content := "---\nid: E01/T001\nstatus: planned\nstage: build\n---\n\n# Task\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestMtimeConflict_directDetection(t *testing.T) {
 // TestMtimeConflict_boardRefreshesChangedTask verifies the board refreshes instead of overwriting external edits.
 func TestMtimeConflict_boardRefreshesChangedTask(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T001.md")
-	content := "---\nid: E01/T001\nstatus: in_progress\nphase: test\n---\n\n# Task\n"
+	content := "---\nid: E01/T001\nstatus: in_progress\nstage: test\n---\n\n# Task\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestMtimeConflict_boardRefreshesChangedTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "phase: test") {
+	if !strings.Contains(string(raw), "stage: test") {
 		t.Errorf("task file was overwritten despite changed-on-disk refresh:\n%s", raw)
 	}
 }

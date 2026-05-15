@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-func TestWriteTaskStatus_updatesStatusAndPhase(t *testing.T) {
+func TestWriteTaskStatus_updatesStatusAndStage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
 id: E01/T001
 status: planned
-phase: build
+stage: build
 objective: "Test"
 depends_on: []
 ---
@@ -63,13 +63,13 @@ depends_on: []
 	}
 }
 
-func TestWriteTaskStatus_removesPhaseWhenStageEmpty(t *testing.T) {
+func TestWriteTaskStatus_removesStageWhenStageEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
 id: E01/T002
 status: in_progress
-phase: audit
+stage: audit
 objective: "Test"
 ---
 
@@ -96,6 +96,9 @@ objective: "Test"
 	if strings.Contains(string(result), "phase:") {
 		t.Error("phase field should be removed when stage is empty")
 	}
+	if strings.Contains(string(result), "stage:") {
+		t.Error("stage field should be removed when stage is empty")
+	}
 
 	p := NewParser()
 	parsed, err := p.ParseTaskFile(path, string(result))
@@ -111,13 +114,13 @@ objective: "Test"
 	}
 }
 
-func TestWriteTaskStatus_removesPhaseWhenStatusPlanned(t *testing.T) {
+func TestWriteTaskStatus_removesProgressFieldsWhenStatusPlanned(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
 id: E01/T003
 status: in_progress
-phase: build
+stage: build
 ---
 
 # Body`
@@ -142,6 +145,9 @@ phase: build
 
 	if strings.Contains(string(result), "phase:") {
 		t.Error("phase field should be removed when status is planned")
+	}
+	if strings.Contains(string(result), "stage:") {
+		t.Error("stage field should be removed when status is planned")
 	}
 }
 
@@ -174,7 +180,7 @@ status: planned
 	}
 }
 
-func TestWriteTaskStatus_addsPhaseWhenStagePresent(t *testing.T) {
+func TestWriteTaskStatus_addsStageWhenStagePresent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
@@ -201,12 +207,15 @@ objective: "No phase yet"
 
 	result, _ := os.ReadFile(path)
 
-	if !strings.Contains(string(result), "phase: audit") {
-		t.Error("phase field should be added when stage is set")
+	if !strings.Contains(string(result), "stage: audit") {
+		t.Error("stage field should be added when stage is set")
+	}
+	if strings.Contains(string(result), "phase:") {
+		t.Error("legacy phase field should not be written")
 	}
 }
 
-func TestWriteTaskStatus_defaultsInProgressPhaseWhenStageMissing(t *testing.T) {
+func TestWriteTaskStatus_rejectsInProgressWhenStageMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
@@ -226,18 +235,16 @@ objective: "No phase yet"
 		Column: ColumnInProgress,
 	}
 
-	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
-		t.Fatalf("WriteTaskStatus() error = %v", err)
+	err := WriteTaskStatus(path, task, fi.ModTime())
+	if err == nil {
+		t.Fatal("WriteTaskStatus() expected missing stage error")
 	}
-
-	result, _ := os.ReadFile(path)
-
-	if !strings.Contains(string(result), "phase: build") {
-		t.Error("phase field should default to build for in_progress writes")
+	if !strings.Contains(err.Error(), "stage is required") {
+		t.Fatalf("WriteTaskStatus() error = %v, want missing stage message", err)
 	}
 }
 
-func TestWriteTaskStatus_removesLegacyStageField(t *testing.T) {
+func TestWriteTaskStatus_removesLegacyPhaseField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
@@ -264,11 +271,11 @@ objective: "Legacy mixed fields"
 	}
 
 	result, _ := os.ReadFile(path)
-	if strings.Contains(string(result), "stage:") {
-		t.Error("legacy stage field should be removed")
+	if strings.Contains(string(result), "phase:") {
+		t.Error("legacy phase field should be removed")
 	}
-	if !strings.Contains(string(result), "phase: test") {
-		t.Error("phase field should be updated to test")
+	if !strings.Contains(string(result), "stage: test") {
+		t.Error("stage field should be updated to test")
 	}
 	parsed, err := NewParser().ParseTaskFile(path, string(result))
 	if err != nil {

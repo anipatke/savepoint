@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	glyphBuild    = "▣"
-	glyphTest     = "◇"
-	glyphAudit    = "◆"
-	glyphWarning  = "⚠"
+	glyphBuild   = "▣"
+	glyphTest    = "◇"
+	glyphAudit   = "◆"
+	glyphWarning = "⚠"
 
 	cardOverhead = 4 // border (2) + padding (2×1)
 )
 
-// RenderCard renders a task card with phase glyph, truncated ID+title, and focus styling.
-// When router state matches t's release/epic/task, a green priority glyph replaces the phase glyph.
+// RenderCard renders a task card with stage glyph, truncated ID+title, and focus styling.
+// When router state matches t's release/epic/task, a green priority glyph replaces the stage glyph.
 // defectMarker is an optional compact string (e.g. "! D003") appended to the id line when width allows.
 func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterState, defectMarker string) string {
 	inner := width - cardOverhead
@@ -28,18 +28,18 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 	}
 
 	glyph := taskGlyph(t, routerState)
-	phase := taskPhaseText(t)
+	stage := taskStageText(t)
 	idWidth := inner - 2
-	if phase != "" {
-		idWidth -= lipgloss.Width(phase) + 1
+	if stage != "" {
+		idWidth -= lipgloss.Width(stage) + 1
 	}
 	if idWidth < 1 {
 		idWidth = 1
 	}
 
 	idLine := fmt.Sprintf("%s %s", glyph, truncate(shortID(t.ID), idWidth))
-	if phase != "" && lipgloss.Width(idLine)+1+lipgloss.Width(phase) <= inner {
-		idLine += " " + phase
+	if stage != "" && lipgloss.Width(idLine)+1+lipgloss.Width(stage) <= inner {
+		idLine += " " + stage
 	}
 	if defectMarker != "" {
 		markerStyled := styles.CardMeta.Render(defectMarker)
@@ -62,7 +62,7 @@ func RenderCard(t data.Task, width int, focused bool, routerState *data.RouterSt
 
 func taskGlyph(t data.Task, routerState *data.RouterState) string {
 	if t.Column == data.ColumnInProgress {
-		return phaseGlyphStyled(t.Stage)
+		return stageGlyphStyled(t.Stage)
 	}
 	if t.Column == data.ColumnDone {
 		return styles.GlyphBuild.Render(glyphBuild)
@@ -73,13 +73,13 @@ func taskGlyph(t data.Task, routerState *data.RouterState) string {
 	if t.Status != "" {
 		return statusGlyph(t.Status)
 	}
-	return phaseGlyphStyled(t.Stage)
+	return stageGlyphStyled(t.Stage)
 }
 
-func taskPhaseText(t data.Task) string {
+func taskStageText(t data.Task) string {
 	switch t.Column {
 	case data.ColumnInProgress:
-		return styles.CardMeta.Render(strings.ToUpper(phaseLabel(t.Stage)))
+		return styles.CardMeta.Render(strings.ToUpper(stageLabel(t.Stage)))
 	case data.ColumnDone:
 		return styles.CardMeta.Render("DONE")
 	default:
@@ -87,7 +87,7 @@ func taskPhaseText(t data.Task) string {
 	}
 }
 
-func phaseGlyphStyled(stage data.ProgressStage) string {
+func stageGlyphStyled(stage data.ProgressStage) string {
 	switch stage {
 	case data.StageTest:
 		return styles.GlyphTest.Render(glyphTest)
@@ -154,5 +154,3 @@ func complexityCardLabel(tier data.ComplexityTier) string {
 		return "· " + string(tier)
 	}
 }
-
-

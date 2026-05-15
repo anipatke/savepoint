@@ -356,7 +356,7 @@ func TestUpdate_spaceUsesSelectedReleaseWhenTaskIDsRepeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(rawV12), "status: in_progress") || !strings.Contains(string(rawV12), "phase: build") {
+	if !strings.Contains(string(rawV12), "status: in_progress") || !strings.Contains(string(rawV12), "stage: build") {
 		t.Fatalf("v1.2 task was not advanced:\n%s", rawV12)
 	}
 	if updated.AllTasks[0].Column != data.ColumnDone {
@@ -416,7 +416,7 @@ func TestUpdate_spaceRetriesAfterStaleMtimeWhenTaskUnchanged(t *testing.T) {
 
 func TestUpdate_spaceRefreshesAfterStaleMtimeWhenTaskChanged(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T004-task.md")
-	content := "---\nid: E05/T004\nstatus: in_progress\nphase: test\n---\n\n# Task\n"
+	content := "---\nid: E05/T004\nstatus: in_progress\nstage: test\n---\n\n# Task\n"
 	testutil.WriteFile(t, path, content)
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -465,7 +465,7 @@ func TestUpdate_ctrlRReloadsTasks(t *testing.T) {
 	}
 
 	path := filepath.Join(root, "releases", "v1", "epics", "E01", "tasks", "T001-refresh.md")
-	testutil.WriteFile(t, path, "---\nid: E01/T001-refresh\nstatus: in_progress\nphase: build\nobjective: Test task\n---\n\n# Task\n")
+	testutil.WriteFile(t, path, "---\nid: E01/T001-refresh\nstatus: in_progress\nstage: build\nobjective: Test task\n---\n\n# Task\n")
 
 	got, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
 	if cmd == nil {

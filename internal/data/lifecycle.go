@@ -13,17 +13,16 @@ func ValidateTaskLifecycle(task *Task) error {
 
 	if task.Column == ColumnInProgress {
 		if task.Stage == "" {
-			task.Stage = StageBuild
-			return nil
+			return fmt.Errorf("stage is required when task status is in_progress. Add 'stage: build' to task frontmatter")
 		}
 		if !IsCanonicalStage(task.Stage) {
-			return fmt.Errorf("invalid phase %q: use build, test, or audit. Add 'phase: build' to task frontmatter", task.Stage)
+			return fmt.Errorf("invalid stage %q: use build, test, or audit. Add 'stage: build' to task frontmatter", task.Stage)
 		}
 		return nil
 	}
 
 	if task.Stage != "" {
-		return fmt.Errorf("phase field %q is only valid when status is in_progress. Remove 'phase' or change status to in_progress", task.Stage)
+		return fmt.Errorf("stage field %q is only valid when status is in_progress. Remove 'stage' or change status to in_progress", task.Stage)
 	}
 
 	return nil

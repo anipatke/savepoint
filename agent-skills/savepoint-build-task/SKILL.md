@@ -23,14 +23,15 @@ Use this skill when router `state` is `task-building`, or `defect-building` for 
 ## Workflow
 
 1. Read the task acceptance criteria and implementation plan.
-2. Set the task frontmatter to `status: in_progress` and `stage: build` when starting.
-3. Mark the focused task as router priority in the TUI when available.
-4. Implement the checklist in order and tick completed items.
-5. Verify every acceptance criterion with a concrete outcome.
-6. Run `make build && make test`.
-7. Fill the task `## Context Log` with files read/edited and quality-gate results.
-8. Add `## Drift Notes` only if files/modules or architecture changed beyond the documented map/design.
-9. Stop for user review; only the user may mark the task `done`.
+2. Before editing code, verify task frontmatter uses canonical lifecycle fields: `status`, and `stage` only when `status: in_progress`.
+3. Set the task frontmatter to `status: in_progress` and `stage: build` when starting.
+4. Mark the focused task as router priority in the TUI when available.
+5. Implement the checklist in order and tick completed items.
+6. Verify every acceptance criterion with a concrete outcome.
+7. Run `make build && make test`.
+8. Fill the task `## Context Log` with files read/edited and quality-gate results.
+9. Add `## Drift Notes` only if files/modules or architecture changed beyond the documented map/design.
+10. Stop for user review; only the user may mark the task `done`.
 
 ## Rules
 

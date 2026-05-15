@@ -44,6 +44,14 @@ func SuggestRepair(err error) string {
 		return "Fix the YAML frontmatter between the --- delimiters"
 	case strings.Contains(msg, "task missing required frontmatter field"):
 		return "Add the missing field to the task frontmatter"
+	case strings.Contains(msg, "task uses legacy frontmatter field phase"):
+		return "Rename task frontmatter field phase to stage"
+	case strings.Contains(msg, "task stage is required"):
+		return "Add stage: build, stage: test, or stage: audit while status is in_progress"
+	case strings.Contains(msg, "task stage invalid"):
+		return "Set stage to build, test, or audit"
+	case strings.Contains(msg, "task stage field") && strings.Contains(msg, "only valid"):
+		return "Remove stage unless the task status is in_progress"
 	case strings.Contains(msg, "missing ## Acceptance Criteria"):
 		return "Add an ## Acceptance Criteria section with checkable items"
 	case strings.Contains(msg, "depends_on must be a list"):

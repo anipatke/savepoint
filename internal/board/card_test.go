@@ -224,7 +224,7 @@ func TestRenderCard_explicitStatusUsesUnifiedGlyph(t *testing.T) {
 	}
 }
 
-func TestRenderCard_inProgressShowsPhaseText(t *testing.T) {
+func TestRenderCard_inProgressShowsStageText(t *testing.T) {
 	tests := []struct {
 		name  string
 		stage data.ProgressStage
@@ -244,7 +244,7 @@ func TestRenderCard_inProgressShowsPhaseText(t *testing.T) {
 				t.Errorf("RenderCard missing phase label %q", tt.label)
 			}
 			if !strings.Contains(got, tt.glyph) {
-				t.Errorf("RenderCard missing phase glyph %q", tt.glyph)
+				t.Errorf("RenderCard missing stage glyph %q", tt.glyph)
 			}
 			if strings.Contains(got, "▶") {
 				t.Error("RenderCard should not use generic in_progress glyph when phase is available")

@@ -58,7 +58,7 @@ func TestParseTaskFile(t *testing.T) {
 	content := `---
 id: E02/T001
 status: in_progress
-phase: test
+stage: test
 objective: "Define Task struct"
 description: "Build the task model"
 priority: high
@@ -147,7 +147,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_allowsPhaseOutsideInProgress(t *testing.T) {
+func TestParseTaskFile_allowsLegacyPhaseOutsideInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -164,7 +164,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_includesDefaultBuildForInProgress(t *testing.T) {
+func TestParseTaskFile_rejectsMissingStageForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -174,16 +174,16 @@ objective: "Style the board"
 
 # Task`
 
-	task, err := p.ParseTaskFile("test.md", content)
-	if err != nil {
-		t.Fatalf("ParseTaskFile() error = %v", err)
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected missing stage error")
 	}
-	if task.Stage != StageBuild {
-		t.Fatalf("ParseTaskFile() expected StageBuild default, got %q", task.Stage)
+	if !strings.Contains(err.Error(), "stage is required") {
+		t.Fatalf("ParseTaskFile() error = %v, want missing stage message", err)
 	}
 }
 
-func TestParseTaskFile_prefersPhaseOverLegacyStage(t *testing.T) {
+func TestParseTaskFile_prefersCanonicalStageOverLegacyPhase(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -199,8 +199,68 @@ objective: "Style the board"
 	if err != nil {
 		t.Fatalf("ParseTaskFile() error = %v", err)
 	}
+	if task.Stage != StageBuild {
+		t.Fatalf("Task.Stage = %q, want build from canonical stage", task.Stage)
+	}
+}
+
+func TestParseTaskFile_readsLegacyPhaseForInProgress(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E06/T001
+status: in_progress
+phase: test
+objective: "Style the board"
+---
+
+# Task`
+
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
 	if task.Stage != StageTest {
-		t.Fatalf("Task.Stage = %q, want test from phase", task.Stage)
+		t.Fatalf("Task.Stage = %q, want test from legacy phase", task.Stage)
+	}
+}
+
+func TestParseTaskFile_rejectsInvalidLegacyPhaseForInProgress(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E06/T001
+status: in_progress
+phase: done
+objective: "Style the board"
+---
+
+# Task`
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected invalid stage error")
+	}
+	if !strings.Contains(err.Error(), `invalid stage "done"`) {
+		t.Fatalf("ParseTaskFile() error = %v, want invalid stage done message", err)
+	}
+}
+
+func TestParseTaskFile_rejectsStageOutsideInProgress(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E06/T001
+status: planned
+stage: build
+objective: "Style the board"
+---
+
+# Task`
+
+	_, err := p.ParseTaskFile("test.md", content)
+	if err == nil {
+		t.Fatal("ParseTaskFile() expected stage/status error")
+	}
+	if !strings.Contains(err.Error(), "stage field") {
+		t.Fatalf("ParseTaskFile() error = %v, want stage field message", err)
 	}
 }
 

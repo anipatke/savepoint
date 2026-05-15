@@ -61,10 +61,10 @@ func TestRenderDetail_containsStatus(t *testing.T) {
 	}
 }
 
-func TestRenderDetail_containsPhase(t *testing.T) {
+func TestRenderDetail_containsStage(t *testing.T) {
 	got := RenderDetail(sampleTask(), 60, nil, 0, 0)
 	if !strings.Contains(got, "build") {
-		t.Error("RenderDetail missing phase")
+		t.Error("RenderDetail missing stage")
 	}
 }
 
@@ -185,27 +185,27 @@ func TestRenderDetail_noAcceptanceSectionWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestPhaseLabel_build(t *testing.T) {
-	if got := phaseLabel(data.StageBuild); got != "build" {
-		t.Errorf("phaseLabel(StageBuild) = %q, want %q", got, "build")
+func TestStageLabel_build(t *testing.T) {
+	if got := stageLabel(data.StageBuild); got != "build" {
+		t.Errorf("stageLabel(StageBuild) = %q, want %q", got, "build")
 	}
 }
 
-func TestPhaseLabel_test(t *testing.T) {
-	if got := phaseLabel(data.StageTest); got != "test" {
-		t.Errorf("phaseLabel(StageTest) = %q, want %q", got, "test")
+func TestStageLabel_test(t *testing.T) {
+	if got := stageLabel(data.StageTest); got != "test" {
+		t.Errorf("stageLabel(StageTest) = %q, want %q", got, "test")
 	}
 }
 
-func TestPhaseLabel_audit(t *testing.T) {
-	if got := phaseLabel(data.StageAudit); got != "audit" {
-		t.Errorf("phaseLabel(StageAudit) = %q, want %q", got, "audit")
+func TestStageLabel_audit(t *testing.T) {
+	if got := stageLabel(data.StageAudit); got != "audit" {
+		t.Errorf("stageLabel(StageAudit) = %q, want %q", got, "audit")
 	}
 }
 
-func TestPhaseLabel_default(t *testing.T) {
-	if got := phaseLabel(""); got != "build" {
-		t.Errorf("phaseLabel(%q) = %q, want %q", "", got, "build")
+func TestStageLabel_default(t *testing.T) {
+	if got := stageLabel(""); got != "build" {
+		t.Errorf("stageLabel(%q) = %q, want %q", "", got, "build")
 	}
 }
 

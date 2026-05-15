@@ -173,7 +173,7 @@ func writeTask(t *testing.T, root, release, epic, taskSlug string, column data.C
 		Objective: "Test task",
 	}
 	if column == data.ColumnInProgress {
-		tf.Phase = "build"
+		tf.Stage = "build"
 	}
 	testutil.WriteTask(t, root, release, epic, tf)
 }
@@ -231,7 +231,7 @@ func writeTaskWithoutRelease(t *testing.T, root, release, epic, taskSlug string,
 		Objective: "Test task",
 	}
 	if column == data.ColumnInProgress {
-		tf.Phase = "build"
+		tf.Stage = "build"
 	}
 	testutil.WriteTask(t, root, release, epic, tf)
 }

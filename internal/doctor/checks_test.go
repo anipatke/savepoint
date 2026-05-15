@@ -232,6 +232,121 @@ func TestCheckStructure_ValidTask(t *testing.T) {
 	}
 }
 
+func TestCheckStructure_TaskInProgressMissingStage(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: in_progress\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage is required") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want missing task stage problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskInvalidStage(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: in_progress\nstage: done\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage invalid") && strings.Contains(p.Message, "done") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want invalid task stage problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskStageOutsideInProgress(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nstage: build\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage field") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want stage outside in_progress problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskLegacyPhaseField(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: in_progress\nphase: build\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "legacy frontmatter field phase") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want legacy phase problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskLegacyPhaseDoneReportsInvalidStage(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: in_progress\nphase: done\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage invalid") && strings.Contains(p.Message, "done") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want invalid legacy phase stage problem", problems)
+	}
+}
+
 func TestCheckStructure_TaskMissingRequiredField(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")

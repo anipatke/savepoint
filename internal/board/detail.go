@@ -29,7 +29,7 @@ func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxH
 		detailRow("Epic", t.Epic, inner),
 		detailRow("Release", t.Release, inner),
 		detailRow("Status", string(t.Column), inner),
-		detailRow("Phase", phaseLabel(t.Stage), inner),
+		detailRow("Stage", stageLabel(t.Stage), inner),
 	}
 	if t.ComplexityTier != "" {
 		complexityVal := string(t.ComplexityTier)
@@ -211,7 +211,7 @@ func detailRow(label, value string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func phaseLabel(s data.ProgressStage) string {
+func stageLabel(s data.ProgressStage) string {
 	switch s {
 	case data.StageTest:
 		return "test"
@@ -221,5 +221,3 @@ func phaseLabel(s data.ProgressStage) string {
 		return "build"
 	}
 }
-
-
