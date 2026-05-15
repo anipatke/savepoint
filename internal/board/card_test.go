@@ -199,31 +199,6 @@ func TestRenderCard_doneTaskUsesOrangeBuildGlyph(t *testing.T) {
 	}
 }
 
-func TestRenderCard_explicitStatusUsesUnifiedGlyph(t *testing.T) {
-	tests := []struct {
-		name   string
-		status string
-		glyph  string
-	}{
-		{"planned", string(data.ColumnPlanned), "○"},
-		{"done", string(data.ColumnDone), "◉"},
-		{"audited", "audited", "✓"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			task := data.Task{ID: "T1", Status: string(tt.status), Stage: data.StageAudit}
-			got := RenderCard(task, 30, false, nil, "")
-			if !strings.Contains(got, tt.glyph) {
-				t.Errorf("RenderCard with status %q missing glyph %q", tt.status, tt.glyph)
-			}
-			if strings.Contains(got, glyphAudit) {
-				t.Errorf("RenderCard with status %q should not fall back to audit glyph", tt.status)
-			}
-		})
-	}
-}
-
 func TestRenderCard_inProgressShowsStageText(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -238,7 +213,7 @@ func TestRenderCard_inProgressShowsStageText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := data.Task{ID: "T1", Column: data.ColumnInProgress, Status: string(data.ColumnInProgress), Stage: tt.stage}
+			task := data.Task{ID: "T1", Column: data.ColumnInProgress, Stage: tt.stage}
 			got := RenderCard(task, 30, false, nil, "")
 			if !strings.Contains(got, tt.label) {
 				t.Errorf("RenderCard missing phase label %q", tt.label)
@@ -254,7 +229,7 @@ func TestRenderCard_inProgressShowsStageText(t *testing.T) {
 }
 
 func TestRenderCard_doneShowsDoneText(t *testing.T) {
-	task := data.Task{ID: "T1", Column: data.ColumnDone, Status: string(data.ColumnDone)}
+	task := data.Task{ID: "T1", Column: data.ColumnDone}
 	got := RenderCard(task, 30, false, nil, "")
 	if !strings.Contains(got, "DONE") {
 		t.Error("RenderCard missing DONE phase label")

@@ -286,6 +286,51 @@ objective: "Legacy mixed fields"
 	}
 }
 
+func TestWriteTaskStatus_removesLegacyImplementationFieldsOutsideInProgress(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E01/T011
+status: done
+stage: implementation
+phase: implementation
+objective: "Legacy completed task"
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:     "E01/T011",
+		Column: ColumnDone,
+	}
+
+	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if strings.Contains(string(result), "phase:") {
+		t.Error("legacy phase field should be removed")
+	}
+	if strings.Contains(string(result), "stage:") {
+		t.Error("stale stage field should be removed")
+	}
+
+	parsed, err := NewParser().ParseTaskFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if parsed.Column != ColumnDone {
+		t.Errorf("Column = %q, want done", parsed.Column)
+	}
+	if parsed.Stage != "" {
+		t.Errorf("Stage = %q, want empty", parsed.Stage)
+	}
+}
+
 func TestWriteTaskStatus_preservesBodyWithMultipleLines(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
@@ -626,6 +671,34 @@ status: planned
 	err := WriteTaskStatus(path, task, fi.ModTime())
 	if err == nil {
 		t.Fatal("WriteTaskStatus() expected invalid lifecycle error")
+	}
+}
+
+func TestWriteTaskStatus_rejectsImplementationStageForInProgress(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E01/T012
+status: planned
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:     "E01/T012",
+		Column: ColumnInProgress,
+		Stage:  LegacyTaskStageImplementation,
+	}
+
+	err := WriteTaskStatus(path, task, fi.ModTime())
+	if err == nil {
+		t.Fatal("WriteTaskStatus() expected invalid stage error")
+	}
+	if !strings.Contains(err.Error(), `invalid stage "implementation"`) {
+		t.Fatalf("WriteTaskStatus() error = %v, want invalid implementation stage message", err)
 	}
 }
 

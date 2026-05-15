@@ -37,6 +37,7 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	for _, canonical := range []string{
 		"The phase skill is the canonical workflow source.",
 		"Task `stage` (build/test/audit): **required** when `status: in_progress`",
+		"Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.",
 		"Only the user may set a task to `status: done`",
 		"Never run `savepoint` commands.",
 		"make build && make test",
@@ -85,22 +86,29 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 
 func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 	root := filepath.Join("..", "..")
+	liveAgents := readTemplate(t, root, "AGENTS.md")
 	agents := readTemplate(t, root, "templates", "project", "AGENTS.md")
 	router := readTemplate(t, root, "templates", "project", ".savepoint", "router.md")
+	liveBuildSkill := readTemplate(t, root, "agent-skills", "savepoint-build-task", "SKILL.md")
 	buildSkill := readTemplate(t, root, "templates", "project", "agent-skills", "savepoint-build-task", "SKILL.md")
 
-	for _, content := range []string{agents, router, buildSkill} {
+	for _, content := range []string{liveAgents, agents, router, liveBuildSkill, buildSkill} {
 		assertNotContains(t, content, "status: todo")
 		assertNotContains(t, content, "status: doing")
 		assertNotContains(t, content, "status: blocked")
 		assertNotContains(t, content, "status: review")
 		assertNotContains(t, content, "status: audit")
+		assertNotContains(t, content, "phase: build")
+		assertNotContains(t, content, "phase: test")
+		assertNotContains(t, content, "phase: audit")
+		assertNotContains(t, content, "phase: implementation")
 		assertNotContains(t, content, "`phase` (build/test/audit)")
 		assertNotContains(t, content, "prompt-based phase")
 	}
 
 	assertContains(t, agents, "Task `stage` (build/test/audit): **required** when `status: in_progress`")
 	assertContains(t, buildSkill, "Set the task frontmatter to `status: in_progress` and `stage: build`")
+	assertContains(t, buildSkill, "legacy task `phase` as parser compatibility only")
 }
 
 func readTemplate(t *testing.T, root string, parts ...string) string {

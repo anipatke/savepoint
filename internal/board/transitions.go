@@ -6,52 +6,16 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
-// Advance moves a task forward through the phase lifecycle.
-func Advance(t *data.Task) {
-	stage := t.Stage
-	if stage == "" {
-		stage = data.StageBuild
-	}
-	switch t.Column {
-	case data.ColumnPlanned:
-		t.Column = data.ColumnInProgress
-		t.Stage = data.StageBuild
-	case data.ColumnInProgress:
-		switch stage {
-		case data.StageBuild:
-			t.Stage = data.StageTest
-		case data.StageTest:
-			t.Stage = data.StageAudit
-		case data.StageAudit:
-			t.Column = data.ColumnDone
-			t.Stage = ""
-		}
-	}
-	t.Status = string(t.Column)
+// Advance moves a task forward through the task lifecycle.
+func Advance(t *data.Task) error {
+	_, err := data.AdvanceTaskLifecycle(t)
+	return err
 }
 
-// Retreat moves a task backward through the phase lifecycle.
-func Retreat(t *data.Task) {
-	stage := t.Stage
-	if stage == "" {
-		stage = data.StageBuild
-	}
-	switch t.Column {
-	case data.ColumnDone:
-		t.Column = data.ColumnInProgress
-		t.Stage = data.StageAudit
-	case data.ColumnInProgress:
-		switch stage {
-		case data.StageAudit:
-			t.Stage = data.StageTest
-		case data.StageTest:
-			t.Stage = data.StageBuild
-		case data.StageBuild:
-			t.Column = data.ColumnPlanned
-			t.Stage = ""
-		}
-	}
-	t.Status = string(t.Column)
+// Retreat moves a task backward through the task lifecycle.
+func Retreat(t *data.Task) error {
+	_, err := data.RetreatTaskLifecycle(t)
+	return err
 }
 
 func taskTransitionMessage(prefix string, task data.Task) string {
@@ -73,19 +37,17 @@ func CanAdvance(t *data.Task, allTasks []data.Task, epicStatuses ...map[string]s
 	case data.ColumnPlanned:
 		return dependenciesDone(t, allTasks, scopedEpicStatuses)
 	case data.ColumnInProgress:
-		stage := t.Stage
-		if stage == "" {
-			stage = data.StageBuild
+		next, err := data.AdvanceTaskLifecycleState(data.TaskLifecycleStateFromTask(*t))
+		if err != nil {
+			return false, err.Error()
 		}
-		switch stage {
-		case data.StageBuild:
+		switch next.Status {
+		case data.ColumnInProgress:
 			return true, ""
-		case data.StageTest:
-			return true, ""
-		case data.StageAudit:
+		case data.ColumnDone:
 			return dependenciesDone(t, allTasks, scopedEpicStatuses)
 		default:
-			return false, fmt.Sprintf("unknown stage %q", stage)
+			return false, fmt.Sprintf("unknown column %q", next.Status)
 		}
 	case data.ColumnDone:
 		return false, "task is already done"

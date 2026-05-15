@@ -23,12 +23,11 @@ func TestAdvance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			task := data.Task{Column: tt.initialCol, Stage: tt.initialSt}
-			Advance(&task)
+			if err := Advance(&task); err != nil {
+				t.Fatalf("Advance() error = %v", err)
+			}
 			if task.Column != tt.expectCol || task.Stage != tt.expectSt {
 				t.Errorf("Advance() = %v/%v, want %v/%v", task.Column, task.Stage, tt.expectCol, tt.expectSt)
-			}
-			if task.Status != string(tt.expectCol) {
-				t.Errorf("Advance() status = %q, want %q", task.Status, tt.expectCol)
 			}
 		})
 	}
@@ -50,15 +49,35 @@ func TestRetreat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := data.Task{Status: string(tt.initialCol), Column: tt.initialCol, Stage: tt.initialSt}
-			Retreat(&task)
+			task := data.Task{Column: tt.initialCol, Stage: tt.initialSt}
+			if err := Retreat(&task); err != nil {
+				t.Fatalf("Retreat() error = %v", err)
+			}
 			if task.Column != tt.expectCol || task.Stage != tt.expectSt {
 				t.Errorf("Retreat() = %v/%v, want %v/%v", task.Column, task.Stage, tt.expectCol, tt.expectSt)
 			}
-			if task.Status != string(tt.expectCol) {
-				t.Errorf("Retreat() status = %q, want %q", task.Status, tt.expectCol)
-			}
 		})
+	}
+}
+
+func TestAdvance_returnsLifecycleErrorForInvalidState(t *testing.T) {
+	task := data.Task{ID: "T1", Column: data.ColumnInProgress, Stage: data.ProgressStage("review")}
+	err := Advance(&task)
+	if err == nil {
+		t.Fatal("Advance() expected error")
+	}
+	if err.Error() != `unknown stage "review"` {
+		t.Fatalf("Advance() error = %v, want unknown stage", err)
+	}
+}
+
+func TestAdvance_clearsLegacyLoadedStaleStage(t *testing.T) {
+	task := data.Task{ID: "T1", Column: data.ColumnPlanned, Stage: data.StageAudit}
+	if err := Advance(&task); err != nil {
+		t.Fatalf("Advance() error = %v", err)
+	}
+	if task.Column != data.ColumnInProgress || task.Stage != data.StageBuild {
+		t.Fatalf("Advance() = %q/%q, want in_progress/build", task.Column, task.Stage)
 	}
 }
 
@@ -226,6 +245,39 @@ func TestCanAdvance_auditDoneAllowedWhenDepsDone(t *testing.T) {
 	ok, reason := CanAdvance(&allTasks[0], allTasks)
 	if !ok {
 		t.Errorf("CanAdvance(audit with dep done) = false %q, want true", reason)
+	}
+}
+
+func TestCanAdvance_auditDoneBlockedByUnauditedEpicDependency(t *testing.T) {
+	task := data.Task{
+		ID:        "E06-current/T004-current",
+		Release:   "v1",
+		Epic:      "E06-current",
+		Column:    data.ColumnInProgress,
+		Stage:     data.StageAudit,
+		DependsOn: []string{"E03"},
+	}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E03-prereq": "planned"})
+	if ok {
+		t.Fatal("CanAdvance(audit with unaudited epic dep) = true, want false")
+	}
+	if reason != "dependency \"E03\" is not audited" {
+		t.Errorf("reason = %q, want epic audit warning", reason)
+	}
+}
+
+func TestCanAdvance_auditDoneAllowedWhenEpicDependencyAudited(t *testing.T) {
+	task := data.Task{
+		ID:        "E06-current/T004-current",
+		Release:   "v1",
+		Epic:      "E06-current",
+		Column:    data.ColumnInProgress,
+		Stage:     data.StageAudit,
+		DependsOn: []string{"E03"},
+	}
+	ok, reason := CanAdvance(&task, nil, map[string]string{"E03-prereq": "audited"})
+	if !ok {
+		t.Errorf("CanAdvance(audit with audited epic dep) = false %q, want true", reason)
 	}
 }
 

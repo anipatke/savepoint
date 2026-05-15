@@ -45,7 +45,7 @@ func SuggestRepair(err error) string {
 	case strings.Contains(msg, "task missing required frontmatter field"):
 		return "Add the missing field to the task frontmatter"
 	case strings.Contains(msg, "task uses legacy frontmatter field phase"):
-		return "Rename task frontmatter field phase to stage"
+		return "Use stage: build, stage: test, or stage: audit only while status is in_progress; otherwise remove phase"
 	case strings.Contains(msg, "task stage is required"):
 		return "Add stage: build, stage: test, or stage: audit while status is in_progress"
 	case strings.Contains(msg, "task stage invalid"):

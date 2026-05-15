@@ -414,6 +414,50 @@ func TestUpdate_spaceRetriesAfterStaleMtimeWhenTaskUnchanged(t *testing.T) {
 	}
 }
 
+func TestUpdate_spaceRetriesAfterStaleMtimeWithLegacyLoadedStaleStage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "T004-task.md")
+	content := "---\nid: E05/T004\nstatus: planned\n---\n\n# Task\n"
+	testutil.WriteFile(t, path, content)
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := []data.Task{{
+		ID:      "E05/T004",
+		Column:  data.ColumnPlanned,
+		Stage:   data.StageAudit,
+		Path:    path,
+		Mtime:   fi.ModTime().Add(-time.Hour),
+		Release: "v1.1",
+		Epic:    "E05",
+	}}
+	m := NewModel(tasks, "v1.1", "E05")
+	m.FocusedColumn = data.ColumnPlanned
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	msg := cmd()
+	if _, ok := msg.(taskWriteMsg); !ok {
+		t.Fatalf("expected taskWriteMsg after lifecycle-equivalent retry, got %T", msg)
+	}
+	got2, _ := requireModel(t, got).Update(msg)
+	updated := requireModel(t, got2)
+
+	if updated.StatusMessage != "Moved T004 to build" {
+		t.Fatalf("StatusMessage = %q", updated.StatusMessage)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := data.NewParser().ParseTaskFile(path, string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Column != data.ColumnInProgress || parsed.Stage != data.StageBuild {
+		t.Errorf("persisted state = %q/%q, want in_progress/build", parsed.Column, parsed.Stage)
+	}
+}
+
 func TestUpdate_spaceRefreshesAfterStaleMtimeWhenTaskChanged(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "T004-task.md")
 	content := "---\nid: E05/T004\nstatus: in_progress\nstage: test\n---\n\n# Task\n"
@@ -484,7 +528,7 @@ func TestUpdate_ctrlRReloadsTasks(t *testing.T) {
 }
 
 func TestUpdate_backspaceShowsRetreatMessageAndSyncsStatus(t *testing.T) {
-	tasks := []data.Task{{ID: "E05/T004", Status: string(data.ColumnDone), Column: data.ColumnDone}}
+	tasks := []data.Task{{ID: "E05/T004", Column: data.ColumnDone}}
 	m := NewModel(tasks, "v1.1", "E05")
 	m.FocusedColumn = data.ColumnDone
 
@@ -499,9 +543,6 @@ func TestUpdate_backspaceShowsRetreatMessageAndSyncsStatus(t *testing.T) {
 	}
 	if updated.AllTasks[0].Stage != data.StageAudit {
 		t.Errorf("Stage = %q, want audit", updated.AllTasks[0].Stage)
-	}
-	if updated.AllTasks[0].Status != string(data.ColumnInProgress) {
-		t.Errorf("Status = %q, want in_progress", updated.AllTasks[0].Status)
 	}
 }
 

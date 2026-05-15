@@ -25,7 +25,7 @@ func TestSuggestRepair(t *testing.T) {
 		{Problem{Message: "epic detail file not found"}, "Create an E##-Detail.md"},
 		{Problem{Message: "invalid frontmatter: yaml: line 5:"}, "Fix the YAML frontmatter"},
 		{Problem{Message: "task missing required frontmatter field: status"}, "Add the missing field"},
-		{Problem{Message: "task uses legacy frontmatter field phase"}, "Rename task frontmatter field phase"},
+		{Problem{Message: "task uses legacy frontmatter field phase"}, "Use stage: build"},
 		{Problem{Message: "task stage is required when status is in_progress"}, "Add stage: build"},
 		{Problem{Message: "task stage invalid: invalid stage \"done\""}, "Set stage to build"},
 		{Problem{Message: "task stage field \"build\" is only valid when status is in_progress"}, "Remove stage"},

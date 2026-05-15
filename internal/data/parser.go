@@ -40,15 +40,24 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		return nil, fmt.Errorf("parse error for %s: failed to parse YAML: %w", path, err)
 	}
 
-	rawColumn := firstColumn(fields.Column, fields.Status)
+	lifecycle, err := ParseTaskLifecycle(TaskLifecycleMetadata{
+		Status: fields.Status,
+		Column: fields.Column,
+		Stage:  fields.Stage,
+		Phase:  fields.Phase,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
 	task := &Task{
 		ID:               fields.ID,
 		Title:            firstNonEmpty(fields.Title, fields.Objective),
 		Description:      fields.Description,
 		Epic:             firstNonEmpty(fields.Epic, extractEpicFromID(fields.ID)),
 		Release:          firstNonEmpty(fields.Release, "v1"),
-		Column:           normalizeColumn(rawColumn),
-		Stage:            firstStage(fields.Stage, fields.Phase),
+		Column:           lifecycle.Status,
+		Stage:            lifecycle.Stage,
 		Priority:         fields.Priority,
 		Points:           fields.Points,
 		Tags:             fields.Tags,
@@ -59,10 +68,6 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		Progress:         fields.Progress,
 		ComplexityTier:   fields.ComplexityTier,
 		ComplexityReason: fields.ComplexityReason,
-	}
-
-	if err := validateParsedTaskLifecycle(rawColumn, *task, fields.Stage, fields.Phase); err != nil {
-		return nil, fmt.Errorf("parse error for %s: %w", path, err)
 	}
 
 	if err := ValidateComplexity(task.ComplexityTier, task.ComplexityReason); err != nil {
@@ -123,59 +128,6 @@ func extractEpicFromID(id string) string {
 }
 
 func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func firstColumn(values ...ColumnType) ColumnType {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func normalizeColumn(value ColumnType) ColumnType {
-	switch value {
-	case "", legacyTodoColumn:
-		return ColumnPlanned
-	case ColumnPlanned, ColumnInProgress, ColumnDone:
-		return value
-	default:
-		return value
-	}
-}
-
-const legacyTodoColumn ColumnType = "todo"
-
-func validateParsedTaskLifecycle(rawColumn ColumnType, task Task, stage ProgressStage, phase ProgressStage) error {
-	if rawColumn != "" && rawColumn != legacyTodoColumn && !IsCanonicalColumn(rawColumn) {
-		return fmt.Errorf("invalid task status %q: use planned, in_progress, or done. Add 'status: planned' or 'status: in_progress' to task frontmatter", rawColumn)
-	}
-	if task.Column == ColumnInProgress {
-		if task.Stage == "" {
-			return fmt.Errorf("stage is required when task status is in_progress. Add 'stage: build' to task frontmatter")
-		}
-		if !IsCanonicalStage(task.Stage) {
-			return fmt.Errorf("invalid stage %q: use build, test, or audit. Add 'stage: build' to task frontmatter", task.Stage)
-		}
-		return nil
-	}
-	if stage != "" {
-		return fmt.Errorf("stage field %q is only valid when status is in_progress. Remove 'stage' or change status to in_progress", stage)
-	}
-	if phase != "" && !IsCanonicalStage(phase) {
-		return fmt.Errorf("invalid legacy phase %q: use build, test, or audit, or remove 'phase'", phase)
-	}
-	return nil
-}
-
-func firstStage(values ...ProgressStage) ProgressStage {
 	for _, value := range values {
 		if value != "" {
 			return value

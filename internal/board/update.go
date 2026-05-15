@@ -229,7 +229,10 @@ func (m Model) handleAdvanceTask() (tea.Model, tea.Cmd) {
 		for i, t := range m.AllTasks {
 			if sameTaskRecord(t, task) {
 				next := m.AllTasks[i]
-				Advance(&next)
+				if err := Advance(&next); err != nil {
+					m.StatusMessage = err.Error()
+					return m, nil
+				}
 				if next.Path != "" {
 					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved")
 				}
@@ -266,7 +269,10 @@ func (m Model) handleRetreatTask() (tea.Model, tea.Cmd) {
 		for i, t := range m.AllTasks {
 			if sameTaskRecord(t, task) {
 				next := m.AllTasks[i]
-				Retreat(&next)
+				if err := Retreat(&next); err != nil {
+					m.StatusMessage = err.Error()
+					return m, nil
+				}
 				if next.Path != "" {
 					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved back")
 				}

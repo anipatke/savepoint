@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -301,6 +302,52 @@ func TestCheckStructure_TaskStageOutsideInProgress(t *testing.T) {
 	}
 }
 
+func TestCheckStructure_TaskImplementationStageOutsideInProgress(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: planned\nstage: implementation\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage field") && strings.Contains(p.Message, "implementation") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want implementation stage outside in_progress problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskImplementationPhaseOutsideInProgress(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: done\nphase: implementation\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "legacy frontmatter field phase") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want legacy implementation phase problem", problems)
+	}
+}
+
 func TestCheckStructure_TaskLegacyPhaseField(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")
@@ -344,6 +391,55 @@ func TestCheckStructure_TaskLegacyPhaseDoneReportsInvalidStage(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("CheckStructure() = %v, want invalid legacy phase stage problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskLegacyImplementationPhaseReportsInvalidStage(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	testutil.WriteFile(t, filepath.Join(tasksPath, "T001-task.md"), "---\nid: E01-foo/T001-task\nstatus: in_progress\nphase: implementation\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n")
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task stage invalid") && strings.Contains(p.Message, "implementation") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want invalid legacy implementation phase problem", problems)
+	}
+}
+
+func TestCheckStructure_TaskLifecycleDiagnosticsAreReadOnly(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	tasksPath := filepath.Join(epicPath, "tasks")
+	taskPath := filepath.Join(tasksPath, "T001-task.md")
+	testutil.MkdirAll(t, tasksPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: planned\n---\n\n# E01: Foo\n")
+	content := "---\nid: E01-foo/T001-task\nstatus: done\nstage: implementation\nphase: implementation\nobjective: \"Do the thing\"\ndepends_on: []\n---\n\n# T001: Task\n\n## Acceptance Criteria\n\n- It works\n"
+	testutil.WriteFile(t, taskPath, content)
+
+	problems := CheckStructure(root, "")
+	if len(problems) == 0 {
+		t.Fatal("CheckStructure() expected lifecycle problems")
+	}
+
+	after, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != content {
+		t.Fatalf("CheckStructure() changed task content:\n%s", string(after))
 	}
 }
 

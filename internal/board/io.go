@@ -144,8 +144,7 @@ func readTaskFromDisk(path, release, epic string) (data.Task, error) {
 
 func sameTransitionBase(orig, current data.Task) bool {
 	return orig.ID == current.ID &&
-		orig.Column == current.Column &&
-		orig.Stage == current.Stage
+		data.SameTaskLifecycleForTransition(orig, current)
 }
 
 func sameTaskRecord(a, b data.Task) bool {

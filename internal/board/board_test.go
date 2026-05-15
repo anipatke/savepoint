@@ -1,10 +1,12 @@
 package board
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
 )
@@ -84,6 +86,58 @@ func TestNewProjectModelUsesPathReleaseForTaskWithoutReleaseFrontmatter(t *testi
 	}
 	if model.Watcher != nil {
 		t.Cleanup(func() { model.Watcher.Close() })
+	}
+}
+
+func TestNewProjectModelLoadsLegacyImplementationStageOutsideInProgress(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-live", "", "test")
+	testutil.WriteTask(t, savepointRoot, "v1", "E01-live", testutil.TaskFixture{
+		Slug:      "T001-legacy-stage",
+		Release:   "v1",
+		Status:    string(data.ColumnPlanned),
+		Stage:     "implementation",
+		Objective: "Test task",
+	})
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel() error = %v", err)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+
+	tasks := model.Tasks[data.ColumnPlanned]
+	if len(tasks) != 1 {
+		t.Fatalf("planned tasks = %v, want one legacy task", tasks)
+	}
+	if tasks[0].Stage != "" {
+		t.Fatalf("Task.Stage = %q, want empty for planned legacy task", tasks[0].Stage)
+	}
+
+	model.FocusedColumn = data.ColumnPlanned
+	got, cmd := model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd == nil {
+		t.Fatal("space on legacy planned task returned nil command")
+	}
+	msg := cmd()
+	got2, _ := requireModel(t, got).Update(msg)
+	updated := requireModel(t, got2)
+
+	if updated.AllTasks[0].Column != data.ColumnInProgress || updated.AllTasks[0].Stage != data.StageBuild {
+		t.Fatalf("updated task = %q/%q, want in_progress/build", updated.AllTasks[0].Column, updated.AllTasks[0].Stage)
+	}
+	raw, err := os.ReadFile(updated.AllTasks[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "implementation") {
+		t.Fatalf("legacy implementation stage was not repaired:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "stage: build") {
+		t.Fatalf("advanced task missing canonical stage:\n%s", raw)
 	}
 }
 

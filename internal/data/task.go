@@ -46,7 +46,6 @@ type Task struct {
 	ID               string         `yaml:"id"`
 	Title            string         `yaml:"title"`
 	Description      string         `yaml:"description,omitempty"`
-	Status           string         `yaml:"status,omitempty"`
 	Epic             string         `yaml:"epic"`
 	Release          string         `yaml:"release"`
 	Column           ColumnType     `yaml:"column"`

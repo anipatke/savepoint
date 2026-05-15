@@ -208,7 +208,6 @@ func checkTaskFile(path string, parser taskParser, problems *[]Problem) {
 	}
 
 	checkRequiredString(fm, path, "id", problems)
-	checkRequiredString(fm, path, "status", problems)
 	checkRequiredString(fm, path, "objective", problems)
 	checkDependsOn(fm, path, problems)
 	checkTaskLifecycle(fm, path, problems)
@@ -220,39 +219,21 @@ func checkTaskFile(path string, parser taskParser, problems *[]Problem) {
 }
 
 func checkTaskLifecycle(fm map[string]any, path string, problems *[]Problem) {
-	status, _ := fm["status"].(string)
-	if status == "" {
-		return
-	}
-	if !data.IsCanonicalColumn(data.ColumnType(status)) && status != "todo" {
-		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("task status invalid: invalid task status %q; use planned, in_progress, or done", status)})
-		return
-	}
-
-	stage, _ := fm["stage"].(string)
+	status, hasStatus := fm["status"].(string)
+	stage, hasStage := fm["stage"].(string)
 	phase, hasPhase := fm["phase"].(string)
-	if hasPhase {
-		*problems = append(*problems, Problem{File: path, Message: "task uses legacy frontmatter field phase; rename phase to stage"})
-	}
-
-	effectiveStage := stage
-	if effectiveStage == "" {
-		effectiveStage = phase
-	}
-
-	if status == string(data.ColumnInProgress) {
-		if effectiveStage == "" {
-			*problems = append(*problems, Problem{File: path, Message: "task stage is required when status is in_progress"})
-			return
-		}
-		if !data.IsCanonicalStage(data.ProgressStage(effectiveStage)) {
-			*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("task stage invalid: invalid stage %q; use build, test, or audit", effectiveStage)})
-		}
-		return
-	}
-
-	if stage != "" {
-		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("task stage field %q is only valid when status is in_progress", stage)})
+	diagnostics := data.DiagnoseTaskLifecycle(data.TaskLifecycleDiagnosticInput{
+		Metadata: data.TaskLifecycleMetadata{
+			Status: data.ColumnType(status),
+			Stage:  data.ProgressStage(stage),
+			Phase:  data.ProgressStage(phase),
+		},
+		HasStatus: hasStatus,
+		HasStage:  hasStage,
+		HasPhase:  hasPhase,
+	})
+	for _, diagnostic := range diagnostics {
+		*problems = append(*problems, Problem{File: path, Message: diagnostic.Message})
 	}
 }
 

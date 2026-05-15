@@ -70,9 +70,6 @@ func taskGlyph(t data.Task, routerState *data.RouterState) string {
 	if isRouterPriority(t, routerState) {
 		return styles.TagDone.Render(glyphBuild)
 	}
-	if t.Status != "" {
-		return statusGlyph(t.Status)
-	}
 	return stageGlyphStyled(t.Stage)
 }
 
