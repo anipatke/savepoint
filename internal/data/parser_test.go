@@ -286,7 +286,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_rejectsLegacyImplementationPhaseForInProgress(t *testing.T) {
+func TestParseTaskFile_normalizesLegacyImplementationPhaseForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -297,16 +297,16 @@ objective: "Style the board"
 
 # Task`
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected invalid legacy phase error")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), `invalid stage "implementation"`) {
-		t.Fatalf("ParseTaskFile() error = %v, want invalid implementation phase message", err)
+	if task.Stage != StageBuild {
+		t.Fatalf("Task.Stage = %q, want build", task.Stage)
 	}
 }
 
-func TestParseTaskFile_rejectsImplementationStageForInProgress(t *testing.T) {
+func TestParseTaskFile_normalizesImplementationStageForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -317,12 +317,12 @@ objective: "Style the board"
 
 # Task`
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected invalid stage error")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), `invalid stage "implementation"`) {
-		t.Fatalf("ParseTaskFile() error = %v, want invalid implementation stage message", err)
+	if task.Stage != StageBuild {
+		t.Fatalf("Task.Stage = %q, want build", task.Stage)
 	}
 }
 

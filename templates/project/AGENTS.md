@@ -31,6 +31,7 @@ Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only fo
 - Task `status`: only `planned`, `in_progress`, or `done`
 - Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
 - Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.
+- Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Never: todo, doing, blocked, review, audit
 - Agents may set a task to `status: in_progress` when starting implementation.
 - Only the user may set a task to `status: done` or retreat a task to an earlier status.
@@ -49,7 +50,7 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 
 1. Read the task's `## Context Files` one file at a time; do not explore, glob, search broadly, or read files outside the task context unless explicitly required.
 2. Read the task's `## Acceptance Criteria` and `## Implementation Plan`.
-3. Set task frontmatter to `status: in_progress` and `stage: build`, then press `p` in the TUI to mark router priority.
+3. Set task frontmatter to `status: in_progress` and `stage: build`, then press `p` in the TUI to mark router priority. Do not use `stage: implementation`.
 4. Follow `savepoint-build-task` for execution, checklist updates, AC verification, quality gates, context log, and handoff.
 5. Stop and prompt the user before continuing.
 

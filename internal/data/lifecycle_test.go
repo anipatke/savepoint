@@ -39,6 +39,18 @@ func TestParseTaskLifecycle_normalizesLoadCompatibleMetadata(t *testing.T) {
 			wantStage:  StageTest,
 		},
 		{
+			name:       "legacy implementation stage loads as build",
+			metadata:   TaskLifecycleMetadata{Status: ColumnInProgress, Stage: LegacyTaskStageImplementation},
+			wantStatus: ColumnInProgress,
+			wantStage:  StageBuild,
+		},
+		{
+			name:       "legacy implementation phase loads as build",
+			metadata:   TaskLifecycleMetadata{Status: ColumnInProgress, Phase: LegacyTaskStageImplementation},
+			wantStatus: ColumnInProgress,
+			wantStage:  StageBuild,
+		},
+		{
 			name:       "stale stage outside in progress is cleared",
 			metadata:   TaskLifecycleMetadata{Status: ColumnPlanned, Stage: StageBuild},
 			wantStatus: ColumnPlanned,
@@ -84,8 +96,8 @@ func TestParseTaskLifecycle_rejectsMalformedInProgressMetadata(t *testing.T) {
 		},
 		{
 			name:     "invalid in progress stage",
-			metadata: TaskLifecycleMetadata{Status: ColumnInProgress, Stage: ProgressStage("implementation")},
-			want:     `invalid stage "implementation"`,
+			metadata: TaskLifecycleMetadata{Status: ColumnInProgress, Stage: ProgressStage("review")},
+			want:     `invalid stage "review"`,
 		},
 		{
 			name:     "unknown status",
@@ -422,6 +434,10 @@ func TestTaskLifecycleContract_exposesCanonicalValuesAndAliases(t *testing.T) {
 
 	if !IsLegacyTaskStageAlias(LegacyTaskStageImplementation) {
 		t.Fatal("IsLegacyTaskStageAlias(implementation) = false, want true")
+	}
+
+	if NormalizeTaskStageForLoad(LegacyTaskStageImplementation) != StageBuild {
+		t.Fatal("NormalizeTaskStageForLoad(implementation) should return build")
 	}
 }
 

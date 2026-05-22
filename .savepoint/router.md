@@ -16,7 +16,7 @@ state: audit-pending
 release: v1.2
 epic: E20-clean-up-lifecycle
 task: ""
-next_action: D013 resolved 2026-05-22 — select next epic or release work.
+next_action: D014 resolved 2026-05-23 — select next epic or release work.
 ```
 
 ## State → action

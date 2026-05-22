@@ -39,4 +39,5 @@ Use this skill when router `state` is `task-building`, or `defect-building` for 
 - Do not audit the epic you just built.
 - Do not use Savepoint CLI commands; edit files directly.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
+- Never write `stage: implementation`; implementation work starts at `stage: build`.
 - Treat legacy task `phase` as parser compatibility only; new task guidance and writes must use `stage`.

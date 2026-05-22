@@ -66,7 +66,7 @@ func ParseTaskLifecycle(metadata TaskLifecycleMetadata) (TaskLifecycleState, err
 	}
 
 	if state.Status == ColumnInProgress {
-		state.Stage = firstProgressStage(metadata.Stage, metadata.Phase)
+		state.Stage = NormalizeTaskStageForLoad(firstProgressStage(metadata.Stage, metadata.Phase))
 	}
 
 	if err := validateLoadedTaskLifecycle(rawStatus, state, metadata.Phase); err != nil {
@@ -109,6 +109,13 @@ func IsLegacyTaskStageAlias(value ProgressStage) bool {
 	default:
 		return false
 	}
+}
+
+func NormalizeTaskStageForLoad(value ProgressStage) ProgressStage {
+	if value == LegacyTaskStageImplementation {
+		return StageBuild
+	}
+	return value
 }
 
 func ValidateTaskLifecycle(task *Task) error {

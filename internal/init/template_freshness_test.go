@@ -38,6 +38,7 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 		"The phase skill is the canonical workflow source.",
 		"Task `stage` (build/test/audit): **required** when `status: in_progress`",
 		"Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.",
+		"Never write `stage: implementation`; use `stage: build` when starting implementation work.",
 		"Only the user may set a task to `status: done`",
 		"Never run `savepoint` commands.",
 		"make build && make test",
@@ -108,6 +109,7 @@ func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 
 	assertContains(t, agents, "Task `stage` (build/test/audit): **required** when `status: in_progress`")
 	assertContains(t, buildSkill, "Set the task frontmatter to `status: in_progress` and `stage: build`")
+	assertContains(t, buildSkill, "Never write `stage: implementation`; implementation work starts at `stage: build`.")
 	assertContains(t, buildSkill, "legacy task `phase` as parser compatibility only")
 }
 
