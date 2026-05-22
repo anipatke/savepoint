@@ -180,6 +180,38 @@ func TestUpdate_unknownMsgNoOp(t *testing.T) {
 	}
 }
 
+func TestTaskWriteErrorMessageAddsRepairHintForComplexityReason(t *testing.T) {
+	err := data.ValidateComplexity(data.ComplexityHigh, strings.TrimSpace(strings.Repeat("word ", data.MaxComplexityReasonWords+1)))
+	if err == nil {
+		t.Fatal("ValidateComplexity() expected word limit error")
+	}
+	got := taskWriteErrorMessage(err)
+	if !strings.Contains(got, "Task not moved") || !strings.Contains(got, "complexity_reason") || !strings.Contains(got, "Shorten") {
+		t.Fatalf("taskWriteErrorMessage() = %q, want complexity repair hint", got)
+	}
+}
+
+func TestLoadBoardDataNormalizesAgentCompleteStatus(t *testing.T) {
+	root := t.TempDir()
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
+		Slug:      "T001-agent-complete",
+		Status:    "complete",
+		Objective: "Agent wrote complete",
+	})
+
+	tasks, _, _, _, _, err := loadBoardData(root, data.NewDiscover(), data.NewParser())
+	if err != nil {
+		t.Fatalf("loadBoardData() error = %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("len(tasks) = %d, want 1", len(tasks))
+	}
+	if tasks[0].Column != data.ColumnDone {
+		t.Fatalf("task Column = %q, want done", tasks[0].Column)
+	}
+}
+
 func processCmd(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	msg := cmd()

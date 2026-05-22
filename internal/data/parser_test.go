@@ -131,6 +131,25 @@ objective: "Style the board"
 	}
 }
 
+func TestParseTaskFile_normalizesAgentCompleteStatusToDone(t *testing.T) {
+	p := NewParser()
+	content := `---
+id: E06/T001
+status: complete
+objective: "Style the board"
+---
+
+# Task`
+
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if task.Column != ColumnDone {
+		t.Errorf("Task.Column = %v, want %v", task.Column, ColumnDone)
+	}
+}
+
 func TestParseTaskFile_rejectsUnknownStatus(t *testing.T) {
 	p := NewParser()
 	content := `---
@@ -523,15 +542,15 @@ depends_on: []
 
 func TestParseTaskFile_complexityReasonTooLongRejected(t *testing.T) {
 	p := NewParser()
-	longReason := strings.Repeat("x", MaxComplexityReasonLen+1)
+	longReason := strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1))
 	content := "---\nid: E19/T006\nstatus: planned\nobjective: \"Long reason\"\ncomplexity_tier: low\ncomplexity_reason: \"" + longReason + "\"\ndepends_on: []\n---\n\n# Task\n\n## Acceptance Criteria\n\n- Works.\n"
 
 	_, err := p.ParseTaskFile("test.md", content)
 	if err == nil {
 		t.Fatal("ParseTaskFile() expected error for oversized complexity_reason")
 	}
-	if !strings.Contains(err.Error(), "exceeds") {
-		t.Fatalf("ParseTaskFile() error = %v, want exceeds message", err)
+	if !strings.Contains(err.Error(), "maximum is") {
+		t.Fatalf("ParseTaskFile() error = %v, want word limit message", err)
 	}
 }
 

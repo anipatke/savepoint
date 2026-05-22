@@ -35,7 +35,7 @@ const (
 	ComplexitySpike  ComplexityTier = "spike"
 )
 
-const MaxComplexityReasonLen = 120
+const MaxComplexityReasonWords = 20
 
 type Progress struct {
 	Stage   ProgressStage `yaml:"stage"`

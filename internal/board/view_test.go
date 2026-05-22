@@ -95,6 +95,29 @@ func TestView_footerRendersStatusMessage(t *testing.T) {
 	}
 }
 
+func TestView_footerWrapsLongStatusMessage(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	m.StatusMessage = "Task not moved: complexity_reason has 24 words; maximum is 20 words. Shorten complexity_reason or adjust complexity_tier before retrying"
+	footer := m.renderFooter(48)
+
+	lines := strings.Split(footer, "\n")
+	if len(lines) <= 3 {
+		t.Fatalf("renderFooter() returned %d lines, want wrapped status lines", len(lines))
+	}
+	for i, line := range lines {
+		if got := lipgloss.Width(line); got > 48 {
+			t.Fatalf("renderFooter() line %d width = %d, want <= 48; line=%q", i, got, line)
+		}
+	}
+	plain := plainTerminal(footer)
+	if !strings.Contains(plain, "Task not moved: complexity_reason") {
+		t.Fatalf("renderFooter() missing wrapped status start; got %q", plain)
+	}
+	if !strings.Contains(plain, "Shorten complexity_reason") {
+		t.Fatalf("renderFooter() missing wrapped status continuation; got %q", plain)
+	}
+}
+
 func TestView_containsBottomDivider(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	m.Width = 120

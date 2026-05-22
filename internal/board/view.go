@@ -29,10 +29,12 @@ func (m Model) View() string {
 	header := m.renderHeader(w)
 	nextActivity := m.renderNextActivityLine(w)
 	extra := extraHeaderLines(nextActivity)
+	statusLines := wrappedStatusLines(m.StatusMessage, w)
+	footerExtra := len(statusLines) - 1
 	layout := CalculateLayoutWithChrome(w, h, extra)
 	topDivider := dividerLine(w)
 	board := m.renderBoard(layout)
-	boardBudget := h - 8 - extra
+	boardBudget := h - 8 - extra - footerExtra
 	if boardBudget < 0 {
 		boardBudget = 0
 	}
@@ -348,12 +350,18 @@ func (m Model) renderFooter(termW int) string {
 			styles.FooterPhaseAudit.Render("AUDIT"),
 	)
 	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  p: Priority  ctrl+r:refresh  R:release  d: Defects  ?:help  q:quit"))
-	status := ""
-	if m.StatusMessage != "" {
-		status = styles.StatusBar.Render(m.StatusMessage)
+	statusLines := wrappedStatusLines(m.StatusMessage, termW)
+	renderedStatus := make([]string, len(statusLines))
+	for i, line := range statusLines {
+		status := ""
+		if line != "" {
+			status = styles.StatusBar.Render(line)
+		}
+		renderedStatus[i] = footerLine(termW, status)
 	}
-	statusLine := footerLine(termW, status)
-	return lipgloss.JoinVertical(lipgloss.Center, phase, statusLine, hints)
+	sections := append([]string{phase}, renderedStatus...)
+	sections = append(sections, hints)
+	return lipgloss.JoinVertical(lipgloss.Center, sections...)
 }
 
 func dividerLine(termW int) string {
@@ -371,4 +379,54 @@ func footerLine(termW int, content string) string {
 		content = xansi.Truncate(content, termW, "")
 	}
 	return styles.RootLine.Width(termW).Align(lipgloss.Center).Render(content)
+}
+
+const maxStatusFooterLines = 3
+
+func wrappedStatusLines(message string, termW int) []string {
+	if strings.TrimSpace(message) == "" {
+		return []string{""}
+	}
+	if termW <= 0 {
+		termW = defaultTermW
+	}
+
+	words := strings.Fields(message)
+	lines := make([]string, 0, maxStatusFooterLines)
+	current := ""
+	for _, word := range words {
+		for lipgloss.Width(word) > termW {
+			part := xansi.Truncate(word, termW, "")
+			lines = append(lines, part)
+			if len(lines) == maxStatusFooterLines {
+				lines[len(lines)-1] = xansi.Truncate(lines[len(lines)-1], max(termW-1, 1), "…")
+				return lines
+			}
+			word = strings.TrimPrefix(word, part)
+		}
+
+		candidate := word
+		if current != "" {
+			candidate = current + " " + word
+		}
+		if lipgloss.Width(candidate) <= termW {
+			current = candidate
+			continue
+		}
+		lines = append(lines, current)
+		if len(lines) == maxStatusFooterLines {
+			lines[len(lines)-1] = xansi.Truncate(lines[len(lines)-1], max(termW-1, 1), "…")
+			return lines
+		}
+		current = word
+	}
+
+	if current != "" {
+		lines = append(lines, current)
+	}
+	if len(lines) > maxStatusFooterLines {
+		lines = lines[:maxStatusFooterLines]
+		lines[len(lines)-1] = xansi.Truncate(lines[len(lines)-1], max(termW-1, 1), "…")
+	}
+	return lines
 }
