@@ -23,6 +23,16 @@ func TestParseTaskLifecycle_normalizesLoadCompatibleMetadata(t *testing.T) {
 			wantStatus: ColumnPlanned,
 		},
 		{
+			name:       "agent complete status loads as done",
+			metadata:   TaskLifecycleMetadata{Status: LegacyTaskStatusComplete},
+			wantStatus: ColumnDone,
+		},
+		{
+			name:       "agent completed status loads as done",
+			metadata:   TaskLifecycleMetadata{Status: LegacyTaskStatusCompleted},
+			wantStatus: ColumnDone,
+		},
+		{
 			name:       "legacy phase supplies in progress stage",
 			metadata:   TaskLifecycleMetadata{Status: ColumnInProgress, Phase: StageTest},
 			wantStatus: ColumnInProgress,
@@ -116,6 +126,11 @@ func TestValidateTaskLifecycleStateForWrite_rejectsLoadCompatibilityMetadata(t *
 			name:  "legacy todo status",
 			state: TaskLifecycleState{Status: LegacyTaskStatusTodo},
 			want:  `invalid status "todo"`,
+		},
+		{
+			name:  "agent complete status",
+			state: TaskLifecycleState{Status: LegacyTaskStatusComplete},
+			want:  `invalid status "complete"`,
 		},
 		{
 			name:  "stale non in progress stage",
@@ -333,6 +348,14 @@ func TestDiagnoseTaskLifecycle_reportsDoctorLifecycleProblems(t *testing.T) {
 			want: []TaskLifecycleDiagnosticCode{TaskLifecycleLegacyPhase},
 		},
 		{
+			name: "agent complete status alias",
+			input: TaskLifecycleDiagnosticInput{
+				Metadata:  TaskLifecycleMetadata{Status: LegacyTaskStatusComplete},
+				HasStatus: true,
+			},
+			want: []TaskLifecycleDiagnosticCode{TaskLifecycleStatusAlias},
+		},
+		{
 			name: "stale stage outside in progress",
 			input: TaskLifecycleDiagnosticInput{
 				Metadata:  TaskLifecycleMetadata{Status: ColumnPlanned, Stage: StageBuild},
@@ -385,6 +408,16 @@ func TestTaskLifecycleContract_exposesCanonicalValuesAndAliases(t *testing.T) {
 	status, ok := ResolveTaskStatusAlias(LegacyTaskStatusTodo)
 	if !ok || status != ColumnPlanned {
 		t.Fatalf("ResolveTaskStatusAlias(todo) = %q, %v; want planned, true", status, ok)
+	}
+
+	status, ok = ResolveTaskStatusAlias(LegacyTaskStatusComplete)
+	if !ok || status != ColumnDone {
+		t.Fatalf("ResolveTaskStatusAlias(complete) = %q, %v; want done, true", status, ok)
+	}
+
+	status, ok = ResolveTaskStatusAlias(LegacyTaskStatusCompleted)
+	if !ok || status != ColumnDone {
+		t.Fatalf("ResolveTaskStatusAlias(completed) = %q, %v; want done, true", status, ok)
 	}
 
 	if !IsLegacyTaskStageAlias(LegacyTaskStageImplementation) {

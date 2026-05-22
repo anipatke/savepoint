@@ -1,8 +1,13 @@
 package data
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const LegacyTaskStatusTodo ColumnType = "todo"
+const LegacyTaskStatusComplete ColumnType = "complete"
+const LegacyTaskStatusCompleted ColumnType = "completed"
 const LegacyTaskStageImplementation ProgressStage = "implementation"
 
 type TaskLifecycleMetadata struct {
@@ -27,6 +32,7 @@ type TaskLifecycleDiagnosticCode string
 const (
 	TaskLifecycleMissingStatus TaskLifecycleDiagnosticCode = "missing_status"
 	TaskLifecycleInvalidStatus TaskLifecycleDiagnosticCode = "invalid_status"
+	TaskLifecycleStatusAlias   TaskLifecycleDiagnosticCode = "status_alias"
 	TaskLifecycleLegacyPhase   TaskLifecycleDiagnosticCode = "legacy_phase"
 	TaskLifecycleMissingStage  TaskLifecycleDiagnosticCode = "missing_stage"
 	TaskLifecycleInvalidStage  TaskLifecycleDiagnosticCode = "invalid_stage"
@@ -71,14 +77,13 @@ func ParseTaskLifecycle(metadata TaskLifecycleMetadata) (TaskLifecycleState, err
 }
 
 func NormalizeTaskStatusForLoad(value ColumnType) ColumnType {
-	switch value {
-	case "", LegacyTaskStatusTodo:
+	if value == "" {
 		return ColumnPlanned
-	case ColumnPlanned, ColumnInProgress, ColumnDone:
-		return value
-	default:
-		return value
 	}
+	if status, ok := ResolveTaskStatusAlias(value); ok {
+		return status
+	}
+	return value
 }
 
 func IsLegacyTaskStatusAlias(value ColumnType) bool {
@@ -90,6 +95,8 @@ func ResolveTaskStatusAlias(value ColumnType) (ColumnType, bool) {
 	switch value {
 	case LegacyTaskStatusTodo:
 		return ColumnPlanned, true
+	case LegacyTaskStatusComplete, LegacyTaskStatusCompleted:
+		return ColumnDone, true
 	default:
 		return "", false
 	}
@@ -232,6 +239,13 @@ func DiagnoseTaskLifecycle(input TaskLifecycleDiagnosticInput) []TaskLifecycleDi
 		return diagnostics
 	}
 
+	if status, ok := ResolveTaskStatusAlias(metadata.Status); ok {
+		diagnostics = append(diagnostics, TaskLifecycleDiagnostic{
+			Code:    TaskLifecycleStatusAlias,
+			Message: fmt.Sprintf("task uses non-canonical status %q; replace with %q", metadata.Status, status),
+		})
+	}
+
 	if input.HasPhase {
 		diagnostics = append(diagnostics, TaskLifecycleDiagnostic{
 			Code:    TaskLifecycleLegacyPhase,
@@ -282,10 +296,15 @@ func ValidateComplexity(tier ComplexityTier, reason string) error {
 	if reason != "" && tier == "" {
 		return fmt.Errorf("complexity_tier is required when complexity_reason is set")
 	}
-	if len(reason) > MaxComplexityReasonLen {
-		return fmt.Errorf("complexity_reason exceeds %d characters", MaxComplexityReasonLen)
+	wordCount := ComplexityReasonWordCount(reason)
+	if wordCount > MaxComplexityReasonWords {
+		return fmt.Errorf("complexity_reason has %d words; maximum is %d words", wordCount, MaxComplexityReasonWords)
 	}
 	return nil
+}
+
+func ComplexityReasonWordCount(reason string) int {
+	return len(strings.Fields(reason))
 }
 
 func validateDefectLifecycle(d *Defect) error {

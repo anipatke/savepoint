@@ -114,6 +114,43 @@ objective: "Test"
 	}
 }
 
+func TestWriteTaskStatus_rewritesAgentCompleteStatusAsCanonicalDone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E01/T002
+status: complete
+objective: "Agent completed task"
+---
+
+# Body`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := NewParser().ParseTaskFile(path, content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if parsed.Column != ColumnDone {
+		t.Fatalf("parsed Column = %q, want done", parsed.Column)
+	}
+
+	fi, _ := os.Stat(path)
+	if err := WriteTaskStatus(path, parsed, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if strings.Contains(string(result), "status: complete") {
+		t.Error("agent status alias should not be preserved")
+	}
+	if !strings.Contains(string(result), "status: done") {
+		t.Error("status should be written as canonical done")
+	}
+}
+
 func TestWriteTaskStatus_removesProgressFieldsWhenStatusPlanned(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
@@ -730,6 +767,37 @@ objective: "Invalid complexity"
 	}
 	if !strings.Contains(err.Error(), "invalid complexity_tier") {
 		t.Fatalf("WriteTaskStatus() error = %v, want invalid complexity_tier", err)
+	}
+}
+
+func TestWriteTaskStatus_rejectsOverlongComplexityReasonByWordCount(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	content := `---
+id: E19/T012
+status: planned
+objective: "Invalid complexity"
+---`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, _ := os.Stat(path)
+	task := &Task{
+		ID:               "E19/T012",
+		Column:           ColumnInProgress,
+		Stage:            StageBuild,
+		ComplexityTier:   ComplexityHigh,
+		ComplexityReason: strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1)),
+	}
+
+	err := WriteTaskStatus(path, task, fi.ModTime())
+	if err == nil {
+		t.Fatal("WriteTaskStatus() expected overlong complexity reason error")
+	}
+	if !strings.Contains(err.Error(), "maximum is") {
+		t.Fatalf("WriteTaskStatus() error = %v, want word limit message", err)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -17,6 +18,54 @@ func TestCheckConfigMissing(t *testing.T) {
 	err := CheckConfig(root)
 	if err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("CheckConfig() = %v, want not found error", err)
+	}
+}
+
+func TestCheckStructureReportsAgentCompleteStatusAlias(t *testing.T) {
+	root := t.TempDir()
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
+		Slug:      "T001-agent-complete",
+		Status:    "complete",
+		Objective: "Agent wrote complete",
+	})
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, `non-canonical status "complete"`) && strings.Contains(p.Message, `"done"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want non-canonical complete status problem", problems)
+	}
+}
+
+func TestCheckStructureReportsOverlongComplexityReasonWords(t *testing.T) {
+	root := t.TempDir()
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
+		Slug:      "T001-long-complexity",
+		Status:    "planned",
+		Objective: "Long complexity",
+		Extra: map[string]string{
+			"complexity_tier":   "high",
+			"complexity_reason": `"` + strings.TrimSpace(strings.Repeat("word ", data.MaxComplexityReasonWords+1)) + `"`,
+		},
+	})
+
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "task complexity invalid") && strings.Contains(p.Message, "maximum is") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want overlong complexity reason problem", problems)
 	}
 }
 

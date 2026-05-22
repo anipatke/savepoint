@@ -413,6 +413,12 @@ func taskWriteErrorMessage(err error) string {
 	if err == data.ErrMtimeConflict {
 		return "mtime conflict: refresh before retrying"
 	}
+	if strings.Contains(err.Error(), "complexity_reason") {
+		return "Task not moved: " + err.Error() + ". Shorten complexity_reason or adjust complexity_tier before retrying"
+	}
+	if strings.Contains(err.Error(), "invalid status") {
+		return "Task not moved: " + err.Error()
+	}
 	return err.Error()
 }
 
