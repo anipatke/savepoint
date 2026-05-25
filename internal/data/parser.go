@@ -70,10 +70,6 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		ComplexityReason: fields.ComplexityReason,
 	}
 
-	if err := ValidateComplexity(task.ComplexityTier, task.ComplexityReason); err != nil {
-		return nil, fmt.Errorf("parse error for %s: %w", path, err)
-	}
-
 	return task, nil
 }
 

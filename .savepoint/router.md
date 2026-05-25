@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: audit-pending
+state: task-building
 release: v1.2
 epic: E20-clean-up-lifecycle
-task: ""
-next_action: D014 resolved 2026-05-23 — select next epic or release work.
+task: E20-clean-up-lifecycle/T006-complexity-validation-parse-split
+next_action: Build E20-clean-up-lifecycle/T006-complexity-validation-parse-split.
 ```
 
 ## State → action

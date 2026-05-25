@@ -464,93 +464,17 @@ depends_on: []
 	}
 }
 
-func TestParseTaskFile_invalidComplexityTierRejected(t *testing.T) {
-	p := NewParser()
-	content := `---
-id: E19/T003
-status: planned
-objective: "Bad tier"
-complexity_tier: extreme
-complexity_reason: "Some reason here."
-depends_on: []
----
-
-# Task
-
-## Acceptance Criteria
-
-- Works.`
-
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected error for invalid complexity_tier")
-	}
-	if !strings.Contains(err.Error(), "invalid complexity_tier") {
-		t.Fatalf("ParseTaskFile() error = %v, want invalid complexity_tier message", err)
-	}
-}
-
-func TestParseTaskFile_complexityTierWithoutReasonRejected(t *testing.T) {
-	p := NewParser()
-	content := `---
-id: E19/T004
-status: planned
-objective: "Tier no reason"
-complexity_tier: medium
-depends_on: []
----
-
-# Task
-
-## Acceptance Criteria
-
-- Works.`
-
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected error for complexity_tier without reason")
-	}
-	if !strings.Contains(err.Error(), "complexity_reason is required") {
-		t.Fatalf("ParseTaskFile() error = %v, want reason required message", err)
-	}
-}
-
-func TestParseTaskFile_complexityReasonWithoutTierRejected(t *testing.T) {
-	p := NewParser()
-	content := `---
-id: E19/T005
-status: planned
-objective: "Reason no tier"
-complexity_reason: "Some reason here."
-depends_on: []
----
-
-# Task
-
-## Acceptance Criteria
-
-- Works.`
-
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected error for complexity_reason without tier")
-	}
-	if !strings.Contains(err.Error(), "complexity_tier is required") {
-		t.Fatalf("ParseTaskFile() error = %v, want tier required message", err)
-	}
-}
-
-func TestParseTaskFile_complexityReasonTooLongRejected(t *testing.T) {
+func TestParseTaskFile_complexityReasonOverLimitLoadsOK(t *testing.T) {
 	p := NewParser()
 	longReason := strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1))
 	content := "---\nid: E19/T006\nstatus: planned\nobjective: \"Long reason\"\ncomplexity_tier: low\ncomplexity_reason: \"" + longReason + "\"\ndepends_on: []\n---\n\n# Task\n\n## Acceptance Criteria\n\n- Works.\n"
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected error for oversized complexity_reason")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v, want no error for over-limit complexity_reason", err)
 	}
-	if !strings.Contains(err.Error(), "maximum is") {
-		t.Fatalf("ParseTaskFile() error = %v, want word limit message", err)
+	if task.ComplexityReason != longReason {
+		t.Errorf("ComplexityReason = %q, want long reason preserved", task.ComplexityReason)
 	}
 }
 
