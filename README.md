@@ -1,127 +1,211 @@
 ![Savepoint Logo](assets/logo.png)
 
-# 💾 SAVEPOINT
+# Savepoint
 
-> **Hard Gates. Zero Drift. All Vibe.**
+> Hard gates for AI-driven development. Local files, tight context, no telemetry.
 
-Built for **vibe coders** on tight token budgets who still want to ship.
+Savepoint is a local-first CLI and Bubble Tea terminal board for keeping AI-assisted projects inside a documented workflow. It gives any coding agent a small set of markdown files to read, a router state to follow, and explicit handoff points before work drifts away from the plan.
+
+It is built for vibe coders who want agents to do real implementation work without turning the project into an unbounded chat history.
+
+No database. No proprietary cloud. No telemetry. Your filesystem is the source of truth.
+
+## Quick Start
 
 ```bash
 npx savepoint init
+npx savepoint board
+npx savepoint doctor
 ```
 
-I love building side projects with AI. It feels like magic. But the reality of "vibe coding" is that it usually falls apart on day three. Not because the model is bad, but because there are no boundaries.
+`init` scaffolds the Savepoint workflow into the current directory. `board` opens the TUI. `doctor` checks that the project state is still coherent.
 
-AI-driven development fails for three specific reasons:
+After `init`, point your agent at `AGENTS.md` and let it follow the router.
 
-1. **The Drift:** Your `Design.md` and agent instructions go stale after the first iteration; nobody updates them.
-2. **Token Bloat:** Monolithic backlogs and MCP overhead burn your context window — and your budget.
-3. **The Chaos:** No repeatable process from a "vibe" to a working MVP.
+## What Savepoint Creates
 
-**Savepoint is a baby gate for AI agents.**
+Savepoint stores project state in markdown and YAML frontmatter next to your code:
 
-It’s a simple, file-based state machine and cinematic Terminal UI (TUI) designed to force you—and your agent (Claude, Cursor, Aider, Gemini)—to slow down, write down what you're actually building, and check your work before moving on.
-
-No database. No proprietary cloud. **No telemetry, ever.** Your filesystem is the map, and Savepoint keeps the agent on it.
-
----
-
-## 🔄 The Loop (Driven by Agent Skills)
-
-Savepoint turns your project into a series of hard gates, enforced by **six bundled custom agent skills** (`draft-prd`, `system-design`, `create-plan`, `create-task`, `build-task`, `audit`). You cannot move forward until the current gate is cleared.
-
-`[ PRD ]` **→** `[ DESIGN ]` **→** `[ EPICS ]` **→** `[ TASKS ]` **→** `[ BUILD ]` **→** `[ AUDIT ]`
-
-Small scopes. Small context windows. No wandering.
-
-- **The PRD Gate (`savepoint-draft-prd`):** The agent interviews you to ensure your idea is crisp enough for a V1 before writing any architecture.
-- **The Design Gate (`savepoint-system-design`):** Write down what you actually want. If you can't explain it simply in a markdown file, the AI is going to make a mess of it.
-- **The Plan Gate (`savepoint-create-plan` & `savepoint-create-task`):** Break the idea down into small, manageable steps. No giant leaps. This becomes the checklist the AI _must_ follow.
-- **The Build Gate (`savepoint-build-task`):** The AI writes code for one small step at a time. The scope stays tight so it doesn't wander off into the weeds. It logs "Drift Notes" instead of cowboy-coding architectural changes.
-- **The Audit Gate (`savepoint-audit`):** Before moving on, we stop and check. Does the code match the plan? We don't advance until the map matches the territory.
-
-> 🔒 **The Audit Loop** — When the last task in an epic moves to `done`, the next epic stays _locked_ until your docs (`Design.md`, `AGENTS.md`, and the epic's own design) are reconciled with the actual code via the audit agent. **No existing markdown-first task tool has this gate.**
-
----
-
-## 🛠 The Stack (Atari-Noir)
-
-Built for a cinematic, technical feel without the bloat.
-
-- **Cinematic TUI:** Built with Go and Bubble Tea. It feels like a proper terminal tool, lightning-fast and dependency-free.
-- **File-First:** Your project's state lives in markdown and JSON files right next to your code.
-- **Agent-Agnostic:** Claude, Cursor, Aider, Gemini — if it reads markdown and edits files, it works. No MCP server. No per-agent adapters.
-- **Token-Efficient by Design:** Tasks read <2KB of context. Audits stay under ~15KB. No more burning your AI budget on bloated backlogs.
-
----
-
-## 💻 Commands (0.1.0-MVP)
-
-| Command            | Action                                                                                               |
-| :----------------- | :--------------------------------------------------------------------------------------------------- |
-| `savepoint --version` | Print the installed Savepoint version.                                                            |
-| `savepoint init`   | Scaffold the loop, write your `AGENTS.md` guide, drop the baby gates, and generate the magic prompt. |
-| `savepoint board`  | Launch the Atari-Noir Kanban TUI to track the vibe.                                                  |
-| `savepoint doctor` | Check the integrity of the state machine.                            |
-| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned templates and agent skills in an existing Savepoint project without touching project state. |
-
----
-
-## 🐛 Defect Workflow
-
-When a bug surfaces during a build or after a release, create a defect file instead of a new task. Defects live in `.savepoint/releases/{release}/defects/` and are tracked separately from the epic backlog so the audit trail stays clean.
-
-```
-.savepoint/releases/v1/defects/
-  D001-auth-crash.md
-  D002-slow-query.md
+```text
+.savepoint/
+  PRD.md
+  Design.md
+  router.md
+  releases/
+    v1/
+      v1-PRD.md
+      epics/
+        E01-example/
+          E01-Detail.md
+          tasks/
+            T001-example.md
+      defects/
+        D001-example.md
+AGENTS.md
+agent-skills/
 ```
 
-Each defect file uses YAML frontmatter:
+The important bit is the hierarchy:
+
+`Product Vision -> Release PRD -> Epic Detail -> Task -> Build/Test/Audit -> Handoff`
+
+Agents read the smallest useful file set at each step instead of loading an entire backlog into context.
+
+## The Workflow
+
+Savepoint turns AI development into a sequence of hard gates:
+
+| Gate | What happens |
+| --- | --- |
+| PRD | Define the product, target user, constraints, and success metrics. |
+| Design | Write the architecture and codebase map before implementation starts. |
+| Epic | Define a focused slice of the release. |
+| Task | Break the epic into small, dependency-aware build steps. |
+| Build | Implement one task at a time using only its scoped context files. |
+| Audit | Reconcile code, design docs, agent guidance, and drift notes before moving on. |
+
+The audit gate is the differentiator. When an epic finishes, the next epic should not start until the built code and the project map agree again.
+
+## Task Lifecycle
+
+Tasks use a small lifecycle:
+
+```yaml
+status: planned       # planned | in_progress | done
+stage: build          # required only when status: in_progress
+```
+
+Valid in-progress stages are:
+
+- `build`
+- `test`
+- `audit`
+
+Agents may move a task to `in_progress` when they start work. The user owns closing a task as `done` or retreating it to an earlier status.
+
+## Board
+
+`savepoint board` opens the Atari-Noir terminal UI:
+
+- Three task columns: `planned`, `in_progress`, and `done`
+- Build/test/audit stage visibility for active work
+- Next Activity line driven by `.savepoint/router.md`
+- Epic sidebar and epic detail overlay for release navigation
+- `p` priority hotkey to set the router to the focused task
+- `d` defect overlay for release-level bugs
+- Non-TTY fallback for plain terminal output
+
+You can scope the board when needed:
+
+```bash
+savepoint board --release v1.2
+savepoint board --epic E20-clean-up-lifecycle
+```
+
+Running `savepoint` with no arguments also opens the board.
+
+## Defect Workflow
+
+Use defects for concrete bugs, regressions, broken expectations, or failed behavior that should be repaired without reshaping the planned epic backlog.
+
+Defects live at:
+
+```text
+.savepoint/releases/{release}/defects/D###-slug.md
+```
+
+Example frontmatter:
 
 ```yaml
 ---
-id: v1/D001-auth-crash
-release: v1
-status: planned          # planned | in_progress | done
-severity: high           # critical | high | medium | low
-title: "Auth crash on empty token"
-introduced: v1.0.3       # optional: version where bug appeared
-reference: E12-slug/T003-slug  # optional: related task ID
+id: v1.2/D001-router-priority
+release: v1.2
+status: open          # open | in_progress | resolved
+severity: high        # critical | high | medium | low
+title: "Router priority is not preserved after board navigation"
+introduced: v1.2.0
+reference: E20-clean-up-lifecycle/T003-router-handoff
 ---
 ```
 
-- Press **`d`** on the board to open the defect overlay and see all defects for the current release.
-- `savepoint doctor` validates defect files and reports malformed frontmatter, invalid status, and broken task references.
+When a defect is actively being repaired, it also carries a stage:
 
-**Use a defect when:** a regression is found in TUI testing, a build breaks after a merged epic, or a production bug is traced to a known release.
+```yaml
+status: in_progress
+stage: build          # build | test | audit
+```
 
-**Do NOT use a defect when:** a planned task needs rework (update the task instead), a scope changes (that is an epic), or something is a future enhancement.
+Defects are release-level workflow items. They are surfaced through the board defect overlay and doctor validation, not as a fourth Kanban column.
 
----
+## Agent Skills
 
-## 📦 Updating
+Savepoint ships workflow skills that act as the canonical instructions for each phase:
 
-After updating the Savepoint package:
+- `savepoint-draft-prd`
+- `savepoint-system-design`
+- `savepoint-create-plan`
+- `savepoint-create-task`
+- `savepoint-build-task`
+- `savepoint-audit`
+- `savepoint-create-defect`
+
+`AGENTS.md` routes the agent to the right skill based on `.savepoint/router.md`. The skill owns the phase workflow; `AGENTS.md` keeps routing, terminology, and repository rules in one place.
+
+## CLI Reference
+
+| Command | Action |
+| --- | --- |
+| `savepoint` | Launch the board for the current Savepoint project. |
+| `savepoint --version` | Print the installed version. |
+| `savepoint init [dir] [--force] [--install]` | Scaffold `.savepoint/`, `AGENTS.md`, agent skills, templates, and the magic prompt. |
+| `savepoint board [--release <release>] [--epic <epic>]` | Open the TUI, optionally scoped to a release or epic. |
+| `savepoint doctor [--epic <epic>]` | Validate project structure, router state, task lifecycle metadata, defects, and references. |
+| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned templates and skills in an existing project. |
+
+`savepoint doctor` exits with `0` when clean, `1` when it finds project problems, and `2` for internal errors or invalid command usage.
+
+## Updating Existing Projects
+
+After updating the Savepoint package, refresh package-owned assets in each existing Savepoint project:
 
 ```bash
-npm update -g savepoint
+savepoint upgrade-assets --dry-run
 savepoint upgrade-assets
 ```
 
-The `upgrade-assets` command refreshes bundled `agent-skills/**/SKILL.md` files and the Savepoint-managed block in `AGENTS.md` from the latest templates. It never overwrites `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/releases/**`, or any task/epic/audit files.
+`upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, release PRDs, epic files, task files, audit files, or defect files.
 
-Use `--dry-run` to preview changes before applying them.
+Use `--force` only when you intentionally want to replace locally modified package-owned assets.
 
----
+## Design Principles
 
-## 🪞 Recursive Construction
+- File-first: markdown and YAML are the project database.
+- Agent-agnostic: any agent that can read files and edit files can follow the workflow.
+- Token-efficient: tasks point agents to scoped context files instead of whole-project dumps.
+- Audit-driven: documentation drift is treated as a workflow failure, not a cleanup chore.
+- Local-only: no telemetry, cloud sync, or proprietary service dependency.
+- Small diffs: work is broken into reviewable epics and tasks.
 
-I am building Savepoint to dogfood the very workflow it enables. **This entire repository is being built by agents, guided by Savepoint’s own state machine.**
+## Development
 
-I’m sharing it to prove a point: The real power of AI isn't just the size of the LLM—it’s the structure you give it. Token-efficient, documentation-first development is the only way to build at scale with AI without losing your mind.
+Build and test from source:
 
-**The goal:** Go from `npx savepoint init` to a merged epic in one weekend.
+```bash
+make build
+make test
+```
 
-**License:** MIT  
-**Status:** Recursive Construction (v1 MVP in progress)
+The CLI is written in Go. The board uses Bubble Tea. The npm package wraps the compiled binary so users can run Savepoint with `npx` or a global install.
+
+## Status
+
+Savepoint is under recursive construction: this repository is being built with Savepoint's own workflow.
+
+Current focus is the v1.2 line:
+
+- First-class release defects in the TUI and doctor checks
+- Simpler template and skill guidance
+- Task complexity metadata
+- Centralized lifecycle parsing, validation, and transition rules
+
+License: MIT
