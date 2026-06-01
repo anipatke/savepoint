@@ -8,7 +8,7 @@ last_audited: never
 
 > The brand identity and visual guardrails for savepoint. **Loaded conditionally** — only when working on TUI rendering, theme, or design-system tasks. Non-visual tasks must skip this file to honor the token budget.
 
-For Ink/TUI implementation mechanics, use `agent-skills/ink-tui-design/SKILL.md`. This file only owns visual and product-design constraints.
+For Bubble Tea/Lip Gloss implementation mechanics, use `agent-skills/bubbletea-tui-design/SKILL.md`. This file only owns visual and product-design constraints.
 
 ## Vibe
 
@@ -106,7 +106,7 @@ If recreating this look-and-feel, preserve:
 | Scanlines                           | ✗                    | flicker/ugly in text — skip                                      |
 | Glows / underglow                   | ⚠                    | substitute with subtle bg tint on focused row + accent border    |
 | Quiet borders, dark surfaces        | ✓                    | box-drawing chars (`─ │ ┌ ┐`) in border-subtle gray              |
-| Inline reveal cards                 | ✓                    | Ink state-driven expand/collapse                                 |
+| Inline reveal cards                 | ✓                    | Bubble Tea model-driven expand/collapse                          |
 | Visual encoding before text         | ✓                    | colored glyphs (`▣ ◇ ◆ ✓`) with text reinforcement               |
 | "System booting up" motion          | ⚠                    | 200ms init sequence on launch acceptable; running animation skip |
 

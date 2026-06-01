@@ -151,6 +151,8 @@ Savepoint ships workflow skills that act as the canonical instructions for each 
 
 `AGENTS.md` routes the agent to the right skill based on `.savepoint/router.md`. The skill owns the phase workflow; `AGENTS.md` keeps routing, terminology, and repository rules in one place.
 
+This repository also includes `bubbletea-tui-design` for maintaining the Go TUI in `internal/board` and `internal/styles`.
+
 ## CLI Reference
 
 | Command | Action |

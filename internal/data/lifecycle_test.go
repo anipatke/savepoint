@@ -439,6 +439,40 @@ func TestTaskLifecycleContract_exposesCanonicalValuesAndAliases(t *testing.T) {
 	if NormalizeTaskStageForLoad(LegacyTaskStageImplementation) != StageBuild {
 		t.Fatal("NormalizeTaskStageForLoad(implementation) should return build")
 	}
+
+	complexityAliases := map[ComplexityTier]ComplexityTier{
+		LegacyComplexityTierSmall:    ComplexityLow,
+		LegacyComplexityTierMed:      ComplexityMedium,
+		LegacyComplexityTierNormal:   ComplexityMedium,
+		LegacyComplexityTierModerate: ComplexityMedium,
+		LegacyComplexityTierLarge:    ComplexityHigh,
+	}
+	for alias, want := range complexityAliases {
+		got, ok := ResolveComplexityTierAlias(alias)
+		if !ok || got != want {
+			t.Fatalf("ResolveComplexityTierAlias(%q) = %q, %v; want %q, true", alias, got, ok, want)
+		}
+	}
+}
+
+func TestHealTaskMetadataForProgress_repairsKnownComplexityBlockers(t *testing.T) {
+	task := Task{
+		ComplexityTier:   LegacyComplexityTierSmall,
+		ComplexityReason: strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1)),
+	}
+
+	if !HealTaskMetadataForProgress(&task) {
+		t.Fatal("HealTaskMetadataForProgress() changed = false, want true")
+	}
+	if task.ComplexityTier != ComplexityLow {
+		t.Fatalf("ComplexityTier = %q, want low", task.ComplexityTier)
+	}
+	if got := ComplexityReasonWordCount(task.ComplexityReason); got != MaxComplexityReasonWords {
+		t.Fatalf("ComplexityReasonWordCount() = %d, want %d", got, MaxComplexityReasonWords)
+	}
+	if err := ValidateComplexity(task.ComplexityTier, task.ComplexityReason); err != nil {
+		t.Fatalf("ValidateComplexity() after healing error = %v", err)
+	}
 }
 
 func TestValidateTaskLifecycle_allowsPlannedWithoutStage(t *testing.T) {

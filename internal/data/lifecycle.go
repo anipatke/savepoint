@@ -9,6 +9,11 @@ const LegacyTaskStatusTodo ColumnType = "todo"
 const LegacyTaskStatusComplete ColumnType = "complete"
 const LegacyTaskStatusCompleted ColumnType = "completed"
 const LegacyTaskStageImplementation ProgressStage = "implementation"
+const LegacyComplexityTierSmall ComplexityTier = "small"
+const LegacyComplexityTierMed ComplexityTier = "med"
+const LegacyComplexityTierNormal ComplexityTier = "normal"
+const LegacyComplexityTierModerate ComplexityTier = "moderate"
+const LegacyComplexityTierLarge ComplexityTier = "large"
 
 type TaskLifecycleMetadata struct {
 	Status ColumnType
@@ -308,6 +313,33 @@ func ValidateComplexity(tier ComplexityTier, reason string) error {
 		return fmt.Errorf("complexity_reason has %d words; maximum is %d words", wordCount, MaxComplexityReasonWords)
 	}
 	return nil
+}
+
+func HealTaskMetadataForProgress(task *Task) bool {
+	changed := false
+	if tier, ok := ResolveComplexityTierAlias(task.ComplexityTier); ok {
+		task.ComplexityTier = tier
+		changed = true
+	}
+	words := strings.Fields(task.ComplexityReason)
+	if len(words) > MaxComplexityReasonWords {
+		task.ComplexityReason = strings.Join(words[:MaxComplexityReasonWords], " ")
+		changed = true
+	}
+	return changed
+}
+
+func ResolveComplexityTierAlias(tier ComplexityTier) (ComplexityTier, bool) {
+	switch tier {
+	case LegacyComplexityTierSmall:
+		return ComplexityLow, true
+	case LegacyComplexityTierMed, LegacyComplexityTierNormal, LegacyComplexityTierModerate:
+		return ComplexityMedium, true
+	case LegacyComplexityTierLarge:
+		return ComplexityHigh, true
+	default:
+		return "", false
+	}
 }
 
 func ComplexityReasonWordCount(reason string) int {

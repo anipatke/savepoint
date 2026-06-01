@@ -1,7 +1,6 @@
 ---
 id: E20-clean-up-lifecycle/T006-complexity-validation-parse-split
-status: in_progress
-stage: build
+status: done
 objective: Remove complexity_reason word-count validation from the parser so board rendering is never blocked by a policy violation.
 depends_on: [T002-parser-writer-lifecycle]
 complexity_tier: low

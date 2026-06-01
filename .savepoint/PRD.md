@@ -7,13 +7,11 @@ status: active
 
 ## What it is
 
-A public OSS CLI + Ink-based TUI that scaffolds an opinionated AI-driven development workflow. The user runs `npx savepoint init` in an empty directory, points any AI agent (Claude / Cursor / Cline / Gemini / Aider / Codex) at the project, and the embedded prompt templates carry the agent through:
+A public OSS CLI + Bubble Tea TUI that scaffolds an opinionated AI-driven development workflow. The user runs `npx savepoint init` in an empty directory, points any AI agent (Claude / Cursor / Cline / Gemini / Aider / Codex) at the project, and the embedded prompt templates carry the agent through:
 
 > **PRD → Design → Epics → Tasks → Build → Audit**
 
 …with hard gates at each transition.
-
-run dev npm run build && node dist/cli.js board to test
 
 ## Why
 

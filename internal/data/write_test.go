@@ -770,7 +770,7 @@ objective: "Invalid complexity"
 	}
 }
 
-func TestWriteTaskStatus_rejectsOverlongComplexityReasonByWordCount(t *testing.T) {
+func TestWriteTaskStatus_trimsOverlongComplexityReasonByWordCount(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
@@ -792,12 +792,17 @@ objective: "Invalid complexity"
 		ComplexityReason: strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1)),
 	}
 
-	err := WriteTaskStatus(path, task, fi.ModTime())
-	if err == nil {
-		t.Fatal("WriteTaskStatus() expected overlong complexity reason error")
+	if err := WriteTaskStatus(path, task, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "maximum is") {
-		t.Fatalf("WriteTaskStatus() error = %v, want word limit message", err)
+
+	result, _ := os.ReadFile(path)
+	parsed, err := NewParser().ParseTaskFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	if got := ComplexityReasonWordCount(parsed.ComplexityReason); got != MaxComplexityReasonWords {
+		t.Fatalf("ComplexityReasonWordCount() = %d, want %d", got, MaxComplexityReasonWords)
 	}
 }
 
@@ -847,6 +852,48 @@ objective: "Complexity test"
 	}
 	if parsed.ComplexityReason != "Requires coordinated changes across multiple packages." {
 		t.Errorf("ComplexityReason = %q, want reason text", parsed.ComplexityReason)
+	}
+}
+
+func TestWriteTaskStatus_selfHealsKnownComplexityBlockers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "task.md")
+	longReason := strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1))
+	content := "---\nid: E19/T013\nstatus: planned\ncomplexity_tier: small\ncomplexity_reason: \"" + longReason + "\"\nobjective: \"Complexity repair\"\n---\n\n# Body"
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := NewParser().ParseTaskFile(path, content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+	parsed.Column = ColumnInProgress
+	parsed.Stage = StageBuild
+
+	fi, _ := os.Stat(path)
+	if err := WriteTaskStatus(path, parsed, fi.ModTime()); err != nil {
+		t.Fatalf("WriteTaskStatus() error = %v", err)
+	}
+
+	result, _ := os.ReadFile(path)
+	if strings.Contains(string(result), "complexity_tier: small") {
+		t.Fatal("complexity_tier alias should be repaired")
+	}
+	if !strings.Contains(string(result), "complexity_tier: low") {
+		t.Fatal("complexity_tier should be written as low")
+	}
+
+	reparsed, err := NewParser().ParseTaskFile(path, string(result))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() after repair error = %v", err)
+	}
+	if reparsed.ComplexityTier != ComplexityLow {
+		t.Fatalf("ComplexityTier = %q, want low", reparsed.ComplexityTier)
+	}
+	if got := ComplexityReasonWordCount(reparsed.ComplexityReason); got != MaxComplexityReasonWords {
+		t.Fatalf("ComplexityReasonWordCount() = %d, want %d", got, MaxComplexityReasonWords)
 	}
 }
 

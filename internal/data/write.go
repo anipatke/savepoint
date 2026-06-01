@@ -95,6 +95,7 @@ func updateFrontmatterField(path, key, value string) error {
 }
 
 func WriteTaskStatus(path string, task *Task, expectedMtime time.Time) error {
+	HealTaskMetadataForProgress(task)
 	if err := ValidateTaskLifecycle(task); err != nil {
 		return err
 	}
@@ -142,6 +143,13 @@ func WriteTaskStatus(path string, task *Task, expectedMtime time.Time) error {
 	} else {
 		setMappingField(mapping, "stage", string(task.Stage))
 		removeMappingField(mapping, "phase")
+	}
+
+	if task.ComplexityTier != "" {
+		setMappingField(mapping, "complexity_tier", string(task.ComplexityTier))
+	}
+	if task.ComplexityReason != "" {
+		setMappingField(mapping, "complexity_reason", task.ComplexityReason)
 	}
 
 	out, err := yaml.Marshal(&doc)

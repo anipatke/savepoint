@@ -202,7 +202,7 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 | Unit: file ops, YAML, frontmatter, snapshot gen          | `vitest`                         | High                                                                   |
 | Unit: state transitions, dep resolution, cycle detection | `vitest`                         | High                                                                   |
 | Integration: CLI commands in temp dirs                   | `vitest` + `tmp`                 | Medium                                                                 |
-| TUI reducers (state, isolated from rendering)            | `vitest` + `ink-testing-library` | Medium                                                                 |
+| TUI reducers (state, isolated from rendering)            | Go unit tests with Bubble Tea messages | Medium                                                                 |
 | TUI rendering (snapshot tests)                           | —                                | **None.** Brittle.                                                     |
 | End-to-end with real AI agents                           | Manual matrix                    | Pre-release: `[Claude, Cursor, Gemini, Aider]` × `[init, plan, audit]` |
 
