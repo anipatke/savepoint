@@ -69,10 +69,7 @@ func TestParseTaskLifecycle_normalizesLoadCompatibleMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTaskLifecycle(tt.metadata)
-			if err != nil {
-				t.Fatalf("ParseTaskLifecycle() error = %v", err)
-			}
+			got := ParseTaskLifecycle(tt.metadata)
 			if got.Status != tt.wantStatus {
 				t.Errorf("Status = %q, want %q", got.Status, tt.wantStatus)
 			}
@@ -83,42 +80,45 @@ func TestParseTaskLifecycle_normalizesLoadCompatibleMetadata(t *testing.T) {
 	}
 }
 
-func TestParseTaskLifecycle_rejectsMalformedInProgressMetadata(t *testing.T) {
+func TestParseTaskLifecycle_healsMalformedMetadata(t *testing.T) {
 	tests := []struct {
-		name     string
-		metadata TaskLifecycleMetadata
-		want     string
+		name       string
+		metadata   TaskLifecycleMetadata
+		wantStatus ColumnType
+		wantStage  ProgressStage
 	}{
 		{
-			name:     "missing in progress stage",
-			metadata: TaskLifecycleMetadata{Status: ColumnInProgress},
-			want:     "stage is required",
+			name:       "missing in progress stage defaults to build",
+			metadata:   TaskLifecycleMetadata{Status: ColumnInProgress},
+			wantStatus: ColumnInProgress,
+			wantStage:  StageBuild,
 		},
 		{
-			name:     "invalid in progress stage",
-			metadata: TaskLifecycleMetadata{Status: ColumnInProgress, Stage: ProgressStage("review")},
-			want:     `invalid stage "review"`,
+			name:       "invalid in progress stage heals to build",
+			metadata:   TaskLifecycleMetadata{Status: ColumnInProgress, Stage: ProgressStage("review")},
+			wantStatus: ColumnInProgress,
+			wantStage:  StageBuild,
 		},
 		{
-			name:     "unknown status",
-			metadata: TaskLifecycleMetadata{Status: ColumnType("review")},
-			want:     `invalid status "review"`,
+			name:       "unknown status heals to planned",
+			metadata:   TaskLifecycleMetadata{Status: ColumnType("review")},
+			wantStatus: ColumnPlanned,
 		},
 		{
-			name:     "invalid legacy phase outside in progress",
-			metadata: TaskLifecycleMetadata{Status: ColumnPlanned, Phase: ProgressStage("done")},
-			want:     `invalid legacy phase "done"`,
+			name:       "invalid legacy phase outside in progress is dropped",
+			metadata:   TaskLifecycleMetadata{Status: ColumnPlanned, Phase: ProgressStage("done")},
+			wantStatus: ColumnPlanned,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ParseTaskLifecycle(tt.metadata)
-			if err == nil {
-				t.Fatal("ParseTaskLifecycle() expected error")
+			got := ParseTaskLifecycle(tt.metadata)
+			if got.Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", got.Status, tt.wantStatus)
 			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("ParseTaskLifecycle() error = %v, want %q", err, tt.want)
+			if got.Stage != tt.wantStage {
+				t.Errorf("Stage = %q, want %q", got.Stage, tt.wantStage)
 			}
 		})
 	}

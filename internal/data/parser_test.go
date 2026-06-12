@@ -150,7 +150,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_rejectsUnknownStatus(t *testing.T) {
+func TestParseTaskFile_healsUnknownStatusToPlanned(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -160,9 +160,12 @@ objective: "Style the board"
 
 # Task`
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected unknown status error")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v, want unknown status healed to planned", err)
+	}
+	if task.Column != ColumnPlanned {
+		t.Fatalf("Task.Column = %q, want planned for unknown status", task.Column)
 	}
 }
 
@@ -206,7 +209,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_rejectsMissingStageForInProgress(t *testing.T) {
+func TestParseTaskFile_defaultsMissingStageToBuildForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -216,12 +219,12 @@ objective: "Style the board"
 
 # Task`
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected missing stage error")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v, want missing stage healed to build", err)
 	}
-	if !strings.Contains(err.Error(), "stage is required") {
-		t.Fatalf("ParseTaskFile() error = %v, want missing stage message", err)
+	if task.Stage != StageBuild {
+		t.Fatalf("Task.Stage = %q, want build default for in_progress", task.Stage)
 	}
 }
 
@@ -266,7 +269,7 @@ objective: "Style the board"
 	}
 }
 
-func TestParseTaskFile_rejectsInvalidLegacyPhaseForInProgress(t *testing.T) {
+func TestParseTaskFile_healsInvalidLegacyPhaseToBuildForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: E06/T001
@@ -277,12 +280,12 @@ objective: "Style the board"
 
 # Task`
 
-	_, err := p.ParseTaskFile("test.md", content)
-	if err == nil {
-		t.Fatal("ParseTaskFile() expected invalid stage error")
+	task, err := p.ParseTaskFile("test.md", content)
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v, want invalid phase healed to build", err)
 	}
-	if !strings.Contains(err.Error(), `invalid stage "done"`) {
-		t.Fatalf("ParseTaskFile() error = %v, want invalid stage done message", err)
+	if task.Stage != StageBuild {
+		t.Fatalf("Task.Stage = %q, want build for invalid legacy phase", task.Stage)
 	}
 }
 

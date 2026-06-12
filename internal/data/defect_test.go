@@ -57,7 +57,7 @@ objective: Fix via objective field
 	}
 }
 
-func TestParseDefectFile_InProgressRequiresStage(t *testing.T) {
+func TestParseDefectFile_InProgressMissingStageHealsToBuild(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D003-in-progress
@@ -66,9 +66,12 @@ severity: medium
 title: In progress defect
 ---
 `
-	_, err := p.ParseDefectFile("D003.md", content)
-	if err == nil {
-		t.Fatal("ParseDefectFile() error = nil, want error for missing in_progress stage")
+	defect, err := p.ParseDefectFile("D003.md", content)
+	if err != nil {
+		t.Fatalf("ParseDefectFile() error = %v, want missing stage healed to build", err)
+	}
+	if defect.Stage != StageBuild {
+		t.Errorf("Stage = %q, want build default for in_progress", defect.Stage)
 	}
 }
 
@@ -112,7 +115,7 @@ title: Fixed defect
 	}
 }
 
-func TestParseDefectFile_StageOnlyValidInProgress(t *testing.T) {
+func TestParseDefectFile_StaleStageOutsideInProgressIsDropped(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D005-resolved
@@ -122,9 +125,12 @@ severity: low
 title: Fixed defect
 ---
 `
-	_, err := p.ParseDefectFile("D005.md", content)
-	if err == nil {
-		t.Fatal("ParseDefectFile() error = nil, want error for stage outside in_progress")
+	defect, err := p.ParseDefectFile("D005.md", content)
+	if err != nil {
+		t.Fatalf("ParseDefectFile() error = %v, want stale stage dropped", err)
+	}
+	if defect.Stage != "" {
+		t.Errorf("Stage = %q, want empty outside in_progress", defect.Stage)
 	}
 }
 
@@ -168,7 +174,7 @@ func TestParseDefectFile_MalformedYAML(t *testing.T) {
 	}
 }
 
-func TestParseDefectFile_InvalidStatus(t *testing.T) {
+func TestParseDefectFile_InvalidStatusHealsToOpen(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D007-bad-status
@@ -177,13 +183,48 @@ severity: low
 title: Bad status defect
 ---
 `
-	_, err := p.ParseDefectFile("D007.md", content)
-	if err == nil {
-		t.Fatal("ParseDefectFile() error = nil, want error for invalid status")
+	defect, err := p.ParseDefectFile("D007.md", content)
+	if err != nil {
+		t.Fatalf("ParseDefectFile() error = %v, want invalid status healed to open", err)
+	}
+	if defect.Status != DefectOpen {
+		t.Errorf("Status = %q, want open for invalid status", defect.Status)
 	}
 }
 
-func TestParseDefectFile_InvalidStageWhenInProgress(t *testing.T) {
+func TestParseDefectFile_TaskStyleStatusAliasesResolve(t *testing.T) {
+	p := NewParser()
+	tests := []struct {
+		status string
+		want   DefectStatus
+	}{
+		{status: "planned", want: DefectOpen},
+		{status: "todo", want: DefectOpen},
+		{status: "done", want: DefectResolved},
+		{status: "complete", want: DefectResolved},
+		{status: "completed", want: DefectResolved},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			content := `---
+id: v1.1/D009-alias
+status: ` + tt.status + `
+severity: low
+title: Alias defect
+---
+`
+			defect, err := p.ParseDefectFile("D009.md", content)
+			if err != nil {
+				t.Fatalf("ParseDefectFile() error = %v", err)
+			}
+			if defect.Status != tt.want {
+				t.Errorf("Status = %q, want %q for alias %q", defect.Status, tt.want, tt.status)
+			}
+		})
+	}
+}
+
+func TestParseDefectFile_InvalidStageWhenInProgressHealsToBuild(t *testing.T) {
 	p := NewParser()
 	content := `---
 id: v1.1/D008-bad-stage
@@ -193,9 +234,12 @@ severity: high
 title: Bad stage defect
 ---
 `
-	_, err := p.ParseDefectFile("D008.md", content)
-	if err == nil {
-		t.Fatal("ParseDefectFile() error = nil, want error for invalid in_progress stage")
+	defect, err := p.ParseDefectFile("D008.md", content)
+	if err != nil {
+		t.Fatalf("ParseDefectFile() error = %v, want invalid stage healed to build", err)
+	}
+	if defect.Stage != StageBuild {
+		t.Errorf("Stage = %q, want build for invalid in_progress stage", defect.Stage)
 	}
 }
 

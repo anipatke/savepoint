@@ -29,7 +29,7 @@ Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only fo
 
 - Router `state`: the current phase, such as `epic-design`, `task-building`, or `audit-pending`
 - Task `status`: only `planned`, `in_progress`, or `done`
-- Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it is a parse error
+- Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it self-heals to `stage: build` on load and is flagged by `savepoint doctor`
 - Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Never: todo, doing, blocked, review, audit

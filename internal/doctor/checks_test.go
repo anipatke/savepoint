@@ -1177,13 +1177,13 @@ func TestCheckDefects_InvalidStatus(t *testing.T) {
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {
-		if strings.Contains(p.Message, "parse error") {
+		if strings.Contains(p.Message, "defect status invalid") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("CheckDefects() = %v, want parse error for invalid status", problems)
+		t.Fatalf("CheckDefects() = %v, want invalid status problem", problems)
 	}
 }
 
@@ -1213,13 +1213,49 @@ func TestCheckDefects_InvalidStageWhenInProgress(t *testing.T) {
 	problems := CheckDefects(root)
 	found := false
 	for _, p := range problems {
-		if strings.Contains(p.Message, "parse error") {
+		if strings.Contains(p.Message, "defect stage invalid") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("CheckDefects() = %v, want parse error for invalid stage", problems)
+		t.Fatalf("CheckDefects() = %v, want invalid stage problem", problems)
+	}
+}
+
+func TestCheckDefects_TaskStyleStatusAlias(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-alias.md",
+		"---\nid: v1/D001-alias\nstatus: done\nseverity: low\ntitle: Alias\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "non-canonical status") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want non-canonical status problem", problems)
+	}
+}
+
+func TestCheckDefects_StaleStageOutsideInProgress(t *testing.T) {
+	root := t.TempDir()
+	defectsDir := filepath.Join(root, "releases", "v1", "defects")
+	writeDefect(t, defectsDir, "D001-stale.md",
+		"---\nid: v1/D001-stale\nstatus: resolved\nstage: audit\nseverity: low\ntitle: Stale\n---\n")
+	problems := CheckDefects(root)
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, "only valid when status is in_progress") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckDefects() = %v, want stale stage problem", problems)
 	}
 }
 

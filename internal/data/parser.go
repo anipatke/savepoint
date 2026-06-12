@@ -40,15 +40,12 @@ func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
 		return nil, fmt.Errorf("parse error for %s: failed to parse YAML: %w", path, err)
 	}
 
-	lifecycle, err := ParseTaskLifecycle(TaskLifecycleMetadata{
+	lifecycle := ParseTaskLifecycle(TaskLifecycleMetadata{
 		Status: fields.Status,
 		Column: fields.Column,
 		Stage:  fields.Stage,
 		Phase:  fields.Phase,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("parse error for %s: %w", path, err)
-	}
 
 	task := &Task{
 		ID:               fields.ID,
@@ -214,9 +211,7 @@ func (p *Parser) ParseDefectFile(path string, content string) (*Defect, error) {
 		Body:       body,
 	}
 
-	if err := validateDefectLifecycle(defect); err != nil {
-		return nil, fmt.Errorf("parse error for %s: %w", path, err)
-	}
+	NormalizeDefectLifecycleForLoad(defect)
 
 	return defect, nil
 }

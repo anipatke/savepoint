@@ -64,21 +64,26 @@ func CanonicalTaskStages() []ProgressStage {
 	return []ProgressStage{StageBuild, StageTest, StageAudit}
 }
 
-func ParseTaskLifecycle(metadata TaskLifecycleMetadata) (TaskLifecycleState, error) {
+// ParseTaskLifecycle heals recoverable lifecycle metadata at load time so a
+// task file never blocks board load; doctor surfaces the same issues as
+// notifications via DiagnoseTaskLifecycle.
+func ParseTaskLifecycle(metadata TaskLifecycleMetadata) TaskLifecycleState {
 	rawStatus := firstTaskStatus(metadata.Column, metadata.Status)
 	state := TaskLifecycleState{
 		Status: NormalizeTaskStatusForLoad(rawStatus),
 	}
+	if !IsCanonicalTaskStatus(state.Status) {
+		state.Status = ColumnPlanned
+	}
 
 	if state.Status == ColumnInProgress {
 		state.Stage = NormalizeTaskStageForLoad(firstProgressStage(metadata.Stage, metadata.Phase))
+		if !IsCanonicalStage(state.Stage) {
+			state.Stage = StageBuild
+		}
 	}
 
-	if err := validateLoadedTaskLifecycle(rawStatus, state, metadata.Phase); err != nil {
-		return TaskLifecycleState{}, err
-	}
-
-	return state, nil
+	return state
 }
 
 func NormalizeTaskStatusForLoad(value ColumnType) ColumnType {
@@ -346,6 +351,104 @@ func ComplexityReasonWordCount(reason string) int {
 	return len(strings.Fields(reason))
 }
 
+type DefectLifecycleDiagnosticCode string
+
+const (
+	DefectLifecycleStatusAlias   DefectLifecycleDiagnosticCode = "status_alias"
+	DefectLifecycleInvalidStatus DefectLifecycleDiagnosticCode = "invalid_status"
+	DefectLifecycleMissingStage  DefectLifecycleDiagnosticCode = "missing_stage"
+	DefectLifecycleInvalidStage  DefectLifecycleDiagnosticCode = "invalid_stage"
+	DefectLifecycleStaleStage    DefectLifecycleDiagnosticCode = "stale_stage"
+)
+
+type DefectLifecycleDiagnostic struct {
+	Code    DefectLifecycleDiagnosticCode
+	Message string
+}
+
+// NormalizeDefectLifecycleForLoad heals recoverable defect lifecycle metadata
+// at load time so a defect file never blocks board load; doctor surfaces the
+// same issues as notifications via DiagnoseDefectLifecycle.
+func NormalizeDefectLifecycleForLoad(d *Defect) {
+	d.Status = NormalizeDefectStatusForLoad(d.Status)
+	if d.Status != DefectInProgress {
+		d.Stage = ""
+		return
+	}
+	d.Stage = NormalizeTaskStageForLoad(d.Stage)
+	if !IsCanonicalStage(d.Stage) {
+		d.Stage = StageBuild
+	}
+}
+
+func NormalizeDefectStatusForLoad(value DefectStatus) DefectStatus {
+	if status, ok := ResolveDefectStatusAlias(value); ok {
+		return status
+	}
+	if !IsCanonicalDefectStatus(value) {
+		return DefectOpen
+	}
+	return value
+}
+
+// ResolveDefectStatusAlias maps task-style statuses agents sometimes write
+// into defect frontmatter onto the defect lifecycle.
+func ResolveDefectStatusAlias(value DefectStatus) (DefectStatus, bool) {
+	switch ColumnType(value) {
+	case ColumnPlanned, LegacyTaskStatusTodo:
+		return DefectOpen, true
+	case ColumnDone, LegacyTaskStatusComplete, LegacyTaskStatusCompleted:
+		return DefectResolved, true
+	default:
+		return "", false
+	}
+}
+
+// DiagnoseDefectLifecycle reports every condition that
+// NormalizeDefectLifecycleForLoad heals silently, from raw frontmatter values.
+func DiagnoseDefectLifecycle(status DefectStatus, stage ProgressStage) []DefectLifecycleDiagnostic {
+	var diagnostics []DefectLifecycleDiagnostic
+
+	if alias, ok := ResolveDefectStatusAlias(status); ok {
+		diagnostics = append(diagnostics, DefectLifecycleDiagnostic{
+			Code:    DefectLifecycleStatusAlias,
+			Message: fmt.Sprintf("defect uses non-canonical status %q; replace with %q", status, alias),
+		})
+	} else if status != "" && !IsCanonicalDefectStatus(status) {
+		diagnostics = append(diagnostics, DefectLifecycleDiagnostic{
+			Code:    DefectLifecycleInvalidStatus,
+			Message: fmt.Sprintf("defect status invalid %q; use open, in_progress, or resolved (loads as open)", status),
+		})
+		return diagnostics
+	}
+
+	if NormalizeDefectStatusForLoad(status) == DefectInProgress {
+		if stage == "" {
+			diagnostics = append(diagnostics, DefectLifecycleDiagnostic{
+				Code:    DefectLifecycleMissingStage,
+				Message: "defect stage is required when status is in_progress (loads as build)",
+			})
+			return diagnostics
+		}
+		if !IsCanonicalStage(stage) {
+			diagnostics = append(diagnostics, DefectLifecycleDiagnostic{
+				Code:    DefectLifecycleInvalidStage,
+				Message: fmt.Sprintf("defect stage invalid %q; use build, test, or audit (loads as build)", stage),
+			})
+		}
+		return diagnostics
+	}
+
+	if stage != "" {
+		diagnostics = append(diagnostics, DefectLifecycleDiagnostic{
+			Code:    DefectLifecycleStaleStage,
+			Message: fmt.Sprintf("defect stage %q is only valid when status is in_progress (ignored on load)", stage),
+		})
+	}
+
+	return diagnostics
+}
+
 func validateDefectLifecycle(d *Defect) error {
 	if d.Status == "" {
 		d.Status = DefectOpen
@@ -397,19 +500,6 @@ func IsCanonicalStage(value ProgressStage) bool {
 	default:
 		return false
 	}
-}
-
-func validateLoadedTaskLifecycle(rawStatus ColumnType, state TaskLifecycleState, phase ProgressStage) error {
-	if rawStatus != "" && !IsLegacyTaskStatusAlias(rawStatus) && !IsCanonicalTaskStatus(rawStatus) {
-		return fmt.Errorf("invalid status %q: use planned, in_progress, or done. Add 'status: planned' or 'status: in_progress' to task frontmatter", rawStatus)
-	}
-	if state.Status == ColumnInProgress {
-		return validateCanonicalTaskStage(state)
-	}
-	if phase != "" && !IsCanonicalStage(phase) && !IsLegacyTaskStageAlias(phase) {
-		return fmt.Errorf("invalid legacy phase %q: use build, test, or audit, or remove 'phase'", phase)
-	}
-	return nil
 }
 
 func validateCanonicalTaskStage(state TaskLifecycleState) error {

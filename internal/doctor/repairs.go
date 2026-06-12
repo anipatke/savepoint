@@ -34,6 +34,16 @@ func SuggestRepair(err error) string {
 		return "Set router state to a recognized workflow state (see router.md State → action section)"
 	case strings.Contains(msg, "release PRD file not found"):
 		return "Create a {release}-PRD.md file with frontmatter for the release"
+	case strings.Contains(msg, "defect uses non-canonical status"):
+		return "Replace the defect status with the canonical value named in the problem"
+	case strings.Contains(msg, "defect status invalid"):
+		return "Set the defect status to open, in_progress, or resolved"
+	case strings.Contains(msg, "defect stage is required"):
+		return "Add stage: build, stage: test, or stage: audit while the defect status is in_progress"
+	case strings.Contains(msg, "defect stage invalid"):
+		return "Set the defect stage to build, test, or audit"
+	case strings.Contains(msg, "defect stage") && strings.Contains(msg, "only valid"):
+		return "Remove stage unless the defect status is in_progress"
 	case strings.Contains(msg, "release"):
 		return "Create the release directory at releases/<release-id>/"
 	case strings.Contains(msg, "epic") && strings.Contains(msg, "directory not found"):

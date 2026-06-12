@@ -661,6 +661,8 @@ func checkDefectFile(path string, parser taskParser, taskIDs map[string]bool, pr
 		return
 	}
 
+	checkDefectLifecycle(string(raw), path, parser, problems)
+
 	if defect.ID == "" {
 		*problems = append(*problems, Problem{File: path, Message: "defect missing required frontmatter field: id"})
 	}
@@ -670,6 +672,22 @@ func checkDefectFile(path string, parser taskParser, taskIDs map[string]bool, pr
 
 	checkDefectReference(path, defect.Reference, taskIDs, problems)
 	checkDefectReference(path, defect.Introduced, taskIDs, problems)
+}
+
+// checkDefectLifecycle reports lifecycle metadata that load-time
+// normalization heals silently, reading raw frontmatter because
+// ParseDefectFile returns already-healed values.
+func checkDefectLifecycle(content, path string, parser taskParser, problems *[]Problem) {
+	fm, err := parser.ParseFrontmatter(content)
+	if err != nil {
+		return
+	}
+	status, _ := fm["status"].(string)
+	stage, _ := fm["stage"].(string)
+	diagnostics := data.DiagnoseDefectLifecycle(data.DefectStatus(status), data.ProgressStage(stage))
+	for _, diagnostic := range diagnostics {
+		*problems = append(*problems, Problem{File: path, Message: diagnostic.Message})
+	}
 }
 
 // checkDefectReference validates a reference field that looks like a task ref (contains /).
