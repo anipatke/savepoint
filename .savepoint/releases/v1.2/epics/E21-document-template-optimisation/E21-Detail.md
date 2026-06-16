@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: epic-design
+status: audited
 ---
 
 # E21: Document Template Optimisation
@@ -44,11 +44,11 @@ Before this epic, `AGENTS.md` and the three `.savepoint/` document templates hav
 - Changes to agent skills (`agent-skills/` or `templates/project/agent-skills/`).
 - Changes to `router.md`, `config.yml`, or `visual-identity.md` templates.
 - Live project `PRD.md` and `Design.md` (project-state files, not templates).
-- Adding `Concept.md` to the init command scaffold (deferred — tracked below).
+- Adding `Concept.md` to `upgrade-assets` for existing projects (deferred because `.savepoint/` project-state files are intentionally skipped).
 
 ## Open decisions
 
-- **Init scaffold inclusion:** `Concept.md` is authored here but not wired into `savepoint init` output. A follow-on task or epic should add it to the init scaffold and the `upgrade-assets` skip-list once the template has been used in at least one real project.
+- **Existing-project upgrade inclusion:** `savepoint init` now scaffolds `Concept.md` automatically because it walks embedded `templates/project`. Existing Savepoint projects do not receive `.savepoint/Concept.md` through `upgrade-assets`; decide after real use whether that command should create the file or continue treating it as project state.
 
 ## Quality gates
 

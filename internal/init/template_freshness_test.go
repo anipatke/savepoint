@@ -113,6 +113,69 @@ func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 	assertContains(t, buildSkill, "legacy task `phase` as parser compatibility only")
 }
 
+func TestProjectConceptTemplateExists(t *testing.T) {
+	root := filepath.Join("..", "..")
+	concept := readTemplate(t, root, "templates", "project", ".savepoint", "Concept.md")
+
+	assertContains(t, concept, "type: project-concept")
+	assertContains(t, concept, "## When to use this")
+	assertContains(t, concept, "## Core impulse")
+	assertContains(t, concept, "## Target feeling")
+	assertContains(t, concept, "## The problem in one sentence")
+	assertContains(t, concept, "## Who this is NOT for")
+	assertContains(t, concept, "## Open questions")
+
+	for _, stale := range []string{
+		"status: todo",
+		"status: doing",
+		"status: blocked",
+		"status: review",
+		"status: audit",
+		"phase: build",
+		"phase: test",
+		"phase: audit",
+		"phase: implementation",
+		"`phase` (build/test/audit)",
+	} {
+		assertNotContains(t, concept, stale)
+	}
+}
+
+func TestProjectDocumentTemplatesHaveTypeFrontmatter(t *testing.T) {
+	root := filepath.Join("..", "..")
+	cases := []struct {
+		path []string
+		want string
+	}{
+		{[]string{"templates", "project", ".savepoint", "PRD.md"}, "type: project-prd"},
+		{[]string{"templates", "project", ".savepoint", "Design.md"}, "type: project-design"},
+		{[]string{"templates", "project", ".savepoint", "Concept.md"}, "type: project-concept"},
+	}
+	for _, c := range cases {
+		content := readTemplate(t, root, c.path...)
+		assertContains(t, content, c.want)
+	}
+}
+
+func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
+	root := filepath.Join("..", "..")
+	liveAgents := readTemplate(t, root, "AGENTS.md")
+	templateAgents := readTemplate(t, root, "templates", "project", "AGENTS.md")
+
+	canonicalStatuses := []string{"planned", "in_progress", "done"}
+	for _, status := range canonicalStatuses {
+		assertContains(t, liveAgents, status)
+		assertContains(t, templateAgents, status)
+	}
+
+	assertContains(t, liveAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
+	assertContains(t, templateAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
+
+	for _, content := range []string{liveAgents, templateAgents} {
+		assertNotContains(t, content, "phase:")
+	}
+}
+
 func readTemplate(t *testing.T, root string, parts ...string) string {
 	t.Helper()
 

@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.2
-epic: E21
-task: E20-clean-up-lifecycle/T006-complexity-validation-parse-split
-next_action: Build E20-clean-up-lifecycle/T006-complexity-validation-parse-split.
+epic: E30-epic-status-self-heal
+task: E30-epic-status-self-heal/T001-epic-status-normalization
+next_action: Build E30-epic-status-self-heal/T001-epic-status-normalization.
 ```
 
 ## State → action

@@ -48,12 +48,9 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 
 ## Implementation
 
-1. Read task's `## Context Files` using `Read` tool — one call per file, no explore, no glob
-2. Read task's `## Acceptance Criteria` + `## Implementation Plan`
-3. When starting implementation, set task frontmatter to `status: in_progress` + `stage: build` (both required together). Do not use `stage: implementation`.
-4. After setting `in_progress`, press `p` in the TUI to mark the focused task as router priority
-5. Follow `savepoint-build-task` for execution, checklist updates, AC verification, quality gates, context log, and handoff.
-6. **Stop. Prompt user before continuing.**
+Follow the active skill for execution. During `task-building`, the canonical flow is `savepoint-build-task` — it owns the read order, `status: in_progress` + `stage: build` setting, AC verification, quality gates, and handoff.
+
+**Stop. Prompt the user before continuing.** Only the user may mark a task `status: done` or retreat a task to an earlier status.
 
 ## Drift Check
 
@@ -62,16 +59,11 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 
 If yes → append `## Drift Notes` to task file.
 
-## Audit Handoff
+## Audit
 
-The agent that builds an epic **must not audit it**. Start a fresh session.
+Audit is agent-led via the `savepoint-audit` skill — follow it for the file layout, section rules, and apply/close flow. The builder must not audit its own epic; start a fresh session.
 
-## Audit File Structure
-
-- Audit is agent-led via `savepoint-audit`, not a `savepoint audit` CLI pipeline.
-- Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
-- The TUI Audit tab renders `## Main Findings` and `## Code Style Review` only.
-- Keep file-specific `### Target File` / `### Replace` / `### With` blocks under `## Proposed Changes` so admin apply details do not appear in the Epic Detail panel.
+- Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
 - During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
 
 ## Code Style

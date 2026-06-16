@@ -48,11 +48,9 @@ Use a defect conversation when the user reports a concrete bug, regression, brok
 
 ## Implementation
 
-1. Read the task's `## Context Files` one file at a time; do not explore, glob, search broadly, or read files outside the task context unless explicitly required.
-2. Read the task's `## Acceptance Criteria` and `## Implementation Plan`.
-3. Set task frontmatter to `status: in_progress` and `stage: build`, then press `p` in the TUI to mark router priority. Do not use `stage: implementation`.
-4. Follow `savepoint-build-task` for execution, checklist updates, AC verification, quality gates, context log, and handoff.
-5. Stop and prompt the user before continuing.
+Follow the active skill for execution. During `task-building`, the canonical flow is `savepoint-build-task` — it owns the read order, `status: in_progress` + `stage: build` setting, AC verification, quality gates, and handoff.
+
+**Stop. Prompt the user before continuing.** Only the user may mark a task `status: done` or retreat a task to an earlier status.
 
 ## Drift Check
 
@@ -63,12 +61,10 @@ If yes → append `## Drift Notes` to task file.
 
 ## Audit
 
-- The builder must not audit its own epic; start a fresh audit session.
-- Audit is agent-led via `savepoint-audit`, not a `savepoint audit` CLI pipeline.
-- Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
-- The TUI Audit tab renders only `## Main Findings` and `## Code Style Review`.
-- Put file-specific `### Target File`, `### Replace`, and `### With` blocks under `## Proposed Changes`.
-- During audit apply/close, update the same `E##-Audit.md` visible sections so they describe the applied outcome, not stale blockers.
+Audit is agent-led via the `savepoint-audit` skill — follow it for the file layout, section rules, and apply/close flow. The builder must not audit its own epic; start a fresh session.
+
+- Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
+- During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
 
 ## Code Style
 
@@ -85,12 +81,20 @@ If yes → append `## Drift Notes` to task file.
 
 ## Build
 
-Build gate: `make build && make test`
+```bash
+make build && make test
+```
 
 ## Codebase Map
 
-| Module | Epic | Purpose |
-|--------|------|---------|
+| Module | Purpose |
+|--------|---------|
+
+## Context Budget
+
+- **Read only what you need.** Each phase has a strict read budget. Do not read files outside your current phase's context.
+- **No exploratory reads.** Read only the files listed in the task's `## Context Files`. Do not glob or search for new information unless explicitly instructed.
+- **Token awareness.** Every file read consumes context window. Before reading a file, ask: "Do I need this to complete my current phase?"
 
 ## CLI Rules
 
