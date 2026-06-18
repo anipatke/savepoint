@@ -135,6 +135,9 @@ var (
 	HeaderRight = lipgloss.NewStyle().
 			Foreground(clrDim)
 
+	HeaderRelease = lipgloss.NewStyle().
+			Foreground(clrText)
+
 	RootLine = lipgloss.NewStyle()
 
 	// Tag styles for semantic encoding
