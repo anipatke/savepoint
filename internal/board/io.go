@@ -96,6 +96,25 @@ func writeDefectStatusCmd(next data.Defect, expectedMtime time.Time) tea.Cmd {
 	}
 }
 
+// writeEpicStatusCmd persists status to the epic's E##-Detail.md via
+// data.UpdateEpicStatus, guarded by expectedMtime so a file changed since it was
+// read does not get a partial overwrite. It mirrors writeDefectStatusCmd.
+func writeEpicStatusCmd(epicID, path, status string, expectedMtime time.Time) tea.Cmd {
+	return func() tea.Msg {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return errorMsg{message: err.Error()}
+		}
+		if !fi.ModTime().Equal(expectedMtime) {
+			return errorMsg{message: "epic changed on disk: refresh before retrying"}
+		}
+		if err := data.UpdateEpicStatus(path, status); err != nil {
+			return errorMsg{message: err.Error()}
+		}
+		return epicStatusWrittenMsg{epicID: epicID, status: status}
+	}
+}
+
 func retryTaskStatusAfterConflict(orig, next data.Task, prefix string) tea.Msg {
 	current, err := readTaskFromDisk(orig.Path, orig.Release, orig.Epic)
 	if err != nil {

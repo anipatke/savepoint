@@ -107,7 +107,7 @@ func RenderEpicAuditTab(epicSlug, content string, overlayW, maxHeight, offset in
 	}
 
 	body := epicAuditBody(content, inner)
-	body = append(body, "", styles.CardMeta.Render("1:Detail 2:Audit  esc:close"))
+	body = append(body, "", styles.CardMeta.Render("1:Detail 2:Audit  a:mark audited  esc:close"))
 	lines = append(lines, visibleDetailLines(body, maxHeight-detailVerticalOverhead-1, offset)...)
 
 	return styles.EpicDetailOverlay.Width(overlayW).Render(strings.Join(lines, "\n"))
