@@ -23,6 +23,8 @@ func TestSuggestRepair(t *testing.T) {
 		{Problem{Message: "router.md epic \"E99-foo\" directory not found"}, "Create the epic directory"},
 		{Problem{Message: "release PRD file not found"}, "Create a {release}-PRD.md"},
 		{Problem{Message: "epic detail file not found"}, "Create an E##-Detail.md"},
+		{Problem{Message: `epic uses non-canonical status "epic-design"; use planned, in_progress, done, or audited (loads as planned)`}, "Set the epic status to planned, in_progress, done, or audited"},
+		{Problem{Message: `epic status invalid "wip"; use planned, in_progress, done, or audited (loads as planned)`}, "Set the epic status to planned, in_progress, done, or audited"},
 		{Problem{Message: "invalid frontmatter: yaml: line 5:"}, "Fix the YAML frontmatter"},
 		{Problem{Message: "task missing required frontmatter field: status"}, "Add the missing field"},
 		{Problem{Message: "task uses non-canonical status \"complete\"; replace with \"done\""}, "canonical value"},

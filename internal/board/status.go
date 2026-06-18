@@ -6,6 +6,7 @@ import (
 )
 
 const statusGlyphDefault = " "
+const statusGlyphUnknown = "?"
 
 func statusGlyph(status string) string {
 	switch status {
@@ -15,9 +16,13 @@ func statusGlyph(status string) string {
 		return styles.GlyphBuild.Render("▶")
 	case string(data.ColumnDone):
 		return styles.TagDone.Render("◉")
-	case "audited":
+	case string(data.EpicStatusAudited):
 		return styles.TagDone.Render("✓")
-	default:
+	case "":
 		return statusGlyphDefault
+	default:
+		// Defense in depth: a status that escaped load-time normalization
+		// still renders a visible glyph rather than a blank cell.
+		return styles.CardMeta.Render(statusGlyphUnknown)
 	}
 }
