@@ -133,7 +133,7 @@ func loadBoardData(root string, discoverer taskDiscoverer, parser taskParser) ([
 			if raw, err := os.ReadFile(detailPath); err == nil {
 				if fm, err := parser.ParseFrontmatter(string(raw)); err == nil {
 					if status, ok := fm["status"].(string); ok {
-						epicStatuses[epic.ID] = status
+						epicStatuses[epic.ID] = string(data.NormalizeEpicStatusForLoad(data.EpicStatus(status)))
 					}
 				}
 			}

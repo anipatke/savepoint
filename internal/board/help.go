@@ -26,6 +26,7 @@ func RenderHelp(width int) string {
 		helpRow("e", "open epic selector on narrow screens"),
 		helpRow("r", "open release selector"),
 		helpRow("p", "mark focused task as priority"),
+		helpRow("a", "mark epic audited (in epic detail)"),
 		helpRow("up / k", "move selector up"),
 		helpRow("down / j", "move selector down"),
 		helpRow("?", "open help"),

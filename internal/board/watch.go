@@ -50,6 +50,11 @@ type auditContentMsg struct {
 	content string
 }
 
+type epicStatusWrittenMsg struct {
+	epicID string
+	status string
+}
+
 type errorMsg struct {
 	message string
 }

@@ -182,7 +182,23 @@ func checkEpicDetail(epicPath string, epicID string, parser taskParser, problems
 		*problems = append(*problems, Problem{File: detailPath, Message: fmt.Sprintf("unreadable: %v", err)})
 		return
 	}
-	validateFrontmatter(detailPath, string(raw), parser, problems)
+	content := string(raw)
+	validateFrontmatter(detailPath, content, parser, problems)
+	checkEpicStatus(content, detailPath, parser, problems)
+}
+
+// checkEpicStatus reports a non-canonical epic status that load-time
+// normalization heals silently, reading the raw frontmatter value. A
+// missing or empty status produces no problem.
+func checkEpicStatus(content, path string, parser taskParser, problems *[]Problem) {
+	fm, err := parser.ParseFrontmatter(content)
+	if err != nil {
+		return
+	}
+	status, _ := fm["status"].(string)
+	for _, diagnostic := range data.DiagnoseEpicStatus(data.EpicStatus(status)) {
+		*problems = append(*problems, Problem{File: path, Message: diagnostic.Message})
+	}
 }
 
 func extractPrefix(epicID string) string {

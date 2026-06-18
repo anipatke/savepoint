@@ -112,9 +112,16 @@ func (m Model) renderHeader(w int) string {
 	text := styles.HeaderText.Render("S A V E P O I N T")
 	left := icon + "  " + text
 
-	count := m.openDefectCount()
-	if count > 0 {
-		right := styles.HeaderRight.Render(fmt.Sprintf("⚠  %d open", count))
+	var parts []string
+	if m.SelectedRelease != "" {
+		parts = append(parts, styles.HeaderRelease.Render(m.SelectedRelease))
+	}
+	if count := m.openDefectCount(); count > 0 {
+		parts = append(parts, styles.HeaderRight.Render(fmt.Sprintf("⚠  %d open", count)))
+	}
+
+	if len(parts) > 0 {
+		right := strings.Join(parts, styles.HeaderRight.Render(" │ "))
 		inner := w - 2 // HeaderFrame padding(1,1)
 		gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
 		if gap > 0 {

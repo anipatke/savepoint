@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
@@ -90,6 +91,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.EpicDetailContent = msg.content
 	case auditContentMsg:
 		m.EpicAuditContent = msg.content
+	case epicStatusWrittenMsg:
+		if m.EpicStatus == nil {
+			m.EpicStatus = map[string]string{}
+		}
+		m.EpicStatus[msg.epicID] = msg.status
+		m.StatusMessage = "Marked " + shortID(msg.epicID) + " " + msg.status
 	case errorMsg:
 		m.StatusMessage = msg.message
 	}
@@ -385,13 +392,11 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.EpicDetailOffset = 0
 		if m.EpicAuditContent == "" {
 			epicSlug := m.epicDetailEpic()
-			shortEpicID := epicSlug
-			if idx := strings.Index(epicSlug, "-"); idx >= 0 {
-				shortEpicID = epicSlug[:idx]
-			}
 			epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
-			return m, readEpicAuditCmd(epicDir, shortEpicID)
+			return m, readEpicAuditCmd(epicDir, shortID(epicSlug))
 		}
+	case "a":
+		return m.markEpicAudited()
 	case "up", "k":
 		if m.EpicDetailOffset > 0 {
 			m.EpicDetailOffset--
@@ -407,6 +412,33 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.EpicDetailOffset += m.detailPageSize()
 	}
 	return m, nil
+}
+
+// markEpicAudited writes status audited for the open epic, guarded by the detail
+// file's mtime captured when the overlay was opened. It no-ops with a message if
+// the epic is already audited.
+func (m Model) markEpicAudited() (tea.Model, tea.Cmd) {
+	epicSlug := m.epicDetailEpic()
+	if epicSlug == "" {
+		return m, nil
+	}
+	if m.EpicStatus[epicSlug] == string(data.EpicStatusAudited) {
+		m.StatusMessage = shortID(epicSlug) + " already audited"
+		return m, nil
+	}
+	if m.Root == "" {
+		m.StatusMessage = "Epic not updated: no savepoint root"
+		return m, nil
+	}
+	path := epicDetailFilePath(m.Root, m.SelectedRelease, epicSlug)
+	return m, writeEpicStatusCmd(epicSlug, path, string(data.EpicStatusAudited), m.EpicDetailMtime)
+}
+
+// epicDetailFilePath resolves the E##-Detail.md path for an epic slug, matching
+// how loadBoardData and the audit-tab branch build it.
+func epicDetailFilePath(root, release, epicSlug string) string {
+	epicDir := filepath.Join(root, "releases", release, "epics", epicSlug)
+	return filepath.Join(epicDir, shortID(epicSlug)+"-Detail.md")
 }
 
 func taskWriteErrorMessage(err error) string {
@@ -472,15 +504,16 @@ func (m *Model) openEpicDetailOverlay() tea.Cmd {
 		return nil
 	}
 	epicSlug := m.Epics[m.EpicPanelCursor]
-	shortEpicID := epicSlug
-	if idx := strings.Index(epicSlug, "-"); idx >= 0 {
-		shortEpicID = epicSlug[:idx]
-	}
+	shortEpicID := shortID(epicSlug)
 	epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
 	m.EpicDetailEpic = epicSlug
 	m.EpicDetailOffset = 0
 	m.EpicDetailTab = 0
 	m.EpicAuditContent = ""
+	m.EpicDetailMtime = time.Time{}
+	if fi, err := os.Stat(filepath.Join(epicDir, shortEpicID+"-Detail.md")); err == nil {
+		m.EpicDetailMtime = fi.ModTime()
+	}
 	m.Overlay = OverlayEpicDetail
 	return readEpicDetailCmd(epicDir, shortEpicID)
 }

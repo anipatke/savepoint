@@ -1,6 +1,8 @@
 package board
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
 	"github.com/opencode/savepoint/internal/data"
@@ -60,8 +62,9 @@ type EpicState struct {
 	EpicDetailOffset  int
 	EpicDetailEpic    string
 	EpicDetailContent string
-	EpicDetailTab     int    // 0=Detail, 1=Audit
-	EpicAuditContent  string // cached E##-Audit.md content
+	EpicDetailTab     int       // 0=Detail, 1=Audit
+	EpicAuditContent  string    // cached E##-Audit.md content
+	EpicDetailMtime   time.Time // mtime of the open epic's E##-Detail.md, for write conflict detection
 }
 
 // ReleaseState holds release list and release picker state.

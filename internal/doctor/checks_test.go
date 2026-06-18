@@ -267,6 +267,44 @@ func TestCheckStructure_MissingEpicDetail(t *testing.T) {
 	}
 }
 
+func TestCheckStructure_EpicCanonicalStatusNoProblem(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: audited\n---\n\n# E01: Foo\n")
+	problems := CheckStructure(root, "")
+	for _, p := range problems {
+		if strings.Contains(p.Message, "epic") && strings.Contains(p.Message, "status") {
+			t.Fatalf("CheckStructure() unexpected epic status problem: %v", p)
+		}
+	}
+}
+
+func TestCheckStructure_EpicNonCanonicalStatusReported(t *testing.T) {
+	root := t.TempDir()
+	releasePath := filepath.Join(root, "releases", "v1")
+	epicPath := filepath.Join(releasePath, "epics", "E01-foo")
+	testutil.MkdirAll(t, epicPath)
+	testutil.WriteReleasePRD(t, releasePath)
+	testutil.WriteFile(t, filepath.Join(epicPath, "E01-Detail.md"), "---\ntype: epic-design\nstatus: epic-design\n---\n\n# E01: Foo\n")
+	problems := CheckStructure(root, "")
+	found := false
+	for _, p := range problems {
+		if strings.Contains(p.Message, `epic uses non-canonical status "epic-design"`) {
+			if SuggestRepair(p) != "Set the epic status to planned, in_progress, done, or audited" {
+				t.Fatalf("SuggestRepair(%q) = %q, want epic status hint", p.Message, SuggestRepair(p))
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("CheckStructure() = %v, want non-canonical epic status problem", problems)
+	}
+}
+
 func TestCheckStructure_ValidTask(t *testing.T) {
 	root := t.TempDir()
 	releasePath := filepath.Join(root, "releases", "v1")

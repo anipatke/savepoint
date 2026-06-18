@@ -455,6 +455,99 @@ func TestTaskLifecycleContract_exposesCanonicalValuesAndAliases(t *testing.T) {
 	}
 }
 
+func TestCanonicalEpicStatuses_isPlannedInProgressDoneAudited(t *testing.T) {
+	statuses := CanonicalEpicStatuses()
+	want := []EpicStatus{
+		EpicStatus(ColumnPlanned),
+		EpicStatus(ColumnInProgress),
+		EpicStatus(ColumnDone),
+		EpicStatusAudited,
+	}
+	if len(statuses) != len(want) {
+		t.Fatalf("CanonicalEpicStatuses() = %v, want %v", statuses, want)
+	}
+	for i, w := range want {
+		if statuses[i] != w {
+			t.Fatalf("CanonicalEpicStatuses()[%d] = %q, want %q", i, statuses[i], w)
+		}
+		if !IsCanonicalEpicStatus(w) {
+			t.Fatalf("IsCanonicalEpicStatus(%q) = false, want true", w)
+		}
+	}
+}
+
+func TestNormalizeEpicStatusForLoad_healsToCanonicalVocabulary(t *testing.T) {
+	cases := map[EpicStatus]EpicStatus{
+		// Canonical values pass through.
+		EpicStatus(ColumnPlanned):    EpicStatus(ColumnPlanned),
+		EpicStatus(ColumnInProgress): EpicStatus(ColumnInProgress),
+		EpicStatus(ColumnDone):       EpicStatus(ColumnDone),
+		EpicStatusAudited:            EpicStatusAudited,
+		// Task-style completion aliases.
+		"complete":  EpicStatus(ColumnDone),
+		"completed": EpicStatus(ColumnDone),
+		"todo":      EpicStatus(ColumnPlanned),
+		// Router-state leaks heal to planned.
+		"epic-design":         EpicStatus(ColumnPlanned),
+		"epic-task-breakdown": EpicStatus(ColumnPlanned),
+		"task-building":       EpicStatus(ColumnPlanned),
+		// Unknown and empty heal to planned.
+		"garbage": EpicStatus(ColumnPlanned),
+		"":        EpicStatus(ColumnPlanned),
+	}
+	for input, want := range cases {
+		if got := NormalizeEpicStatusForLoad(input); got != want {
+			t.Fatalf("NormalizeEpicStatusForLoad(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestResolveEpicStatusAlias_reportsOnlyKnownLeaks(t *testing.T) {
+	if alias, ok := ResolveEpicStatusAlias("epic-design"); !ok || alias != EpicStatus(ColumnPlanned) {
+		t.Fatalf("ResolveEpicStatusAlias(epic-design) = %q, %v; want planned, true", alias, ok)
+	}
+	if alias, ok := ResolveEpicStatusAlias("completed"); !ok || alias != EpicStatus(ColumnDone) {
+		t.Fatalf("ResolveEpicStatusAlias(completed) = %q, %v; want done, true", alias, ok)
+	}
+	if alias, ok := ResolveEpicStatusAlias(EpicStatus(ColumnPlanned)); ok {
+		t.Fatalf("ResolveEpicStatusAlias(planned) = %q, %v; want \"\", false", alias, ok)
+	}
+	if alias, ok := ResolveEpicStatusAlias("garbage"); ok {
+		t.Fatalf("ResolveEpicStatusAlias(garbage) = %q, %v; want \"\", false", alias, ok)
+	}
+}
+
+func TestDiagnoseEpicStatus_reportsNonCanonicalStatusesOnly(t *testing.T) {
+	for _, status := range CanonicalEpicStatuses() {
+		if diags := DiagnoseEpicStatus(status); len(diags) != 0 {
+			t.Fatalf("DiagnoseEpicStatus(%q) = %v, want no diagnostics", status, diags)
+		}
+	}
+	if diags := DiagnoseEpicStatus(""); len(diags) != 0 {
+		t.Fatalf("DiagnoseEpicStatus(\"\") = %v, want no diagnostics", diags)
+	}
+
+	aliasDiags := DiagnoseEpicStatus("epic-design")
+	if len(aliasDiags) != 1 || aliasDiags[0].Code != EpicStatusAliasCode {
+		t.Fatalf("DiagnoseEpicStatus(epic-design) = %v, want one status_alias diagnostic", aliasDiags)
+	}
+	if !strings.Contains(aliasDiags[0].Message, "epic-design") ||
+		!strings.Contains(aliasDiags[0].Message, "planned, in_progress, done, or audited") ||
+		!strings.Contains(aliasDiags[0].Message, "loads as planned") {
+		t.Fatalf("alias message missing value/canonical set/loads-as: %q", aliasDiags[0].Message)
+	}
+
+	invalidDiags := DiagnoseEpicStatus("garbage")
+	if len(invalidDiags) != 1 || invalidDiags[0].Code != EpicStatusInvalidCode {
+		t.Fatalf("DiagnoseEpicStatus(garbage) = %v, want one invalid_status diagnostic", invalidDiags)
+	}
+	if !strings.Contains(invalidDiags[0].Message, "garbage") ||
+		!strings.Contains(invalidDiags[0].Message, "planned, in_progress, done, or audited") ||
+		!strings.Contains(invalidDiags[0].Message, "loads as planned") {
+		t.Fatalf("invalid message missing value/canonical set/loads-as: %q", invalidDiags[0].Message)
+	}
+}
+
 func TestHealTaskMetadataForProgress_repairsKnownComplexityBlockers(t *testing.T) {
 	task := Task{
 		ComplexityTier:   LegacyComplexityTierSmall,

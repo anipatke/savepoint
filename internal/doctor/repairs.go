@@ -44,6 +44,8 @@ func SuggestRepair(err error) string {
 		return "Set the defect stage to build, test, or audit"
 	case strings.Contains(msg, "defect stage") && strings.Contains(msg, "only valid"):
 		return "Remove stage unless the defect status is in_progress"
+	case strings.Contains(msg, "epic uses non-canonical status"), strings.Contains(msg, "epic status invalid"):
+		return "Set the epic status to planned, in_progress, done, or audited"
 	case strings.Contains(msg, "release"):
 		return "Create the release directory at releases/<release-id>/"
 	case strings.Contains(msg, "epic") && strings.Contains(msg, "directory not found"):

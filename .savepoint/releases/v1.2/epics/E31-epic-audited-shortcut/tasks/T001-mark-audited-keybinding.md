@@ -1,6 +1,6 @@
 ---
 id: E31-epic-audited-shortcut/T001-mark-audited-keybinding
-status: planned
+status: done
 objective: Add an Epic-view keyboard shortcut that writes status audited via UpdateEpicStatus and refreshes the glyph
 depends_on: []
 complexity_tier: medium
@@ -32,44 +32,44 @@ map so the sidebar glyph updates immediately.
 
 ## Acceptance Criteria
 
-- [ ] Pressing `a` in the epic-detail overlay (Epic view) on a focused epic writes
+- [x] Pressing `a` in the epic-detail overlay (Epic view) on a focused epic writes
       `status: audited` to that epic's `E##-Detail.md` via
       `data.UpdateEpicStatus`.
-- [ ] The write is mtime-guarded the same way task status writes are; on
+- [x] The write is mtime-guarded the same way task status writes are; on
       conflict/error a clear `StatusMessage` is shown and no partial state is
       left.
-- [ ] After a successful write, the in-memory `EpicStatus` map is updated so the
+- [x] After a successful write, the in-memory `EpicStatus` map is updated so the
       epic's glyph reflects `audited` without requiring `ctrl+r`.
-- [ ] If the epic is already `audited`, the key is a no-op with an
+- [x] If the epic is already `audited`, the key is a no-op with an
       "already audited" status message (no spurious write).
-- [ ] Help text and the audit-tab hint mention the shortcut (`a:mark audited`).
-- [ ] Tests cover: key writes `status: audited` to the file; already-audited
+- [x] Help text and the audit-tab hint mention the shortcut (`a:mark audited`).
+- [x] Tests cover: key writes `status: audited` to the file; already-audited
       no-op; the `EpicStatus` map refresh; error/conflict messaging.
-- [ ] `make build && make test` passes.
+- [x] `make build && make test` passes.
 
 ## Implementation Plan
 
-- [ ] In `internal/board/io.go`, add `writeEpicStatusCmd(epicID, path, status,
+- [x] In `internal/board/io.go`, add `writeEpicStatusCmd(epicID, path, status,
       expectedMtime)` returning a `tea.Cmd` that calls `data.UpdateEpicStatus`
       and emits a result msg, mirroring `writeDefectStatusCmd` / the task status
       write command (including mtime-conflict handling).
-- [ ] Add a result message type (e.g. `epicStatusWrittenMsg`) and handle it in
+- [x] Add a result message type (e.g. `epicStatusWrittenMsg`) and handle it in
       `Update`: on success update `m.EpicStatus[epicID]` and set a confirmation
       `StatusMessage`; on error set an error `StatusMessage`.
-- [ ] In `handleEpicDetailOverlay` (`internal/board/update.go:376`), add
+- [x] In `handleEpicDetailOverlay` (`internal/board/update.go:376`), add
       `case "a":` — resolve the focused epic's ID, detail path, and mtime; if
       already `audited`, set the no-op message; otherwise return
       `writeEpicStatusCmd(..., data canonical "audited", mtime)`. Reuse the
       `epicDetailEpic()` / path-building logic already used by the `"2"` audit-tab
       branch.
-- [ ] Confirm the epic detail path resolution matches the audit-tab branch
+- [x] Confirm the epic detail path resolution matches the audit-tab branch
       (`releases/{release}/epics/{slug}/{short}-Detail.md`) and that the epic's
       mtime is available on the model (add it to the loaded epic state if not).
-- [ ] In `internal/board/help.go`, add a help row for `a`; in
+- [x] In `internal/board/help.go`, add a help row for `a`; in
       `internal/board/epic_panel.go`, extend the audit-tab hint to mention it.
-- [ ] Add tests in `update_test.go` (keybinding behaviour, already-audited no-op,
+- [x] Add tests in `update_test.go` (keybinding behaviour, already-audited no-op,
       map refresh) and `io_test.go` (file gets `status: audited`).
-- [ ] Run `make build && make test`.
+- [x] Run `make build && make test`.
 
 ## Notes
 
@@ -78,3 +78,36 @@ map so the sidebar glyph updates immediately.
 - Scope is setting `audited` only — not router advancement and not writing the
   `E##-Audit.md` file (the audit skill owns those). Default gating: allow from any
   non-`audited` state per the epic's Open decisions.
+
+## Context Log
+
+**Read:** `internal/board/{update,io,model,help,epic_panel,watch,board,status,card}.go`,
+`internal/data/{write,lifecycle}.go` (for `EpicStatusAudited`), `update_test.go`,
+`internal/testutil/fixture.go`.
+
+**Edited:**
+- `internal/board/watch.go` — added `epicStatusWrittenMsg{epicID, status}`.
+- `internal/board/io.go` — added `writeEpicStatusCmd`; stats the file, returns an
+  `errorMsg` ("epic changed on disk: refresh before retrying") on mtime mismatch,
+  otherwise calls `data.UpdateEpicStatus` (reused, unchanged) and emits the msg.
+- `internal/board/model.go` — added `EpicDetailMtime time.Time` to `EpicState`.
+- `internal/board/update.go` — `Update` handles `epicStatusWrittenMsg` (refresh
+  `m.EpicStatus[epicID]` + confirmation message); `handleEpicDetailOverlay` gains
+  `case "a"` → `markEpicAudited`; `markEpicAudited` no-ops with "already audited"
+  when the map already shows `audited`; added `epicDetailFilePath` helper;
+  `openEpicDetailOverlay` now uses `shortID()` and captures the detail file mtime.
+- `internal/board/help.go` — help row `a: mark epic audited (in epic detail)`.
+- `internal/board/epic_panel.go` — audit-tab footer now shows `a:mark audited`.
+
+**Tests added:**
+- `io_test.go` (new): `writeEpicStatusCmd` writes `status: audited`; mtime
+  conflict returns `errorMsg` and leaves the file untouched.
+- `update_test.go`: `a` writes audited + refreshes `EpicStatus` glyph map;
+  already-audited no-op (no write); stale-mtime conflict reports message and
+  leaves status unchanged.
+
+**Quality gates:** `make build && make test` — all packages pass.
+
+**mtime guard note:** `data.UpdateEpicStatus` has no mtime parameter (epic per
+"reused, not changed"), so the guard lives in `writeEpicStatusCmd`. The expected
+mtime is captured into `EpicDetailMtime` when the epic-detail overlay opens.

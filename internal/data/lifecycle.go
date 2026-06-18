@@ -404,6 +404,98 @@ func ResolveDefectStatusAlias(value DefectStatus) (DefectStatus, bool) {
 	}
 }
 
+// EpicStatusAudited is the only canonical epic status that is not shared with
+// the task status vocabulary; planned/in_progress/done reuse the Column*
+// constants so the epic and task lifecycles never drift apart.
+const EpicStatusAudited EpicStatus = "audited"
+
+type EpicStatus string
+
+// CanonicalEpicStatuses is the single source of the epic-status vocabulary.
+func CanonicalEpicStatuses() []EpicStatus {
+	return []EpicStatus{
+		EpicStatus(ColumnPlanned),
+		EpicStatus(ColumnInProgress),
+		EpicStatus(ColumnDone),
+		EpicStatusAudited,
+	}
+}
+
+func IsCanonicalEpicStatus(value EpicStatus) bool {
+	switch value {
+	case EpicStatus(ColumnPlanned), EpicStatus(ColumnInProgress), EpicStatus(ColumnDone), EpicStatusAudited:
+		return true
+	default:
+		return false
+	}
+}
+
+// ResolveEpicStatusAlias maps non-canonical values agents sometimes leak into
+// epic frontmatter — task-style completions and stray router states — onto the
+// canonical epic vocabulary. Router states are not valid epic statuses; this
+// only heals them, mirroring ResolveDefectStatusAlias.
+func ResolveEpicStatusAlias(value EpicStatus) (EpicStatus, bool) {
+	switch ColumnType(value) {
+	case LegacyTaskStatusComplete, LegacyTaskStatusCompleted:
+		return EpicStatus(ColumnDone), true
+	case LegacyTaskStatusTodo:
+		return EpicStatus(ColumnPlanned), true
+	}
+	switch value {
+	case "epic-design", "epic-task-breakdown", "task-building":
+		return EpicStatus(ColumnPlanned), true
+	default:
+		return "", false
+	}
+}
+
+// NormalizeEpicStatusForLoad returns a canonical epic status for any input:
+// canonical values pass through, known aliases resolve, and anything else —
+// including empty and router-state leaks — heals to planned. Mirrors
+// NormalizeDefectStatusForLoad.
+func NormalizeEpicStatusForLoad(value EpicStatus) EpicStatus {
+	if status, ok := ResolveEpicStatusAlias(value); ok {
+		return status
+	}
+	if !IsCanonicalEpicStatus(value) {
+		return EpicStatus(ColumnPlanned)
+	}
+	return value
+}
+
+type EpicStatusDiagnosticCode string
+
+const (
+	EpicStatusAliasCode   EpicStatusDiagnosticCode = "status_alias"
+	EpicStatusInvalidCode EpicStatusDiagnosticCode = "invalid_status"
+)
+
+type EpicStatusDiagnostic struct {
+	Code    EpicStatusDiagnosticCode
+	Message string
+}
+
+// DiagnoseEpicStatus reports a non-canonical epic status that
+// NormalizeEpicStatusForLoad heals silently, from the raw frontmatter value.
+// Canonical and empty statuses produce no diagnostics. Mirrors
+// DiagnoseDefectLifecycle's shape.
+func DiagnoseEpicStatus(status EpicStatus) []EpicStatusDiagnostic {
+	if status == "" || IsCanonicalEpicStatus(status) {
+		return nil
+	}
+	healed := NormalizeEpicStatusForLoad(status)
+	if _, ok := ResolveEpicStatusAlias(status); ok {
+		return []EpicStatusDiagnostic{{
+			Code:    EpicStatusAliasCode,
+			Message: fmt.Sprintf("epic uses non-canonical status %q; use planned, in_progress, done, or audited (loads as %s)", status, healed),
+		}}
+	}
+	return []EpicStatusDiagnostic{{
+		Code:    EpicStatusInvalidCode,
+		Message: fmt.Sprintf("epic status invalid %q; use planned, in_progress, done, or audited (loads as %s)", status, healed),
+	}}
+}
+
 // DiagnoseDefectLifecycle reports every condition that
 // NormalizeDefectLifecycleForLoad heals silently, from raw frontmatter values.
 func DiagnoseDefectLifecycle(status DefectStatus, stage ProgressStage) []DefectLifecycleDiagnostic {

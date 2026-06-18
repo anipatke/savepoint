@@ -772,6 +772,105 @@ func TestEnsureFocusedTaskVisible_lastTaskAlwaysVisible(t *testing.T) {
 	}
 }
 
+func writeEpicDetailFixture(t *testing.T, root, release, epicSlug, status string) string {
+	t.Helper()
+	epicDir := filepath.Join(root, "releases", release, "epics", epicSlug)
+	testutil.MkdirAll(t, epicDir)
+	path := filepath.Join(epicDir, shortID(epicSlug)+"-Detail.md")
+	testutil.WriteFile(t, path, "---\ntype: epic-design\nstatus: "+status+"\n---\n\n# Epic\n")
+	return path
+}
+
+func openEpicDetailFixtureModel(t *testing.T, root, release, epicSlug, status string) Model {
+	t.Helper()
+	m := NewModel(nil, release, epicSlug)
+	m.Root = root
+	m.Epics = []string{epicSlug}
+	m.EpicStatus = map[string]string{epicSlug: status}
+	m.EpicPanelCursor = 0
+	m.openEpicDetailOverlay() // sets EpicDetailEpic, EpicDetailMtime, overlay
+	return m
+}
+
+func TestUpdate_aMarksEpicAuditedAndRefreshesGlyphMap(t *testing.T) {
+	root := t.TempDir()
+	epicSlug := "E31-epic-audited-shortcut"
+	path := writeEpicDetailFixture(t, root, "v1.2", epicSlug, "done")
+	m := openEpicDetailFixtureModel(t, root, "v1.2", epicSlug, string(data.ColumnDone))
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if cmd == nil {
+		t.Fatal("expected write command for 'a'")
+	}
+	updated := processCmd(t, requireModel(t, got), cmd)
+
+	if updated.EpicStatus[epicSlug] != string(data.EpicStatusAudited) {
+		t.Errorf("EpicStatus[%s] = %q, want audited", epicSlug, updated.EpicStatus[epicSlug])
+	}
+	if !strings.Contains(updated.StatusMessage, "Marked E31 audited") {
+		t.Errorf("StatusMessage = %q, want marked-audited confirmation", updated.StatusMessage)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "status: audited") {
+		t.Fatalf("E##-Detail.md not updated to audited:\n%s", raw)
+	}
+}
+
+func TestUpdate_aNoOpsWhenAlreadyAudited(t *testing.T) {
+	root := t.TempDir()
+	epicSlug := "E31-epic-audited-shortcut"
+	path := writeEpicDetailFixture(t, root, "v1.2", epicSlug, "audited")
+	m := openEpicDetailFixtureModel(t, root, "v1.2", epicSlug, string(data.EpicStatusAudited))
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if cmd != nil {
+		t.Fatal("expected no command when already audited")
+	}
+	updated := requireModel(t, got)
+
+	if updated.StatusMessage != "E31 already audited" {
+		t.Fatalf("StatusMessage = %q, want already-audited message", updated.StatusMessage)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(raw), "status:") != 1 {
+		t.Fatalf("file should be untouched on no-op:\n%s", raw)
+	}
+}
+
+func TestUpdate_aReportsConflictWhenEpicChangedOnDisk(t *testing.T) {
+	root := t.TempDir()
+	epicSlug := "E31-epic-audited-shortcut"
+	path := writeEpicDetailFixture(t, root, "v1.2", epicSlug, "done")
+	m := openEpicDetailFixtureModel(t, root, "v1.2", epicSlug, string(data.ColumnDone))
+	m.EpicDetailMtime = m.EpicDetailMtime.Add(-time.Hour) // simulate stale read
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if cmd == nil {
+		t.Fatal("expected write command for 'a'")
+	}
+	updated := processCmd(t, requireModel(t, got), cmd)
+
+	if !strings.Contains(updated.StatusMessage, "epic changed on disk") {
+		t.Fatalf("StatusMessage = %q, want conflict message", updated.StatusMessage)
+	}
+	if updated.EpicStatus[epicSlug] != string(data.ColumnDone) {
+		t.Errorf("EpicStatus[%s] = %q, want unchanged done on conflict", epicSlug, updated.EpicStatus[epicSlug])
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "status: done") {
+		t.Fatalf("file should be untouched on conflict:\n%s", raw)
+	}
+}
+
 func writeRouterFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

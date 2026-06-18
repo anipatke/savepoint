@@ -460,6 +460,63 @@ func TestView_headerDefectSignalRespectsSelectedRelease(t *testing.T) {
 	}
 }
 
+func TestView_headerShowsReleaseWithDefects(t *testing.T) {
+	m := NewModel(nil, "v1.2", "E03")
+	m.Width = 120
+	m.SelectedRelease = "v1.2"
+	m.AllDefects = []data.Defect{
+		{Release: "v1.2", Status: data.DefectOpen},
+	}
+	got := plainTerminal(m.View())
+	if !strings.Contains(got, "v1.2 │ ⚠  1 open") {
+		t.Errorf("header missing release+defect cluster; got %q", got)
+	}
+}
+
+func TestView_headerShowsReleaseAtZeroDefects(t *testing.T) {
+	m := NewModel(nil, "v1.2", "E03")
+	m.Width = 120
+	m.SelectedRelease = "v1.2"
+	got := plainTerminal(m.renderHeader(m.Width))
+	if !strings.Contains(got, "v1.2") {
+		t.Errorf("header missing release at zero defects; got %q", got)
+	}
+	if strings.Contains(got, "│") {
+		t.Errorf("header should not show a separator at zero defects; got %q", got)
+	}
+}
+
+func TestView_headerEmptyReleaseNoSeparator(t *testing.T) {
+	m := NewModel(nil, "", "E03")
+	m.Width = 120
+	m.SelectedRelease = ""
+	m.AllDefects = []data.Defect{
+		{Release: "", Status: data.DefectOpen},
+	}
+	got := plainTerminal(m.renderHeader(m.Width))
+	if strings.Contains(got, "│") {
+		t.Errorf("empty release must not emit a separator; got %q", got)
+	}
+	if !strings.Contains(got, "⚠  1 open") {
+		t.Errorf("header should still show defect signal with empty release; got %q", got)
+	}
+}
+
+func TestView_headerReleaseNarrowWidthNoOverflow(t *testing.T) {
+	m := NewModel(nil, "v1.2", "E03")
+	m.Width = 24
+	m.SelectedRelease = "v1.2"
+	m.AllDefects = []data.Defect{
+		{Release: "v1.2", Status: data.DefectOpen},
+	}
+	header := plainTerminal(m.renderHeader(m.Width))
+	for _, line := range strings.Split(header, "\n") {
+		if lipgloss.Width(line) > m.Width {
+			t.Errorf("header line overflows width %d: %q (width %d)", m.Width, line, lipgloss.Width(line))
+		}
+	}
+}
+
 func TestView_threeColumnLayoutUnchangedWithDefects(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	m.Width = 100
