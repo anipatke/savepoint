@@ -11,12 +11,12 @@ import (
 type OverlayType string
 
 const (
-	OverlayNone       OverlayType = ""
-	OverlayHelp       OverlayType = "help"
-	OverlayEpic       OverlayType = "epic"
-	OverlayRelease    OverlayType = "release"
-	OverlayDetail     OverlayType = "detail"
-	OverlayEpicDetail OverlayType = "detail-epic"
+	OverlayNone         OverlayType = ""
+	OverlayHelp         OverlayType = "help"
+	OverlayEpic         OverlayType = "epic"
+	OverlayRelease      OverlayType = "release"
+	OverlayDetail       OverlayType = "detail"
+	OverlayEpicDetail   OverlayType = "detail-epic"
 	OverlayDefect       OverlayType = "defect"
 	OverlayDefectDetail OverlayType = "detail-defect"
 )
@@ -44,11 +44,11 @@ type DataState struct {
 
 // NavigationState holds board-column and detail scrolling state.
 type NavigationState struct {
-	FocusedColumn     data.ColumnType
-	FocusedTask       int
-	ColumnOffsets     map[data.ColumnType]int
-	DetailOffset      int
-	DefectCursor      int
+	FocusedColumn      data.ColumnType
+	FocusedTask        int
+	ColumnOffsets      map[data.ColumnType]int
+	DetailOffset       int
+	DefectCursor       int
 	DefectDetailOffset int
 }
 
@@ -62,9 +62,15 @@ type EpicState struct {
 	EpicDetailOffset  int
 	EpicDetailEpic    string
 	EpicDetailContent string
-	EpicDetailTab     int       // 0=Detail, 1=Audit
+	EpicDetailTab     int       // 0=Detail, 1=Audit, 2=Release Docs
 	EpicAuditContent  string    // cached E##-Audit.md content
 	EpicDetailMtime   time.Time // mtime of the open epic's E##-Detail.md, for write conflict detection
+
+	// Release Docs subview state (EpicDetailTab == 2). Docs are the bounded
+	// supporting documents (PRD, Design) loaded through the board message flow.
+	ReleaseDocs       []data.ReleaseDoc         // cached supporting docs in spec order
+	ReleaseDocIndex   int                       // selected doc within ReleaseDocs
+	ReleaseDocOffsets map[data.ReleaseDocID]int // per-doc scroll offset, keyed by doc ID
 }
 
 // ReleaseState holds release list and release picker state.

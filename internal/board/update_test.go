@@ -723,6 +723,164 @@ func TestUpdate_tabKeysNoopOutsideEpicDetailOverlay(t *testing.T) {
 	}
 }
 
+func TestUpdate_key3SwitchesToReleaseDocsTabAndLoadsDocs(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "PRD.md"), "# PRD\nproduct vision")
+	testutil.WriteFile(t, filepath.Join(root, "Design.md"), "# Design\narchitecture")
+
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Root = root
+	m.Epics = []string{"E06-audit-command"}
+	m.Overlay = OverlayEpicDetail
+	m.EpicDetailTab = 0
+
+	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	updated := requireModel(t, got)
+
+	if updated.EpicDetailTab != 2 {
+		t.Errorf("EpicDetailTab = %d, want 2 (Release Docs)", updated.EpicDetailTab)
+	}
+	if cmd == nil {
+		t.Fatal("expected a load command when no docs are cached")
+	}
+
+	got2, _ := updated.Update(cmd())
+	updated2 := requireModel(t, got2)
+	if len(updated2.ReleaseDocs) != 2 {
+		t.Fatalf("ReleaseDocs len = %d, want 2", len(updated2.ReleaseDocs))
+	}
+	if !updated2.ReleaseDocs[0].Available || updated2.ReleaseDocs[0].ID != data.ReleaseDocPRD {
+		t.Errorf("first doc = %+v, want available PRD", updated2.ReleaseDocs[0])
+	}
+}
+
+func TestUpdate_key3DoesNotReloadWhenDocsCached(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Root = t.TempDir()
+	m.Overlay = OverlayEpicDetail
+	m.ReleaseDocs = []data.ReleaseDoc{{ID: data.ReleaseDocPRD, Label: "PRD", Available: true}}
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	if cmd != nil {
+		t.Error("expected no reload command when docs already cached")
+	}
+}
+
+func TestUpdate_releaseDocSelectionSwitchesWithBrackets(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Overlay = OverlayEpicDetail
+	m.EpicDetailTab = 2
+	m.ReleaseDocs = []data.ReleaseDoc{
+		{ID: data.ReleaseDocPRD, Label: "PRD"},
+		{ID: data.ReleaseDocDesign, Label: "Design"},
+	}
+
+	got, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	updated := requireModel(t, got)
+	if updated.ReleaseDocIndex != 1 {
+		t.Fatalf("ReleaseDocIndex after ] = %d, want 1", updated.ReleaseDocIndex)
+	}
+
+	// At the last doc, ] is a no-op.
+	got, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	updated = requireModel(t, got)
+	if updated.ReleaseDocIndex != 1 {
+		t.Errorf("ReleaseDocIndex past end = %d, want clamped 1", updated.ReleaseDocIndex)
+	}
+
+	got, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
+	updated = requireModel(t, got)
+	if updated.ReleaseDocIndex != 0 {
+		t.Errorf("ReleaseDocIndex after [ = %d, want 0", updated.ReleaseDocIndex)
+	}
+}
+
+func TestUpdate_releaseDocSelectionIgnoredOutsideReleaseDocsTab(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Overlay = OverlayEpicDetail
+	m.EpicDetailTab = 0
+	m.ReleaseDocs = []data.ReleaseDoc{
+		{ID: data.ReleaseDocPRD, Label: "PRD"},
+		{ID: data.ReleaseDocDesign, Label: "Design"},
+	}
+
+	got, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	updated := requireModel(t, got)
+	if updated.ReleaseDocIndex != 0 {
+		t.Errorf("ReleaseDocIndex changed on Detail tab: got %d, want 0", updated.ReleaseDocIndex)
+	}
+}
+
+func TestUpdate_releaseDocScrollIsPerDocument(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Overlay = OverlayEpicDetail
+	m.EpicDetailTab = 2
+	m.ReleaseDocs = []data.ReleaseDoc{
+		{ID: data.ReleaseDocPRD, Label: "PRD"},
+		{ID: data.ReleaseDocDesign, Label: "Design"},
+	}
+
+	// Scroll the PRD down twice.
+	mdl := tea.Model(m)
+	for i := 0; i < 2; i++ {
+		mdl, _ = mdl.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	// Switch to Design and scroll once.
+	mdl, _ = mdl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	mdl, _ = mdl.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated := requireModel(t, mdl)
+
+	if updated.ReleaseDocOffsets[data.ReleaseDocPRD] != 2 {
+		t.Errorf("PRD offset = %d, want 2 (preserved)", updated.ReleaseDocOffsets[data.ReleaseDocPRD])
+	}
+	if updated.ReleaseDocOffsets[data.ReleaseDocDesign] != 1 {
+		t.Errorf("Design offset = %d, want 1", updated.ReleaseDocOffsets[data.ReleaseDocDesign])
+	}
+
+	// Scrolling up cannot drive an offset below zero.
+	mdl, _ = mdl.Update(tea.KeyMsg{Type: tea.KeyUp})
+	mdl, _ = mdl.Update(tea.KeyMsg{Type: tea.KeyUp})
+	updated = requireModel(t, mdl)
+	if updated.ReleaseDocOffsets[data.ReleaseDocDesign] != 0 {
+		t.Errorf("Design offset after over-scroll up = %d, want 0", updated.ReleaseDocOffsets[data.ReleaseDocDesign])
+	}
+}
+
+func TestUpdate_releaseDocsMsgClampsSelection(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.ReleaseDocIndex = 5
+
+	got, _ := m.Update(releaseDocsMsg{docs: []data.ReleaseDoc{
+		{ID: data.ReleaseDocPRD, Label: "PRD"},
+		{ID: data.ReleaseDocDesign, Label: "Design"},
+	}})
+	updated := requireModel(t, got)
+	if updated.ReleaseDocIndex != 1 {
+		t.Errorf("ReleaseDocIndex = %d, want clamped 1", updated.ReleaseDocIndex)
+	}
+}
+
+func TestUpdate_openEpicDetailOverlayResetsReleaseDocState(t *testing.T) {
+	m := NewModel(nil, "v1.1", "E06-audit-command")
+	m.Epics = []string{"E06-audit-command"}
+	m.EpicPanelCursor = 0
+	m.ReleaseDocs = []data.ReleaseDoc{{ID: data.ReleaseDocPRD}}
+	m.ReleaseDocIndex = 1
+	m.ReleaseDocOffsets = map[data.ReleaseDocID]int{data.ReleaseDocPRD: 9}
+
+	m.openEpicDetailOverlay()
+
+	if m.ReleaseDocs != nil {
+		t.Errorf("ReleaseDocs = %v, want nil after overlay open", m.ReleaseDocs)
+	}
+	if m.ReleaseDocIndex != 0 {
+		t.Errorf("ReleaseDocIndex = %d, want 0 after overlay open", m.ReleaseDocIndex)
+	}
+	if len(m.ReleaseDocOffsets) != 0 {
+		t.Errorf("ReleaseDocOffsets = %v, want empty after overlay open", m.ReleaseDocOffsets)
+	}
+}
+
 func TestReloadMsgUpdatesRouterState(t *testing.T) {
 	m := NewModel(nil, "v1", "E01")
 	m.RouterState = &data.RouterState{State: "task-building", Task: "E01/T001", NextAction: "Build E01/T001."}

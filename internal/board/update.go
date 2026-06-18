@@ -91,6 +91,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.EpicDetailContent = msg.content
 	case auditContentMsg:
 		m.EpicAuditContent = msg.content
+	case releaseDocsMsg:
+		m.ReleaseDocs = msg.docs
+		m.clampReleaseDocIndex()
 	case epicStatusWrittenMsg:
 		if m.EpicStatus == nil {
 			m.EpicStatus = map[string]string{}
@@ -395,23 +398,97 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
 			return m, readEpicAuditCmd(epicDir, shortID(epicSlug))
 		}
+	case "3":
+		m.EpicDetailTab = 2
+		if len(m.ReleaseDocs) == 0 && m.Root != "" {
+			return m, loadReleaseDocsCmd(m.Root)
+		}
+	case "[", "left", "h":
+		if m.EpicDetailTab == 2 {
+			m.selectReleaseDoc(m.ReleaseDocIndex - 1)
+		}
+	case "]", "right", "l":
+		if m.EpicDetailTab == 2 {
+			m.selectReleaseDoc(m.ReleaseDocIndex + 1)
+		}
 	case "a":
 		return m.markEpicAudited()
 	case "up", "k":
-		if m.EpicDetailOffset > 0 {
+		if m.EpicDetailTab == 2 {
+			m.scrollReleaseDoc(-1)
+		} else if m.EpicDetailOffset > 0 {
 			m.EpicDetailOffset--
 		}
 	case "down", "j":
-		m.EpicDetailOffset++
+		if m.EpicDetailTab == 2 {
+			m.scrollReleaseDoc(1)
+		} else {
+			m.EpicDetailOffset++
+		}
 	case "pgup":
-		m.EpicDetailOffset -= m.detailPageSize()
-		if m.EpicDetailOffset < 0 {
-			m.EpicDetailOffset = 0
+		if m.EpicDetailTab == 2 {
+			m.scrollReleaseDoc(-m.detailPageSize())
+		} else {
+			m.EpicDetailOffset -= m.detailPageSize()
+			if m.EpicDetailOffset < 0 {
+				m.EpicDetailOffset = 0
+			}
 		}
 	case "pgdown":
-		m.EpicDetailOffset += m.detailPageSize()
+		if m.EpicDetailTab == 2 {
+			m.scrollReleaseDoc(m.detailPageSize())
+		} else {
+			m.EpicDetailOffset += m.detailPageSize()
+		}
 	}
 	return m, nil
+}
+
+// selectReleaseDoc moves the Release Docs selection to idx, clamped to the
+// loaded docs. Each doc keeps its own scroll offset, so switching does not
+// disturb the other document's position.
+func (m *Model) selectReleaseDoc(idx int) {
+	if idx < 0 || idx >= len(m.ReleaseDocs) {
+		return
+	}
+	m.ReleaseDocIndex = idx
+}
+
+// scrollReleaseDoc adjusts the selected document's scroll offset by delta,
+// clamped at the top. The upper bound is left to the renderer, matching the
+// Detail/Audit scroll behavior. Offsets are stored per doc ID so the
+// unselected document retains its position.
+func (m *Model) scrollReleaseDoc(delta int) {
+	doc, ok := m.selectedReleaseDoc()
+	if !ok {
+		return
+	}
+	if m.ReleaseDocOffsets == nil {
+		m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
+	}
+	offset := m.ReleaseDocOffsets[doc.ID] + delta
+	if offset < 0 {
+		offset = 0
+	}
+	m.ReleaseDocOffsets[doc.ID] = offset
+}
+
+// selectedReleaseDoc returns the currently selected release doc, if any.
+func (m *Model) selectedReleaseDoc() (data.ReleaseDoc, bool) {
+	if m.ReleaseDocIndex < 0 || m.ReleaseDocIndex >= len(m.ReleaseDocs) {
+		return data.ReleaseDoc{}, false
+	}
+	return m.ReleaseDocs[m.ReleaseDocIndex], true
+}
+
+// clampReleaseDocIndex keeps the selection in range after docs (re)load.
+func (m *Model) clampReleaseDocIndex() {
+	if m.ReleaseDocIndex < 0 {
+		m.ReleaseDocIndex = 0
+	}
+	if m.ReleaseDocIndex >= len(m.ReleaseDocs) {
+		m.ReleaseDocIndex = max(len(m.ReleaseDocs)-1, 0)
+	}
 }
 
 // markEpicAudited writes status audited for the open epic, guarded by the detail
@@ -510,12 +587,19 @@ func (m *Model) openEpicDetailOverlay() tea.Cmd {
 	m.EpicDetailOffset = 0
 	m.EpicDetailTab = 0
 	m.EpicAuditContent = ""
+	m.ReleaseDocs = nil
+	m.ReleaseDocIndex = 0
+	m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
 	m.EpicDetailMtime = time.Time{}
 	if fi, err := os.Stat(filepath.Join(epicDir, shortEpicID+"-Detail.md")); err == nil {
 		m.EpicDetailMtime = fi.ModTime()
 	}
 	m.Overlay = OverlayEpicDetail
-	return readEpicDetailCmd(epicDir, shortEpicID)
+	cmd := readEpicDetailCmd(epicDir, shortEpicID)
+	if m.Root != "" {
+		return tea.Batch(cmd, loadReleaseDocsCmd(m.Root))
+	}
+	return cmd
 }
 
 func readEpicDetailFile(epicDir, shortID string) string {

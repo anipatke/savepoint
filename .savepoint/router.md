@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: audit-pending
+state: task-building
 release: v1.2
-epic: E32-header-release-indicator
-task: E32-header-release-indicator/T001-header-release-label
-next_action: Audit E32-header-release-indicator.
+epic: E33-release-docs-view
+task: E33-release-docs-view/T003-release-docs-renderer
+next_action: Build E33-release-docs-view/T003-release-docs-renderer.
 ```
 
 ## State → action
