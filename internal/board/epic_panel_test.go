@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -575,6 +576,46 @@ func TestRenderEpicDetail_stripsMarkdownHeadings(t *testing.T) {
 	}
 	if strings.Contains(got, "# Epic E01") {
 		t.Error("RenderEpicDetail should strip raw markdown heading prefix")
+	}
+}
+
+// TestEpicDetailBody_reflowsHardWrappedParagraph is the D017 regression: a
+// paragraph whose Markdown source is hard-wrapped at a wider column than the
+// panel must reflow into full lines instead of leaving ragged orphan words.
+func TestEpicDetailBody_reflowsHardWrappedParagraph(t *testing.T) {
+	// Source lines are pre-wrapped near 70 columns, as in real epic detail files.
+	content := "## Purpose\n\n" +
+		"The board can show release, epic, task, audit, and defect context, but\n" +
+		"it does not provide an in-board way to review the supporting planning\n" +
+		"documents that explain why the work exists.\n"
+	body := epicDetailBody(content, 64)
+
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 64 {
+			t.Errorf("reflowed line exceeds width 64 (%d): %q", w, line)
+		}
+	}
+
+	// Collect the rendered prose lines (skip the heading and blanks).
+	var prose []string
+	for _, line := range body {
+		if s := strings.TrimSpace(line); s != "" && s != "Purpose" {
+			prose = append(prose, s)
+		}
+	}
+	if len(prose) < 2 {
+		t.Fatalf("expected multiple wrapped prose lines, got %d", len(prose))
+	}
+
+	// Greedy-fill invariant: each non-final line is full — pulling the first word
+	// of the next line onto it would exceed the width. The pre-reflow renderer
+	// failed this because it re-wrapped each source line independently, leaving
+	// orphan words like "it does" on their own line.
+	for i := 0; i < len(prose)-1; i++ {
+		nextWord := strings.Fields(prose[i+1])[0]
+		if len([]rune(prose[i]))+1+len([]rune(nextWord)) <= 64 {
+			t.Errorf("line %d not greedily filled (orphan break): %q then %q", i, prose[i], nextWord)
+		}
 	}
 }
 

@@ -44,9 +44,7 @@ func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxH
 			"",
 			styles.ColumnTitle.Render("Description:"),
 		)
-		for _, line := range WrapText(t.Description, inner) {
-			body = append(body, styles.CardMeta.Render(line))
-		}
+		body = append(body, renderSectionBody(t.Description, inner)...)
 	}
 
 	if len(t.Checklist) > 0 {

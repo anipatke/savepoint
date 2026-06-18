@@ -63,34 +63,126 @@ func epicDetailBody(content string, width int) []string {
 	lines := stripFrontmatter(content)
 
 	var body []string
+	para := newParagraphFlusher(&body, width)
 	skip := false
 	for _, line := range lines {
-		trimmed := strings.TrimRight(line, " \t")
+		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "## ") {
 			heading := strings.ToLower(strings.TrimPrefix(trimmed, "## "))
 			skip = strings.Contains(heading, "component") || strings.Contains(heading, "files")
 		}
 		if skip {
+			para.flush()
 			continue
 		}
 		switch {
 		case strings.HasPrefix(trimmed, "# "):
+			para.flush()
 			body = append(body, styles.EpicTitleFocused.Render(strings.TrimPrefix(trimmed, "# ")))
 		case strings.HasPrefix(trimmed, "## "):
+			para.flush()
 			body = append(body, "", styles.EpicItemFocused.Render(strings.TrimPrefix(trimmed, "## ")))
 		case strings.HasPrefix(trimmed, "### "):
+			para.flush()
 			body = append(body, styles.EpicItemFocused.Render(strings.TrimPrefix(trimmed, "### ")))
 		case strings.HasPrefix(trimmed, "|"):
+			para.flush()
 			body = append(body, styles.CardMeta.Render(trimmed))
+		case isListItem(trimmed):
+			para.startItem(trimmed)
 		case trimmed == "":
+			para.flush()
 			body = append(body, "")
 		default:
-			for _, wrapped := range WrapText(trimmed, width) {
-				body = append(body, styles.CardMeta.Render(wrapped))
-			}
+			para.add(trimmed)
 		}
 	}
+	para.flush()
 	return body
+}
+
+// isListItem reports whether a trimmed line begins a Markdown list item.
+func isListItem(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ")
+}
+
+// isOrderedItem reports whether a trimmed line begins an ordered list item, e.g.
+// "1. step" or "2) step".
+func isOrderedItem(trimmed string) bool {
+	i := 0
+	for i < len(trimmed) && trimmed[i] >= '0' && trimmed[i] <= '9' {
+		i++
+	}
+	if i == 0 || i+1 >= len(trimmed) {
+		return false
+	}
+	return (trimmed[i] == '.' || trimmed[i] == ')') && trimmed[i+1] == ' '
+}
+
+// renderSectionBody reflows a plain multi-line Markdown section body into wrapped,
+// styled display lines. Consecutive prose lines join into one paragraph; blank
+// lines, list items (-, *, or "N."), and sub-headings break the paragraph so the
+// source file's own hard wrapping neither orphans trailing words nor flattens
+// list and paragraph structure. Used by the task and defect detail overlays,
+// which render whole section bodies rather than headed epic content.
+func renderSectionBody(content string, width int) []string {
+	var body []string
+	para := newParagraphFlusher(&body, width)
+	for _, line := range strings.Split(strings.TrimSpace(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == "":
+			para.flush()
+			body = append(body, "")
+		case strings.HasPrefix(trimmed, "### "):
+			para.flush()
+			body = append(body, styles.EpicItemFocused.Render(strings.TrimPrefix(trimmed, "### ")))
+		case isListItem(trimmed) || isOrderedItem(trimmed):
+			para.startItem(trimmed)
+		default:
+			para.add(trimmed)
+		}
+	}
+	para.flush()
+	return body
+}
+
+// paragraphFlusher reflows consecutive Markdown source lines into one paragraph
+// before wrapping, so the source file's own hard line breaks do not leave ragged
+// orphan words when re-wrapped at the panel width. Each list item is its own
+// reflowed block; blank lines and block elements flush the buffer.
+type paragraphFlusher struct {
+	body  *[]string
+	width int
+	buf   []string
+}
+
+func newParagraphFlusher(body *[]string, width int) *paragraphFlusher {
+	return &paragraphFlusher{body: body, width: width}
+}
+
+// add appends a continuation line to the current paragraph.
+func (p *paragraphFlusher) add(line string) {
+	p.buf = append(p.buf, line)
+}
+
+// startItem flushes the current paragraph and begins a new one for a list item,
+// so adjacent items with no blank line between them stay separate.
+func (p *paragraphFlusher) startItem(line string) {
+	p.flush()
+	p.buf = append(p.buf, line)
+}
+
+// flush wraps the buffered paragraph at the panel width and clears the buffer.
+func (p *paragraphFlusher) flush() {
+	if len(p.buf) == 0 {
+		return
+	}
+	joined := strings.Join(p.buf, " ")
+	for _, wrapped := range WrapText(joined, p.width) {
+		*p.body = append(*p.body, styles.CardMeta.Render(wrapped))
+	}
+	p.buf = p.buf[:0]
 }
 
 // RenderEpicAuditTab renders an overlay showing audit findings from an E##-Audit.md file.
@@ -138,36 +230,43 @@ func epicAuditBody(content string, width int) []string {
 	lines := stripFrontmatter(content)
 
 	var body []string
+	para := newParagraphFlusher(&body, width)
 	inHiddenSection := false
 
 	for _, line := range lines {
-		trimmed := strings.TrimRight(line, " \t\r")
+		trimmed := strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(trimmed, "## "):
+			para.flush()
 			sectionName := strings.TrimPrefix(trimmed, "## ")
 			_, inHiddenSection = epicAuditHiddenSectionHeadings[sectionName]
 			if !inHiddenSection {
 				body = append(body, "", styles.EpicItemFocused.Render(sectionName))
 			}
 		case inHiddenSection:
+			para.flush()
 		case strings.HasPrefix(trimmed, "### "):
+			para.flush()
 			body = append(body, styles.EpicItemFocused.Render(strings.TrimPrefix(trimmed, "### ")))
 		case strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] "):
+			para.flush()
 			text := strings.TrimPrefix(strings.TrimPrefix(trimmed, "- [x] "), "- [X] ")
 			body = append(body, renderChecklistSentences(text, "[x] ", width, styles.TagDone)...)
 		case strings.HasPrefix(trimmed, "- [ ] "):
+			para.flush()
 			text := strings.TrimPrefix(trimmed, "- [ ] ")
 			body = append(body, renderChecklistSentences(text, "[ ] ", width, styles.CardMeta)...)
 		case strings.HasPrefix(trimmed, "- "):
+			para.flush()
 			body = append(body, styles.CardMeta.Render("• "+strings.TrimPrefix(trimmed, "- ")))
 		case trimmed == "":
+			para.flush()
 			body = append(body, "")
 		default:
-			for _, wrapped := range WrapText(trimmed, width) {
-				body = append(body, styles.CardMeta.Render(wrapped))
-			}
+			para.add(trimmed)
 		}
 	}
+	para.flush()
 	return body
 }
 

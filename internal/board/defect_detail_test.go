@@ -156,6 +156,55 @@ func TestRenderDefectDetail_wrapsLongContent(t *testing.T) {
 	}
 }
 
+// TestRenderDefectDetail_preservesListStructure is the D017 follow-on: section
+// bodies must keep numbered steps and checklist items on their own lines instead
+// of flattening them into a single run-on paragraph.
+func TestRenderDefectDetail_preservesListStructure(t *testing.T) {
+	d := sampleDefect()
+	d.Body = "## Reproduction\n\n1. Open the board.\n2. Navigate to the Epic view.\n3. Observe.\n"
+	got := RenderDefectDetail(d, 70, 0, 0)
+
+	// Each numbered step starts its own rendered line.
+	for _, step := range []string{"1. Open the board.", "2. Navigate to the Epic view.", "3. Observe."} {
+		found := false
+		for _, line := range strings.Split(got, "\n") {
+			if strings.Contains(line, step) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("step %q not on its own line; structure flattened", step)
+		}
+	}
+	// The flattened form (two steps on one line) must not appear.
+	if strings.Contains(got, "1. Open the board. 2.") {
+		t.Error("numbered steps were flattened onto one line")
+	}
+}
+
+func TestRenderSectionBody_reflowsAndKeepsItems(t *testing.T) {
+	// Prose hard-wrapped in source reflows; a following bullet stays separate.
+	content := "The board can show release, epic, task, audit, and defect\n" +
+		"context, but it does not yet review planning docs.\n\n" +
+		"- A bullet that should remain its own block entirely.\n"
+	lines := renderSectionBody(content, 50)
+
+	for _, l := range lines {
+		if w := len([]rune(strings.TrimSpace(l))); w > 50 {
+			t.Errorf("renderSectionBody line exceeds width 50: %q", l)
+		}
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "- A bullet") {
+		t.Error("bullet not rendered")
+	}
+	// Prose and bullet must not be merged onto one line.
+	if strings.Contains(joined, "docs. - A bullet") {
+		t.Error("bullet merged into prose paragraph")
+	}
+}
+
 func TestRenderDefectDetail_scrollsWithOffset(t *testing.T) {
 	d := sampleDefect()
 	d.Body = "## Symptom\n\nLine one.\n## Expected Behavior\n\nLine two.\n## Reproduction\n\nLine three.\n"
