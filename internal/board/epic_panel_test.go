@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -578,6 +579,46 @@ func TestRenderEpicDetail_stripsMarkdownHeadings(t *testing.T) {
 	}
 }
 
+// TestEpicDetailBody_reflowsHardWrappedParagraph is the D017 regression: a
+// paragraph whose Markdown source is hard-wrapped at a wider column than the
+// panel must reflow into full lines instead of leaving ragged orphan words.
+func TestEpicDetailBody_reflowsHardWrappedParagraph(t *testing.T) {
+	// Source lines are pre-wrapped near 70 columns, as in real epic detail files.
+	content := "## Purpose\n\n" +
+		"The board can show release, epic, task, audit, and defect context, but\n" +
+		"it does not provide an in-board way to review the supporting planning\n" +
+		"documents that explain why the work exists.\n"
+	body := epicDetailBody(content, 64)
+
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 64 {
+			t.Errorf("reflowed line exceeds width 64 (%d): %q", w, line)
+		}
+	}
+
+	// Collect the rendered prose lines (skip the heading and blanks).
+	var prose []string
+	for _, line := range body {
+		if s := strings.TrimSpace(line); s != "" && s != "Purpose" {
+			prose = append(prose, s)
+		}
+	}
+	if len(prose) < 2 {
+		t.Fatalf("expected multiple wrapped prose lines, got %d", len(prose))
+	}
+
+	// Greedy-fill invariant: each non-final line is full — pulling the first word
+	// of the next line onto it would exceed the width. The pre-reflow renderer
+	// failed this because it re-wrapped each source line independently, leaving
+	// orphan words like "it does" on their own line.
+	for i := 0; i < len(prose)-1; i++ {
+		nextWord := strings.Fields(prose[i+1])[0]
+		if len([]rune(prose[i]))+1+len([]rune(nextWord)) <= 64 {
+			t.Errorf("line %d not greedily filled (orphan break): %q then %q", i, prose[i], nextWord)
+		}
+	}
+}
+
 func TestRenderEpicDetail_noDetailFallback(t *testing.T) {
 	got := RenderEpicDetail("E01-test", "(no detail available)", 60, 40, 0, 0)
 	if !strings.Contains(got, "no detail available") {
@@ -832,6 +873,64 @@ All acceptance criteria met.
 	updated = requireModel(t, got)
 	if updated.Overlay != OverlayNone {
 		t.Errorf("Overlay = %q, want none after esc", updated.Overlay)
+	}
+}
+
+func TestRenderReleaseDocBody_wrapsWithinWidth(t *testing.T) {
+	content := "## Heading\n\n" + strings.Repeat("word ", 80) +
+		"\n\nsupercalifragilisticexpialidocious/path/segment/that/is/very/long\n"
+	body := renderReleaseDocBody(content, 48)
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 48 {
+			t.Errorf("rendered doc line exceeds width 48 (%d): %q", w, line)
+		}
+	}
+}
+
+func TestRenderReleaseDocBody_preservesBlankLines(t *testing.T) {
+	body := renderReleaseDocBody("Para one.\n\nPara two.", 40)
+	blanks := 0
+	for _, l := range body {
+		if strings.TrimSpace(l) == "" {
+			blanks++
+		}
+	}
+	if blanks == 0 {
+		t.Error("renderReleaseDocBody should preserve the blank line between paragraphs")
+	}
+}
+
+func TestRenderReleaseDocBody_preservesIndentedWhitespace(t *testing.T) {
+	// Leading indentation and interior multi-space runs must survive so tables
+	// and code blocks keep their alignment. Tabs are normalized to spaces by the
+	// render layer, so this asserts on spaces only.
+	body := renderReleaseDocBody("    first    second    third", 40)
+	if len(body) == 0 || !strings.Contains(body[0], "    first    second    third") {
+		t.Errorf("renderReleaseDocBody should preserve indented whitespace, got %q", body)
+	}
+}
+
+func TestRenderReleaseDocBody_stripsFrontmatter(t *testing.T) {
+	body := renderReleaseDocBody("---\ntype: prd\n---\n# Title\n\nBody.", 40)
+	joined := strings.Join(body, "\n")
+	if strings.Contains(joined, "type: prd") {
+		t.Error("renderReleaseDocBody should strip frontmatter")
+	}
+	if !strings.Contains(joined, "Body.") {
+		t.Error("renderReleaseDocBody should render content after frontmatter")
+	}
+}
+
+// TestRenderReleaseDocBody_wrapsWithinNarrowWidth proves long, unbreakable tokens
+// are hard-cut so no rendered line overflows a very narrow body width.
+func TestRenderReleaseDocBody_wrapsWithinNarrowWidth(t *testing.T) {
+	content := strings.Repeat("word ", 20) +
+		"\n\nsupercalifragilisticexpialidocious/path/segment/that/is/very/long\n"
+	body := renderReleaseDocBody(content, 16)
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 16 {
+			t.Errorf("rendered doc line exceeds narrow width 16 (%d): %q", w, line)
+		}
 	}
 }
 

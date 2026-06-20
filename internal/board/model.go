@@ -11,14 +11,15 @@ import (
 type OverlayType string
 
 const (
-	OverlayNone       OverlayType = ""
-	OverlayHelp       OverlayType = "help"
-	OverlayEpic       OverlayType = "epic"
-	OverlayRelease    OverlayType = "release"
-	OverlayDetail     OverlayType = "detail"
-	OverlayEpicDetail OverlayType = "detail-epic"
+	OverlayNone         OverlayType = ""
+	OverlayHelp         OverlayType = "help"
+	OverlayEpic         OverlayType = "epic"
+	OverlayRelease      OverlayType = "release"
+	OverlayDetail       OverlayType = "detail"
+	OverlayEpicDetail   OverlayType = "detail-epic"
 	OverlayDefect       OverlayType = "defect"
 	OverlayDefectDetail OverlayType = "detail-defect"
+	OverlayReleaseDocs  OverlayType = "release-docs"
 )
 
 // ViewConfig holds terminal and overlay presentation state.
@@ -44,11 +45,11 @@ type DataState struct {
 
 // NavigationState holds board-column and detail scrolling state.
 type NavigationState struct {
-	FocusedColumn     data.ColumnType
-	FocusedTask       int
-	ColumnOffsets     map[data.ColumnType]int
-	DetailOffset      int
-	DefectCursor      int
+	FocusedColumn      data.ColumnType
+	FocusedTask        int
+	ColumnOffsets      map[data.ColumnType]int
+	DetailOffset       int
+	DefectCursor       int
 	DefectDetailOffset int
 }
 
@@ -65,6 +66,15 @@ type EpicState struct {
 	EpicDetailTab     int       // 0=Detail, 1=Audit
 	EpicAuditContent  string    // cached E##-Audit.md content
 	EpicDetailMtime   time.Time // mtime of the open epic's E##-Detail.md, for write conflict detection
+}
+
+// ReleaseDocsState holds the top-level Release Docs overlay state
+// (OverlayReleaseDocs): the selected release's PRD plus the project-wide
+// PRD/Design, loaded through the board message flow.
+type ReleaseDocsState struct {
+	ReleaseDocs       []data.ReleaseDoc         // loaded docs in spec order
+	ReleaseDocIndex   int                       // selected doc within ReleaseDocs
+	ReleaseDocOffsets map[data.ReleaseDocID]int // per-doc scroll offset, keyed by doc ID
 }
 
 // ReleaseState holds release list and release picker state.
@@ -86,6 +96,7 @@ type Model struct {
 	DataState
 	NavigationState
 	EpicState
+	ReleaseDocsState
 	ReleaseState
 	DataAccessState
 }

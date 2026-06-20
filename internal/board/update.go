@@ -91,6 +91,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.EpicDetailContent = msg.content
 	case auditContentMsg:
 		m.EpicAuditContent = msg.content
+	case releaseDocsMsg:
+		m.ReleaseDocs = msg.docs
+		m.clampReleaseDocIndex()
 	case epicStatusWrittenMsg:
 		if m.EpicStatus == nil {
 			m.EpicStatus = map[string]string{}
@@ -119,6 +122,8 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDefectOverlay(msg)
 	case OverlayDefectDetail:
 		return m.handleDefectDetailOverlay(msg)
+	case OverlayReleaseDocs:
+		return m.handleReleaseDocsOverlay(msg)
 	}
 	return m, nil
 }
@@ -141,6 +146,15 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		m.Overlay = OverlayDefect
 		m.DefectCursor = 0
+		return m, nil
+	case "D":
+		m.Overlay = OverlayReleaseDocs
+		m.ReleaseDocs = nil
+		m.ReleaseDocIndex = 0
+		m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
+		if m.Root != "" {
+			return m, loadReleaseDocsCmd(m.Root, m.SelectedRelease)
+		}
 		return m, nil
 	case "?":
 		m.Overlay = OverlayHelp
@@ -410,6 +424,86 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "pgdown":
 		m.EpicDetailOffset += m.detailPageSize()
+	}
+	return m, nil
+}
+
+// selectReleaseDoc moves the Release Docs selection to idx, clamped to the
+// loaded docs. Each doc keeps its own scroll offset, so switching does not
+// disturb the other document's position.
+func (m *Model) selectReleaseDoc(idx int) {
+	if idx < 0 || idx >= len(m.ReleaseDocs) {
+		return
+	}
+	m.ReleaseDocIndex = idx
+}
+
+// scrollReleaseDoc adjusts the selected document's scroll offset by delta,
+// clamped at the top. The upper bound is left to the renderer, matching the
+// Detail/Audit scroll behavior. Offsets are stored per doc ID so the
+// unselected document retains its position.
+func (m *Model) scrollReleaseDoc(delta int) {
+	doc, ok := m.selectedReleaseDoc()
+	if !ok {
+		return
+	}
+	if m.ReleaseDocOffsets == nil {
+		m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
+	}
+	offset := m.ReleaseDocOffsets[doc.ID] + delta
+	if offset < 0 {
+		offset = 0
+	}
+	m.ReleaseDocOffsets[doc.ID] = offset
+}
+
+// selectedReleaseDocOffset returns the stored scroll offset for the selected
+// release doc, or 0 when no doc is selected or none has been scrolled.
+func (m *Model) selectedReleaseDocOffset() int {
+	doc, ok := m.selectedReleaseDoc()
+	if !ok {
+		return 0
+	}
+	return m.ReleaseDocOffsets[doc.ID]
+}
+
+// selectedReleaseDoc returns the currently selected release doc, if any.
+func (m *Model) selectedReleaseDoc() (data.ReleaseDoc, bool) {
+	if m.ReleaseDocIndex < 0 || m.ReleaseDocIndex >= len(m.ReleaseDocs) {
+		return data.ReleaseDoc{}, false
+	}
+	return m.ReleaseDocs[m.ReleaseDocIndex], true
+}
+
+// clampReleaseDocIndex keeps the selection in range after docs (re)load.
+func (m *Model) clampReleaseDocIndex() {
+	if m.ReleaseDocIndex < 0 {
+		m.ReleaseDocIndex = 0
+	}
+	if m.ReleaseDocIndex >= len(m.ReleaseDocs) {
+		m.ReleaseDocIndex = max(len(m.ReleaseDocs)-1, 0)
+	}
+}
+
+// handleReleaseDocsOverlay handles keys for the top-level Release Docs overlay:
+// document switching (Release PRD / Overall PRD / Overall Design), per-doc
+// scrolling, and close.
+func (m Model) handleReleaseDocsOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "[", "left", "h":
+		m.selectReleaseDoc(m.ReleaseDocIndex - 1)
+	case "]", "right", "l":
+		m.selectReleaseDoc(m.ReleaseDocIndex + 1)
+	case "up", "k":
+		m.scrollReleaseDoc(-1)
+	case "down", "j":
+		m.scrollReleaseDoc(1)
+	case "pgup":
+		m.scrollReleaseDoc(-m.detailPageSize())
+	case "pgdown":
+		m.scrollReleaseDoc(m.detailPageSize())
 	}
 	return m, nil
 }

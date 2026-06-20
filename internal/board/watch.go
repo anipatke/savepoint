@@ -55,6 +55,12 @@ type epicStatusWrittenMsg struct {
 	status string
 }
 
+// releaseDocsMsg carries the supporting documents loaded for the top-level
+// Release Docs overlay (OverlayReleaseDocs).
+type releaseDocsMsg struct {
+	docs []data.ReleaseDoc
+}
+
 type errorMsg struct {
 	message string
 }

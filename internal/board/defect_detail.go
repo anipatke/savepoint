@@ -53,9 +53,7 @@ func RenderDefectDetail(d data.Defect, overlayW, maxHeight, offset int) string {
 			continue
 		}
 		body = append(body, "", styles.ColumnTitle.Render(heading+":"))
-		for _, line := range WrapText(strings.TrimSpace(content), inner) {
-			body = append(body, styles.CardMeta.Render(line))
-		}
+		body = append(body, renderSectionBody(content, inner)...)
 	}
 
 	body = append(body, "", styles.CardMeta.Render("esc:close"))
