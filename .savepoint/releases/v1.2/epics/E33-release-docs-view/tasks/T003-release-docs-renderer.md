@@ -1,9 +1,9 @@
 ---
 id: E33-release-docs-view/T003-release-docs-renderer
-status: planned
+status: done
 objective: Render the Release Docs subview inside the Epic detail overlay
 depends_on:
-  - E33-release-docs-view/T002-epic-doc-subview-state
+    - E33-release-docs-view/T002-epic-doc-subview-state
 complexity_tier: medium
 complexity_reason: "Extends a styled TUI overlay with selectors, empty states, wrapping, and viewport slicing."
 ---
@@ -32,20 +32,20 @@ terminal widths.
 
 ## Acceptance Criteria
 
-- [ ] Epic detail still renders as the default overlay content.
-- [ ] Release Docs renders PRD and Design selectors using existing board styles.
-- [ ] The selected document body renders in a scrollable viewport.
-- [ ] Missing documents render a clear read-only empty state.
-- [ ] Document content wraps within the available body width after borders and
+- [x] Epic detail still renders as the default overlay content.
+- [x] Release Docs renders PRD and Design selectors using existing board styles.
+- [x] The selected document body renders in a scrollable viewport.
+- [x] Missing documents render a clear read-only empty state.
+- [x] Document content wraps within the available body width after borders and
       padding are accounted for.
-- [ ] Rendering does not introduce a new panel/card nesting style inconsistent
+- [x] Rendering does not introduce a new panel/card nesting style inconsistent
       with the board.
 
 ## Implementation Plan
 
-- [ ] Extend the Epic detail tab/header renderer to include Release Docs.
-- [ ] Add a Release Docs body renderer in `internal/board/epic_panel.go`.
-- [ ] Wrap document bodies with a line-preserving wrapper. NOTE: `WrapText`
+- [x] Extend the Epic detail tab/header renderer to include Release Docs.
+- [x] Add a Release Docs body renderer in `internal/board/epic_panel.go`.
+- [x] Wrap document bodies with a line-preserving wrapper. NOTE: `WrapText`
       (`internal/board/util.go`) is **not** ANSI-aware (it measures with
       `len([]rune)`) and collapses whitespace/newlines via `strings.Fields`, so
       it flattens Markdown paragraph breaks, indentation, and code blocks — do
@@ -53,12 +53,40 @@ terminal widths.
       lines), and if styled content needs measuring, use the ANSI-aware
       `xansi`/`lipgloss.Width` approach already used in `view.go`. Extract a
       shared helper rather than ad hoc string slicing.
-- [ ] Apply height-aware viewport slicing consistent with task and epic detail
+- [x] Apply height-aware viewport slicing consistent with task and epic detail
       overlays.
-- [ ] Add missing-doc and empty-doc render branches.
-- [ ] Add focused rendering tests for selector labels, selected state, empty
+- [x] Add missing-doc and empty-doc render branches.
+- [x] Add focused rendering tests for selector labels, selected state, empty
       state, and width-bounded output.
 
 ## Context Log
 
-Pending.
+- Read: `internal/board/epic_panel.go`, `view.go`, `update.go`, `detail.go`,
+  `util.go`, `layout.go`, `model.go`, `theme.go`, `epic_panel_test.go`, and
+  `internal/data/release_doc.go` (T001) plus the T002 state/key handling to
+  match the existing Detail/Audit overlay render pattern.
+- `internal/board/epic_panel.go`: generalized `renderTabIndicator` to three
+  tabs (Detail/Audit/Docs) via a new `tabLabel` helper; updated the Detail and
+  Audit footers to advertise `3:Docs`. Added `RenderEpicReleaseDocs` (title,
+  tab strip, PRD/Design selector, scrollable body, footer, viewport via
+  `visibleDetailLines`), `renderReleaseDocSelector`, `releaseDocBody`
+  (no-docs/missing/empty/normal branches), and the line-preserving wrapper
+  `renderReleaseDocBody` → `wrapDocLine` → `styledWrap`/`leadingWhitespace`.
+  The wrapper strips frontmatter, styles `#`/`##`/`###` headings, preserves
+  blank lines and leading indentation, and wraps each source line to the body
+  width (no `strings.Fields` flattening across lines).
+- `internal/board/view.go`: `OverlayEpicDetail` now switches on `EpicDetailTab`
+  with a `case 2` dispatching to `RenderEpicReleaseDocs`, using the per-doc
+  scroll offset.
+- `internal/board/update.go`: added `selectedReleaseDocOffset()` so the view
+  reads the selected doc's stored offset.
+- Tests (`epic_panel_test.go`): added header/selector/tab/selected-body/missing/
+  empty/no-docs/footer cases for `RenderEpicReleaseDocs`, width-bound +
+  blank-line + indentation + frontmatter cases for `renderReleaseDocBody`, and
+  `TestView_releaseDocsTabRendered`.
+- Wrapping gate: D017 (epic-view line wrapping) was already fixed on this
+  branch; the Release Docs body uses an independent line-preserving wrapper
+  (not the paragraph-reflow path), and the width-bound test confirms no line
+  exceeds the body width including long path-like tokens.
+- Quality gates: `make build && make test` pass; `go vet ./internal/board/`
+  clean.

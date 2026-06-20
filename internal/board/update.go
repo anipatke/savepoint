@@ -122,6 +122,8 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDefectOverlay(msg)
 	case OverlayDefectDetail:
 		return m.handleDefectDetailOverlay(msg)
+	case OverlayReleaseDocs:
+		return m.handleReleaseDocsOverlay(msg)
 	}
 	return m, nil
 }
@@ -144,6 +146,15 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		m.Overlay = OverlayDefect
 		m.DefectCursor = 0
+		return m, nil
+	case "D":
+		m.Overlay = OverlayReleaseDocs
+		m.ReleaseDocs = nil
+		m.ReleaseDocIndex = 0
+		m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
+		if m.Root != "" {
+			return m, loadReleaseDocsCmd(m.Root, m.SelectedRelease)
+		}
 		return m, nil
 	case "?":
 		m.Overlay = OverlayHelp
@@ -398,48 +409,21 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			epicDir := filepath.Join(m.Root, "releases", m.SelectedRelease, "epics", epicSlug)
 			return m, readEpicAuditCmd(epicDir, shortID(epicSlug))
 		}
-	case "3":
-		m.EpicDetailTab = 2
-		if len(m.ReleaseDocs) == 0 && m.Root != "" {
-			return m, loadReleaseDocsCmd(m.Root)
-		}
-	case "[", "left", "h":
-		if m.EpicDetailTab == 2 {
-			m.selectReleaseDoc(m.ReleaseDocIndex - 1)
-		}
-	case "]", "right", "l":
-		if m.EpicDetailTab == 2 {
-			m.selectReleaseDoc(m.ReleaseDocIndex + 1)
-		}
 	case "a":
 		return m.markEpicAudited()
 	case "up", "k":
-		if m.EpicDetailTab == 2 {
-			m.scrollReleaseDoc(-1)
-		} else if m.EpicDetailOffset > 0 {
+		if m.EpicDetailOffset > 0 {
 			m.EpicDetailOffset--
 		}
 	case "down", "j":
-		if m.EpicDetailTab == 2 {
-			m.scrollReleaseDoc(1)
-		} else {
-			m.EpicDetailOffset++
-		}
+		m.EpicDetailOffset++
 	case "pgup":
-		if m.EpicDetailTab == 2 {
-			m.scrollReleaseDoc(-m.detailPageSize())
-		} else {
-			m.EpicDetailOffset -= m.detailPageSize()
-			if m.EpicDetailOffset < 0 {
-				m.EpicDetailOffset = 0
-			}
+		m.EpicDetailOffset -= m.detailPageSize()
+		if m.EpicDetailOffset < 0 {
+			m.EpicDetailOffset = 0
 		}
 	case "pgdown":
-		if m.EpicDetailTab == 2 {
-			m.scrollReleaseDoc(m.detailPageSize())
-		} else {
-			m.EpicDetailOffset += m.detailPageSize()
-		}
+		m.EpicDetailOffset += m.detailPageSize()
 	}
 	return m, nil
 }
@@ -473,6 +457,16 @@ func (m *Model) scrollReleaseDoc(delta int) {
 	m.ReleaseDocOffsets[doc.ID] = offset
 }
 
+// selectedReleaseDocOffset returns the stored scroll offset for the selected
+// release doc, or 0 when no doc is selected or none has been scrolled.
+func (m *Model) selectedReleaseDocOffset() int {
+	doc, ok := m.selectedReleaseDoc()
+	if !ok {
+		return 0
+	}
+	return m.ReleaseDocOffsets[doc.ID]
+}
+
 // selectedReleaseDoc returns the currently selected release doc, if any.
 func (m *Model) selectedReleaseDoc() (data.ReleaseDoc, bool) {
 	if m.ReleaseDocIndex < 0 || m.ReleaseDocIndex >= len(m.ReleaseDocs) {
@@ -489,6 +483,29 @@ func (m *Model) clampReleaseDocIndex() {
 	if m.ReleaseDocIndex >= len(m.ReleaseDocs) {
 		m.ReleaseDocIndex = max(len(m.ReleaseDocs)-1, 0)
 	}
+}
+
+// handleReleaseDocsOverlay handles keys for the top-level Release Docs overlay:
+// document switching (Release PRD / Overall PRD / Overall Design), per-doc
+// scrolling, and close.
+func (m Model) handleReleaseDocsOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "[", "left", "h":
+		m.selectReleaseDoc(m.ReleaseDocIndex - 1)
+	case "]", "right", "l":
+		m.selectReleaseDoc(m.ReleaseDocIndex + 1)
+	case "up", "k":
+		m.scrollReleaseDoc(-1)
+	case "down", "j":
+		m.scrollReleaseDoc(1)
+	case "pgup":
+		m.scrollReleaseDoc(-m.detailPageSize())
+	case "pgdown":
+		m.scrollReleaseDoc(m.detailPageSize())
+	}
+	return m, nil
 }
 
 // markEpicAudited writes status audited for the open epic, guarded by the detail
@@ -587,19 +604,12 @@ func (m *Model) openEpicDetailOverlay() tea.Cmd {
 	m.EpicDetailOffset = 0
 	m.EpicDetailTab = 0
 	m.EpicAuditContent = ""
-	m.ReleaseDocs = nil
-	m.ReleaseDocIndex = 0
-	m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
 	m.EpicDetailMtime = time.Time{}
 	if fi, err := os.Stat(filepath.Join(epicDir, shortEpicID+"-Detail.md")); err == nil {
 		m.EpicDetailMtime = fi.ModTime()
 	}
 	m.Overlay = OverlayEpicDetail
-	cmd := readEpicDetailCmd(epicDir, shortEpicID)
-	if m.Root != "" {
-		return tea.Batch(cmd, loadReleaseDocsCmd(m.Root))
-	}
-	return cmd
+	return readEpicDetailCmd(epicDir, shortEpicID)
 }
 
 func readEpicDetailFile(epicDir, shortID string) string {

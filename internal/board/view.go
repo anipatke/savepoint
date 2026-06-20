@@ -66,6 +66,12 @@ func (m Model) View() string {
 		return overlayOnBase(dimLines(base), help, w, h)
 	}
 
+	if m.Overlay == OverlayReleaseDocs {
+		ow := overlayWidth(w)
+		overlay := RenderReleaseDocs(m.ReleaseDocs, m.ReleaseDocIndex, ow, detailMaxHeight(h), m.selectedReleaseDocOffset())
+		return overlayOnBase(dimLines(base), overlay, w, h)
+	}
+
 	if m.Overlay == OverlayDefect {
 		defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
 		overlay := RenderDefectsOverlay(defects, m.DefectCursor, min(overlayWidth(w), 60))
@@ -96,9 +102,10 @@ func (m Model) View() string {
 		ow := overlayWidth(w)
 		epicSlug := m.epicDetailEpic()
 		var detail string
-		if m.EpicDetailTab == 1 {
+		switch m.EpicDetailTab {
+		case 1:
 			detail = RenderEpicAuditTab(epicSlug, m.EpicAuditContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
-		} else {
+		default:
 			detail = RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
 		}
 		return overlayOnBase(dimLines(base), detail, w, h)
@@ -356,7 +363,7 @@ func (m Model) renderFooter(termW int) string {
 			styles.FooterDivider.Render(" │ ")+
 			styles.FooterPhaseAudit.Render("AUDIT"),
 	)
-	hints := footerLine(termW, styles.FooterHints.Render("←/→:nav  p: Priority  ctrl+r:refresh  R:release  d: Defects  ?:help  q:quit"))
+	hints := footerLine(termW, styles.FooterHints.Render("←→:nav  p:priority  ctrl+r:refresh  R:release  d:defects  D:docs  ?:help  q:quit"))
 	statusLines := wrappedStatusLines(m.StatusMessage, termW)
 	renderedStatus := make([]string, len(statusLines))
 	for i, line := range statusLines {

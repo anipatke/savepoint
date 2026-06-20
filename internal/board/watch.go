@@ -55,8 +55,8 @@ type epicStatusWrittenMsg struct {
 	status string
 }
 
-// releaseDocsMsg carries the bounded supporting documents loaded for the
-// Release Docs Epic detail subview.
+// releaseDocsMsg carries the supporting documents loaded for the top-level
+// Release Docs overlay (OverlayReleaseDocs).
 type releaseDocsMsg struct {
 	docs []data.ReleaseDoc
 }

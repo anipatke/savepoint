@@ -876,6 +876,64 @@ All acceptance criteria met.
 	}
 }
 
+func TestRenderReleaseDocBody_wrapsWithinWidth(t *testing.T) {
+	content := "## Heading\n\n" + strings.Repeat("word ", 80) +
+		"\n\nsupercalifragilisticexpialidocious/path/segment/that/is/very/long\n"
+	body := renderReleaseDocBody(content, 48)
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 48 {
+			t.Errorf("rendered doc line exceeds width 48 (%d): %q", w, line)
+		}
+	}
+}
+
+func TestRenderReleaseDocBody_preservesBlankLines(t *testing.T) {
+	body := renderReleaseDocBody("Para one.\n\nPara two.", 40)
+	blanks := 0
+	for _, l := range body {
+		if strings.TrimSpace(l) == "" {
+			blanks++
+		}
+	}
+	if blanks == 0 {
+		t.Error("renderReleaseDocBody should preserve the blank line between paragraphs")
+	}
+}
+
+func TestRenderReleaseDocBody_preservesIndentedWhitespace(t *testing.T) {
+	// Leading indentation and interior multi-space runs must survive so tables
+	// and code blocks keep their alignment. Tabs are normalized to spaces by the
+	// render layer, so this asserts on spaces only.
+	body := renderReleaseDocBody("    first    second    third", 40)
+	if len(body) == 0 || !strings.Contains(body[0], "    first    second    third") {
+		t.Errorf("renderReleaseDocBody should preserve indented whitespace, got %q", body)
+	}
+}
+
+func TestRenderReleaseDocBody_stripsFrontmatter(t *testing.T) {
+	body := renderReleaseDocBody("---\ntype: prd\n---\n# Title\n\nBody.", 40)
+	joined := strings.Join(body, "\n")
+	if strings.Contains(joined, "type: prd") {
+		t.Error("renderReleaseDocBody should strip frontmatter")
+	}
+	if !strings.Contains(joined, "Body.") {
+		t.Error("renderReleaseDocBody should render content after frontmatter")
+	}
+}
+
+// TestRenderReleaseDocBody_wrapsWithinNarrowWidth proves long, unbreakable tokens
+// are hard-cut so no rendered line overflows a very narrow body width.
+func TestRenderReleaseDocBody_wrapsWithinNarrowWidth(t *testing.T) {
+	content := strings.Repeat("word ", 20) +
+		"\n\nsupercalifragilisticexpialidocious/path/segment/that/is/very/long\n"
+	body := renderReleaseDocBody(content, 16)
+	for _, line := range body {
+		if w := lipgloss.Width(line); w > 16 {
+			t.Errorf("rendered doc line exceeds narrow width 16 (%d): %q", w, line)
+		}
+	}
+}
+
 func TestRenderEpicAuditTab_v11AuditFiles(t *testing.T) {
 	files := []struct {
 		path string

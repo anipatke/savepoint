@@ -189,12 +189,13 @@ func readEpicDetailCmd(epicDir, shortIDStr string) tea.Cmd {
 	}
 }
 
-// loadReleaseDocsCmd reads the bounded supporting documents (PRD, Design) from
-// the .savepoint root through the data loader, keeping filesystem access out of
-// Update(). A loader error surfaces as a status message rather than a panic.
-func loadReleaseDocsCmd(root string) tea.Cmd {
+// loadReleaseDocsCmd reads the Release Docs overlay's supporting documents (the
+// selected release's PRD plus the project-wide PRD/Design) from the .savepoint
+// root through the data loader, keeping filesystem access out of Update(). A
+// loader error surfaces as a status message rather than a panic.
+func loadReleaseDocsCmd(root, release string) tea.Cmd {
 	return func() tea.Msg {
-		docs, err := data.LoadReleaseDocs(root)
+		docs, err := data.LoadReleaseDocs(root, release)
 		if err != nil {
 			return errorMsg{message: err.Error()}
 		}

@@ -19,6 +19,7 @@ const (
 	OverlayEpicDetail   OverlayType = "detail-epic"
 	OverlayDefect       OverlayType = "defect"
 	OverlayDefectDetail OverlayType = "detail-defect"
+	OverlayReleaseDocs  OverlayType = "release-docs"
 )
 
 // ViewConfig holds terminal and overlay presentation state.
@@ -62,13 +63,16 @@ type EpicState struct {
 	EpicDetailOffset  int
 	EpicDetailEpic    string
 	EpicDetailContent string
-	EpicDetailTab     int       // 0=Detail, 1=Audit, 2=Release Docs
+	EpicDetailTab     int       // 0=Detail, 1=Audit
 	EpicAuditContent  string    // cached E##-Audit.md content
 	EpicDetailMtime   time.Time // mtime of the open epic's E##-Detail.md, for write conflict detection
+}
 
-	// Release Docs subview state (EpicDetailTab == 2). Docs are the bounded
-	// supporting documents (PRD, Design) loaded through the board message flow.
-	ReleaseDocs       []data.ReleaseDoc         // cached supporting docs in spec order
+// ReleaseDocsState holds the top-level Release Docs overlay state
+// (OverlayReleaseDocs): the selected release's PRD plus the project-wide
+// PRD/Design, loaded through the board message flow.
+type ReleaseDocsState struct {
+	ReleaseDocs       []data.ReleaseDoc         // loaded docs in spec order
 	ReleaseDocIndex   int                       // selected doc within ReleaseDocs
 	ReleaseDocOffsets map[data.ReleaseDocID]int // per-doc scroll offset, keyed by doc ID
 }
@@ -92,6 +96,7 @@ type Model struct {
 	DataState
 	NavigationState
 	EpicState
+	ReleaseDocsState
 	ReleaseState
 	DataAccessState
 }

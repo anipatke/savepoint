@@ -67,7 +67,7 @@ func TestView_containsFooterHints(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	footer := m.renderFooter(80)
 
-	if !strings.Contains(footer, "←/→:nav  p: Priority  ctrl+r:refresh  R:release  d: Defects  ?:help  q:quit") {
+	if !strings.Contains(footer, "←→:nav  p:priority  ctrl+r:refresh  R:release  d:defects  D:docs  ?:help  q:quit") {
 		t.Fatal("renderFooter() missing navigation hints")
 	}
 

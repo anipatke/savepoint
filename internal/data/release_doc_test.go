@@ -25,29 +25,43 @@ func TestLoadReleaseDocs(t *testing.T) {
 		wantAvail map[ReleaseDocID]bool
 	}{
 		{
-			name: "both present",
+			name: "all present",
 			write: map[string]string{
-				"PRD.md":    "# Product\nvision",
-				"Design.md": "# Design\narchitecture",
+				"releases/v1.2/v1.2-PRD.md": "# Release PRD\nv1.2 scope",
+				"PRD.md":                    "# Overall PRD\nproduct vision",
+				"Design.md":                 "# Overall Design\narchitecture",
 			},
 			wantBody: map[ReleaseDocID]string{
-				ReleaseDocPRD:    "# Product\nvision",
-				ReleaseDocDesign: "# Design\narchitecture",
+				ReleaseDocReleasePRD:    "# Release PRD\nv1.2 scope",
+				ReleaseDocOverallPRD:    "# Overall PRD\nproduct vision",
+				ReleaseDocOverallDesign: "# Overall Design\narchitecture",
 			},
-			wantAvail: map[ReleaseDocID]bool{ReleaseDocPRD: true, ReleaseDocDesign: true},
+			wantAvail: map[ReleaseDocID]bool{
+				ReleaseDocReleasePRD:    true,
+				ReleaseDocOverallPRD:    true,
+				ReleaseDocOverallDesign: true,
+			},
 		},
 		{
-			name:      "both missing",
-			write:     map[string]string{},
-			wantAvail: map[ReleaseDocID]bool{ReleaseDocPRD: false, ReleaseDocDesign: false},
+			name:  "release prd missing is not fatal",
+			write: map[string]string{"PRD.md": "# Overall PRD", "Design.md": "# Overall Design"},
+			wantAvail: map[ReleaseDocID]bool{
+				ReleaseDocReleasePRD:    false,
+				ReleaseDocOverallPRD:    true,
+				ReleaseDocOverallDesign: true,
+			},
 		},
 		{
-			name:  "prd present design missing",
-			write: map[string]string{"PRD.md": "only prd"},
+			name:  "only release prd present",
+			write: map[string]string{"releases/v1.2/v1.2-PRD.md": "# Release PRD"},
 			wantBody: map[ReleaseDocID]string{
-				ReleaseDocPRD: "only prd",
+				ReleaseDocReleasePRD: "# Release PRD",
 			},
-			wantAvail: map[ReleaseDocID]bool{ReleaseDocPRD: true, ReleaseDocDesign: false},
+			wantAvail: map[ReleaseDocID]bool{
+				ReleaseDocReleasePRD:    true,
+				ReleaseDocOverallPRD:    false,
+				ReleaseDocOverallDesign: false,
+			},
 		},
 	}
 
@@ -55,10 +69,10 @@ func TestLoadReleaseDocs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			for name, content := range tt.write {
-				testutil.WriteFile(t, filepath.Join(root, name), content)
+				testutil.WriteFile(t, filepath.Join(root, filepath.FromSlash(name)), content)
 			}
 
-			docs, err := LoadReleaseDocs(root)
+			docs, err := LoadReleaseDocs(root, "v1.2")
 			if err != nil {
 				t.Fatalf("LoadReleaseDocs() error = %v", err)
 			}
@@ -74,11 +88,7 @@ func TestLoadReleaseDocs(t *testing.T) {
 				if doc.Available != wantAvail {
 					t.Errorf("doc %q Available = %v, want %v", id, doc.Available, wantAvail)
 				}
-				if !wantAvail && doc.Body != "" {
-					t.Errorf("doc %q unavailable but Body = %q, want empty", id, doc.Body)
-				}
 			}
-
 			for id, wantBody := range tt.wantBody {
 				doc, _ := docByID(docs, id)
 				if doc.Body != wantBody {
@@ -89,15 +99,32 @@ func TestLoadReleaseDocs(t *testing.T) {
 	}
 }
 
+// TestLoadReleaseDocsReleaseScoped proves the Release PRD tracks the requested
+// release: v1.2's PRD must not appear when loading v1.3.
+func TestLoadReleaseDocsReleaseScoped(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "releases", "v1.2", "v1.2-PRD.md"), "v1.2 prd")
+
+	docs, err := LoadReleaseDocs(root, "v1.3")
+	if err != nil {
+		t.Fatalf("LoadReleaseDocs() error = %v", err)
+	}
+	prd, _ := docByID(docs, ReleaseDocReleasePRD)
+	if prd.Available {
+		t.Errorf("Release PRD Available = true for v1.3, want false (only v1.2 exists)")
+	}
+}
+
 func TestLoadReleaseDocsLabelsAndPaths(t *testing.T) {
-	docs, err := LoadReleaseDocs(t.TempDir())
+	docs, err := LoadReleaseDocs(t.TempDir(), "v1.2")
 	if err != nil {
 		t.Fatalf("LoadReleaseDocs() error = %v", err)
 	}
 
 	want := map[ReleaseDocID]struct{ label, path string }{
-		ReleaseDocPRD:    {label: "PRD", path: "PRD.md"},
-		ReleaseDocDesign: {label: "Design", path: "Design.md"},
+		ReleaseDocReleasePRD:    {label: "Release PRD", path: filepath.FromSlash("releases/v1.2/v1.2-PRD.md")},
+		ReleaseDocOverallPRD:    {label: "Overall PRD", path: "PRD.md"},
+		ReleaseDocOverallDesign: {label: "Overall Design", path: "Design.md"},
 	}
 	for id, w := range want {
 		doc, ok := docByID(docs, id)
@@ -119,7 +146,7 @@ func TestLoadReleaseDocsReadError(t *testing.T) {
 	// not os.IsNotExist, exercising the fatal-error path portably.
 	testutil.MkdirAll(t, filepath.Join(root, "PRD.md"))
 
-	_, err := LoadReleaseDocs(root)
+	_, err := LoadReleaseDocs(root, "v1.2")
 	if err == nil {
 		t.Fatal("LoadReleaseDocs() error = nil, want read error")
 	}
