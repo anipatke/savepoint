@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.4
-epic: E30
-task: E22-agent-launcher-foundation/T001-launcher-config-contract
-next_action: Build E22-agent-launcher-foundation/T001-launcher-config-contract.
+epic: E31-audit-register-data-model
+task: E31-audit-register-data-model/T001-audit-finding-model
+next_action: Build E31-audit-register-data-model/T001-audit-finding-model.
 ```
 
 ## State → action

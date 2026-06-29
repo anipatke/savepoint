@@ -20,17 +20,19 @@ Use this skill when router `state` is `audit-pending`, or when the user explicit
 - Task files for the active epic
 - `.savepoint/Design.md`
 - `AGENTS.md`
+- `.savepoint/audit/prompt.md` and `.savepoint/audit/register.md` when `.savepoint/audit/` exists
 - Scoped source/test files changed by the epic
 
 ## Workflow
 
 1. Stop if you are the same agent session that just built the epic.
-2. Verify every completed task against its acceptance criteria and context log.
-3. Review task `## Drift Notes`.
-4. Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
-5. Put user-facing findings under `## Main Findings` and code-style checks under `## Code Style Review`.
-6. Put admin replacement blocks only under `## Proposed Changes`.
-7. Stop and ask the user to review the audit before any proposals are applied.
+2. When `.savepoint/audit/` exists, follow `.savepoint/audit/prompt.md` and reconcile against the register before recording new findings.
+3. Verify every completed task against its acceptance criteria and context log.
+4. Review task `## Drift Notes`.
+5. Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.
+6. Put user-facing findings under `## Main Findings` and code-style checks under `## Code Style Review`.
+7. Put admin replacement blocks only under `## Proposed Changes`.
+8. Stop and ask the user to review the audit before any proposals are applied.
 
 ## Artifact Template
 
