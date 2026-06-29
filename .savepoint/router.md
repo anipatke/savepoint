@@ -13,8 +13,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 
 ```yaml
 state: task-building
-release: v1.3
-epic: E22-agent-launcher-foundation
+release: v1.4
+epic: E30
 task: E22-agent-launcher-foundation/T001-launcher-config-contract
 next_action: Build E22-agent-launcher-foundation/T001-launcher-config-contract.
 ```
