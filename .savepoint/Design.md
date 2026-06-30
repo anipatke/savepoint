@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.4/E30-audit-register-templates
+last_audited: v1.4/E31-audit-register-data-model
 ---
 
 # Savepoint — System Architecture

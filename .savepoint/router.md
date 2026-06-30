@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.4
-epic: E31-audit-register-data-model
-task: E31-audit-register-data-model/T001-audit-finding-model
-next_action: Build E31-audit-register-data-model/T001-audit-finding-model.
+epic: E32-audit-register-tui-review
+task: E32-audit-register-tui-review/T001-board-audit-data-loading
+next_action: Build E32-audit-register-tui-review/T001-board-audit-data-loading.
 ```
 
 ## State → action
