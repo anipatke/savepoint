@@ -36,6 +36,13 @@ func TestRenderHelp_containsShortcuts(t *testing.T) {
 	}
 }
 
+func TestRenderHelp_containsAuditShortcut(t *testing.T) {
+	got := plainTerminal(RenderHelp(60))
+	if !strings.Contains(got, "A: ") || !strings.Contains(got, "audit register") {
+		t.Errorf("RenderHelp missing Audit Register shortcut; got %q", got)
+	}
+}
+
 func TestRenderHelp_containsCloseHint(t *testing.T) {
 	got := RenderHelp(60)
 	if !strings.Contains(got, "esc/q:close") {

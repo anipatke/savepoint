@@ -12,8 +12,11 @@ const detailBorderPad = 4        // rounded border (2) + padding (2×1)
 const detailVerticalOverhead = 4 // overlay border (2) + fixed title/header rows (2)
 
 // RenderDetail renders a task detail overlay panel at the given display width.
-// When router state matches t's release/epic/task, a "(router priority)" label is shown.
-func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxHeight, offset int) string {
+// When router state matches t's release/epic/task, a "(router priority)" label is
+// shown. findings are the audit findings that link back to this task, rendered in
+// a read-only "Linked Findings" section with findingCursor highlighting the
+// selected row.
+func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxHeight, offset int, findings []data.AuditFinding, findingCursor int) string {
 	inner := overlayW - detailBorderPad
 	if inner < 4 {
 		inner = 4
@@ -60,10 +63,12 @@ func RenderDetail(t data.Task, overlayW int, routerState *data.RouterState, maxH
 		}
 	}
 
+	body = append(body, linkedFindingsSection(findings, findingCursor, inner)...)
+
 	if t.Column != data.ColumnDone && isRouterPriority(t, routerState) {
 		body = append(body, "", styles.TagDone.Render("(router priority)"))
 	}
-	body = append(body, "", styles.CardMeta.Render("esc:close"))
+	body = append(body, "", styles.CardMeta.Render(detailFooterHint("esc:close", len(findings) > 0)))
 	lines = append(lines, visibleDetailLines(body, maxHeight-detailVerticalOverhead, offset)...)
 
 	return styles.DetailOverlay.Width(overlayW).Render(strings.Join(lines, "\n"))

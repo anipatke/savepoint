@@ -11,15 +11,17 @@ import (
 type OverlayType string
 
 const (
-	OverlayNone         OverlayType = ""
-	OverlayHelp         OverlayType = "help"
-	OverlayEpic         OverlayType = "epic"
-	OverlayRelease      OverlayType = "release"
-	OverlayDetail       OverlayType = "detail"
-	OverlayEpicDetail   OverlayType = "detail-epic"
-	OverlayDefect       OverlayType = "defect"
-	OverlayDefectDetail OverlayType = "detail-defect"
-	OverlayReleaseDocs  OverlayType = "release-docs"
+	OverlayNone          OverlayType = ""
+	OverlayHelp          OverlayType = "help"
+	OverlayEpic          OverlayType = "epic"
+	OverlayRelease       OverlayType = "release"
+	OverlayDetail        OverlayType = "detail"
+	OverlayEpicDetail    OverlayType = "detail-epic"
+	OverlayDefect        OverlayType = "defect"
+	OverlayDefectDetail  OverlayType = "detail-defect"
+	OverlayReleaseDocs   OverlayType = "release-docs"
+	OverlayAudit         OverlayType = "audit"
+	OverlayFindingDetail OverlayType = "detail-finding"
 )
 
 // ViewConfig holds terminal and overlay presentation state.
@@ -77,6 +79,30 @@ type ReleaseDocsState struct {
 	ReleaseDocOffsets map[data.ReleaseDocID]int // per-doc scroll offset, keyed by doc ID
 }
 
+// AuditState holds the repo-wide audit-register data set backing the Audit
+// Register overlay plus its read-only navigation: the selected tab and a
+// per-tab scroll offset so switching tabs preserves each body's position. The
+// data set is refreshed through the board message flow (startup, reload/watch,
+// and overlay open) and is never mutated by the board.
+type AuditState struct {
+	Audit        data.AuditRegisterSet
+	AuditTab     auditTab
+	AuditOffsets map[auditTab]int
+
+	// FindingCursor selects a finding row on the Findings tab and indexes into
+	// the sorted Audit.Findings slice. FindingDetailOffset scrolls the read-only
+	// finding detail overlay opened from that cursor.
+	FindingCursor       int
+	FindingDetailOffset int
+
+	// LinkedFindingCursor selects a row in the read-only "Linked Findings"
+	// section of the task and epic detail overlays, indexing the findings the
+	// reverse lookup returns for the open work item. FindingDetailOrigin records
+	// which overlay opened the finding detail so closing it returns there.
+	LinkedFindingCursor int
+	FindingDetailOrigin OverlayType
+}
+
 // ReleaseState holds release list and release picker state.
 type ReleaseState struct {
 	SelectedRelease string
@@ -97,6 +123,7 @@ type Model struct {
 	NavigationState
 	EpicState
 	ReleaseDocsState
+	AuditState
 	ReleaseState
 	DataAccessState
 }

@@ -570,7 +570,7 @@ func TestView_epicDetailOverlayNoContent(t *testing.T) {
 
 func TestRenderEpicDetail_stripsMarkdownHeadings(t *testing.T) {
 	content := "---\ntype: epic-design\n---\n# Epic E01\n\n## Purpose\nDoes things."
-	got := RenderEpicDetail("E01-test", content, 60, 40, 0, 0)
+	got := RenderEpicDetail("E01-test", content, 60, 40, 0, 0, nil, 0)
 	if !strings.Contains(got, "EPIC DETAIL") {
 		t.Error("RenderEpicDetail missing EPIC DETAIL header")
 	}
@@ -620,14 +620,14 @@ func TestEpicDetailBody_reflowsHardWrappedParagraph(t *testing.T) {
 }
 
 func TestRenderEpicDetail_noDetailFallback(t *testing.T) {
-	got := RenderEpicDetail("E01-test", "(no detail available)", 60, 40, 0, 0)
+	got := RenderEpicDetail("E01-test", "(no detail available)", 60, 40, 0, 0, nil, 0)
 	if !strings.Contains(got, "no detail available") {
 		t.Error("RenderEpicDetail fallback message missing")
 	}
 }
 
 func TestRenderEpicDetail_tabIndicatorDetailActive(t *testing.T) {
-	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 0)
+	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 0, nil, 0)
 	if !strings.Contains(got, "DETAIL [1]") {
 		t.Error("RenderEpicDetail tab=0: missing DETAIL [1] indicator")
 	}
@@ -637,7 +637,7 @@ func TestRenderEpicDetail_tabIndicatorDetailActive(t *testing.T) {
 }
 
 func TestRenderEpicDetail_tabIndicatorAuditActive(t *testing.T) {
-	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 1)
+	got := RenderEpicDetail("E01-test", "content", 60, 40, 0, 1, nil, 0)
 	if !strings.Contains(got, "DETAIL [1]") {
 		t.Error("RenderEpicDetail tab=1: missing DETAIL [1] indicator")
 	}

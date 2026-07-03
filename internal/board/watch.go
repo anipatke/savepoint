@@ -10,6 +10,10 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
+// auditWatchDir is the audit-register subtree the board watches, mirroring the
+// data package's audit/ directory layout so audit edits trigger a reload.
+const auditWatchDir = "audit"
+
 type fileChangeMsg struct{}
 type reloadMsg struct {
 	tasks        []data.Task
@@ -17,8 +21,15 @@ type reloadMsg struct {
 	releases     []string
 	releaseEpics map[string][]string
 	epicStatuses map[string]string
+	audit        data.AuditRegisterSet
 	routerState  *data.RouterState
 	message      string
+}
+
+// auditRegisterMsg carries a freshly loaded audit-register data set for the
+// Audit Register overlay, produced by loadAuditRegisterCmd on overlay open.
+type auditRegisterMsg struct {
+	set data.AuditRegisterSet
 }
 
 type routerWriteMsg struct {
@@ -116,7 +127,8 @@ func reloadTasksWithMessage(root string, deps ModelDependencies, message string)
 		}
 		debugf("reload: loaded %d tasks", len(tasks))
 		routerState, _ := readRouterState(root, deps.RouterReader)
-		return reloadMsg{tasks: tasks, defects: defects, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, routerState: routerState, message: message}
+		audit := loadAuditBestEffort(root, deps.AuditLoader)
+		return reloadMsg{tasks: tasks, defects: defects, releases: releases, releaseEpics: releaseEpics, epicStatuses: epicStatuses, audit: audit, routerState: routerState, message: message}
 	}
 }
 
@@ -132,6 +144,14 @@ func newWatcher(root string) (*fsnotify.Watcher, error) {
 	}
 	releasesPath := filepath.Join(root, "releases")
 	if err := addDirsRecursive(w, releasesPath); err != nil {
+		w.Close()
+		return nil, err
+	}
+	// Watch the audit-register subtree so finding/run/prompt/register edits
+	// drive the same reload path as task and release changes. A missing audit/
+	// directory is skipped, so projects without an audit tree still start.
+	auditPath := filepath.Join(root, auditWatchDir)
+	if err := addDirsRecursive(w, auditPath); err != nil {
 		w.Close()
 		return nil, err
 	}
