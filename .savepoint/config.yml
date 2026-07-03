@@ -12,6 +12,23 @@ quality_gates:
 audit:
   divergence_threshold: 0.5 # warn if a proposal changes >50% of a live file
 
+# agent_launcher: opt-in, vendor-neutral interactive agent launches. Disabled
+# by default. Args are a structured list (no shell strings). Supported
+# placeholders: {{prompt}}, {{project_root}}.
+# agent_launcher:
+#   enabled: false
+#   builder: # required when enabled
+#     command: claude
+#     args: ["{{prompt}}"]
+#   auditor: # optional
+#     command: claude
+#     args: ["--audit", "{{prompt}}"]
+#   terminal:
+#     mode: auto # auto | override
+#     # override: # required when mode is override
+#     #   command: wezterm
+#     #   args: ["start", "--cwd", "{{project_root}}", "--"]
+
 theme:
   bg: "#000000"
   surface: "#000000"
