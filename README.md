@@ -93,6 +93,7 @@ Agents may move a task to `in_progress` when they start work. The user owns clos
 - Epic sidebar and epic detail overlay for release navigation
 - `p` priority hotkey to set the router to the focused task
 - `d` defect overlay for release-level bugs
+- `A` read-only audit register overlay with finding detail
 - Non-TTY fallback for plain terminal output
 
 You can scope the board when needed:
@@ -137,6 +138,30 @@ stage: build          # build | test | audit
 
 Defects are release-level workflow items. They are surfaced through the board defect overlay and doctor validation, not as a fourth Kanban column.
 
+## Audit Register
+
+The Audit Register is a durable, repo-wide record of audit findings, so repeated audits converge on one shared state instead of restarting from a cold scan every run.
+
+It lives in markdown under `.savepoint/audit/`:
+
+```text
+.savepoint/audit/
+  prompt.md        # canonical, versioned audit prompt
+  register.md      # current reconciled state (mutable index)
+  findings/        # one file per finding: F###-slug.md
+  runs/            # immutable audit run history: YYYY-MM-DD-label.md
+```
+
+How it works:
+
+- Every finding gets a stable `F###` ID that never changes and is never reused. An audit that sees a known finding again keeps its ID and refreshes `last_seen` instead of filing a duplicate.
+- Each audit run is recorded as an immutable file under `runs/`, including what was examined and what was skipped. The register is the current state derived from that history.
+- A finding closes as `verified` only with named proof — preferably a passing regression test, otherwise an explicit manual verification note. Waivers and owner decisions stay with you, not the agent.
+
+To use it, ask your agent to audit and point it at `AGENTS.md` — the generated guidance routes audit work through `.savepoint/audit/prompt.md` and the `savepoint-audit-register` skill.
+
+Press `A` on the board to review the register, findings, and run history in a read-only overlay. In v1.4 the markdown files remain the editable source of truth: dispositions and edits happen in the files, not the TUI. There are no dashboards, external tracker integrations, or automated finding matching — reconciliation is deliberate, manual work.
+
 ## Agent Skills
 
 Savepoint ships workflow skills that act as the canonical instructions for each phase:
@@ -147,6 +172,7 @@ Savepoint ships workflow skills that act as the canonical instructions for each 
 - `savepoint-create-task`
 - `savepoint-build-task`
 - `savepoint-audit`
+- `savepoint-audit-register`
 - `savepoint-create-defect`
 
 `AGENTS.md` routes the agent to the right skill based on `.savepoint/router.md`. The skill owns the phase workflow; `AGENTS.md` keeps routing, terminology, and repository rules in one place.

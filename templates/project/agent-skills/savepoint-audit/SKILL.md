@@ -20,13 +20,13 @@ Use this skill when router `state` is `audit-pending`, or when the user explicit
 - Task files for the active epic
 - `.savepoint/Design.md`
 - `AGENTS.md`
-- `.savepoint/audit/prompt.md` and `.savepoint/audit/register.md` when `.savepoint/audit/` exists
+- `agent-skills/savepoint-audit-register/SKILL.md` when `.savepoint/audit/` exists
 - Scoped source/test files changed by the epic
 
 ## Workflow
 
 1. Stop if you are the same agent session that just built the epic.
-2. When `.savepoint/audit/` exists, follow `.savepoint/audit/prompt.md` and reconcile against the register before recording new findings.
+2. When `.savepoint/audit/` exists, follow the `savepoint-audit-register` skill alongside this one: it owns register reconciliation, stable `F###` IDs, run records, and proof rules. Reconcile against the register before recording new findings.
 3. Verify every completed task against its acceptance criteria and context log.
 4. Review task `## Drift Notes`.
 5. Write exactly one `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`.

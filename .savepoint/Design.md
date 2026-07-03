@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.4/E32-audit-register-tui-review
+last_audited: v1.4/E33-audit-register-workflow-guidance
 ---
 
 # Savepoint — System Architecture
@@ -14,7 +14,7 @@ last_audited: v1.4/E32-audit-register-tui-review
 
 - **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
 - **Agent routing:** AGENTS.md → `.savepoint/router.md` → phase skills. See AGENTS.md Workflow section.
-- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-create-defect`, `savepoint-build-task`, `savepoint-audit`) to enforce the state machine and capture release-level defects.
+- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-create-defect`, `savepoint-build-task`, `savepoint-audit`, and `savepoint-audit-register`) to enforce the state machine, capture release-level defects, and converge register-backed audit findings when `.savepoint/audit/` exists.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
@@ -115,7 +115,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 ```
 0. Quality Gates  — Build agent runs configured build/test gates before audit handoff.
 1. Audit Pending  — Router enters `audit-pending` for the completed epic.
-2. Reconcile      — Fresh audit agent reads router, epic detail, task files, Design.md, AGENTS.md, and scoped source/test files.
+2. Reconcile      — Fresh audit agent reads router, epic detail, task files, Design.md, AGENTS.md, and scoped source/test files. When `.savepoint/audit/` exists, the agent first follows `savepoint-audit-register`: prompt/register/findings/runs, stable `F###` reconciliation, and proof rules.
 3. Findings       — Agent writes exactly one `{epic}/E##-Audit.md`.
 4. Review         — User reviews the TUI Epic Detail Audit tab.
 5. Apply + Close  — After user approval, agent applies proposal blocks, updates the audit file's visible findings, marks the epic audited, updates `last_audited`, and advances router.

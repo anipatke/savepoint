@@ -65,6 +65,7 @@ Audit is agent-led via the `savepoint-audit` skill — follow it for the file la
 
 - Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
 - During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
+- When `.savepoint/audit/` exists, also follow the `savepoint-audit-register` skill: read `.savepoint/audit/prompt.md`, reconcile against `.savepoint/audit/register.md` with stable `F###` IDs, and record the run — do not restart from a cold scan.
 
 ## Code Style
 
