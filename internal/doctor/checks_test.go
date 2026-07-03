@@ -1397,3 +1397,245 @@ func TestCheckDefects_ReferenceDoesNotMatchTask(t *testing.T) {
 		t.Fatalf("CheckDefects() = %v, want missing task reference problem", problems)
 	}
 }
+
+// --- CheckAuditRegister ---
+
+// writeAuditFinding writes a finding record under root/audit/findings with the
+// given frontmatter block (without --- delimiters).
+func writeAuditFinding(t *testing.T, root, filename, frontmatter string) string {
+	t.Helper()
+	path := filepath.Join(root, "audit", "findings", filename)
+	testutil.WriteFile(t, path, "---\n"+frontmatter+"---\n\n# Finding\n\n## Proof\n\nPending.\n")
+	return path
+}
+
+// cleanFindingFrontmatter is a fully valid F001 finding referencing the v1
+// release, the E01-foo epic, and the E01-foo/T001-task task.
+const cleanFindingFrontmatter = `id: F001
+title: "Sample finding"
+status: open
+severity: medium
+confidence: high
+proof_needed: "regression test in checks_test.go"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+releases: ["v1"]
+epics: ["E01-foo"]
+tasks: ["E01-foo/T001-task"]
+`
+
+func TestCheckAuditRegister_AbsentAuditDir(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+
+	problems := CheckAuditRegister(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckAuditRegister() = %v, want no problems when audit/ is absent", problems)
+	}
+}
+
+func TestCheckAuditRegister_PartialAdoptionWithoutFindings(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	testutil.WriteFile(t, filepath.Join(root, "audit", "register.md"), "# Audit Register\n")
+	testutil.WriteFile(t, filepath.Join(root, "audit", "findings", "README.md"), "# Findings guidance\n")
+	testutil.WriteFile(t, filepath.Join(root, "audit", "runs", "README.md"), "# Runs guidance\n")
+
+	problems := CheckAuditRegister(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckAuditRegister() = %v, want no problems for partially adopted register", problems)
+	}
+}
+
+func TestCheckAuditRegister_CleanFinding(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F001-sample.md", cleanFindingFrontmatter)
+
+	problems := CheckAuditRegister(root)
+	if len(problems) > 0 {
+		t.Fatalf("CheckAuditRegister() = %v, want no problems for clean finding", problems)
+	}
+}
+
+func TestCheckAuditRegister_ReportsHealedFields(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F002-bad-fields.md", `id: F001
+title: "Bad fields"
+status: reviewing
+severity: blocker
+confidence: certain
+proof_needed: "test"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+`)
+
+	problems := CheckAuditRegister(root)
+	wants := []string{
+		`finding id "F001" does not match filename id "F002"`,
+		`finding status invalid "reviewing"`,
+		`finding severity invalid "blocker"`,
+		`finding confidence invalid "certain"`,
+	}
+	for _, want := range wants {
+		if !problemsContain(problems, want) {
+			t.Errorf("CheckAuditRegister() missing problem %q in %v", want, problems)
+		}
+	}
+}
+
+func TestCheckAuditRegister_ReportsMissingFields(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F003-missing-fields.md", "id: F003\nstatus: open\n")
+
+	problems := CheckAuditRegister(root)
+	for _, field := range []string{"title", "severity", "confidence", "proof_needed", "first_seen", "last_seen"} {
+		want := "finding missing required field: " + field
+		if !problemsContain(problems, want) {
+			t.Errorf("CheckAuditRegister() missing problem %q in %v", want, problems)
+		}
+	}
+}
+
+func TestCheckAuditRegister_ReportsVerifiedMissingProof(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F001-verified.md", `id: F001
+title: "Verified without proof"
+status: verified
+severity: high
+confidence: high
+proof_needed: "regression test"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+`)
+
+	problems := CheckAuditRegister(root)
+	if !problemsContain(problems, "verified finding has no named proof") {
+		t.Fatalf("CheckAuditRegister() = %v, want verified-missing-proof problem", problems)
+	}
+}
+
+func TestCheckAuditRegister_ReportsDuplicateProblems(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F001-dup-no-target.md", `id: F001
+title: "Duplicate without target"
+status: duplicate
+severity: low
+confidence: medium
+proof_needed: "n/a"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+`)
+	writeAuditFinding(t, root, "F002-dup-bad-target.md", `id: F002
+title: "Duplicate of missing finding"
+status: duplicate
+severity: low
+confidence: medium
+proof_needed: "n/a"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+duplicate_of: F999
+`)
+
+	problems := CheckAuditRegister(root)
+	if !problemsContain(problems, "duplicate finding has no duplicate_of") {
+		t.Errorf("CheckAuditRegister() = %v, want duplicate-missing-target problem", problems)
+	}
+	if !problemsContain(problems, `duplicate_of references unknown finding "F999"`) {
+		t.Errorf("CheckAuditRegister() = %v, want unknown duplicate_of problem", problems)
+	}
+}
+
+func TestCheckAuditRegister_ReportsBrokenWorkItemLinks(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeDefect(t, filepath.Join(root, "releases", "v1", "defects"), "D001-real.md",
+		"---\nid: v1/D001-real\nstatus: open\nseverity: low\ntitle: Real\n---\n")
+	writeAuditFinding(t, root, "F001-broken-links.md", `id: F001
+title: "Broken links"
+status: open
+severity: medium
+confidence: medium
+proof_needed: "test"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+releases: ["v9"]
+epics: ["E99-ghost"]
+tasks: ["E01-foo/T999-ghost"]
+defects: ["D001-real", "D404-nope"]
+`)
+
+	problems := CheckAuditRegister(root)
+	wants := []string{
+		`references unknown release "v9"`,
+		`references unknown epic "E99-ghost"`,
+		`references unknown task "E01-foo/T999-ghost"`,
+		`references unknown defect "D404-nope"`,
+	}
+	for _, want := range wants {
+		if !problemsContain(problems, want) {
+			t.Errorf("CheckAuditRegister() missing problem %q in %v", want, problems)
+		}
+	}
+	if problemsContain(problems, `unknown defect "D001-real"`) {
+		t.Errorf("CheckAuditRegister() = %v, flagged existing defect D001-real", problems)
+	}
+}
+
+func TestCheckAuditRegister_MalformedFindingFile(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	testutil.WriteFile(t, filepath.Join(root, "audit", "findings", "F001-broken.md"),
+		"---\nid: [broken\n---\n\n# Finding\n")
+
+	problems := CheckAuditRegister(root)
+	if !problemsContain(problems, "audit finding unloadable") {
+		t.Fatalf("CheckAuditRegister() = %v, want structural finding problem", problems)
+	}
+}
+
+func TestCheckAuditRegister_MalformedRunFile(t *testing.T) {
+	root := t.TempDir()
+	setupMinimalProject(t, root, "v1", "E01-foo", []taskSpec{
+		{id: "E01-foo/T001-task", deps: []string{}},
+	})
+	writeAuditFinding(t, root, "F001-sample.md", cleanFindingFrontmatter)
+	testutil.WriteFile(t, filepath.Join(root, "audit", "runs", "2026-07-01-full.md"),
+		"---\ndate: [broken\n---\n\n# Run\n")
+
+	problems := CheckAuditRegister(root)
+	if !problemsContain(problems, "audit run unloadable") {
+		t.Fatalf("CheckAuditRegister() = %v, want structural run problem", problems)
+	}
+}
+
+func problemsContain(problems []Problem, want string) bool {
+	for _, p := range problems {
+		if strings.Contains(p.Message, want) {
+			return true
+		}
+	}
+	return false
+}

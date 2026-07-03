@@ -87,3 +87,66 @@ func TestSuggestRepair_typedErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestAuditFindingRepair(t *testing.T) {
+	tests := []struct {
+		code     data.FindingDiagnosticCode
+		contains string
+	}{
+		{data.FindingMissingFieldCode, "Add the named field"},
+		{data.FindingInvalidIDCode, "id field"},
+		{data.FindingIDMismatchCode, "match the filename's F### id"},
+		{data.FindingInvalidStatusCode, "status field"},
+		{data.FindingInvalidSeverityCode, "severity field to critical, high, medium, or low"},
+		{data.FindingInvalidConfidenceCode, "confidence field to high, medium, or low"},
+		{data.FindingDiagnosticCode("unknown"), "Review the finding file"},
+	}
+	for _, tt := range tests {
+		got := AuditFindingRepair(tt.code)
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("AuditFindingRepair(%q) = %q, want containing %q", tt.code, got, tt.contains)
+		}
+	}
+}
+
+func TestAuditValidationRepair(t *testing.T) {
+	tests := []struct {
+		code     data.AuditValidationCode
+		contains string
+	}{
+		{data.AuditVerifiedMissingProof, "verified finding requires named proof"},
+		{data.AuditVerifiedMissingProof, "verified_proof field"},
+		{data.AuditDuplicateMissingTarget, "duplicate_of field"},
+		{data.AuditDeferredMissingRationale, "deferral_reason field"},
+		{data.AuditOwnerDecisionMissingRationale, "deferral_reason or waiver_reason"},
+		{data.AuditWaivedMissingRationale, "waiver_reason field"},
+		{data.AuditReleaseRefMissing, "releases entry"},
+		{data.AuditEpicRefMissing, "epics entry"},
+		{data.AuditTaskRefMissing, "tasks entry"},
+		{data.AuditDefectRefMissing, "defects entry"},
+		{data.AuditDuplicateRefMissing, "duplicate_of field"},
+		{data.AuditValidationCode("unknown"), "Review the finding file"},
+	}
+	for _, tt := range tests {
+		got := AuditValidationRepair(tt.code)
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("AuditValidationRepair(%q) = %q, want containing %q", tt.code, got, tt.contains)
+		}
+	}
+
+	verifiedRepair := AuditValidationRepair(data.AuditVerifiedMissingProof)
+	if strings.Contains(verifiedRepair, "## Proof") {
+		t.Errorf("AuditValidationRepair(%q) = %q, should require verified_proof only", data.AuditVerifiedMissingProof, verifiedRepair)
+	}
+}
+
+// TestAuditRepairsDistinguishReferenceKinds proves the broken-link suggestions
+// name different frontmatter lists for task, defect, and duplicate references.
+func TestAuditRepairsDistinguishReferenceKinds(t *testing.T) {
+	task := AuditValidationRepair(data.AuditTaskRefMissing)
+	defect := AuditValidationRepair(data.AuditDefectRefMissing)
+	duplicate := AuditValidationRepair(data.AuditDuplicateRefMissing)
+	if task == defect || task == duplicate || defect == duplicate {
+		t.Fatalf("repair suggestions must distinguish reference kinds: task=%q defect=%q duplicate=%q", task, defect, duplicate)
+	}
+}

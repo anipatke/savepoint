@@ -78,7 +78,7 @@ func ValidateAuditFindings(findings []AuditFinding, items AuditWorkItems) []Audi
 		case FindingVerified:
 			if f.VerifiedProof == "" {
 				add(f, AuditVerifiedMissingProof,
-					"verified finding has no named proof; set verified_proof or record the passing regression test in ## Proof")
+					"verified finding has no named proof; set verified_proof to the passing regression test")
 			}
 		case FindingDuplicate:
 			if f.DuplicateOf == "" {

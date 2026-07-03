@@ -86,6 +86,18 @@ type AuditFinding struct {
 // the board. The path supplies the filename used to recover a stable ID. Doctor
 // reports every healed condition via DiagnoseFinding read from raw frontmatter.
 func (p *Parser) ParseFindingFile(path string, content string) (*AuditFinding, error) {
+	finding, err := p.ParseRawFindingFile(path, content)
+	if err != nil {
+		return nil, err
+	}
+	NormalizeFindingForLoad(finding, path)
+	return finding, nil
+}
+
+// ParseRawFindingFile parses a finding record without load-time healing so the
+// original field values survive for DiagnoseFinding. Doctor uses it to report
+// the problems that NormalizeFindingForLoad would silently heal.
+func (p *Parser) ParseRawFindingFile(path string, content string) (*AuditFinding, error) {
 	fm, body, err := SplitFrontmatterBody(normalizeLineEndings(content))
 	if err != nil {
 		return nil, fmt.Errorf("parse error for %s: %w", path, err)
@@ -97,8 +109,6 @@ func (p *Parser) ParseFindingFile(path string, content string) (*AuditFinding, e
 	}
 	finding.Body = body
 	finding.Path = path
-
-	NormalizeFindingForLoad(&finding, path)
 
 	return &finding, nil
 }

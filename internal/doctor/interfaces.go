@@ -15,6 +15,7 @@ type taskDiscoverer interface {
 type taskParser interface {
 	ParseFrontmatter(content string) (map[string]any, error)
 	ParseDefectFile(path, content string) (*data.Defect, error)
+	ParseRawFindingFile(path, content string) (*data.AuditFinding, error)
 }
 
 // configReader reads quality gate configuration.

@@ -65,6 +65,11 @@ func (p *countingDoctorParser) ParseDefectFile(path, content string) (*data.Defe
 	return p.parser.ParseDefectFile(path, content)
 }
 
+func (p *countingDoctorParser) ParseRawFindingFile(path, content string) (*data.AuditFinding, error) {
+	p.calls++
+	return p.parser.ParseRawFindingFile(path, content)
+}
+
 func TestCheckRouterUsesInjectedRouterReader(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "router.md"), "# intentionally not a router state block")

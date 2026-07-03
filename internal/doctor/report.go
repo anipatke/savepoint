@@ -12,15 +12,16 @@ type QualityGateReport struct {
 
 // DiagnosticReport is the complete output of all doctor checks.
 type DiagnosticReport struct {
-	ConfigCheck    error
-	RouterCheck    error
-	Structure      []Problem
-	Dependencies   []Problem
-	AuditState     []Problem
-	Orphans        []Problem
-	Defects        []Problem
-	Gates          QualityGateReport
-	EpicFilter     string
+	ConfigCheck   error
+	RouterCheck   error
+	Structure     []Problem
+	Dependencies  []Problem
+	AuditState    []Problem
+	Orphans       []Problem
+	Defects       []Problem
+	AuditRegister []Problem
+	Gates         QualityGateReport
+	EpicFilter    string
 }
 
 // RunAllChecks runs every doctor check and returns a full report.
@@ -36,6 +37,7 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report.AuditState = CheckAuditState(root)
 	report.Orphans = CheckOrphans(root)
 	report.Defects = CheckDefects(root)
+	report.AuditRegister = CheckAuditRegister(root)
 	report.Gates.Results = RunQualityGates(root)
 
 	return report
@@ -62,6 +64,9 @@ func (r *DiagnosticReport) HasProblems() bool {
 		return true
 	}
 	if len(r.Defects) > 0 {
+		return true
+	}
+	if len(r.AuditRegister) > 0 {
 		return true
 	}
 	for _, g := range r.Gates.Results {
@@ -102,6 +107,9 @@ func (r *DiagnosticReport) Format() string {
 
 	sectionHeader(&b, "Defect Check")
 	printProblems(&b, "defect", r.Defects)
+
+	sectionHeader(&b, "Audit Register Check")
+	printProblems(&b, "audit-register", r.AuditRegister)
 
 	sectionHeader(&b, "Quality Gates")
 	for _, g := range r.Gates.Results {
@@ -159,7 +167,16 @@ func printProblems(b *strings.Builder, category string, problems []Problem) {
 	}
 	for _, p := range problems {
 		fmt.Fprintf(b, "  ✗ %s: %s\n", category, p.Error())
-		fmt.Fprintf(b, "    repair: %s\n", SuggestRepair(p))
+		fmt.Fprintf(b, "    repair: %s\n", problemRepair(p))
 	}
 	b.WriteString("\n")
+}
+
+// problemRepair prefers a problem's typed repair suggestion, falling back to
+// message-matched suggestions for checks that predate typed repairs.
+func problemRepair(p Problem) string {
+	if p.Repair != "" {
+		return p.Repair
+	}
+	return SuggestRepair(p)
 }

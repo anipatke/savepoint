@@ -73,3 +73,40 @@ func FuzzSplitFrontmatterBody(f *testing.F) {
 		}
 	})
 }
+
+func FuzzParseFindingFile(f *testing.F) {
+	seeds := []string{
+		"---\nid: F001\ntitle: \"Finding\"\nstatus: open\nseverity: medium\nconfidence: high\nproof_needed: test\nfirst_seen: \"2026-07-01\"\nlast_seen: \"2026-07-01\"\n---\n\n# Finding\n",
+		"---\nid: F001\nstatus: bogus\nseverity: blocker\nconfidence: certain\n---\n",
+		"---\nid: [broken\n---\n",
+		"---\n---\n",
+		"",
+		"# no frontmatter",
+		"---\nid: F999\nduplicate_of: F999\nstatus: duplicate\n---\n",
+		"---\ntasks: [\"E01-foo/T001\"]\ndefects: [\"D001-bug\"]\nreleases: [v1]\n---\n",
+		"---\nid: 12345\nfirst_seen: 2026-07-01\n---\n",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, content string) {
+		p := NewParser()
+		finding, err := p.ParseFindingFile("F001-fuzz.md", content)
+		if err != nil {
+			return
+		}
+		// Load-time healing must leave only canonical enum values.
+		if !isValidFindingStatus(finding.Status) {
+			t.Errorf("healed finding has non-canonical status %q", finding.Status)
+		}
+		if !isValidFindingSeverity(finding.Severity) {
+			t.Errorf("healed finding has non-canonical severity %q", finding.Severity)
+		}
+		if !isValidFindingConfidence(finding.Confidence) {
+			t.Errorf("healed finding has non-canonical confidence %q", finding.Confidence)
+		}
+		if finding.ID != "F001" {
+			t.Errorf("healed finding ID = %q, want filename id F001", finding.ID)
+		}
+	})
+}

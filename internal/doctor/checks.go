@@ -79,11 +79,14 @@ func CheckRouter(root, epicFilter string, overrides ...DoctorDependencies) error
 	return nil
 }
 
-// Problem describes a single issue found during a structure check.
+// Problem describes a single issue found during a structure check. Repair, when
+// set, is the typed repair suggestion for the problem; report formatting falls
+// back to SuggestRepair message matching when it is empty.
 type Problem struct {
 	File    string
 	Line    int
 	Message string
+	Repair  string
 }
 
 func (p Problem) Error() string {
@@ -730,6 +733,124 @@ func checkDefectReference(path, ref string, taskIDs map[string]bool, problems *[
 	}
 }
 
+// CheckAuditRegister validates audit-register findings under the audit/ tree:
+// structural parse failures, field problems that load-time normalization heals
+// silently, and cross-record lifecycle and link validation against the
+// discovered project. A root without an audit/ tree (or one without findings)
+// produces no problems. Doctor only reports; it never edits audit files.
+func CheckAuditRegister(root string, overrides ...DoctorDependencies) []Problem {
+	deps := doctorDependencies(overrides)
+	var problems []Problem
+
+	findings, err := data.LoadAuditFindings(root)
+	if err != nil {
+		problems = append(problems, Problem{
+			File:    filepath.Join(root, "audit", "findings"),
+			Message: fmt.Sprintf("audit finding unloadable: %v", err),
+			Repair:  auditFrontmatterRepair,
+		})
+		return problems
+	}
+
+	if _, err := data.LoadAuditRuns(root); err != nil {
+		problems = append(problems, Problem{
+			File:    filepath.Join(root, "audit", "runs"),
+			Message: fmt.Sprintf("audit run unloadable: %v", err),
+			Repair:  auditFrontmatterRepair,
+		})
+	}
+
+	if len(findings) == 0 {
+		return problems
+	}
+
+	for _, finding := range findings {
+		checkAuditFindingFields(finding.Path, deps.Parser, &problems)
+	}
+
+	pathByID := make(map[string]string, len(findings))
+	for _, finding := range findings {
+		pathByID[finding.ID] = finding.Path
+	}
+	items := collectAuditWorkItems(root, deps)
+	for _, v := range data.ValidateAuditFindings(findings, items) {
+		problems = append(problems, Problem{
+			File:    pathByID[v.FindingID],
+			Message: v.Message,
+			Repair:  AuditValidationRepair(v.Code),
+		})
+	}
+
+	return problems
+}
+
+// checkAuditFindingFields re-reads a finding's raw frontmatter and reports every
+// field problem that NormalizeFindingForLoad heals silently, mirroring
+// checkDefectLifecycle: LoadAuditFindings returns already-healed values, so the
+// raw parse recovers the original problems.
+func checkAuditFindingFields(path string, parser taskParser, problems *[]Problem) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		*problems = append(*problems, Problem{File: path, Message: fmt.Sprintf("unreadable: %v", err)})
+		return
+	}
+	finding, err := parser.ParseRawFindingFile(path, string(raw))
+	if err != nil {
+		*problems = append(*problems, Problem{
+			File:    path,
+			Message: fmt.Sprintf("audit finding unloadable: %v", err),
+			Repair:  auditFrontmatterRepair,
+		})
+		return
+	}
+	for _, diagnostic := range data.DiagnoseFinding(finding, path) {
+		*problems = append(*problems, Problem{
+			File:    path,
+			Message: diagnostic.Message,
+			Repair:  AuditFindingRepair(diagnostic.Code),
+		})
+	}
+}
+
+// collectAuditWorkItems flattens discovery into the work-item ID sets that audit
+// finding links resolve against.
+func collectAuditWorkItems(root string, deps DoctorDependencies) data.AuditWorkItems {
+	var items data.AuditWorkItems
+
+	releases, err := deps.Discoverer.ListReleases(root)
+	if err != nil {
+		return items
+	}
+	for _, release := range releases {
+		items.Releases = append(items.Releases, release.ID)
+
+		if defects, err := deps.Discoverer.ListDefects(root, release.ID); err == nil {
+			for _, defect := range defects {
+				items.Defects = append(items.Defects, defect.ID)
+			}
+		}
+
+		epics, err := deps.Discoverer.ListEpics(root, release.ID)
+		if err != nil {
+			continue
+		}
+		for _, epic := range epics {
+			items.Epics = append(items.Epics, epic.ID)
+			tasks, err := deps.Discoverer.ListTasks(root, release.ID, epic.ID)
+			if err != nil {
+				continue
+			}
+			for _, t := range tasks {
+				if id := readTaskID(t.Path, deps.Parser); id != "" {
+					items.Tasks = append(items.Tasks, id)
+				}
+			}
+		}
+	}
+
+	return items
+}
+
 // collectTaskIDs reads all task frontmatter IDs across the project.
 func collectTaskIDs(root string, deps DoctorDependencies) map[string]bool {
 	ids := make(map[string]bool)
@@ -750,15 +871,7 @@ func collectTaskIDs(root string, deps DoctorDependencies) map[string]bool {
 				continue
 			}
 			for _, t := range tasks {
-				raw, err := os.ReadFile(t.Path)
-				if err != nil {
-					continue
-				}
-				fm, err := deps.Parser.ParseFrontmatter(string(raw))
-				if err != nil {
-					continue
-				}
-				if id, ok := fm["id"].(string); ok && id != "" {
+				if id := readTaskID(t.Path, deps.Parser); id != "" {
 					ids[id] = true
 				}
 			}
@@ -766,6 +879,21 @@ func collectTaskIDs(root string, deps DoctorDependencies) map[string]bool {
 	}
 
 	return ids
+}
+
+// readTaskID reads a task file's frontmatter id, returning "" for any file that
+// cannot be read or parsed; structural problems are CheckStructure's job.
+func readTaskID(path string, parser taskParser) string {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	fm, err := parser.ParseFrontmatter(string(raw))
+	if err != nil {
+		return ""
+	}
+	id, _ := fm["id"].(string)
+	return id
 }
 
 func extractYAMLLine(err error) int {

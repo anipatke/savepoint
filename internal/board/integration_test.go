@@ -335,3 +335,86 @@ func TestDetailPane_escClosesOverlay(t *testing.T) {
 		t.Errorf("Overlay = %q after esc, want none", updated.Overlay)
 	}
 }
+
+// TestAuditOverlay_openCloseLeavesBoardBehaviorUnchanged loads a real project
+// with an on-disk audit register, opens and closes the Audit Register overlay,
+// and proves the task-detail, defect, and release-docs overlays still behave as
+// before (v1.4 release regression).
+func TestAuditOverlay_openCloseLeavesBoardBehaviorUnchanged(t *testing.T) {
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-init", "", "test")
+	writeTask(t, savepointRoot, "v1", "E01-init", "T001-scaffold", data.ColumnPlanned)
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "audit", "prompt.md"), "# Audit Prompt\nreview the release")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "audit", "findings", "F001-sample.md"), `---
+id: F001
+title: "Sample finding"
+status: open
+severity: medium
+confidence: high
+proof_needed: "regression test"
+first_seen: "2026-07-01"
+last_seen: "2026-07-01"
+---
+
+# Finding
+`)
+
+	model, err := newProjectModel(projectRoot, "", "")
+	if err != nil {
+		t.Fatalf("newProjectModel: %v", err)
+	}
+	if model.Watcher != nil {
+		t.Cleanup(func() { model.Watcher.Close() })
+	}
+	model.Width = 120
+	model.Height = 40
+
+	// Open the audit overlay and apply its async load command.
+	got, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
+	m := requireModel(t, got)
+	if m.Overlay != OverlayAudit {
+		t.Fatalf("Overlay = %q after A, want %q", m.Overlay, OverlayAudit)
+	}
+	if cmd == nil {
+		t.Fatal("expected an audit-register load command")
+	}
+	got, _ = m.Update(cmd())
+	m = requireModel(t, got)
+	if view := m.View(); !strings.Contains(view, "AUDIT REGISTER") {
+		t.Error("board view missing AUDIT REGISTER overlay after open")
+	}
+
+	// Close it.
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = requireModel(t, got)
+	if m.Overlay != OverlayNone {
+		t.Fatalf("Overlay = %q after esc, want none", m.Overlay)
+	}
+
+	// Task detail still opens and closes.
+	m.FocusedColumn = data.ColumnPlanned
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = requireModel(t, got)
+	if m.Overlay != OverlayDetail {
+		t.Errorf("Overlay = %q after enter, want %q", m.Overlay, OverlayDetail)
+	}
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = requireModel(t, got)
+
+	// Defect overlay still opens and closes.
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = requireModel(t, got)
+	if m.Overlay != OverlayDefect {
+		t.Errorf("Overlay = %q after d, want %q", m.Overlay, OverlayDefect)
+	}
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = requireModel(t, got)
+
+	// Release-docs overlay still opens.
+	got, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	m = requireModel(t, got)
+	if m.Overlay != OverlayReleaseDocs {
+		t.Errorf("Overlay = %q after D, want %q", m.Overlay, OverlayReleaseDocs)
+	}
+}
