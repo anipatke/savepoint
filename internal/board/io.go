@@ -203,6 +203,34 @@ func loadReleaseDocsCmd(root, release string) tea.Cmd {
 	}
 }
 
+// loadAuditRegisterCmd loads the repo-wide audit-register data set (prompt,
+// register, findings, runs) for the Audit Register overlay through the injected
+// loader, keeping filesystem access out of Update(). A missing audit/ tree
+// yields an empty set without error; a malformed record surfaces as a status
+// message rather than aborting the board.
+func loadAuditRegisterCmd(root string, loader auditLoader) tea.Cmd {
+	return func() tea.Msg {
+		set, err := loader.LoadAuditRegisterSet(root)
+		if err != nil {
+			return errorMsg{message: err.Error()}
+		}
+		return auditRegisterMsg{set: set}
+	}
+}
+
+// loadAuditBestEffort loads the audit-register data set for the aggregate board
+// reload. Like router reads, it is best-effort: a malformed audit record must
+// not block a task/release refresh, so an error degrades to an empty set (the
+// error still surfaces on an explicit overlay load via loadAuditRegisterCmd).
+func loadAuditBestEffort(root string, loader auditLoader) data.AuditRegisterSet {
+	set, err := loader.LoadAuditRegisterSet(root)
+	if err != nil {
+		debugf("reload: audit-register load error: %v", err)
+		return data.AuditRegisterSet{}
+	}
+	return set
+}
+
 func readEpicAuditCmd(epicDir, shortIDStr string) tea.Cmd {
 	return func() tea.Msg {
 		raw, err := os.ReadFile(filepath.Join(epicDir, shortIDStr+"-Audit.md"))

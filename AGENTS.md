@@ -65,6 +65,7 @@ Audit is agent-led via the `savepoint-audit` skill — follow it for the file la
 
 - Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
 - During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
+- When `.savepoint/audit/` exists, also follow the `savepoint-audit-register` skill: read `.savepoint/audit/prompt.md`, reconcile against `.savepoint/audit/register.md` with stable `F###` IDs, and record the run — do not restart from a cold scan.
 
 ## Code Style
 
@@ -92,10 +93,10 @@ make build && make test
 | `main.go` | CLI entrypoint, --version, embedded template wiring for init and upgrade-assets |
 | `cmd/` | CLI command arg parsing and dispatch for init, board, doctor, and upgrade-assets |
 | `internal/init/` | Target validation, scaffold writing from templates, managed AGENTS.md merge behavior, and safe project asset refresh |
-| `internal/board/` | TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, shared board utilities |
+| `internal/board/` | TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, audit register overlay with finding detail and linked-finding backlinks, shared board utilities |
 | `internal/buildtool/` | Makefile helper, cross-compile including Windows targets, archives, distribution checksums |
 | `internal/doctor/` | Read-only project diagnostics, integrity checks, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
-| `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers |
+| `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers, audit-register models/loaders and finding backlink lookups |
 | `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
 | `internal/styles/` | Atari-Noir palette, TUI styles |
 | `templates/` | Scaffold markdown, YAML, prompts, and defect workflow guidance |

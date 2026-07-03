@@ -87,6 +87,7 @@ func newProjectModelWithDependencies(start, releaseFilter, epicFilter string, de
 	model.RouterTask = routerState.Task
 	model.RouterState = routerState
 	model.AllDefects = defects
+	model.Audit = loadAuditBestEffort(root, deps.AuditLoader)
 	model.Releases = releaseIDs
 	model.ReleaseEpics = releaseEpics
 	model.EpicStatus = epicStatuses

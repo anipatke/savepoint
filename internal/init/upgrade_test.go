@@ -499,6 +499,154 @@ func TestUpgradeProjectAssets_multipleSkills(t *testing.T) {
 	}
 }
 
+func auditTemplates() fstest.MapFS {
+	return fstest.MapFS{
+		".savepoint/audit/prompt.md":          &fstest.MapFile{Data: []byte("# Audit Prompt")},
+		".savepoint/audit/register.md":        &fstest.MapFile{Data: []byte("# Audit Register")},
+		".savepoint/audit/findings/README.md": &fstest.MapFile{Data: []byte("# Findings")},
+		".savepoint/audit/runs/README.md":     &fstest.MapFile{Data: []byte("# Runs")},
+	}
+}
+
+func actionFor(report *UpgradeReport, path string) (UpgradeAction, bool) {
+	for _, e := range report.Actions {
+		if e.Path == path {
+			return e.Action, true
+		}
+	}
+	return "", false
+}
+
+func TestUpgradeProjectAssets_addsMissingAuditAssets(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := auditTemplates()
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	for path, file := range templates {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("audit asset %s not in report", path)
+		}
+		if action != ActionUpdated {
+			t.Errorf("audit asset %s action = %v, want updated", path, action)
+		}
+		data, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(path)))
+		if err != nil {
+			t.Errorf("audit asset %s not written: %v", path, err)
+			continue
+		}
+		if string(data) != string(file.Data) {
+			t.Errorf("audit asset %s = %q, want %q", path, string(data), string(file.Data))
+		}
+	}
+}
+
+func TestUpgradeProjectAssets_preservesEditedAuditAssets(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	editedRegister := filepath.Join(target, ".savepoint", "audit", "register.md")
+	userContent := "# User-maintained register\n\nF001 disposition work."
+	if err := os.MkdirAll(filepath.Dir(editedRegister), 0755); err != nil {
+		t.Fatal(err)
+	}
+	testutil.WriteFile(t, editedRegister, userContent)
+
+	templates := auditTemplates()
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	action, found := actionFor(report, ".savepoint/audit/register.md")
+	if !found {
+		t.Fatal("register not in report")
+	}
+	if action != ActionUnchanged {
+		t.Errorf("edited register action = %v, want unchanged", action)
+	}
+
+	data, err := os.ReadFile(editedRegister)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != userContent {
+		t.Errorf("edited register overwritten: got %q, want %q", string(data), userContent)
+	}
+
+	// Missing siblings are still added alongside the preserved file.
+	if _, err := os.Stat(filepath.Join(target, ".savepoint", "audit", "prompt.md")); err != nil {
+		t.Errorf("missing prompt not added: %v", err)
+	}
+}
+
+func TestUpgradeProjectAssets_pristineAuditAssetsUnchanged(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := auditTemplates()
+
+	// First upgrade writes the assets; second sees them pristine.
+	if _, err := UpgradeProjectAssets(templates, target, false, false); err != nil {
+		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
+	}
+
+	for path := range templates {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("audit asset %s not in report", path)
+		}
+		if action != ActionUnchanged {
+			t.Errorf("pristine audit asset %s action = %v, want unchanged", path, action)
+		}
+	}
+}
+
+func TestUpgradeProjectAssets_dryRunDoesNotAddAuditAssets(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := auditTemplates()
+
+	report, err := UpgradeProjectAssets(templates, target, true, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
+	}
+
+	for path := range templates {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("audit asset %s not in dry-run report", path)
+		}
+		if action != ActionUpdated {
+			t.Errorf("dry-run audit asset %s action = %v, want updated", path, action)
+		}
+		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); !os.IsNotExist(err) {
+			t.Errorf("dry-run should not write %s, stat err = %v", path, err)
+		}
+	}
+}
+
 func TestUpgradeReport_format(t *testing.T) {
 	r := &UpgradeReport{
 		Actions: []UpgradeEntry{

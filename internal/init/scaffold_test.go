@@ -286,6 +286,31 @@ func TestScaffold_createsReleaseSkeleton(t *testing.T) {
 	}
 }
 
+func TestScaffold_createsAuditRegisterAssets(t *testing.T) {
+	target := t.TempDir()
+	templates := fstest.MapFS{
+		".savepoint/audit/prompt.md":          &fstest.MapFile{Data: []byte("# Audit Prompt")},
+		".savepoint/audit/register.md":        &fstest.MapFile{Data: []byte("# Audit Register")},
+		".savepoint/audit/findings/README.md": &fstest.MapFile{Data: []byte("# Audit Findings")},
+		".savepoint/audit/runs/README.md":     &fstest.MapFile{Data: []byte("# Audit Runs")},
+	}
+
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() error = %v", err)
+	}
+
+	for _, path := range []string{
+		filepath.Join(".savepoint", "audit", "prompt.md"),
+		filepath.Join(".savepoint", "audit", "register.md"),
+		filepath.Join(".savepoint", "audit", "findings", "README.md"),
+		filepath.Join(".savepoint", "audit", "runs", "README.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(target, path)); err != nil {
+			t.Errorf("audit asset %s not created: %v", path, err)
+		}
+	}
+}
+
 func TestProjectNameFromDir(t *testing.T) {
 	dir := t.TempDir()
 	name := filepath.Base(dir)

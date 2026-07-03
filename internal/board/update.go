@@ -30,6 +30,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Releases = append([]string(nil), msg.releases...)
 		m.ReleaseEpics = copyReleaseEpics(msg.releaseEpics)
 		m.EpicStatus = msg.epicStatuses
+		m.Audit = msg.audit
+		m.clampFindingCursor()
 		if msg.routerState != nil {
 			m.RouterState = msg.routerState
 			m.RouterTask = msg.routerState.Task
@@ -94,6 +96,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case releaseDocsMsg:
 		m.ReleaseDocs = msg.docs
 		m.clampReleaseDocIndex()
+	case auditRegisterMsg:
+		m.Audit = msg.set
+		m.clampFindingCursor()
 	case epicStatusWrittenMsg:
 		if m.EpicStatus == nil {
 			m.EpicStatus = map[string]string{}
@@ -124,6 +129,10 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDefectDetailOverlay(msg)
 	case OverlayReleaseDocs:
 		return m.handleReleaseDocsOverlay(msg)
+	case OverlayAudit:
+		return m.handleAuditOverlay(msg)
+	case OverlayFindingDetail:
+		return m.handleFindingDetailOverlay(msg)
 	}
 	return m, nil
 }
@@ -154,6 +163,15 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.ReleaseDocOffsets = map[data.ReleaseDocID]int{}
 		if m.Root != "" {
 			return m, loadReleaseDocsCmd(m.Root, m.SelectedRelease)
+		}
+		return m, nil
+	case "A":
+		m.Overlay = OverlayAudit
+		m.AuditTab = auditTabPrompt
+		m.AuditOffsets = map[auditTab]int{}
+		m.FindingCursor = 0
+		if m.Root != "" {
+			return m, loadAuditRegisterCmd(m.Root, m.Dependencies.AuditLoader)
 		}
 		return m, nil
 	case "?":
@@ -228,6 +246,7 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(tasks) > 0 && m.FocusedTask < len(tasks) {
 			m.Overlay = OverlayDetail
 			m.DetailOffset = 0
+			m.LinkedFindingCursor = 0
 		}
 		m.StatusMessage = ""
 	case " ":
@@ -374,15 +393,22 @@ func (m Model) handleReleaseOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	findings := m.focusedTaskFindings()
 	switch msg.String() {
 	case "esc", "q":
 		m.Overlay = OverlayNone
 	case "up", "k":
-		if m.DetailOffset > 0 {
+		if len(findings) > 0 {
+			m.moveLinkedFindingCursor(-1, len(findings))
+		} else if m.DetailOffset > 0 {
 			m.DetailOffset--
 		}
 	case "down", "j":
-		m.DetailOffset++
+		if len(findings) > 0 {
+			m.moveLinkedFindingCursor(1, len(findings))
+		} else {
+			m.DetailOffset++
+		}
 	case "pgup":
 		m.DetailOffset -= m.detailPageSize()
 		if m.DetailOffset < 0 {
@@ -390,17 +416,28 @@ func (m Model) handleDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "pgdown":
 		m.DetailOffset += m.detailPageSize()
+	case "enter":
+		if _, ok := findingAt(findings, m.LinkedFindingCursor); ok {
+			m.FindingDetailOffset = 0
+			m.FindingDetailOrigin = OverlayDetail
+			m.Overlay = OverlayFindingDetail
+		}
 	}
 	return m, nil
 }
 
 func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	findings := m.openEpicFindings()
+	// Linked findings are shown only on the Detail tab, so they drive the cursor
+	// and enter there; the Audit tab keeps its scroll behavior.
+	linkable := m.EpicDetailTab == 0 && len(findings) > 0
 	switch msg.String() {
 	case "esc", "q":
 		m.Overlay = OverlayNone
 	case "1":
 		m.EpicDetailTab = 0
 		m.EpicDetailOffset = 0
+		m.LinkedFindingCursor = 0
 	case "2":
 		m.EpicDetailTab = 1
 		m.EpicDetailOffset = 0
@@ -412,11 +449,17 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		return m.markEpicAudited()
 	case "up", "k":
-		if m.EpicDetailOffset > 0 {
+		if linkable {
+			m.moveLinkedFindingCursor(-1, len(findings))
+		} else if m.EpicDetailOffset > 0 {
 			m.EpicDetailOffset--
 		}
 	case "down", "j":
-		m.EpicDetailOffset++
+		if linkable {
+			m.moveLinkedFindingCursor(1, len(findings))
+		} else {
+			m.EpicDetailOffset++
+		}
 	case "pgup":
 		m.EpicDetailOffset -= m.detailPageSize()
 		if m.EpicDetailOffset < 0 {
@@ -424,6 +467,14 @@ func (m Model) handleEpicDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "pgdown":
 		m.EpicDetailOffset += m.detailPageSize()
+	case "enter":
+		if linkable {
+			if _, ok := findingAt(findings, m.LinkedFindingCursor); ok {
+				m.FindingDetailOffset = 0
+				m.FindingDetailOrigin = OverlayEpicDetail
+				m.Overlay = OverlayFindingDetail
+			}
+		}
 	}
 	return m, nil
 }
@@ -506,6 +557,161 @@ func (m Model) handleReleaseDocsOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scrollReleaseDoc(m.detailPageSize())
 	}
 	return m, nil
+}
+
+// handleAuditOverlay handles keys for the top-level Audit Register overlay:
+// tab switching (Prompt / Findings / Runs), navigation, and close. On the
+// Findings tab up/down/k/j move the finding cursor; on the other tabs they
+// scroll the body. It is read-only and never mutates audit files.
+func (m Model) handleAuditOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = OverlayNone
+	case "[", "left", "h":
+		m.selectAuditTab(m.AuditTab - 1)
+	case "]", "right", "l":
+		m.selectAuditTab(m.AuditTab + 1)
+	case "up", "k":
+		if m.AuditTab == auditTabFindings {
+			m.moveFindingCursor(-1)
+		} else {
+			m.scrollAuditTab(-1)
+		}
+	case "down", "j":
+		if m.AuditTab == auditTabFindings {
+			m.moveFindingCursor(1)
+		} else {
+			m.scrollAuditTab(1)
+		}
+	case "pgup":
+		m.scrollAuditTab(-m.detailPageSize())
+	case "pgdown":
+		m.scrollAuditTab(m.detailPageSize())
+	case "enter":
+		if m.AuditTab == auditTabFindings {
+			if _, ok := m.selectedFinding(); ok {
+				m.FindingDetailOffset = 0
+				m.FindingDetailOrigin = OverlayAudit
+				m.Overlay = OverlayFindingDetail
+			}
+		}
+	}
+	return m, nil
+}
+
+// handleFindingDetailOverlay handles keys for the read-only finding detail
+// overlay: body scrolling and return to the overlay it was opened from (the audit
+// register, task detail, or epic detail). It never mutates the finding.
+func (m Model) handleFindingDetailOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.Overlay = m.findingDetailReturnOverlay()
+	case "up", "k":
+		if m.FindingDetailOffset > 0 {
+			m.FindingDetailOffset--
+		}
+	case "down", "j":
+		m.FindingDetailOffset++
+	case "pgup":
+		m.FindingDetailOffset -= m.detailPageSize()
+		if m.FindingDetailOffset < 0 {
+			m.FindingDetailOffset = 0
+		}
+	case "pgdown":
+		m.FindingDetailOffset += m.detailPageSize()
+	}
+	return m, nil
+}
+
+// selectedFinding returns the finding under the Findings-tab cursor, if any.
+func (m Model) selectedFinding() (data.AuditFinding, bool) {
+	findings := m.Audit.Findings
+	if m.FindingCursor < 0 || m.FindingCursor >= len(findings) {
+		return data.AuditFinding{}, false
+	}
+	return findings[m.FindingCursor], true
+}
+
+// moveFindingCursor moves the Findings-tab selection by delta, clamped to the
+// loaded findings, and scrolls the tab so the selected row stays visible.
+func (m *Model) moveFindingCursor(delta int) {
+	findings := m.Audit.Findings
+	if len(findings) == 0 {
+		m.FindingCursor = 0
+		return
+	}
+	m.FindingCursor += delta
+	if m.FindingCursor < 0 {
+		m.FindingCursor = 0
+	}
+	if m.FindingCursor >= len(findings) {
+		m.FindingCursor = len(findings) - 1
+	}
+	m.ensureFindingCursorVisible()
+}
+
+// clampFindingCursor keeps the finding cursor in range after the audit set
+// (re)loads, mirroring clampDefectCursor.
+func (m *Model) clampFindingCursor() {
+	findings := m.Audit.Findings
+	if len(findings) == 0 {
+		m.FindingCursor = 0
+		return
+	}
+	if m.FindingCursor >= len(findings) {
+		m.FindingCursor = len(findings) - 1
+	}
+	if m.FindingCursor < 0 {
+		m.FindingCursor = 0
+	}
+}
+
+// ensureFindingCursorVisible scrolls the Findings tab so the cursor row stays
+// within the visible body window. It locates the cursor's body line through the
+// shared auditFindingLayout so the follow-scroll and the renderer agree on where
+// each finding sits.
+func (m *Model) ensureFindingCursorVisible() {
+	if m.AuditOffsets == nil {
+		m.AuditOffsets = map[auditTab]int{}
+	}
+	inner := overlayWidth(m.Width) - detailBorderPad
+	if inner < 4 {
+		inner = 4
+	}
+	_, findingLine := auditFindingLayout(m.Audit.Findings, m.FindingCursor, inner)
+	cursorLine := -1
+	for line, idx := range findingLine {
+		if idx == m.FindingCursor {
+			cursorLine = line
+			break
+		}
+	}
+	if cursorLine < 0 {
+		return
+	}
+	page := m.findingsPageSize()
+	offset := m.AuditOffsets[auditTabFindings]
+	if cursorLine < offset {
+		offset = cursorLine
+	}
+	if cursorLine >= offset+page {
+		offset = cursorLine - page + 1
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	m.AuditOffsets[auditTabFindings] = offset
+}
+
+// findingsPageSize approximates the number of body rows the Findings tab shows,
+// reserving the tab's blank line and hint footer, so cursor follow-scrolling
+// keeps the selected row on screen.
+func (m Model) findingsPageSize() int {
+	page := detailMaxHeight(m.Height) - detailVerticalOverhead - 3
+	if page < 1 {
+		page = 1
+	}
+	return page
 }
 
 // markEpicAudited writes status audited for the open epic, guarded by the detail
@@ -603,6 +809,7 @@ func (m *Model) openEpicDetailOverlay() tea.Cmd {
 	m.EpicDetailEpic = epicSlug
 	m.EpicDetailOffset = 0
 	m.EpicDetailTab = 0
+	m.LinkedFindingCursor = 0
 	m.EpicAuditContent = ""
 	m.EpicDetailMtime = time.Time{}
 	if fi, err := os.Stat(filepath.Join(epicDir, shortEpicID+"-Detail.md")); err == nil {

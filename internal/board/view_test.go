@@ -67,7 +67,7 @@ func TestView_containsFooterHints(t *testing.T) {
 	m := NewModel(nil, "v1", "E03")
 	footer := m.renderFooter(80)
 
-	if !strings.Contains(footer, "←→:nav  p:priority  ctrl+r:refresh  R:release  d:defects  D:docs  ?:help  q:quit") {
+	if !strings.Contains(footer, footerHints) {
 		t.Fatal("renderFooter() missing navigation hints")
 	}
 
@@ -81,6 +81,42 @@ func TestView_containsFooterHints(t *testing.T) {
 	for i, line := range lines {
 		if got := lipgloss.Width(line); got > 80 {
 			t.Fatalf("renderFooter() line %d width = %d, want <= 80", i, got)
+		}
+	}
+}
+
+func TestView_footerIncludesAuditHint(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	footer := plainTerminal(m.renderFooter(80))
+	if !strings.Contains(footer, "A:audits") {
+		t.Fatalf("renderFooter() missing A:audits hint; got %q", footer)
+	}
+}
+
+func TestView_footerKeepsDefectAndDocHintsUnchanged(t *testing.T) {
+	m := NewModel(nil, "v1", "E03")
+	footer := plainTerminal(m.renderFooter(80))
+	for _, hint := range []string{"d:defects", "D:docs"} {
+		if !strings.Contains(footer, hint) {
+			t.Fatalf("renderFooter() missing existing hint %q; got %q", hint, footer)
+		}
+	}
+}
+
+// TestView_footerHintsFitSupportedWidths guards footer readability: at the 80+
+// widths the board renders three columns, the full hint bar (including A:audits)
+// must stay on one untruncated line rather than dropping trailing hints.
+func TestView_footerHintsFitSupportedWidths(t *testing.T) {
+	for _, width := range []int{80, 100, 120} {
+		m := NewModel(nil, "v1", "E03")
+		footer := m.renderFooter(width)
+		lines := strings.Split(footer, "\n")
+		hintLine := lines[len(lines)-1]
+		if got := lipgloss.Width(hintLine); got > width {
+			t.Fatalf("width %d: hint line width = %d, want <= %d", width, got, width)
+		}
+		if !strings.Contains(plainTerminal(hintLine), "q:quit") {
+			t.Fatalf("width %d: hint line dropped the trailing q:quit hint: %q", width, plainTerminal(hintLine))
 		}
 	}
 }

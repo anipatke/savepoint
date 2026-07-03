@@ -27,6 +27,7 @@ type QualityGates struct {
 type Config struct {
 	Theme         Theme         `yaml:"theme"`
 	QualityGates  QualityGates  `yaml:"quality_gates"`
+	AgentLauncher AgentLauncher `yaml:"agent_launcher"`
 }
 
 var defaultTheme = Theme{
@@ -45,7 +46,8 @@ var defaultTheme = Theme{
 }
 
 var defaultConfig = Config{
-	Theme: defaultTheme,
+	Theme:         defaultTheme,
+	AgentLauncher: AgentLauncher{Terminal: TerminalConfig{Mode: TerminalModeAuto}},
 }
 
 type ConfigReader struct{}
@@ -69,6 +71,11 @@ func (r *ConfigReader) Read(path string) (*Config, error) {
 	}
 
 	config.Theme = fillThemeDefaults(config.Theme)
+	config.AgentLauncher = fillLauncherDefaults(config.AgentLauncher)
+
+	if err := config.AgentLauncher.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid launcher config: %w", err)
+	}
 
 	return &config, nil
 }

@@ -30,6 +30,10 @@ func runInitPipeline(t *testing.T, dir string, force bool) string {
 		".savepoint/releases/v1/v1-PRD.md":      &fstest.MapFile{Data: []byte("# v1 PRD for {{PROJECT_NAME}}")},
 		"AGENTS.md":                             &fstest.MapFile{Data: []byte("# Agents Guide\n\nBuild: npm run build")},
 		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
+		".savepoint/audit/prompt.md":            &fstest.MapFile{Data: []byte("# Audit Prompt")},
+		".savepoint/audit/register.md":          &fstest.MapFile{Data: []byte("# Audit Register")},
+		".savepoint/audit/findings/README.md":   &fstest.MapFile{Data: []byte("# Audit Findings")},
+		".savepoint/audit/runs/README.md":       &fstest.MapFile{Data: []byte("# Audit Runs: YYYY-MM-DD-label.md")},
 	}
 
 	projectName := ProjectNameFromDir(dir)
@@ -63,6 +67,10 @@ func TestIntegration_EmptyDirectory(t *testing.T) {
 		".savepoint/router.md",
 		".savepoint/visual-identity.md",
 		".savepoint/releases/v1/v1-PRD.md",
+		".savepoint/audit/prompt.md",
+		".savepoint/audit/register.md",
+		".savepoint/audit/findings/README.md",
+		".savepoint/audit/runs/README.md",
 		"AGENTS.md",
 		"agent-skills/savepoint-audit/SKILL.md",
 	}
@@ -118,6 +126,51 @@ func TestIntegration_CompatibleProject(t *testing.T) {
 
 	if !strings.Contains(prompt, "AGENT") {
 		t.Errorf("prompt should contain AGENT marker")
+	}
+}
+
+func TestIntegration_AuditAssetsDoNotAlterExistingFiles(t *testing.T) {
+	dir := t.TempDir()
+	runInitPipeline(t, dir, false)
+	projectName := filepath.Base(dir)
+
+	// New audit-register assets are scaffolded.
+	for _, path := range []string{
+		".savepoint/audit/prompt.md",
+		".savepoint/audit/register.md",
+		".savepoint/audit/findings/README.md",
+		".savepoint/audit/runs/README.md",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, path)); err != nil {
+			t.Errorf("missing audit asset %s: %v", path, err)
+		}
+	}
+
+	// Existing generated files keep their expected content.
+	want := map[string]string{
+		".savepoint/config.yml": "key: value",
+		".savepoint/PRD.md":     "PRD: " + projectName,
+		".savepoint/Design.md":  "# " + projectName + " Design",
+		".savepoint/router.md":  "# Router",
+	}
+	for path, expected := range want {
+		data, err := os.ReadFile(filepath.Join(dir, path))
+		if err != nil {
+			t.Errorf("read %s: %v", path, err)
+			continue
+		}
+		if string(data) != expected {
+			t.Errorf("%s = %q, want %q", path, string(data), expected)
+		}
+	}
+
+	// AGENTS.md is managed via merge, not overwrite, so verify it still carries its content.
+	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(agents), "# Agents Guide") {
+		t.Errorf("AGENTS.md missing managed content: %q", string(agents))
 	}
 }
 

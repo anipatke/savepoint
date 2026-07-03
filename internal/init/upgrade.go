@@ -106,6 +106,15 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 			return nil
 		}
 
+		if isAuditAsset(path) {
+			action, err := upgradeAuditAsset(absTarget, templates, path, dryRun)
+			if err != nil {
+				return err
+			}
+			report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: action})
+			return nil
+		}
+
 		if strings.HasPrefix(path, ".savepoint") {
 			report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionSkipped})
 			return nil
@@ -234,4 +243,42 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 	})
 
 	return &report, nil
+}
+
+// auditAssetPrefix marks the project documentation area whose files are
+// user-maintained audit state. Upgrade may add a missing scaffold file here,
+// but must never overwrite an existing prompt, register, finding, or run file.
+const auditAssetPrefix = ".savepoint/audit/"
+
+func isAuditAsset(path string) bool {
+	return strings.HasPrefix(path, auditAssetPrefix)
+}
+
+// upgradeAuditAsset adds a missing audit-register scaffold file and reports
+// ActionUpdated. An existing file is left untouched and reported ActionUnchanged
+// so user-edited audit state is never overwritten.
+func upgradeAuditAsset(absTarget string, templates fs.FS, path string, dryRun bool) (UpgradeAction, error) {
+	targetPath := filepath.Join(absTarget, path)
+
+	if _, err := os.Stat(targetPath); err == nil {
+		return ActionUnchanged, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	if dryRun {
+		return ActionUpdated, nil
+	}
+
+	content, err := fs.ReadFile(templates, path)
+	if err != nil {
+		return "", fmt.Errorf("read template %s: %w", path, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return "", fmt.Errorf("create parent dir for %s: %w", path, err)
+	}
+	if err := AtomicWrite(targetPath, content); err != nil {
+		return "", fmt.Errorf("write %s: %w", path, err)
+	}
+	return ActionUpdated, nil
 }

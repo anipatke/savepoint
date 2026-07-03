@@ -66,6 +66,15 @@ Audit is agent-led via the `savepoint-audit` skill — follow it for the file la
 - Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
 - During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
 
+## Audit Register
+
+`.savepoint/audit/` is the durable register of repo-wide audit findings: `prompt.md` (canonical audit prompt), `register.md` (current reconciled state), `findings/` (one file per stable `F###` finding), and `runs/` (immutable run history).
+
+- When `.savepoint/audit/` exists and audit work starts, follow the `savepoint-audit-register` skill and read `.savepoint/audit/prompt.md` before recording anything.
+- Reconcile against `.savepoint/audit/register.md` instead of restarting from a cold scan; a finding seen again keeps its `F###` ID.
+- A finding reaches `verified` only with named proof. Only the user grants `waived` or `owner_decision` dispositions.
+- The board `A` overlay is read-only review; the markdown files stay the source of truth.
+
 ## Code Style
 
 - **One job per file** — split files when responsibilities mix.

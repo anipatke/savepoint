@@ -72,6 +72,21 @@ func (m Model) View() string {
 		return overlayOnBase(dimLines(base), overlay, w, h)
 	}
 
+	if m.Overlay == OverlayAudit {
+		ow := overlayWidth(w)
+		overlay := RenderAuditOverlay(m.Audit, m.AuditTab, m.FindingCursor, ow, detailMaxHeight(h), m.selectedAuditOffset())
+		return overlayOnBase(dimLines(base), overlay, w, h)
+	}
+
+	if m.Overlay == OverlayFindingDetail {
+		if finding, ok := m.activeFinding(); ok {
+			ow := overlayWidth(w)
+			detail := RenderFindingDetail(finding, ow, detailMaxHeight(h), m.FindingDetailOffset)
+			return overlayOnBase(dimLines(base), detail, w, h)
+		}
+		return base
+	}
+
 	if m.Overlay == OverlayDefect {
 		defects := defectsForOverlay(m.AllDefects, m.SelectedRelease)
 		overlay := RenderDefectsOverlay(defects, m.DefectCursor, min(overlayWidth(w), 60))
@@ -94,7 +109,7 @@ func (m Model) View() string {
 			return base
 		}
 		ow := overlayWidth(w)
-		detail := RenderDetail(task, ow, m.RouterState, detailMaxHeight(h), m.DetailOffset)
+		detail := RenderDetail(task, ow, m.RouterState, detailMaxHeight(h), m.DetailOffset, m.focusedTaskFindings(), m.LinkedFindingCursor)
 		return overlayOnBase(dimLines(base), detail, w, h)
 	}
 
@@ -106,7 +121,7 @@ func (m Model) View() string {
 		case 1:
 			detail = RenderEpicAuditTab(epicSlug, m.EpicAuditContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
 		default:
-			detail = RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab)
+			detail = RenderEpicDetail(epicSlug, m.EpicDetailContent, ow, detailMaxHeight(h), m.EpicDetailOffset, m.EpicDetailTab, m.openEpicFindings(), m.LinkedFindingCursor)
 		}
 		return overlayOnBase(dimLines(base), detail, w, h)
 	}
@@ -355,6 +370,11 @@ func detailMaxHeight(termH int) int {
 	return h
 }
 
+// footerHints is the board's keyboard hint bar. Single-space separators keep the
+// full hint set — including A:audits — on one line at the 80-column minimum
+// supported width, where two-space separators would overflow and truncate hints.
+const footerHints = "←→:nav p:prio ctrl+r:refresh R:release d:defects D:docs A:audits ?:help q:quit"
+
 func (m Model) renderFooter(termW int) string {
 	phase := footerLine(termW,
 		styles.FooterPhasePlan.Render("PLAN")+
@@ -363,7 +383,7 @@ func (m Model) renderFooter(termW int) string {
 			styles.FooterDivider.Render(" │ ")+
 			styles.FooterPhaseAudit.Render("AUDIT"),
 	)
-	hints := footerLine(termW, styles.FooterHints.Render("←→:nav  p:priority  ctrl+r:refresh  R:release  d:defects  D:docs  ?:help  q:quit"))
+	hints := footerLine(termW, styles.FooterHints.Render(footerHints))
 	statusLines := wrappedStatusLines(m.StatusMessage, termW)
 	renderedStatus := make([]string, len(statusLines))
 	for i, line := range statusLines {

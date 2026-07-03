@@ -28,12 +28,26 @@ type routerReader interface {
 	ReadState(content string) (*data.RouterState, error)
 }
 
+// auditLoader loads the repo-wide audit-register data set for board display.
+type auditLoader interface {
+	LoadAuditRegisterSet(root string) (data.AuditRegisterSet, error)
+}
+
+// dataAuditLoader is the production auditLoader backed by the data package's
+// tolerant audit-register loader.
+type dataAuditLoader struct{}
+
+func (dataAuditLoader) LoadAuditRegisterSet(root string) (data.AuditRegisterSet, error) {
+	return data.LoadAuditRegisterSet(root)
+}
+
 // ModelDependencies contains board data-access dependencies.
 type ModelDependencies struct {
 	Discoverer   taskDiscoverer
 	Parser       taskParser
 	ConfigReader configReader
 	RouterReader routerReader
+	AuditLoader  auditLoader
 }
 
 func defaultModelDependencies() ModelDependencies {
@@ -42,6 +56,7 @@ func defaultModelDependencies() ModelDependencies {
 		Parser:       data.NewParser(),
 		ConfigReader: data.NewConfigReader(),
 		RouterReader: data.NewRouterReader(),
+		AuditLoader:  dataAuditLoader{},
 	}
 }
 
@@ -62,6 +77,9 @@ func modelDependencies(overrides []ModelDependencies) ModelDependencies {
 	}
 	if override.RouterReader != nil {
 		deps.RouterReader = override.RouterReader
+	}
+	if override.AuditLoader != nil {
+		deps.AuditLoader = override.AuditLoader
 	}
 	return deps
 }

@@ -141,6 +141,45 @@ func TestProjectConceptTemplateExists(t *testing.T) {
 	}
 }
 
+func TestProjectAuditRegisterTemplatesExist(t *testing.T) {
+	root := filepath.Join("..", "..")
+
+	prompt := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "prompt.md")
+	register := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "register.md")
+	findings := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "findings", "README.md")
+	runs := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "runs", "README.md")
+
+	// Prompt and register/findings guidance are seeded by T001/T002; verify they survive.
+	assertContains(t, prompt, "register-backed Savepoint audit")
+	assertContains(t, register, "Convergence summary")
+	assertContains(t, register, "first real finding as `F001`")
+	assertNotContains(t, register, "Example finding")
+	assertContains(t, findings, "F###-slug.md")
+
+	// Run history guidance: naming convention.
+	assertContains(t, runs, "YYYY-MM-DD-label.md")
+
+	// Run records require date, auditor/model, prompt version, commit SHA, mode,
+	// coverage, source audits, and headline counts.
+	for _, field := range []string{
+		"date:",
+		"auditor:",
+		"model:",
+		"prompt_version:",
+		"commit:",
+		"mode:",
+		"coverage:",
+		"source_audits:",
+		"net_new:",
+		"reopened:",
+		"verified:",
+		"deferred:",
+		"coverage_gaps:",
+	} {
+		assertContains(t, runs, field)
+	}
+}
+
 func TestProjectDocumentTemplatesHaveTypeFrontmatter(t *testing.T) {
 	root := filepath.Join("..", "..")
 	cases := []struct {
@@ -174,6 +213,60 @@ func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 	for _, content := range []string{liveAgents, templateAgents} {
 		assertNotContains(t, content, "phase:")
 	}
+}
+
+func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
+	root := filepath.Join("..", "..")
+	templates := os.DirFS(filepath.Join(root, "templates", "project"))
+
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	auditAssets := []string{
+		".savepoint/audit/prompt.md",
+		".savepoint/audit/register.md",
+		".savepoint/audit/findings/README.md",
+		".savepoint/audit/runs/README.md",
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	for _, path := range auditAssets {
+		if got := upgradeActionFor(t, report, path); got != ActionUpdated {
+			t.Errorf("audit asset %s action = %v, want updated", path, got)
+		}
+		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); err != nil {
+			t.Errorf("audit asset %s not written: %v", path, err)
+		}
+	}
+
+	// A second upgrade must leave the now-present audit assets untouched.
+	rerun, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() rerun error = %v", err)
+	}
+	for _, path := range auditAssets {
+		if got := upgradeActionFor(t, rerun, path); got != ActionUnchanged {
+			t.Errorf("audit asset %s rerun action = %v, want unchanged", path, got)
+		}
+	}
+}
+
+func upgradeActionFor(t *testing.T, report *UpgradeReport, path string) UpgradeAction {
+	t.Helper()
+
+	for _, e := range report.Actions {
+		if e.Path == path {
+			return e.Action
+		}
+	}
+	t.Fatalf("path %s not in upgrade report", path)
+	return ""
 }
 
 func readTemplate(t *testing.T, root string, parts ...string) string {

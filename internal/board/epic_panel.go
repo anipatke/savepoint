@@ -8,8 +8,11 @@ import (
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-// RenderEpicDetail renders an overlay showing the content of an E##-Detail.md file.
-func RenderEpicDetail(epicSlug, content string, overlayW, maxHeight, offset int, tab int) string {
+// RenderEpicDetail renders an overlay showing the content of an E##-Detail.md
+// file. findings are the audit findings that link back to this epic, rendered in
+// a read-only "Linked Findings" section with findingCursor highlighting the
+// selected row.
+func RenderEpicDetail(epicSlug, content string, overlayW, maxHeight, offset int, tab int, findings []data.AuditFinding, findingCursor int) string {
 	inner := overlayW - detailBorderPad
 	if inner < 4 {
 		inner = 4
@@ -22,7 +25,8 @@ func RenderEpicDetail(epicSlug, content string, overlayW, maxHeight, offset int,
 	}
 
 	body := epicDetailBody(content, inner)
-	body = append(body, "", styles.CardMeta.Render("1:Detail 2:Audit  esc:close"))
+	body = append(body, linkedFindingsSection(findings, findingCursor, inner)...)
+	body = append(body, "", styles.CardMeta.Render(detailFooterHint("1:Detail 2:Audit  esc:close", len(findings) > 0)))
 	lines = append(lines, visibleDetailLines(body, maxHeight-detailVerticalOverhead-1, offset)...)
 
 	return styles.EpicDetailOverlay.Width(overlayW).Render(strings.Join(lines, "\n"))
