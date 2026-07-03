@@ -36,7 +36,12 @@
       "Bash(git stash *)",
       "PowerShell(make *)",
       "PowerShell(go *)",
-      "PowerShell(Set-Content *)"
+      "PowerShell(Set-Content *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git commit *)",
+      "Read(//home/user/.claude/**)",
+      "Bash(/usr/bin/bash /home/user/.claude/statusline-command.sh)"
     ]
   }
 }
