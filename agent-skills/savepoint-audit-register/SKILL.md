@@ -11,7 +11,7 @@ Run audit work that converges on the existing Audit Register instead of restarti
 
 ## Trigger
 
-Use this skill whenever `.savepoint/audit/` exists and audit work is starting — an epic audit in `audit-pending`, or a user-requested repo audit. The `savepoint-audit` skill hands off here for register work; it still owns the epic `E##-Audit.md` handoff file.
+Use this skill whenever `.savepoint/audit/` exists and audit work is starting — an epic audit in `audit-pending`, or a user-requested repo audit. The `savepoint-audit-epic` skill hands off here for register work; it still owns the epic `E##-Audit.md` handoff file. A read-only `savepoint-audit-task` review writes no register records.
 
 ## Read (in order)
 
@@ -36,7 +36,7 @@ Use this skill whenever `.savepoint/audit/` exists and audit work is starting �
 4. Update finding records in `findings/`: refresh `last_seen` and append dated `## History` notes on existing records; add a new `F###-slug.md` file only for a net-new finding.
 5. Write one immutable run file at `runs/YYYY-MM-DD-label.md` per `runs/README.md`, including examined and unexamined coverage.
 6. Update `register.md`: one row per finding, and convergence-summary counts that match the run's dispositions.
-7. For an epic audit, also write the `E##-Audit.md` handoff file per the `savepoint-audit` skill.
+7. For an epic audit, also write the `E##-Audit.md` handoff file per the `savepoint-audit-epic` skill.
 8. Stop for user review.
 
 ## Reconciliation classification

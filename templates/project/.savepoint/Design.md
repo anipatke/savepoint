@@ -117,7 +117,7 @@ Numbered workflow steps 0–5 (Quality Gates through Apply + Close). Then 4–5 
 > - `audit-pending` is a **hard gate**: next epic's tasks cannot enter `in_progress` until prior epic is `audited` or the user explicitly skips the audit.
 > - `E##-Audit.md` has two user-facing sections: `## Main Findings` and `## Code Style Review`. File-specific `### Target File` / `### Replace` / `### With` blocks belong under a separate `## Proposed Changes` admin section so the TUI Audit tab can omit them.
 > - Apply/close must rewrite `## Main Findings` and `## Code Style Review` in the same `E##-Audit.md` so the TUI Audit tab shows resolved findings and remaining risks instead of stale pre-apply blockers.
-> - There is no `<tool> audit` CLI pipeline in the active design. Audit is performed by agents using `agent-skills/savepoint-audit/SKILL.md`.
+> - There is no `<tool> audit` CLI pipeline in the active design. Epic audit is performed by agents using `agent-skills/savepoint-audit-epic/SKILL.md`; an explicit read-only review of one in-progress task uses `agent-skills/savepoint-audit-task/SKILL.md`. Both apply the shared method in `agent-skills/references/audit-method.md`.
 >
 > Three layers:
 > - **Layer 1 (mechanical):** user's chosen linter. Quality gate config: see `.savepoint/config.yml`.

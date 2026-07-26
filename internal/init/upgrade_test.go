@@ -45,10 +45,10 @@ func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
 	}
 
 	templates := fstest.MapFS{
-		".savepoint":                            &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/PRD.md":                     &fstest.MapFile{Data: []byte("# PRD")},
-		".savepoint/Design.md":                  &fstest.MapFile{Data: []byte("# Design")},
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
+		".savepoint":           &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/PRD.md":    &fstest.MapFile{Data: []byte("# PRD")},
+		".savepoint/Design.md": &fstest.MapFile{Data: []byte("# Design")},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, false, false)
@@ -72,7 +72,7 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit")
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 
 	newContent := "# New Audit Skill"
 	templates := fstest.MapFS{
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte(newContent)},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(newContent)},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, false, false)
@@ -91,7 +91,7 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 
 	found := false
 	for _, e := range report.Actions {
-		if e.Path == "agent-skills/savepoint-audit/SKILL.md" {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
 			found = true
 			if e.Action != ActionUpdated {
 				t.Errorf("action = %v, want updated", e.Action)
@@ -118,7 +118,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit")
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), content)
 
 	templates := fstest.MapFS{
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte(content)},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(content)},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, false, false)
@@ -135,7 +135,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 	}
 
 	for _, e := range report.Actions {
-		if e.Path == "agent-skills/savepoint-audit/SKILL.md" {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
 			if e.Action != ActionUnchanged {
 				t.Errorf("action = %v, want unchanged", e.Action)
 			}
@@ -227,7 +227,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit")
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), oldContent)
 
 	templates := fstest.MapFS{
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, true, false)
@@ -245,7 +245,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
 
 	found := false
 	for _, e := range report.Actions {
-		if e.Path == "agent-skills/savepoint-audit/SKILL.md" {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
 			found = true
 			if e.Action != ActionUpdated {
 				t.Errorf("dry-run action = %v, want updated", e.Action)
@@ -273,14 +273,14 @@ func TestUpgradeProjectAssets_dryRunReportsUnchanged(t *testing.T) {
 	}
 
 	content := "# Same Content"
-	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit")
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), content)
 
 	templates := fstest.MapFS{
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte(content)},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(content)},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, true, false)
@@ -289,7 +289,7 @@ func TestUpgradeProjectAssets_dryRunReportsUnchanged(t *testing.T) {
 	}
 
 	for _, e := range report.Actions {
-		if e.Path == "agent-skills/savepoint-audit/SKILL.md" {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
 			if e.Action != ActionUnchanged {
 				t.Errorf("dry-run action = %v, want unchanged for same content", e.Action)
 			}
@@ -359,7 +359,7 @@ func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 	}
 
 	templates := fstest.MapFS{
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# New Skill")},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Skill")},
 	}
 
 	report, err := UpgradeProjectAssets(templates, target, false, false)
@@ -369,7 +369,7 @@ func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 
 	found := false
 	for _, e := range report.Actions {
-		if e.Path == "agent-skills/savepoint-audit/SKILL.md" {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
 			found = true
 			if e.Action != ActionUpdated {
 				t.Errorf("action = %v, want updated", e.Action)
@@ -380,7 +380,7 @@ func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 		t.Fatal("skill path not in report")
 	}
 
-	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit-epic", "SKILL.md")); err != nil {
 		t.Errorf("skill file not created: %v", err)
 	}
 }

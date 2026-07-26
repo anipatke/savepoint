@@ -20,22 +20,24 @@ func runInitPipeline(t *testing.T, dir string, force bool) string {
 	}
 
 	templates := fstest.MapFS{
-		".savepoint":                            &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/config.yml":                 &fstest.MapFile{Data: []byte("key: value")},
-		".savepoint/Design.md":                  &fstest.MapFile{Data: []byte("# {{PROJECT_NAME}} Design")},
-		".savepoint/PRD.md":                     &fstest.MapFile{Data: []byte("PRD: {{PROJECT_NAME}}")},
-		".savepoint/router.md":                  &fstest.MapFile{Data: []byte("# Router")},
-		".savepoint/visual-identity.md":         &fstest.MapFile{Data: []byte("# Visual Identity")},
-		".savepoint/Guardrails.md":              &fstest.MapFile{Data: []byte("# Guardrails for {{PROJECT_NAME}}")},
-		".savepoint/Health-Check.md":            &fstest.MapFile{Data: []byte("# Health Check")},
-		".savepoint/releases/v1/epics":          &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/releases/v1/v1-PRD.md":      &fstest.MapFile{Data: []byte("# v1 PRD for {{PROJECT_NAME}}")},
-		"AGENTS.md":                             &fstest.MapFile{Data: []byte("# Agents Guide\n\nBuild: npm run build")},
-		"agent-skills/savepoint-audit/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
-		".savepoint/audit/prompt.md":            &fstest.MapFile{Data: []byte("# Audit Prompt")},
-		".savepoint/audit/register.md":          &fstest.MapFile{Data: []byte("# Audit Register")},
-		".savepoint/audit/findings/README.md":   &fstest.MapFile{Data: []byte("# Audit Findings")},
-		".savepoint/audit/runs/README.md":       &fstest.MapFile{Data: []byte("# Audit Runs: YYYY-MM-DD-label.md")},
+		".savepoint":                                 &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/config.yml":                      &fstest.MapFile{Data: []byte("key: value")},
+		".savepoint/Design.md":                       &fstest.MapFile{Data: []byte("# {{PROJECT_NAME}} Design")},
+		".savepoint/PRD.md":                          &fstest.MapFile{Data: []byte("PRD: {{PROJECT_NAME}}")},
+		".savepoint/router.md":                       &fstest.MapFile{Data: []byte("# Router")},
+		".savepoint/visual-identity.md":              &fstest.MapFile{Data: []byte("# Visual Identity")},
+		".savepoint/Guardrails.md":                   &fstest.MapFile{Data: []byte("# Guardrails for {{PROJECT_NAME}}")},
+		".savepoint/Health-Check.md":                 &fstest.MapFile{Data: []byte("# Health Check")},
+		".savepoint/releases/v1/epics":               &fstest.MapFile{Mode: fs.ModeDir | 0755},
+		".savepoint/releases/v1/v1-PRD.md":           &fstest.MapFile{Data: []byte("# v1 PRD for {{PROJECT_NAME}}")},
+		"AGENTS.md":                                  &fstest.MapFile{Data: []byte("# Agents Guide\n\nBuild: npm run build")},
+		"agent-skills/savepoint-audit-task/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Task Skill")},
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Epic Skill")},
+		"agent-skills/references/audit-method.md":    &fstest.MapFile{Data: []byte("# Shared Audit Method")},
+		".savepoint/audit/prompt.md":                 &fstest.MapFile{Data: []byte("# Audit Prompt")},
+		".savepoint/audit/register.md":               &fstest.MapFile{Data: []byte("# Audit Register")},
+		".savepoint/audit/findings/README.md":        &fstest.MapFile{Data: []byte("# Audit Findings")},
+		".savepoint/audit/runs/README.md":            &fstest.MapFile{Data: []byte("# Audit Runs: YYYY-MM-DD-label.md")},
 	}
 
 	projectName := ProjectNameFromDir(dir)
@@ -76,7 +78,9 @@ func TestIntegration_EmptyDirectory(t *testing.T) {
 		".savepoint/audit/findings/README.md",
 		".savepoint/audit/runs/README.md",
 		"AGENTS.md",
-		"agent-skills/savepoint-audit/SKILL.md",
+		"agent-skills/savepoint-audit-task/SKILL.md",
+		"agent-skills/savepoint-audit-epic/SKILL.md",
+		"agent-skills/references/audit-method.md",
 	}
 
 	if info, err := os.Stat(filepath.Join(dir, ".savepoint", "releases", "v1", "epics")); err != nil || !info.IsDir() {

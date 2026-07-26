@@ -14,6 +14,7 @@ type UpgradeAction string
 const (
 	ActionUpdated   UpgradeAction = "updated"
 	ActionMerged    UpgradeAction = "merged"
+	ActionMigrated  UpgradeAction = "migrated"
 	ActionUnchanged UpgradeAction = "unchanged"
 	ActionSkipped   UpgradeAction = "skipped"
 )
@@ -32,13 +33,15 @@ func (r *UpgradeReport) Format() string {
 		return "No assets to upgrade."
 	}
 
-	var updated, merged, unchanged, skipped int
+	var updated, merged, migrated, unchanged, skipped int
 	for _, e := range r.Actions {
 		switch e.Action {
 		case ActionUpdated:
 			updated++
 		case ActionMerged:
 			merged++
+		case ActionMigrated:
+			migrated++
 		case ActionUnchanged:
 			unchanged++
 		case ActionSkipped:
@@ -53,6 +56,9 @@ func (r *UpgradeReport) Format() string {
 	}
 	if merged > 0 {
 		fmt.Fprintf(&b, "  Merged: %d\n", merged)
+	}
+	if migrated > 0 {
+		fmt.Fprintf(&b, "  Migrated: %d\n", migrated)
 	}
 	if unchanged > 0 {
 		fmt.Fprintf(&b, "  Unchanged: %d\n", unchanged)
@@ -95,6 +101,17 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 
 	var report UpgradeReport
 
+	// Retire the legacy generic audit skill before installing the split skills,
+	// so an interrupted upgrade never leaves the old alias triggerable next to
+	// its replacements.
+	migration, err := migrateLegacyAuditSkill(absTarget, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	if migration != nil {
+		report.Actions = append(report.Actions, *migration)
+	}
+
 	err = fs.WalkDir(templates, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk error at %s: %w", path, err)
@@ -122,7 +139,7 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 
 		targetPath := filepath.Join(absTarget, path)
 
-		isSkill := strings.HasPrefix(path, "agent-skills/") && strings.HasSuffix(path, "/SKILL.md")
+		isSkill := isPackageSkillAsset(path)
 
 		if !isSkill && path != "AGENTS.md" {
 			report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionSkipped})
@@ -243,6 +260,17 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 	})
 
 	return &report, nil
+}
+
+// isPackageSkillAsset reports whether a template path is a package-owned skill
+// asset that upgrade refreshes in place: a skill entrypoint, or a shared
+// reference such as agent-skills/references/audit-method.md that the split
+// audit skills load but that never triggers on its own.
+func isPackageSkillAsset(path string) bool {
+	if !strings.HasPrefix(path, "agent-skills/") {
+		return false
+	}
+	return strings.HasSuffix(path, "/SKILL.md") || strings.HasPrefix(path, "agent-skills/references/")
 }
 
 // auditAssetPrefix marks the project documentation area whose files are
