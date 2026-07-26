@@ -5,7 +5,7 @@ objective: Route generated projects to the correct split audit skill, remove gen
 depends_on:
   - E35-split-task-and-epic-audits/T001-split-audit-contracts
 complexity_tier: medium
-complexity_reason: Router and catalog changes must align request intent without introducing a new workflow state, and cross-reference updates span five file pairs.
+complexity_reason: Router and catalog changes must align request intent without adding a new workflow state; cross-reference updates span five file pairs.
 ---
 
 # T002: Generated Routing and Guidance

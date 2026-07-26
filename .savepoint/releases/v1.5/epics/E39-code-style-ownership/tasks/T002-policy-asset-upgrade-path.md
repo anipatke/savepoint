@@ -5,7 +5,7 @@ objective: Deliver Guardrails.md and Health-Check.md to existing projects on upg
 depends_on:
   - E39-code-style-ownership/T001-point-guidance-at-style-rules
 complexity_tier: medium
-complexity_reason: The change widens an upgrade gate that must stay non-destructive, dry-run correct, idempotent, and narrow enough not to install the rest of the .savepoint subtree.
+complexity_reason: Widens an upgrade gate that must stay non-destructive, dry-run correct, idempotent, and narrow enough to skip the rest of .savepoint.
 ---
 
 # T002: Policy-Asset Upgrade Path

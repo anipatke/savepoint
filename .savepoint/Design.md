@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.5/E36-visual-identity-template-polish
+last_audited: v1.5/E38-health-check-template
 ---
 
 # Savepoint — System Architecture

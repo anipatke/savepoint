@@ -4,7 +4,7 @@ status: planned
 objective: Replace the generic audit skill with distinct task and epic contracts backed by one shared audit method with enriched rigor.
 depends_on: []
 complexity_tier: high
-complexity_reason: The task replaces a cross-workflow contract while preserving audit authority and closeout semantics, and adds frozen scope locks, coverage matrices, side-effect locks, convergence limits, and materiality tables.
+complexity_reason: Replaces a cross-workflow contract while preserving audit authority and closeout semantics, and adds scope locks, coverage matrices, and convergence limits.
 ---
 
 # T001: Split Audit Contracts

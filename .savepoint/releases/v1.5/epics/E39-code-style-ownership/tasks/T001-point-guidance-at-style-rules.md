@@ -4,7 +4,7 @@ status: planned
 objective: Replace the restated code-style rules in AGENTS.md, build-task, and the audit skeleton with references to the STYLE rules in .savepoint/Guardrails.md.
 depends_on: []
 complexity_tier: medium
-complexity_reason: The change spans three file pairs plus the repo's own guide, and must keep the audit checklist renderable in the TUI Audit tab while removing the hardcoded rule list.
+complexity_reason: Spans three file pairs plus the repo guide, and must keep the audit checklist renderable while removing the hardcoded rules.
 ---
 
 # T001: Point Guidance at the STYLE Rules

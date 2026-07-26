@@ -32,6 +32,8 @@ Show the canonical directory tree as a fenced code block, then list 2–3 placem
 >     ├── PRD.md                      ← project vision (rare changes)
 >     ├── Design.md                   ← project architecture (this file)
 >     ├── visual-identity.md          ← design system (palette, type, patterns)
+>     ├── Guardrails.md               ← engineering policy, severity model, rule index
+>     ├── Health-Check.md             ← Quick/Full/Deep evidence gates
 >     ├── router.md                   ← state-machine routing
 >     ├── config.yml                  ← theme, quality_gates, verify_strict
 >     └── releases/

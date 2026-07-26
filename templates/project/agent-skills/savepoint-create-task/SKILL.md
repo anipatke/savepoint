@@ -56,7 +56,7 @@ status: planned
 objective: One-sentence build outcome
 depends_on: []
 complexity_tier: low|medium|high|spike
-complexity_reason: One sentence ≤120 chars explaining the tier choice.
+complexity_reason: One sentence of 20 words or fewer explaining the tier choice.
 ---
 
 # T###: Task Title
@@ -88,4 +88,4 @@ Pending.
 - Do not set task `status` to `in_progress` during planning.
 - Keep each task isolated and buildable.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
-- Always include `complexity_tier` and `complexity_reason` in every new task file.
+- Always include `complexity_tier` and `complexity_reason` in every new task file. Both are required together, and `complexity_reason` must be 20 words or fewer — a longer reason fails validation and blocks task transitions.

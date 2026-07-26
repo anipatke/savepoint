@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.5
-epic: E37
-task: E37-guardrails-template/T001-create-guardrails-template
-next_action: E36 complete, audited, and committed to the v1.5 branch. E40 planned and committed; it builds last, after E39. Start E37 T001 by creating the generic Guardrails.md template with the STYLE-01..10 category, updating the Design.md directory listing and the integration expected-file assertion, then run the quality gates.
+epic: E35
+task: T001
+next_action: Start E35 T001 — replace the generic audit skill with distinct task and epic audit contracts backed by one shared audit method. E35 builds after audited E37 and E38; E40 still builds last, after E39.
 ```
 
 ## State → action

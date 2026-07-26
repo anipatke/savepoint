@@ -6,7 +6,7 @@ depends_on:
     - E33-release-docs-view/T003-release-docs-renderer
     - E33-release-docs-view/T004-release-docs-verification
 complexity_tier: medium
-complexity_reason: "Splits one document source into two scopes: a new epic-scoped loader path plus a new top-level overlay, keybinding, and state, reusing the existing renderer."
+complexity_reason: "Splits one document source into two scopes: a new epic-scoped loader plus a new overlay, keybinding, and state."
 ---
 
 # T005: Epic-Scoped Release Docs + Project Docs Shortcut
