@@ -355,6 +355,38 @@ func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
 	}
 }
 
+func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
+	root := filepath.Join("..", "..")
+	templates := os.DirFS(filepath.Join(root, "templates", "project"))
+
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	for _, path := range []string{".savepoint/Guardrails.md", ".savepoint/Health-Check.md"} {
+		if got := upgradeActionFor(t, report, path); got != ActionInstalled {
+			t.Errorf("policy asset %s action = %v, want installed", path, got)
+		}
+	}
+
+	// End to end: the AGENTS.md code-style pointer must resolve in an upgraded
+	// project, all the way to the STYLE rules in the installed Guardrails.md.
+	agents := readTemplate(t, target, "AGENTS.md")
+	assertContains(t, agents, "## Code Style")
+	assertContains(t, agents, "`STYLE` rules in `.savepoint/Guardrails.md`")
+
+	guardrails := readTemplate(t, target, ".savepoint", "Guardrails.md")
+	assertContains(t, guardrails, "STYLE-01")
+	assertContains(t, guardrails, "STYLE-10")
+	assertNotContains(t, guardrails, "{{PROJECT_NAME}}")
+}
+
 func upgradeActionFor(t *testing.T, report *UpgradeReport, path string) UpgradeAction {
 	t.Helper()
 

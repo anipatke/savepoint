@@ -647,6 +647,186 @@ func TestUpgradeProjectAssets_dryRunDoesNotAddAuditAssets(t *testing.T) {
 	}
 }
 
+func policyTemplates() fstest.MapFS {
+	return fstest.MapFS{
+		".savepoint/Guardrails.md":   &fstest.MapFile{Data: []byte("# Guardrails for {{PROJECT_NAME}}\n\nSTYLE-01")},
+		".savepoint/Health-Check.md": &fstest.MapFile{Data: []byte("# Health Check\n\n## Quick Check")},
+		".savepoint/PRD.md":          &fstest.MapFile{Data: []byte("# PRD")},
+		".savepoint/router.md":       &fstest.MapFile{Data: []byte("# Router")},
+	}
+}
+
+func policyAssetPaths() []string {
+	return []string{".savepoint/Guardrails.md", ".savepoint/Health-Check.md"}
+}
+
+// renderedPolicyTemplate is the template content as upgrade writes it: project
+// name interpolated exactly as a fresh scaffold does.
+func renderedPolicyTemplate(templates fstest.MapFS, path, target string) string {
+	return interpolate(string(templates[path].Data), ProjectNameFromDir(target))
+}
+
+func TestUpgradeProjectAssets_installsMissingPolicyAssets(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := policyTemplates()
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	for _, path := range policyAssetPaths() {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("policy asset %s not in report", path)
+		}
+		if action != ActionInstalled {
+			t.Errorf("policy asset %s action = %v, want installed", path, action)
+		}
+
+		data, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(path)))
+		if err != nil {
+			t.Errorf("policy asset %s not written: %v", path, err)
+			continue
+		}
+		if want := renderedPolicyTemplate(templates, path, target); string(data) != want {
+			t.Errorf("policy asset %s = %q, want %q", path, string(data), want)
+		}
+	}
+
+	// Widening the gate must not widen it past the allowlist.
+	for _, path := range []string{".savepoint/PRD.md", ".savepoint/router.md"} {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("%s not in report", path)
+		}
+		if action != ActionSkipped {
+			t.Errorf("non-policy .savepoint asset %s action = %v, want skipped", path, action)
+		}
+		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); !os.IsNotExist(err) {
+			t.Errorf("non-policy .savepoint asset %s written, stat err = %v", path, err)
+		}
+	}
+}
+
+func TestUpgradeProjectAssets_policyAssetBranches(t *testing.T) {
+	templates := policyTemplates()
+
+	cases := []struct {
+		name       string
+		existing   string // pre-existing project content; empty means the file is missing
+		dryRun     bool
+		wantAction UpgradeAction
+	}{
+		{name: "missing", wantAction: ActionInstalled},
+		{name: "present pristine", existing: "template", wantAction: ActionUnchanged},
+		{name: "user modified", existing: "# Locally tailored policy\n", wantAction: ActionUnchanged},
+		{name: "missing dry run", dryRun: true, wantAction: ActionInstalled},
+		{name: "present dry run", existing: "# Locally tailored policy\n", dryRun: true, wantAction: ActionUnchanged},
+	}
+
+	for _, c := range cases {
+		for _, path := range policyAssetPaths() {
+			t.Run(c.name+" "+path, func(t *testing.T) {
+				target := t.TempDir()
+				if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+					t.Fatal(err)
+				}
+
+				existing := c.existing
+				if existing == "template" {
+					existing = renderedPolicyTemplate(templates, path, target)
+				}
+				targetPath := filepath.Join(target, filepath.FromSlash(path))
+				if existing != "" {
+					testutil.WriteFile(t, targetPath, existing)
+				}
+
+				report, err := UpgradeProjectAssets(templates, target, c.dryRun, false)
+				if err != nil {
+					t.Fatalf("UpgradeProjectAssets() error = %v", err)
+				}
+
+				action, found := actionFor(report, path)
+				if !found {
+					t.Fatalf("policy asset %s not in report", path)
+				}
+				if action != c.wantAction {
+					t.Errorf("policy asset %s action = %v, want %v", path, action, c.wantAction)
+				}
+
+				data, readErr := os.ReadFile(targetPath)
+				switch {
+				case existing != "":
+					// Existing content, edited or not, must survive byte-identical.
+					if readErr != nil {
+						t.Fatalf("existing policy asset %s unreadable: %v", path, readErr)
+					}
+					if string(data) != existing {
+						t.Errorf("policy asset %s = %q, want unchanged %q", path, string(data), existing)
+					}
+				case c.dryRun:
+					if !os.IsNotExist(readErr) {
+						t.Errorf("dry-run wrote %s, stat err = %v", path, readErr)
+					}
+				default:
+					if readErr != nil {
+						t.Fatalf("policy asset %s not installed: %v", path, readErr)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestUpgradeProjectAssets_policyAssetsIdempotent(t *testing.T) {
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := policyTemplates()
+
+	if _, err := UpgradeProjectAssets(templates, target, false, false); err != nil {
+		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
+	}
+
+	before := map[string]string{}
+	for _, path := range policyAssetPaths() {
+		data, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("policy asset %s not installed by first run: %v", path, err)
+		}
+		before[path] = string(data)
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
+	}
+
+	for _, path := range policyAssetPaths() {
+		action, found := actionFor(report, path)
+		if !found {
+			t.Fatalf("policy asset %s not in rerun report", path)
+		}
+		if action != ActionUnchanged {
+			t.Errorf("rerun policy asset %s action = %v, want unchanged", path, action)
+		}
+		data, err := os.ReadFile(filepath.Join(target, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("policy asset %s missing after rerun: %v", path, err)
+		}
+		if string(data) != before[path] {
+			t.Errorf("rerun rewrote %s: got %q, want %q", path, string(data), before[path])
+		}
+	}
+}
+
 func TestUpgradeReport_format(t *testing.T) {
 	r := &UpgradeReport{
 		Actions: []UpgradeEntry{
@@ -654,10 +834,18 @@ func TestUpgradeReport_format(t *testing.T) {
 			{Path: "AGENTS.md", Action: ActionMerged},
 			{Path: ".savepoint/PRD.md", Action: ActionSkipped},
 			{Path: "agent-skills/b/SKILL.md", Action: ActionUnchanged},
+			{Path: ".savepoint/Guardrails.md", Action: ActionInstalled},
+			{Path: "agent-skills/c/SKILL.md", Action: ActionMigrated},
 		},
 	}
 
 	output := r.Format()
+	if !strings.Contains(output, "Installed: 1") {
+		t.Errorf("missing installed count: %q", output)
+	}
+	if !strings.Contains(output, "Migrated: 1") {
+		t.Errorf("missing migrated count: %q", output)
+	}
 	if !strings.Contains(output, "Updated: 1") {
 		t.Errorf("missing updated count: %q", output)
 	}

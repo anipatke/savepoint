@@ -116,8 +116,14 @@ Use this order:
    once; refer to earlier evidence instead of copying it.
 7. **Non-blocking observations:** include only when useful and label them
    clearly. Omit the section when there are none.
-8. **Code Style Review:** retain the required checklist, with short notes only
-   where a box is unchecked or the judgment is not obvious.
+8. **Code Style Review:** retain the required checklist. Write one checkbox per
+   `STYLE` rule found in `.savepoint/Guardrails.md`, labelled with the rule ID
+   and its own wording, in the order the file lists them. Add short notes only
+   where a box is unchecked or the judgment is not obvious. When the project has
+   no `.savepoint/Guardrails.md`, or that file defines no `STYLE` rules, keep the
+   section and state "Code style is not defined for this project." instead of a
+   checklist. `STYLE` rules are Guideline severity: an unchecked box is an
+   observation, never a blocker or a `NEEDS WORK` cause on its own.
 9. **Proposed Changes:** include only proportionate changes for unresolved
    findings. Put exact mechanical replacement blocks here and nowhere else.
 
@@ -184,16 +190,11 @@ Include only when useful.
 
 ## Code Style Review
 
-- [ ] One job per file
-- [ ] One job per function
-- [ ] Test branches
-- [ ] Types document intent
-- [ ] Build only what is needed
-- [ ] Handle errors at boundaries
-- [ ] One source of truth
-- [ ] Comments explain WHY
-- [ ] Content in data files
-- [ ] Small diffs
+- [ ] {STYLE rule ID} {rule wording from `.savepoint/Guardrails.md`}
+- [ ] Repeat once per STYLE rule, in file order
+
+(When no `STYLE` rules are defined, replace the list with: Code style is not
+defined for this project.)
 
 ## Proposed Changes
 
@@ -253,6 +254,9 @@ Only after the user says to apply the audit:
 - Do not create more than one audit file for an epic.
 - Do not audit an epic you built in this session.
 - Do not use a health-check mode other than Full.
+- Do not hardcode code-style rule labels. Source the `## Code Style Review`
+  checklist from the `STYLE` rules in `.savepoint/Guardrails.md`, and never fail
+  the epic on one.
 - Do not treat a checked box, context-log claim, prior `CLEAR`, or passing suite
   as proof without checking the current implementation.
 - Do not return a verdict until every mandatory matrix cell is classified as

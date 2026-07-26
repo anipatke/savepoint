@@ -20,6 +20,7 @@ Do not use this skill to review your own work. If the user explicitly asks to au
 - `.savepoint/router.md`
 - Active epic detail file or active defect file
 - Active task file when in `task-building`
+- The `STYLE` rules in `.savepoint/Guardrails.md`, when the project has that file
 - Only the files listed in the task `## Context Files`, unless the task itself requires a targeted verification read
 
 ## Workflow
@@ -28,7 +29,7 @@ Do not use this skill to review your own work. If the user explicitly asks to au
 2. Before editing code, verify task frontmatter uses canonical lifecycle fields: `status`, and `stage` only when `status: in_progress`.
 3. Set the task frontmatter to `status: in_progress` and `stage: build` when starting.
 4. Mark the focused task as router priority in the TUI when available.
-5. Implement the checklist in order and tick completed items.
+5. Implement the checklist in order and tick completed items, writing code that follows the `STYLE` rules in `.savepoint/Guardrails.md`. Skip this when the project has no `.savepoint/Guardrails.md`; its absence is not a finding.
 6. Verify every acceptance criterion with a concrete outcome.
 7. Run `make build && make test`.
 8. Apply the `.savepoint/Health-Check.md` Quick check at task handoff and record its evidence block in the task `## Context Log`. Skip this step when the project has no `.savepoint/Health-Check.md`.
@@ -41,6 +42,8 @@ Do not use this skill to review your own work. If the user explicitly asks to au
 - Stay within the active task scope.
 - Do not audit the epic you just built. Defer explicit audit and re-audit requests to `savepoint-audit-task` for one in-progress task, or `savepoint-audit-epic` for a completed epic.
 - Do not use Savepoint CLI commands; edit files directly.
+- Treat the `STYLE` rules as advisory Guideline severity: they shape the code you write, but never block handoff on their own.
+- Do not restate the `STYLE` rules in task files, guides, or handoff notes; reference the rule IDs instead.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
 - Never write `stage: implementation`; implementation work starts at `stage: build`.
 - Treat legacy task `phase` as parser compatibility only; new task guidance and writes must use `stage`.

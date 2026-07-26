@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E39: Code-Style Ownership and Policy-Asset Upgrade

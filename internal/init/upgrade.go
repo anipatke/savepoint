@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -13,6 +14,7 @@ type UpgradeAction string
 
 const (
 	ActionUpdated   UpgradeAction = "updated"
+	ActionInstalled UpgradeAction = "installed"
 	ActionMerged    UpgradeAction = "merged"
 	ActionMigrated  UpgradeAction = "migrated"
 	ActionUnchanged UpgradeAction = "unchanged"
@@ -33,11 +35,13 @@ func (r *UpgradeReport) Format() string {
 		return "No assets to upgrade."
 	}
 
-	var updated, merged, migrated, unchanged, skipped int
+	var updated, installed, merged, migrated, unchanged, skipped int
 	for _, e := range r.Actions {
 		switch e.Action {
 		case ActionUpdated:
 			updated++
+		case ActionInstalled:
+			installed++
 		case ActionMerged:
 			merged++
 		case ActionMigrated:
@@ -53,6 +57,9 @@ func (r *UpgradeReport) Format() string {
 	b.WriteString("Upgrade Report:\n")
 	if updated > 0 {
 		fmt.Fprintf(&b, "  Updated: %d\n", updated)
+	}
+	if installed > 0 {
+		fmt.Fprintf(&b, "  Installed: %d\n", installed)
 	}
 	if merged > 0 {
 		fmt.Fprintf(&b, "  Merged: %d\n", merged)
@@ -123,8 +130,8 @@ func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool)
 			return nil
 		}
 
-		if isAuditAsset(path) {
-			action, err := upgradeAuditAsset(absTarget, templates, path, dryRun)
+		if installAction, ok := installMissingAction(path); ok {
+			action, err := installMissingAsset(absTarget, templates, path, installAction, dryRun)
 			if err != nil {
 				return err
 			}
@@ -282,10 +289,37 @@ func isAuditAsset(path string) bool {
 	return strings.HasPrefix(path, auditAssetPrefix)
 }
 
-// upgradeAuditAsset adds a missing audit-register scaffold file and reports
-// ActionUpdated. An existing file is left untouched and reported ActionUnchanged
-// so user-edited audit state is never overwritten.
-func upgradeAuditAsset(absTarget string, templates fs.FS, path string, dryRun bool) (UpgradeAction, error) {
+// policyAssets are the project-owned policy files upgrade delivers to an
+// existing project so guidance that references them resolves after an upgrade.
+// The allowlist is exact: every other `.savepoint/` path stays skipped.
+var policyAssets = []string{
+	".savepoint/Guardrails.md",
+	".savepoint/Health-Check.md",
+}
+
+func isPolicyAsset(path string) bool {
+	return slices.Contains(policyAssets, path)
+}
+
+// installMissingAction reports whether a template path is install-if-missing,
+// and the action to record when the file is added. Audit scaffold files keep
+// reporting ActionUpdated; policy files report ActionInstalled so the upgrade
+// report distinguishes a newly delivered policy asset from a refreshed one.
+func installMissingAction(path string) (UpgradeAction, bool) {
+	switch {
+	case isAuditAsset(path):
+		return ActionUpdated, true
+	case isPolicyAsset(path):
+		return ActionInstalled, true
+	default:
+		return "", false
+	}
+}
+
+// installMissingAsset adds a missing install-if-missing asset and reports
+// installAction. An existing file is left untouched and reported
+// ActionUnchanged so user-edited content is never overwritten.
+func installMissingAsset(absTarget string, templates fs.FS, path string, installAction UpgradeAction, dryRun bool) (UpgradeAction, error) {
 	targetPath := filepath.Join(absTarget, path)
 
 	if _, err := os.Stat(targetPath); err == nil {
@@ -295,7 +329,7 @@ func upgradeAuditAsset(absTarget string, templates fs.FS, path string, dryRun bo
 	}
 
 	if dryRun {
-		return ActionUpdated, nil
+		return installAction, nil
 	}
 
 	content, err := fs.ReadFile(templates, path)
@@ -305,8 +339,9 @@ func upgradeAuditAsset(absTarget string, templates fs.FS, path string, dryRun bo
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return "", fmt.Errorf("create parent dir for %s: %w", path, err)
 	}
-	if err := AtomicWrite(targetPath, content); err != nil {
+	rendered := interpolate(string(content), ProjectNameFromDir(absTarget))
+	if err := AtomicWrite(targetPath, []byte(rendered)); err != nil {
 		return "", fmt.Errorf("write %s: %w", path, err)
 	}
-	return ActionUpdated, nil
+	return installAction, nil
 }

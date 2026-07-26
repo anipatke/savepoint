@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v1.5
-epic: E39
-task: T001
-next_action: "Start E39 T001 — point guidance at the STYLE rules instead of restating them. The ten code-style rules currently live in the managed AGENTS.md block that upgrade-assets overwrites wholesale, and are restated again in the audit skeleton, which the E37 Guardrails template forbids (POL-01, POL-02). Make `## Code Style` a pointer to the STYLE rules in `.savepoint/Guardrails.md` in both the repo AGENTS.md and the template, and have savepoint-build-task read them during build. T002 then adds the install-if-missing upgrade path so Guardrails.md and Health-Check.md reach existing projects. E35 is audited and closed; E40 still builds last, after E39."
+epic: E40-upgrade-safety
+task: E40-upgrade-safety/T001-upgrade-manifest
+next_action: Build E40-upgrade-safety/T001-upgrade-manifest.
 ```
 
 ## State → action

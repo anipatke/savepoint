@@ -227,6 +227,8 @@ savepoint upgrade-assets
 
 `upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files, shared skill references under `agent-skills/references/`, and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, release PRDs, epic files, task files, audit files, or defect files.
 
+Upgrading also installs `.savepoint/Guardrails.md` and `.savepoint/Health-Check.md` when the project does not have them yet, so guidance that references those policy files resolves after an upgrade. A project that already has either file keeps it byte-identical, edits included.
+
 Projects created before the audit split carry a single `agent-skills/savepoint-audit/` skill. Upgrading installs `savepoint-audit-task`, `savepoint-audit-epic`, and the shared method, then retires the old folder: its content is preserved under a non-triggerable `.savepoint/migrations/` archive before the active skill file is removed, so no local edits are lost and no ambiguous audit skill stays triggerable. Projects without the old skill upgrade normally and get no archive.
 
 Use `--force` only when you intentionally want to replace locally modified package-owned assets.

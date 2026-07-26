@@ -86,16 +86,7 @@ When the project has `.savepoint/Guardrails.md` (policy) and `.savepoint/Health-
 
 ## Code Style
 
-- **One job per file** — split files when responsibilities mix.
-- **One job per function** — small, named, testable units.
-- **Test branches** — cover meaningful conditionals and edge cases.
-- **Types document intent** — prefer explicit types over comments.
-- **Build only what is needed** — no speculative abstractions.
-- **Handle errors at boundaries** — validate inputs, APIs, IO, and external data.
-- **One source of truth** — no duplicated rules, constants, state, or config.
-- **Comments explain why** — not what the code already says.
-- **Content lives in data** — keep copy/config out of logic.
-- **Small diffs** — minimal, reviewable, behaviour-preserving changes.
+Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.md` are the single source of truth. Read them when writing or reviewing code. They are Guideline severity and advisory — they inform review but never block on their own. If the project has no `.savepoint/Guardrails.md`, code style is not defined for it.
 
 ## Build
 
