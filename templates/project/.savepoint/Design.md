@@ -8,7 +8,7 @@ last_audited: never
 
 > Project-level architecture. Audit-kept fresh: every epic's audit step merges its delta into this document.
 >
-> **Visual identity** lives separately in `.savepoint/visual-identity.md` and is loaded only for TUI/theme/visual tasks.
+> **Visual identity** lives separately in `.savepoint/visual-identity.md` and defines the project's design system (palette, typography, patterns).
 >
 > Fill each section with concrete, falsifiable claims. Generic architecture docs produce generic agents.
 
@@ -31,7 +31,7 @@ Show the canonical directory tree as a fenced code block, then list 2–3 placem
 > └── .savepoint/
 >     ├── PRD.md                      ← project vision (rare changes)
 >     ├── Design.md                   ← project architecture (this file)
->     ├── visual-identity.md          ← design system; loaded conditionally for TUI work
+>     ├── visual-identity.md          ← design system (palette, type, patterns)
 >     ├── router.md                   ← state-machine routing
 >     ├── config.yml                  ← theme, quality_gates, verify_strict
 >     └── releases/
@@ -126,7 +126,7 @@ Numbered workflow steps 0–5 (Quality Gates through Apply + Close). Then 4–5 
 
 Theming, render fallbacks, layout, terminal color policy, border policy, board persistence, keybindings. Skip this section if the project has no TUI.
 
-> **Theming:** define a single theme as the default. For full design tokens and rendering rules, see `.savepoint/visual-identity.md` (loaded conditionally for TUI tasks). Live values live in `config.yml` `theme:` section.
+> **Theming:** define a single theme as the default. For full design tokens and rendering rules, see `.savepoint/visual-identity.md`. If your project includes a terminal UI, the TUI adaptation appendix covers terminal-specific translations. Live values live in `config.yml` `theme:` section.
 >
 > **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 >

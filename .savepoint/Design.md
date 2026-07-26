@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.4/E33-audit-register-workflow-guidance
+last_audited: v1.5/E36-visual-identity-template-polish
 ---
 
 # Savepoint — System Architecture

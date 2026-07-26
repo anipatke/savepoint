@@ -13,10 +13,10 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 
 ```yaml
 state: task-building
-release: v1.3
-epic: E22
-task: E22-agent-launcher-foundation/T001-launcher-config-contract
-next_action: E33 audit applied and closed; all v1.4 epics audited. Resume in-progress E22-agent-launcher-foundation/T001-launcher-config-contract.
+release: v1.5
+epic: E37
+task: E37-guardrails-template/T001-create-guardrails-template
+next_action: E36 audit applied and closed; the user accepted the omitted standalone scanline/glow guidance. Start E37 T001 by creating the generic Guardrails.md template, updating the Design.md directory listing and integration expected-file assertion, then run the quality gates.
 ```
 
 ## State → action
