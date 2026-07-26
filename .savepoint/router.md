@@ -16,7 +16,7 @@ state: task-building
 release: v1.5
 epic: E37
 task: E37-guardrails-template/T001-create-guardrails-template
-next_action: E36 audit applied and closed; the user accepted the omitted standalone scanline/glow guidance. Start E37 T001 by creating the generic Guardrails.md template, updating the Design.md directory listing and integration expected-file assertion, then run the quality gates.
+next_action: E36 complete, audited, and committed to the v1.5 branch. E40 planned and committed; it builds last, after E39. Start E37 T001 by creating the generic Guardrails.md template with the STYLE-01..10 category, updating the Design.md directory listing and the integration expected-file assertion, then run the quality gates.
 ```
 
 ## State → action
