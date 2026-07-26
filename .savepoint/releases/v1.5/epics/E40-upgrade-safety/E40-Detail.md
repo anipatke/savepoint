@@ -29,16 +29,35 @@ Underneath all three sits a missing guarantee. `upgrade.go:118-121` skips the wh
 - A fix for the `AGENTS.md` no-marker path so it reports a conflict instead of appending a second block.
 - Backward-compatibility fixtures pinning old file shapes, asserted to parse and upgrade cleanly.
 
-## Behaviour by file
+## Template and skill lifecycle
 
-| Path | Owner | Upgrade behaviour after this epic |
-|------|-------|-----------------------------------|
-| `agent-skills/*/SKILL.md` | Savepoint | Unmodified (matches manifest) → replaced. Customized → kept, new version written as `SKILL.md.new`, reported `conflict`. With `--force` → previous saved as `SKILL.md.bak`, then replaced |
-| `AGENTS.md` | Shared: managed block plus user prose | Markers present → block replaced in place, surrounding prose untouched (unchanged behaviour). Markers absent → file left alone, merged result written as `AGENTS.md.new`, reported `conflict`. Missing → written whole |
-| `.savepoint/router.md` | User — live instance state | Still skipped, permanently. Compatibility is a reader guarantee: additive fields only, `## Current state` and its ```yaml fence frozen as the parse contract, previously valid `state` values always accepted |
-| `.savepoint/Design.md`, `PRD.md`, `Concept.md`, `visual-identity.md`, `config.yml` | User | Still skipped. New `config.yml` keys must carry defaults, since existing files will never gain them |
-| `.savepoint/audit/*` | User | Unchanged install-if-missing |
-| `.savepoint/Guardrails.md`, `Health-Check.md` | User | Owned by E39's policy-asset allowlist; untouched here |
+“Install” means `savepoint init`, not installing or updating the Savepoint binary.
+
+| Template / skill | Behaviour on install | Behaviour on upgrade |
+|---|---|---|
+| `AGENTS.md` | Missing → write the managed guide. Existing agent guide → merge the marked Savepoint block while preserving user prose. | Both markers present → replace only the managed block, preserving surrounding prose. Either marker missing → keep the file, write the proposed merged result as `<actual-filename>.new`, and report `conflict`. With `--force` → save `<actual-filename>.bak`, then adopt the managed block. |
+| `agent-skills/**` — all skills and shared references | Install every bundled skill and shared reference; record manifest hashes for each `agent-skills/*/SKILL.md`. | Missing skill → install. Unmodified outdated skill → replace automatically. Customized skill → keep it, write `SKILL.md.new`, and report `conflict`. With `--force` → save `SKILL.md.bak`, then replace. On the first pre-manifest upgrade → save `SKILL.md.bak`, replace, and record provenance. Shared non-triggerable references remain package-owned and refresh directly. Retired skill aliases are archived under `.savepoint/migrations/` before removal. |
+| `.savepoint/.upgrade-manifest.yml` | Generate SHA-256 provenance for installed `agent-skills/*/SKILL.md` files. | Load before skill decisions and save the resulting hashes once after a successful upgrade. Never write it during `--dry-run`. |
+| `.savepoint/router.md` | Create the current router template and initial state. | Never update. Preserve compatibility in the reader: additive fields only, `## Current state` plus its fenced YAML block remain the parse contract, and previously valid `state` values remain accepted. |
+| `.savepoint/config.yml` | Create the current default configuration. | Never update. New keys must have application defaults because existing projects do not receive them. |
+| `.savepoint/PRD.md` | Create the project PRD template. | Never update; project-owned. |
+| `.savepoint/Design.md` | Create the project architecture template. | Never update; project-owned. |
+| `.savepoint/Concept.md` | Create the project concept template. | Never update; project-owned. |
+| `.savepoint/visual-identity.md` | Create the visual-identity template. | Never update; project-owned. |
+| `.savepoint/Guardrails.md` | Create the shipped policy template. | Install only when missing. If present, leave it byte-identical even with `--force`. |
+| `.savepoint/Health-Check.md` | Create the shipped health-check template. | Install only when missing. If present, leave it byte-identical even with `--force`. |
+| `.savepoint/audit/*` | Create the audit prompt, register, findings, and runs scaffolding. | Install individual missing assets only. Never change existing audit files. |
+| `.savepoint/releases/**`, including `v1-PRD.md` | Create the initial release skeleton and release PRD. | Never update release PRDs, epics, tasks, defects, or audit records. |
+
+## Upgrade invocation
+
+Updating or installing the Savepoint binary does not mutate an existing project. The one required project-update command is:
+
+```bash
+savepoint upgrade-assets
+```
+
+`savepoint upgrade-assets --dry-run` is an optional, read-only preview. It is recommended when local assets may have diverged, but it is not a required first command.
 
 ## Manifest scope
 
@@ -63,6 +82,7 @@ This is the one place the epic accepts replacing possibly-customized content. Th
 | `internal/init/testdata/legacy/` | Pinned old-shape `router.md`, marker-less `AGENTS.md`, customized `SKILL.md` |
 | `internal/init/upgrade_test.go` | Conflict, force, backup, dry-run, and idempotency coverage |
 | `internal/data/router_test.go` | Old-shape router parses; unknown fields ignored; absent optional fields default |
+| `README.md` | One-command upgrade guidance, optional dry-run preview, and conflict-resolution expectations |
 
 ## Architectural delta
 
@@ -80,6 +100,8 @@ Router compatibility is stated as an explicit reader contract rather than left i
 - Conflict handling and `.new` / `.bak` emission for skills and AGENTS.md
 - Wiring `--force`
 - Backward-compatibility fixtures and the router format-contract test
+- Install/upgrade ownership regression coverage for the lifecycle matrix
+- User-facing documentation of the single required upgrade command and optional dry run
 
 **Out of scope:**
 
@@ -96,3 +118,5 @@ Builds after E39. Both edit `internal/init/upgrade.go`, and E39's policy-asset a
 ## Quality gates
 
 - `make build && make test` passes.
+- Automated install and upgrade coverage enforces every row of the Template and skill lifecycle matrix, including the permanent skip boundary for project-owned `.savepoint/` files.
+- User-facing guidance presents `savepoint upgrade-assets` as the single required project-update command and `--dry-run` as an optional read-only preview; package installation itself does not mutate projects.
