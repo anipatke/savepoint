@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -29,6 +31,55 @@ func TestMainInitHelpStillUsesNormalDispatch(t *testing.T) {
 	}
 	if !strings.Contains(result.stdout, "Usage: init [dir] [--force] [--install]") {
 		t.Fatalf("stdout = %q, want init usage", result.stdout)
+	}
+}
+
+func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
+	// A write failure part-way through must not hide what was already applied:
+	// the user needs the report to know which files changed and where any
+	// backup went.
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not enforced the same way on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("running as root bypasses directory permissions")
+	}
+
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+
+	// A stale skill in a directory that cannot be written: the walk reaches it
+	// after it has already installed earlier skills.
+	blocked := filepath.Join(dir, "agent-skills", "savepoint-audit-epic")
+	mkdirAll(t, blocked)
+	if err := os.WriteFile(filepath.Join(blocked, "SKILL.md"), []byte("# Stale\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blocked, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(blocked, 0755) })
+
+	result := runMainForTest(t, []string{"upgrade-assets", dir}, "")
+
+	if result.err == nil {
+		t.Fatal("upgrade-assets succeeded, want the blocked write to fail")
+	}
+	if !strings.Contains(result.stdout, "Upgrade Report:") {
+		t.Errorf("stdout = %q, want the partial report", result.stdout)
+	}
+	if !strings.Contains(result.stdout, "failed  agent-skills/savepoint-audit-epic/SKILL.md") {
+		t.Errorf("stdout = %q, want the failed path named", result.stdout)
+	}
+	if !strings.Contains(result.stdout, "agent-skills/references/audit-method.md") {
+		t.Errorf("stdout = %q, want the already-applied work named", result.stdout)
+	}
+}
+
+func mkdirAll(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
 	}
 }
 

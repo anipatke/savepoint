@@ -218,20 +218,39 @@ This repository also includes `bubbletea-tui-design` for maintaining the Go TUI 
 
 ## Updating Existing Projects
 
-After updating the Savepoint package, refresh package-owned assets in each existing Savepoint project:
+Installing or updating the Savepoint binary does not change any existing project. Projects are updated one at a time, by one command:
 
 ```bash
-savepoint upgrade-assets --dry-run
 savepoint upgrade-assets
 ```
 
-`upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files, shared skill references under `agent-skills/references/`, and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, release PRDs, epic files, task files, audit files, or defect files.
+That is the only command required after a Savepoint update. Run it from the project root, or pass a directory.
+
+```bash
+savepoint upgrade-assets --dry-run
+```
+
+`--dry-run` is an optional, read-only preview: it takes exactly the same decisions and reports them without writing anything. It is worth running first when local assets may have diverged from the shipped ones, but it is never a required step.
+
+`upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files, shared skill references under `agent-skills/references/`, and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/Concept.md`, `.savepoint/router.md`, `.savepoint/config.yml`, `.savepoint/visual-identity.md`, release PRDs, epic files, task files, audit files, or defect files. Those are yours permanently: `--force` does not widen the set of files Savepoint will touch.
 
 Upgrading also installs `.savepoint/Guardrails.md` and `.savepoint/Health-Check.md` when the project does not have them yet, so guidance that references those policy files resolves after an upgrade. A project that already has either file keeps it byte-identical, edits included.
 
+### Conflicts
+
+Savepoint never silently destroys and never silently duplicates. A file it does not own outright is kept as-is:
+
+- A skill you have edited is reported as `conflict`: your file stays, and the incoming version is written beside it as `SKILL.md.new` for you to compare and merge.
+- An `AGENTS.md` with no `<!-- SAVEPOINT:BEGIN -->` / `<!-- SAVEPOINT:END -->` pair is also a `conflict`: the file is left byte-identical and the proposed merge is written as `AGENTS.md.new`, rather than appending a second, never-refreshed set of instructions.
+- The first upgrade of a project created before Savepoint recorded asset provenance saves each outdated skill as `SKILL.md.bak` before replacing it. Every later upgrade knows exactly which files you changed.
+
+Conflicts lead the upgrade report, and each line names the sidecar file written for it.
+
+If a write fails part-way through — an unwritable directory, a full disk — the upgrade stops there, prints the report of what it had already applied with the failed path marked `failed`, and then reports the error. Any backup it had written is named on that line, so nothing changes without being accounted for.
+
 Projects created before the audit split carry a single `agent-skills/savepoint-audit/` skill. Upgrading installs `savepoint-audit-task`, `savepoint-audit-epic`, and the shared method, then retires the old folder: its content is preserved under a non-triggerable `.savepoint/migrations/` archive before the active skill file is removed, so no local edits are lost and no ambiguous audit skill stays triggerable. Projects without the old skill upgrade normally and get no archive.
 
-Use `--force` only when you intentionally want to replace locally modified package-owned assets.
+Use `--force` only when you intentionally want to replace locally modified package-owned assets. It saves the previous content as `<name>.bak` first, and it still leaves every project-owned file above untouched.
 
 ## Design Principles
 

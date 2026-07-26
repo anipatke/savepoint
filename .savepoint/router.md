@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
+state: pre-implementation
 release: v1.5
-epic: E40-upgrade-safety
-task: E40-upgrade-safety/T001-upgrade-manifest
-next_action: Build E40-upgrade-safety/T001-upgrade-manifest.
+epic: none
+task: none
+next_action: "Release v1.5 is complete. Define and prioritize the next release."
 ```
 
 ## State → action

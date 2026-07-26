@@ -269,6 +269,25 @@ objective: "Style the board"
 	}
 }
 
+func TestParseTaskFile_legacyPhaseFixtureParses(t *testing.T) {
+	// A whole task file as an older Savepoint wrote it, body included: the
+	// `phase` → `stage` path has to hold for real files, not just frontmatter
+	// snippets.
+	task, err := NewParser().ParseTaskFile("task-legacy-phase.md", readFixture(t, "task-legacy-phase.md"))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v, want a legacy phase task to still parse", err)
+	}
+	if task.Stage != StageTest {
+		t.Errorf("Task.Stage = %q, want test from legacy phase", task.Stage)
+	}
+	if task.Column != ColumnInProgress {
+		t.Errorf("Task.Column = %q, want in_progress", task.Column)
+	}
+	if len(task.Acceptance) != 2 || len(task.Checklist) != 2 {
+		t.Errorf("acceptance = %d, checklist = %d, want 2 and 2", len(task.Acceptance), len(task.Checklist))
+	}
+}
+
 func TestParseTaskFile_healsInvalidLegacyPhaseToBuildForInProgress(t *testing.T) {
 	p := NewParser()
 	content := `---

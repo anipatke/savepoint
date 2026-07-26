@@ -150,7 +150,9 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	existingGuide := "# My Guide\n\nExisting user content."
+	before := "# My Guide\n\nExisting user content.\n\n"
+	after := "\n\nTrailing user note.\n"
+	existingGuide := before + managedBegin + "\n# Old Managed Content\n" + managedEnd + after
 	testutil.WriteFile(t, filepath.Join(target, "AGENTS.md"), existingGuide)
 
 	templates := fstest.MapFS{
@@ -162,32 +164,305 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
-	found := false
-	for _, e := range report.Actions {
-		if e.Path == "AGENTS.md" {
-			found = true
-			if e.Action != ActionMerged {
-				t.Errorf("action = %v, want merged", e.Action)
-			}
-		}
-	}
+	action, found := actionFor(report, "AGENTS.md")
 	if !found {
 		t.Fatal("AGENTS.md not in report")
+	}
+	if action != ActionMerged {
+		t.Errorf("action = %v, want merged", action)
 	}
 
 	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Everything outside the markers must survive byte for byte; only the
+	// block between them is Savepoint's to rewrite.
+	want := before + managedBegin + "\n# Savepoint Managed Content\n" + managedEnd + after
+	if string(data) != want {
+		t.Errorf("merged guide = %q, want %q", string(data), want)
+	}
+}
+
+func TestUpgradeProjectAssets_absentAgentsMdWritesWholeFile(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	action, found := actionFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if action != ActionUpdated {
+		t.Errorf("action = %v, want updated", action)
+	}
+
+	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := managedBegin + "\n# Savepoint Instructions\n" + managedEnd + "\n"
+	if string(data) != want {
+		t.Errorf("guide = %q, want %q", string(data), want)
+	}
+}
+
+func TestUpgradeProjectAssets_unmarkedAgentsMdConflicts(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	guidePath := filepath.Join(target, "AGENTS.md")
+	existingGuide := "# My Guide\n\nExisting user content.\n"
+	testutil.WriteFile(t, guidePath, existingGuide)
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	entry, found := entryFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if entry.Action != ActionConflict {
+		t.Errorf("action = %v, want conflict", entry.Action)
+	}
+	if entry.Note != noteConflict {
+		t.Errorf("note = %q, want %q", entry.Note, noteConflict)
+	}
+
+	data, err := os.ReadFile(guidePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != existingGuide {
+		t.Errorf("guide changed: got %q, want %q", string(data), existingGuide)
+	}
+
+	incoming, err := os.ReadFile(guidePath + incomingSuffix)
+	if err != nil {
+		t.Fatalf("incoming sidecar not written: %v", err)
+	}
+	if !strings.Contains(string(incoming), "# My Guide") {
+		t.Errorf("sidecar missing user content: %q", string(incoming))
+	}
+	if !strings.Contains(string(incoming), "# Savepoint Instructions") {
+		t.Errorf("sidecar missing managed content: %q", string(incoming))
+	}
+	if strings.Count(string(incoming), managedBegin) != 1 {
+		t.Errorf("sidecar should carry exactly one managed block: %q", string(incoming))
+	}
+}
+
+func TestUpgradeProjectAssets_halfMarkedAgentsMdConflicts(t *testing.T) {
+	// One marker of the pair has no block to replace, so treating it as marked
+	// would splice the file at a single offset and corrupt it.
+	cases := map[string]string{
+		"begin only": "# My Guide\n\n" + managedBegin + "\n# Half a block\n",
+		"end only":   "# My Guide\n\n# Half a block\n" + managedEnd + "\n",
+		"reversed":   "# My Guide\n\n" + managedEnd + "\nInverted\n" + managedBegin + "\n",
+	}
+
+	for name, existingGuide := range cases {
+		t.Run(name, func(t *testing.T) {
+			target := t.TempDir()
+			savepointDir := filepath.Join(target, ".savepoint")
+			if err := os.MkdirAll(savepointDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+
+			guidePath := filepath.Join(target, "AGENTS.md")
+			testutil.WriteFile(t, guidePath, existingGuide)
+
+			templates := fstest.MapFS{
+				"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+			}
+
+			report, err := UpgradeProjectAssets(templates, target, false, false)
+			if err != nil {
+				t.Fatalf("UpgradeProjectAssets() error = %v", err)
+			}
+
+			action, found := actionFor(report, "AGENTS.md")
+			if !found {
+				t.Fatal("AGENTS.md not in report")
+			}
+			if action != ActionConflict {
+				t.Errorf("action = %v, want conflict", action)
+			}
+
+			data, err := os.ReadFile(guidePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != existingGuide {
+				t.Errorf("guide changed: got %q, want %q", string(data), existingGuide)
+			}
+			if _, err := os.Stat(guidePath + incomingSuffix); err != nil {
+				t.Errorf("incoming sidecar not written: %v", err)
+			}
+		})
+	}
+}
+
+func TestUpgradeProjectAssets_forceAdoptsUnmarkedAgentsMd(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	guidePath := filepath.Join(target, "AGENTS.md")
+	existingGuide := "# My Guide\n\nExisting user content.\n"
+	testutil.WriteFile(t, guidePath, existingGuide)
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, true)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	entry, found := entryFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if entry.Action != ActionMerged {
+		t.Errorf("action = %v, want merged", entry.Action)
+	}
+	if entry.Note != noteBackup {
+		t.Errorf("note = %q, want %q", entry.Note, noteBackup)
+	}
+
+	data, err := os.ReadFile(guidePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := string(data)
-	if !strings.Contains(got, "My Guide") {
-		t.Errorf("missing user content: %q", got)
+	if !strings.Contains(got, "# My Guide") {
+		t.Errorf("force dropped user content: %q", got)
 	}
-	if !strings.Contains(got, managedBegin) {
-		t.Errorf("missing managed block: %q", got)
+	if !strings.Contains(got, "# Savepoint Instructions") {
+		t.Errorf("force missing managed content: %q", got)
 	}
-	if !strings.Contains(got, "Savepoint Managed Content") {
-		t.Errorf("missing managed content: %q", got)
+
+	backup, err := os.ReadFile(guidePath + backupSuffix)
+	if err != nil {
+		t.Fatalf("backup not written: %v", err)
+	}
+	if string(backup) != existingGuide {
+		t.Errorf("backup = %q, want %q", string(backup), existingGuide)
+	}
+	if _, err := os.Stat(guidePath + incomingSuffix); !os.IsNotExist(err) {
+		t.Errorf("force should not write an incoming sidecar")
+	}
+}
+
+func TestUpgradeProjectAssets_dryRunUnmarkedAgentsMdConflicts(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		force bool
+		want  UpgradeAction
+	}{
+		{name: "conflict", force: false, want: ActionConflict},
+		{name: "force", force: true, want: ActionMerged},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := t.TempDir()
+			savepointDir := filepath.Join(target, ".savepoint")
+			if err := os.MkdirAll(savepointDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+
+			guidePath := filepath.Join(target, "AGENTS.md")
+			existingGuide := "# My Guide\n\nExisting user content.\n"
+			testutil.WriteFile(t, guidePath, existingGuide)
+
+			templates := fstest.MapFS{
+				"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+			}
+
+			report, err := UpgradeProjectAssets(templates, target, true, tc.force)
+			if err != nil {
+				t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
+			}
+
+			action, found := actionFor(report, "AGENTS.md")
+			if !found {
+				t.Fatal("AGENTS.md not in dry-run report")
+			}
+			if action != tc.want {
+				t.Errorf("dry-run action = %v, want %v", action, tc.want)
+			}
+
+			data, err := os.ReadFile(guidePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != existingGuide {
+				t.Errorf("dry run changed the guide: got %q", string(data))
+			}
+			for _, suffix := range []string{incomingSuffix, backupSuffix} {
+				if _, err := os.Stat(guidePath + suffix); !os.IsNotExist(err) {
+					t.Errorf("dry run wrote %s sidecar", suffix)
+				}
+			}
+		})
+	}
+}
+
+func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	variantPath := filepath.Join(target, "Agents.MD")
+	testutil.WriteFile(t, variantPath, "# My Guide\n")
+
+	templates := fstest.MapFS{
+		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	action, found := actionFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if action != ActionConflict {
+		t.Errorf("action = %v, want conflict", action)
+	}
+
+	if _, err := os.Stat(variantPath + incomingSuffix); err != nil {
+		t.Errorf("sidecar not written beside the on-disk casing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Errorf("upgrade created a second agent guide under canonical casing")
 	}
 }
 
@@ -393,7 +668,7 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 	}
 
 	variantPath := filepath.Join(target, "Agents.MD")
-	testutil.WriteFile(t, variantPath, "# My Guide")
+	testutil.WriteFile(t, variantPath, "# My Guide\n\n"+managedBegin+"\n# Old\n"+managedEnd+"\n")
 
 	templates := fstest.MapFS{
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
@@ -404,17 +679,12 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
-	found := false
-	for _, e := range report.Actions {
-		if e.Path == "AGENTS.md" {
-			found = true
-			if e.Action != ActionMerged {
-				t.Errorf("action = %v, want merged", e.Action)
-			}
-		}
-	}
+	action, found := actionFor(report, "AGENTS.md")
 	if !found {
 		t.Fatal("AGENTS.md not in report")
+	}
+	if action != ActionMerged {
+		t.Errorf("action = %v, want merged", action)
 	}
 
 	data, err := os.ReadFile(variantPath)
@@ -449,7 +719,8 @@ func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
 	}
 
 	variantPath := filepath.Join(target, "Agents.MD")
-	testutil.WriteFile(t, variantPath, "# My Guide")
+	existingGuide := "# My Guide\n\n" + managedBegin + "\n# Old\n" + managedEnd + "\n"
+	testutil.WriteFile(t, variantPath, existingGuide)
 
 	templates := fstest.MapFS{
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
@@ -460,15 +731,21 @@ func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
 
-	for _, e := range report.Actions {
-		if e.Path == "AGENTS.md" {
-			if e.Action != ActionMerged {
-				t.Errorf("dry-run action = %v, want merged", e.Action)
-			}
-			return
-		}
+	action, found := actionFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in dry-run report")
 	}
-	t.Fatal("AGENTS.md not in dry-run report")
+	if action != ActionMerged {
+		t.Errorf("dry-run action = %v, want merged", action)
+	}
+
+	data, err := os.ReadFile(variantPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != existingGuide {
+		t.Errorf("dry run changed the guide: got %q", string(data))
+	}
 }
 
 func TestUpgradeProjectAssets_multipleSkills(t *testing.T) {
@@ -506,6 +783,15 @@ func auditTemplates() fstest.MapFS {
 		".savepoint/audit/findings/README.md": &fstest.MapFile{Data: []byte("# Findings")},
 		".savepoint/audit/runs/README.md":     &fstest.MapFile{Data: []byte("# Runs")},
 	}
+}
+
+func entryFor(report *UpgradeReport, path string) (UpgradeEntry, bool) {
+	for _, e := range report.Actions {
+		if e.Path == path {
+			return e, true
+		}
+	}
+	return UpgradeEntry{}, false
 }
 
 func actionFor(report *UpgradeReport, path string) (UpgradeAction, bool) {
@@ -865,5 +1151,451 @@ func TestUpgradeReport_formatEmpty(t *testing.T) {
 	output := r.Format()
 	if !strings.Contains(output, "No assets to upgrade.") {
 		t.Errorf("empty report = %q", output)
+	}
+}
+
+// --- Skill conflict policy -------------------------------------------------
+
+const policySkillPath = "agent-skills/savepoint-build-task/SKILL.md"
+
+func skillTemplates(content string) fstest.MapFS {
+	return fstest.MapFS{policySkillPath: &fstest.MapFile{Data: []byte(content)}}
+}
+
+// skillProject creates a Savepoint project whose skill file holds onDisk, with
+// the manifest recording the hash of recorded. An empty string means the file
+// or the manifest entry is absent.
+func skillProject(t *testing.T, onDisk, recorded string) string {
+	t.Helper()
+	dir := t.TempDir()
+	testutil.MkdirAll(t, filepath.Join(dir, ".savepoint"))
+	if onDisk != "" {
+		testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(policySkillPath)), onDisk)
+	}
+	if recorded != "" {
+		manifest := NewManifest()
+		manifest.Record(policySkillPath, []byte(recorded))
+		if err := manifest.Save(dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func skillFile(t *testing.T, dir, suffix string) (string, bool) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(policySkillPath)) + suffix)
+	if os.IsNotExist(err) {
+		return "", false
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data), true
+}
+
+func assertSkill(t *testing.T, dir, suffix, want string) {
+	t.Helper()
+	got, ok := skillFile(t, dir, suffix)
+	if !ok {
+		t.Fatalf("%s%s missing, want %q", policySkillPath, suffix, want)
+	}
+	if got != want {
+		t.Errorf("%s%s = %q, want %q", policySkillPath, suffix, got, want)
+	}
+}
+
+func assertNoSidecars(t *testing.T, dir string) {
+	t.Helper()
+	for _, suffix := range []string{incomingSuffix, backupSuffix} {
+		if got, ok := skillFile(t, dir, suffix); ok {
+			t.Errorf("%s%s exists (%q), want none", policySkillPath, suffix, got)
+		}
+	}
+}
+
+func assertSkillHash(t *testing.T, dir, want string) {
+	t.Helper()
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, ok := manifest.Hash(policySkillPath)
+	if !ok {
+		t.Fatalf("no manifest entry for %s", policySkillPath)
+	}
+	if hash != hashContent([]byte(want)) {
+		t.Errorf("manifest hash does not match %q", want)
+	}
+}
+
+// upgradeSkill runs an upgrade of a single skill and returns its report entry.
+func upgradeSkill(t *testing.T, dir, template string, dryRun, force bool) UpgradeEntry {
+	t.Helper()
+	report, err := UpgradeProjectAssets(skillTemplates(template), dir, dryRun, force)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	for _, e := range report.Actions {
+		if e.Path == policySkillPath {
+			return e
+		}
+	}
+	t.Fatalf("%s not in report: %+v", policySkillPath, report.Actions)
+	return UpgradeEntry{}
+}
+
+func TestUpgradeSkill_missingFileIsWritten(t *testing.T) {
+	dir := skillProject(t, "", "")
+
+	if entry := upgradeSkill(t, dir, "# New", false, false); entry.Action != ActionUpdated {
+		t.Errorf("action = %v, want updated", entry.Action)
+	}
+
+	assertSkill(t, dir, "", "# New")
+	assertSkillHash(t, dir, "# New")
+	assertNoSidecars(t, dir)
+}
+
+func TestUpgradeSkill_identicalFileIsUnchanged(t *testing.T) {
+	dir := skillProject(t, "# Same", "")
+
+	if entry := upgradeSkill(t, dir, "# Same", false, false); entry.Action != ActionUnchanged {
+		t.Errorf("action = %v, want unchanged", entry.Action)
+	}
+
+	assertSkill(t, dir, "", "# Same")
+	assertSkillHash(t, dir, "# Same")
+	assertNoSidecars(t, dir)
+}
+
+func TestUpgradeSkill_trackedAndOutdatedIsReplaced(t *testing.T) {
+	dir := skillProject(t, "# Ours v1", "# Ours v1")
+
+	if entry := upgradeSkill(t, dir, "# Ours v2", false, false); entry.Action != ActionUpdated {
+		t.Errorf("action = %v, want updated", entry.Action)
+	}
+
+	assertSkill(t, dir, "", "# Ours v2")
+	assertSkillHash(t, dir, "# Ours v2")
+	assertNoSidecars(t, dir)
+}
+
+func TestUpgradeSkill_customizedFileConflicts(t *testing.T) {
+	dir := skillProject(t, "# Ours v1 plus my edits", "# Ours v1")
+
+	entry := upgradeSkill(t, dir, "# Ours v2", false, false)
+	if entry.Action != ActionConflict {
+		t.Errorf("action = %v, want conflict", entry.Action)
+	}
+	if entry.Note == "" {
+		t.Error("conflict entry has no note naming the incoming file")
+	}
+
+	assertSkill(t, dir, "", "# Ours v1 plus my edits")
+	assertSkill(t, dir, incomingSuffix, "# Ours v2")
+	if _, ok := skillFile(t, dir, backupSuffix); ok {
+		t.Error("conflict wrote a backup, want none")
+	}
+	assertSkillHash(t, dir, "# Ours v1")
+}
+
+func TestUpgradeSkill_untrackedFileIsBackedUpAndReplaced(t *testing.T) {
+	dir := skillProject(t, "# Pre-manifest content", "")
+
+	entry := upgradeSkill(t, dir, "# Ours v2", false, false)
+	if entry.Action != ActionUpdated {
+		t.Errorf("action = %v, want updated", entry.Action)
+	}
+	if entry.Note == "" {
+		t.Error("migration entry has no note naming the backup")
+	}
+
+	assertSkill(t, dir, "", "# Ours v2")
+	assertSkill(t, dir, backupSuffix, "# Pre-manifest content")
+	assertSkillHash(t, dir, "# Ours v2")
+}
+
+func TestUpgradeSkill_forceOverridesConflict(t *testing.T) {
+	dir := skillProject(t, "# Ours v1 plus my edits", "# Ours v1")
+
+	entry := upgradeSkill(t, dir, "# Ours v2", false, true)
+	if entry.Action != ActionUpdated {
+		t.Errorf("action = %v, want updated", entry.Action)
+	}
+
+	assertSkill(t, dir, "", "# Ours v2")
+	assertSkill(t, dir, backupSuffix, "# Ours v1 plus my edits")
+	assertSkillHash(t, dir, "# Ours v2")
+	if _, ok := skillFile(t, dir, incomingSuffix); ok {
+		t.Error("force wrote a .new file, want none")
+	}
+}
+
+func TestUpgradeSkill_forceLeavesUnrelatedCasesAlone(t *testing.T) {
+	dir := skillProject(t, "# Same", "# Same")
+
+	if entry := upgradeSkill(t, dir, "# Same", false, true); entry.Action != ActionUnchanged {
+		t.Errorf("action = %v, want unchanged", entry.Action)
+	}
+	assertNoSidecars(t, dir)
+}
+
+func TestUpgradeSkill_dryRunMatchesRealRunAndWritesNothing(t *testing.T) {
+	cases := []struct {
+		name     string
+		onDisk   string
+		recorded string
+		template string
+		force    bool
+		want     UpgradeAction
+	}{
+		{"missing", "", "", "# New", false, ActionUpdated},
+		{"identical", "# Same", "# Same", "# Same", false, ActionUnchanged},
+		{"tracked outdated", "# Ours v1", "# Ours v1", "# Ours v2", false, ActionUpdated},
+		{"customized", "# My edits", "# Ours v1", "# Ours v2", false, ActionConflict},
+		{"untracked", "# Pre-manifest", "", "# Ours v2", false, ActionUpdated},
+		{"forced", "# My edits", "# Ours v1", "# Ours v2", true, ActionUpdated},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			live := skillProject(t, tc.onDisk, tc.recorded)
+			liveEntry := upgradeSkill(t, live, tc.template, false, tc.force)
+			if liveEntry.Action != tc.want {
+				t.Fatalf("real-run action = %v, want %v", liveEntry.Action, tc.want)
+			}
+
+			dir := skillProject(t, tc.onDisk, tc.recorded)
+			manifestBefore, _ := os.ReadFile(manifestPath(dir))
+
+			dryEntry := upgradeSkill(t, dir, tc.template, true, tc.force)
+			if dryEntry.Action != liveEntry.Action {
+				t.Errorf("dry-run action = %v, want %v", dryEntry.Action, liveEntry.Action)
+			}
+
+			if got, ok := skillFile(t, dir, ""); ok != (tc.onDisk != "") || got != tc.onDisk {
+				t.Errorf("dry run changed the skill file: got %q (exists %v), want %q", got, ok, tc.onDisk)
+			}
+			assertNoSidecars(t, dir)
+			manifestAfter, _ := os.ReadFile(manifestPath(dir))
+			if string(manifestAfter) != string(manifestBefore) {
+				t.Errorf("dry run changed the manifest: %q -> %q", manifestBefore, manifestAfter)
+			}
+		})
+	}
+}
+
+func TestUpgradeSkill_secondRunIsIdempotent(t *testing.T) {
+	dir := skillProject(t, "# Ours v1", "# Ours v1")
+	upgradeSkill(t, dir, "# Ours v2", false, false)
+
+	// An upgrade that changes nothing must change nothing on disk, manifest
+	// included: a new file identity is still an observable write.
+	manifestBefore, err := os.Stat(manifestPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := UpgradeProjectAssets(skillTemplates("# Ours v2"), dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	for _, e := range report.Actions {
+		if e.Action != ActionUnchanged {
+			t.Errorf("second run %s = %v, want unchanged", e.Path, e.Action)
+		}
+	}
+	assertNoSidecars(t, dir)
+
+	manifestAfter, err := os.Stat(manifestPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(manifestBefore, manifestAfter) {
+		t.Error("second run replaced the unchanged manifest")
+	}
+	if !manifestBefore.ModTime().Equal(manifestAfter.ModTime()) {
+		t.Error("second run rewrote the unchanged manifest in place")
+	}
+}
+
+func TestUpgradeSkill_unresolvedConflictRefreshesTheSameSidecar(t *testing.T) {
+	dir := skillProject(t, "# My edits", "# Ours v1")
+	upgradeSkill(t, dir, "# Ours v2", false, false)
+
+	if entry := upgradeSkill(t, dir, "# Ours v3", false, false); entry.Action != ActionConflict {
+		t.Errorf("second action = %v, want conflict", entry.Action)
+	}
+
+	assertSkill(t, dir, "", "# My edits")
+	assertSkill(t, dir, incomingSuffix, "# Ours v3")
+	if _, ok := skillFile(t, dir, incomingSuffix+incomingSuffix); ok {
+		t.Error("upgrade accumulated a second .new variant")
+	}
+}
+
+// --- Legacy projects -------------------------------------------------------
+
+// legacyFixture loads a frozen fixture from testdata/legacy. The fixtures are
+// files already in the wild; see that directory's README for the freeze rule.
+func legacyFixture(t *testing.T, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "legacy", name))
+	if err != nil {
+		t.Fatalf("read legacy fixture %s: %v", name, err)
+	}
+	return string(data)
+}
+
+// legacyProject assembles a pre-manifest project: a customized skill, the given
+// agent guide fixture, and no recorded provenance for either.
+func legacyProject(t *testing.T, guideFixture string) (dir, guide, skill string) {
+	t.Helper()
+	dir = t.TempDir()
+	testutil.MkdirAll(t, filepath.Join(dir, ".savepoint"))
+
+	guide = legacyFixture(t, guideFixture)
+	testutil.WriteFile(t, filepath.Join(dir, "AGENTS.md"), guide)
+
+	skill = legacyFixture(t, "SKILL.customized.md")
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(policySkillPath)), skill)
+
+	return dir, guide, skill
+}
+
+func legacyTemplates() fstest.MapFS {
+	return fstest.MapFS{
+		"AGENTS.md":     &fstest.MapFile{Data: []byte("# Agents Guide\n\nCurrent managed guidance.")},
+		policySkillPath: &fstest.MapFile{Data: []byte("# Savepoint Skill: Build Task\n\nCurrent skill body.")},
+	}
+}
+
+func TestUpgradeProjectAssets_legacyProjectWithUnmarkedGuide(t *testing.T) {
+	dir, guide, skill := legacyProject(t, "AGENTS.unmarked.md")
+	templates := legacyTemplates()
+
+	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	guideEntry, found := entryFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if guideEntry.Action != ActionConflict {
+		t.Errorf("unmarked guide action = %v, want conflict", guideEntry.Action)
+	}
+
+	guidePath := filepath.Join(dir, "AGENTS.md")
+	data, err := os.ReadFile(guidePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != guide {
+		t.Errorf("unmarked guide changed:\n got %q\nwant %q", string(data), guide)
+	}
+	if _, err := os.Stat(guidePath + incomingSuffix); err != nil {
+		t.Errorf("incoming guide sidecar not written: %v", err)
+	}
+
+	// A pre-manifest skill has no provenance, so the migration rule applies:
+	// keep a recoverable copy, replace, and record the hash from here on.
+	skillEntry, found := entryFor(report, policySkillPath)
+	if !found {
+		t.Fatal("skill not in report")
+	}
+	if skillEntry.Action != ActionUpdated || skillEntry.Note != noteBackup {
+		t.Errorf("skill entry = %+v, want updated with a backup note", skillEntry)
+	}
+	assertSkill(t, dir, "", string(templates[policySkillPath].Data))
+	assertSkill(t, dir, backupSuffix, skill)
+	assertSkillHash(t, dir, string(templates[policySkillPath].Data))
+}
+
+func TestUpgradeProjectAssets_legacyProjectWithMarkedGuide(t *testing.T) {
+	dir, guide, _ := legacyProject(t, "AGENTS.marked.md")
+	templates := legacyTemplates()
+
+	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	action, found := actionFor(report, "AGENTS.md")
+	if !found {
+		t.Fatal("AGENTS.md not in report")
+	}
+	if action != ActionMerged {
+		t.Errorf("marked guide action = %v, want merged", action)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged := string(data)
+
+	// Prose on both sides of the markers survives; only the block is rewritten.
+	for _, want := range []string{
+		"Prose the team wrote, above the managed block.",
+		"Prose the team wrote, below the managed block.",
+		"Current managed guidance.",
+	} {
+		if !strings.Contains(merged, want) {
+			t.Errorf("merged guide missing %q:\n%s", want, merged)
+		}
+	}
+	if strings.Contains(merged, "Follow the phase prompt") {
+		t.Errorf("merged guide kept the old managed block:\n%s", merged)
+	}
+	if got := strings.Count(merged, managedBegin); got != 1 {
+		t.Errorf("merged guide has %d managed blocks, want 1", got)
+	}
+	if merged == guide {
+		t.Error("merged guide unchanged, want the managed block refreshed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md"+incomingSuffix)); !os.IsNotExist(err) {
+		t.Error("marked guide wrote a conflict sidecar")
+	}
+}
+
+func TestUpgradeProjectAssets_legacyCustomizedSkillConflictsOnceTracked(t *testing.T) {
+	// After the one-time migration the project has exact provenance, so the
+	// same local tailoring must conflict rather than be overwritten again.
+	dir, _, skill := legacyProject(t, "AGENTS.marked.md")
+	templates := legacyTemplates()
+
+	if _, err := UpgradeProjectAssets(templates, dir, false, false); err != nil {
+		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
+	}
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(policySkillPath)), skill)
+
+	entry := upgradeSkill(t, dir, "# Savepoint Skill: Build Task\n\nNewer skill body.", false, false)
+	if entry.Action != ActionConflict {
+		t.Errorf("action = %v, want conflict", entry.Action)
+	}
+	assertSkill(t, dir, "", skill)
+	assertSkill(t, dir, incomingSuffix, "# Savepoint Skill: Build Task\n\nNewer skill body.")
+}
+
+func TestUpgradeReport_formatConflict(t *testing.T) {
+	r := &UpgradeReport{
+		Actions: []UpgradeEntry{
+			{Path: policySkillPath, Action: ActionConflict, Note: noteConflict},
+			{Path: "agent-skills/other/SKILL.md", Action: ActionUpdated, Note: noteBackup},
+		},
+	}
+
+	output := r.Format()
+	if !strings.Contains(output, "Conflicts: 1") {
+		t.Errorf("missing conflict count: %q", output)
+	}
+	if !strings.Contains(output, "conflict  "+policySkillPath) {
+		t.Errorf("missing conflict path: %q", output)
+	}
+	if !strings.Contains(output, noteConflict) || !strings.Contains(output, noteBackup) {
+		t.Errorf("missing sidecar notes: %q", output)
 	}
 }
