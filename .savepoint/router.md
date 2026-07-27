@@ -16,7 +16,7 @@ state: pre-implementation
 release: v1.5
 epic: none
 task: none
-next_action: "Release v1.5 is complete. Define and prioritize the next release."
+next_action: "v1.5 shipped as npm 1.3.0 via a master merge. Define and prioritize the next release."
 ```
 
 ## State → action
