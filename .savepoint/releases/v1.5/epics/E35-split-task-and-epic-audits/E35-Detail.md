@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E35: Split Task and Epic Audits

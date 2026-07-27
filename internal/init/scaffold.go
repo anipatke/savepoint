@@ -11,7 +11,9 @@ import (
 const ReleaseNumber = "1"
 
 func Scaffold(templates fs.FS, targetDir, projectName string, force bool) error {
-	return fs.WalkDir(templates, ".", func(path string, d fs.DirEntry, err error) error {
+	manifest := NewManifest()
+
+	err := fs.WalkDir(templates, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk error at %s: %w", path, err)
 		}
@@ -48,8 +50,19 @@ func Scaffold(templates fs.FS, targetDir, projectName string, force bool) error 
 			return MergeAgentGuide(dest, interpolated)
 		}
 
-		return AtomicWrite(targetPath, []byte(interpolated))
+		if err := AtomicWrite(targetPath, []byte(interpolated)); err != nil {
+			return err
+		}
+		manifest.Record(path, []byte(interpolated))
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// A fresh project starts with exact provenance, so the first upgrade can
+	// tell an edited skill from an outdated one without guessing.
+	return manifest.Save(targetDir)
 }
 
 func ProjectNameFromDir(dir string) string {

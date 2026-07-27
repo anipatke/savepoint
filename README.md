@@ -66,6 +66,27 @@ Savepoint turns AI development into a sequence of hard gates:
 
 The audit gate is the differentiator. When an epic finishes, the next epic should not start until the built code and the project map agree again.
 
+## Audit
+
+Audit is split into two intents so a quick task review is never confused with epic closeout:
+
+| Intent | Skill | Trigger | Writes | Health check | Result |
+| --- | --- | --- | --- | --- | --- |
+| Task review | `savepoint-audit-task` | You explicitly ask to audit or re-audit one in-progress task | Nothing | Quick | `CLEAR` or `NEEDS WORK` in chat |
+| Epic closeout | `savepoint-audit-epic` | Router is `audit-pending`, or you ask to audit a completed epic | Exactly one `E##-Audit.md` | Full | `CLEAR` or `NEEDS WORK` plus a repository handoff result |
+
+Task audit keeps the router on `task-building` — it is a request-qualified override, not a new workflow state — and changes no task, router, or planning file. Epic audit requires a session independent from the builder and keeps the existing proposal approval, apply, and closeout rules.
+
+Both skills load one shared reference, `agent-skills/references/audit-method.md`. It is a method, not a skill, and never triggers on its own. It is what makes both audits rigorous rather than a vibe check:
+
+- **Frozen scope lock.** Before the first adversarial probe the auditor writes down what is in scope: criteria, guardrails, gates, changed files, entry points, dependencies, matrix axes, and the materiality boundary. Re-audits reuse that lock unchanged, so an audit cannot quietly grow new blocking perimeters between rounds.
+- **Mandatory coverage matrix.** Named axes — public surfaces, input shape, state, environment and output, boundaries, sequences, representations, and text classes — plus a finite external-boundary matrix for code that depends on a server, subprocess, or provider. A prose checklist is not matrix evidence.
+- **Workflow and side-effect lock.** Multi-step or side-effecting work gets a per-operation failure-timing inventory with an independent oracle, and no verdict is returned until every cell is classified.
+- **Convergence limit.** Initial audit, one full re-audit, one targeted remediation, then stop and hand the decision back to you. Re-audit findings need an admission ledger row pointing at an exact frozen cell, with a named exception for credible blockers such as secret exposure, cross-tenant access, or destructive data loss.
+- **Materiality table.** Every finding gets likelihood, impact, materiality, and a proportionate recommendation, so a contained developer-workflow issue is not reported as a product-critical risk.
+
+If your project keeps `.savepoint/Guardrails.md` (engineering policy) and `.savepoint/Health-Check.md` (Quick/Full/Deep evidence modes), both audits apply them. If it does not, the audits skip those steps; their absence is not a finding.
+
 ## Task Lifecycle
 
 Tasks use a small lifecycle:
@@ -171,9 +192,12 @@ Savepoint ships workflow skills that act as the canonical instructions for each 
 - `savepoint-create-plan`
 - `savepoint-create-task`
 - `savepoint-build-task`
-- `savepoint-audit`
+- `savepoint-audit-task`
+- `savepoint-audit-epic`
 - `savepoint-audit-register`
 - `savepoint-create-defect`
+
+Skills also ship with shared references under `agent-skills/references/`. These are not skills and never trigger on their own: `audit-method.md` is the common method behind `savepoint-audit-task` and `savepoint-audit-epic`.
 
 `AGENTS.md` routes the agent to the right skill based on `.savepoint/router.md`. The skill owns the phase workflow; `AGENTS.md` keeps routing, terminology, and repository rules in one place.
 
@@ -194,16 +218,39 @@ This repository also includes `bubbletea-tui-design` for maintaining the Go TUI 
 
 ## Updating Existing Projects
 
-After updating the Savepoint package, refresh package-owned assets in each existing Savepoint project:
+Installing or updating the Savepoint binary does not change any existing project. Projects are updated one at a time, by one command:
 
 ```bash
-savepoint upgrade-assets --dry-run
 savepoint upgrade-assets
 ```
 
-`upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, release PRDs, epic files, task files, audit files, or defect files.
+That is the only command required after a Savepoint update. Run it from the project root, or pass a directory.
 
-Use `--force` only when you intentionally want to replace locally modified package-owned assets.
+```bash
+savepoint upgrade-assets --dry-run
+```
+
+`--dry-run` is an optional, read-only preview: it takes exactly the same decisions and reports them without writing anything. It is worth running first when local assets may have diverged from the shipped ones, but it is never a required step.
+
+`upgrade-assets` refreshes bundled `agent-skills/**/SKILL.md` files, shared skill references under `agent-skills/references/`, and the Savepoint-managed block in `AGENTS.md`. It does not overwrite `.savepoint/PRD.md`, `.savepoint/Design.md`, `.savepoint/Concept.md`, `.savepoint/router.md`, `.savepoint/config.yml`, `.savepoint/visual-identity.md`, release PRDs, epic files, task files, audit files, or defect files. Those are yours permanently: `--force` does not widen the set of files Savepoint will touch.
+
+Upgrading also installs `.savepoint/Guardrails.md` and `.savepoint/Health-Check.md` when the project does not have them yet, so guidance that references those policy files resolves after an upgrade. A project that already has either file keeps it byte-identical, edits included.
+
+### Conflicts
+
+Savepoint never silently destroys and never silently duplicates. A file it does not own outright is kept as-is:
+
+- A skill you have edited is reported as `conflict`: your file stays, and the incoming version is written beside it as `SKILL.md.new` for you to compare and merge.
+- An `AGENTS.md` with no `<!-- SAVEPOINT:BEGIN -->` / `<!-- SAVEPOINT:END -->` pair is also a `conflict`: the file is left byte-identical and the proposed merge is written as `AGENTS.md.new`, rather than appending a second, never-refreshed set of instructions.
+- The first upgrade of a project created before Savepoint recorded asset provenance saves each outdated skill as `SKILL.md.bak` before replacing it. Every later upgrade knows exactly which files you changed.
+
+Conflicts lead the upgrade report, and each line names the sidecar file written for it.
+
+If a write fails part-way through — an unwritable directory, a full disk — the upgrade stops there, prints the report of what it had already applied with the failed path marked `failed`, and then reports the error. Any backup it had written is named on that line, so nothing changes without being accounted for.
+
+Projects created before the audit split carry a single `agent-skills/savepoint-audit/` skill. Upgrading installs `savepoint-audit-task`, `savepoint-audit-epic`, and the shared method, then retires the old folder: its content is preserved under a non-triggerable `.savepoint/migrations/` archive before the active skill file is removed, so no local edits are lost and no ambiguous audit skill stays triggerable. Projects without the old skill upgrade normally and get no archive.
+
+Use `--force` only when you intentionally want to replace locally modified package-owned assets. It saves the previous content as `<name>.bak` first, and it still leaves every project-owned file above untouched.
 
 ## Design Principles
 

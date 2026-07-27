@@ -12,7 +12,7 @@ func TestProjectTemplatesUseCurrentWorkflow(t *testing.T) {
 	root := filepath.Join("..", "..")
 	agents := readTemplate(t, root, "templates", "project", "AGENTS.md")
 	router := readTemplate(t, root, "templates", "project", ".savepoint", "router.md")
-	auditSkill := readTemplate(t, root, "templates", "project", "agent-skills", "savepoint-audit", "SKILL.md")
+	auditSkill := readTemplate(t, root, "templates", "project", "agent-skills", "savepoint-audit-epic", "SKILL.md")
 
 	assertNotContains(t, agents, "`phase` (build/test/audit)")
 	assertNotContains(t, agents, "npm run build && npm run test")
@@ -80,9 +80,22 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read scaffold skill root: %v", err)
 	}
-	if len(templateEntries) != len(skillNames) {
-		t.Fatalf("scaffolded skill count = %d, want %d", len(templateEntries), len(skillNames))
+	var templateSkillCount int
+	for _, entry := range templateEntries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "savepoint-") {
+			templateSkillCount++
+		}
 	}
+	if templateSkillCount != len(skillNames) {
+		t.Fatalf("scaffolded skill count = %d, want %d", templateSkillCount, len(skillNames))
+	}
+
+	// The shared audit method is a non-triggerable reference, so it is mirrored
+	// outside the savepoint-* skill folders.
+	assertFileMatches(t, root,
+		filepath.Join("agent-skills", "references", "audit-method.md"),
+		filepath.Join("templates", "project", "agent-skills", "references", "audit-method.md"),
+	)
 }
 
 func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
@@ -138,6 +151,91 @@ func TestProjectConceptTemplateExists(t *testing.T) {
 		"`phase` (build/test/audit)",
 	} {
 		assertNotContains(t, concept, stale)
+	}
+}
+
+func TestProjectDesignTemplateListsGuardrailsAndHealthCheck(t *testing.T) {
+	root := filepath.Join("..", "..")
+	design := readTemplate(t, root, "templates", "project", ".savepoint", "Design.md")
+
+	// The Design.md directory listing is what tells an agent these two files
+	// exist, so a scaffolded file with no listing row is invisible in practice.
+	assertContains(t, design, "Guardrails.md")
+	assertContains(t, design, "Health-Check.md")
+	assertContains(t, design, "engineering policy, severity model, rule index")
+	assertContains(t, design, "Quick/Full/Deep evidence gates")
+
+	// The listing must name the split audit skills, never the retired generic one.
+	assertContains(t, design, "savepoint-audit-task")
+	assertContains(t, design, "savepoint-audit-epic")
+}
+
+func TestProjectGuardrailsAndHealthCheckTemplatesExist(t *testing.T) {
+	root := filepath.Join("..", "..")
+
+	guardrails := readTemplate(t, root, "templates", "project", ".savepoint", "Guardrails.md")
+	assertContains(t, guardrails, "type: guardrails")
+	assertContains(t, guardrails, "## Severity Model")
+	assertContains(t, guardrails, "| Blocker |")
+	assertContains(t, guardrails, "## Rule Index")
+
+	health := readTemplate(t, root, "templates", "project", ".savepoint", "Health-Check.md")
+	assertContains(t, health, "type: health-check")
+	assertContains(t, health, "## Modes")
+	assertContains(t, health, "| Quick | Before task handoff |")
+	assertContains(t, health, "| Full | Before epic audit closeout |")
+	assertContains(t, health, "## Quick Check")
+}
+
+func TestUpgradeMigratesLegacyAuditSkillFromRealTemplates(t *testing.T) {
+	root := filepath.Join("..", "..")
+	templates := os.DirFS(filepath.Join(root, "templates", "project"))
+
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	legacyDir := filepath.Join(target, "agent-skills", "savepoint-audit")
+	if err := os.MkdirAll(legacyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	legacy := "# Locally Edited Generic Audit Skill\n"
+	if err := os.WriteFile(filepath.Join(legacyDir, "SKILL.md"), []byte(legacy), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	if got := upgradeActionFor(t, report, "agent-skills/savepoint-audit/SKILL.md"); got != ActionMigrated {
+		t.Errorf("legacy skill action = %v, want migrated", got)
+	}
+	for _, path := range []string{
+		"agent-skills/savepoint-audit-task/SKILL.md",
+		"agent-skills/savepoint-audit-epic/SKILL.md",
+		"agent-skills/references/audit-method.md",
+	} {
+		if got := upgradeActionFor(t, report, path); got != ActionUpdated {
+			t.Errorf("%s action = %v, want updated", path, got)
+		}
+		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); err != nil {
+			t.Errorf("%s not installed by upgrade: %v", path, err)
+		}
+	}
+
+	// The legacy content survives in the non-triggerable archive, and no
+	// triggerable copy remains.
+	archived, err := os.ReadFile(filepath.Join(target, ".savepoint", "migrations", "savepoint-audit-SKILL.md"))
+	if err != nil {
+		t.Fatalf("legacy content not archived: %v", err)
+	}
+	if string(archived) != legacy {
+		t.Errorf("archived = %q, want verbatim %q", string(archived), legacy)
+	}
+	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit", "SKILL.md")); !os.IsNotExist(err) {
+		t.Errorf("legacy skill still triggerable after upgrade, stat err = %v", err)
 	}
 }
 
@@ -255,6 +353,38 @@ func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
 			t.Errorf("audit asset %s rerun action = %v, want unchanged", path, got)
 		}
 	}
+}
+
+func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
+	root := filepath.Join("..", "..")
+	templates := os.DirFS(filepath.Join(root, "templates", "project"))
+
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := UpgradeProjectAssets(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+
+	for _, path := range []string{".savepoint/Guardrails.md", ".savepoint/Health-Check.md"} {
+		if got := upgradeActionFor(t, report, path); got != ActionInstalled {
+			t.Errorf("policy asset %s action = %v, want installed", path, got)
+		}
+	}
+
+	// End to end: the AGENTS.md code-style pointer must resolve in an upgraded
+	// project, all the way to the STYLE rules in the installed Guardrails.md.
+	agents := readTemplate(t, target, "AGENTS.md")
+	assertContains(t, agents, "## Code Style")
+	assertContains(t, agents, "`STYLE` rules in `.savepoint/Guardrails.md`")
+
+	guardrails := readTemplate(t, target, ".savepoint", "Guardrails.md")
+	assertContains(t, guardrails, "STYLE-01")
+	assertContains(t, guardrails, "STYLE-10")
+	assertNotContains(t, guardrails, "{{PROJECT_NAME}}")
 }
 
 func upgradeActionFor(t *testing.T, report *UpgradeReport, path string) UpgradeAction {

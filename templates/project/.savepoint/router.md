@@ -30,8 +30,10 @@ next_action: "The project has its PRD and Design locked but no epics defined yet
 | epic-design | savepoint-system-design |
 | epic-task-breakdown | savepoint-create-task |
 | task-building | savepoint-build-task |
-| audit-pending | savepoint-audit |
+| audit-pending | savepoint-audit-epic |
 | defect-building | savepoint-build-task |
+
+`savepoint-audit-task` has no row: it is selected by `task-building` plus an explicit task audit or re-audit request. See `## Manual Overrides`.
 
 ## State Meanings
 
@@ -44,7 +46,8 @@ next_action: "The project has its PRD and Design locked but no epics defined yet
 
 ## Manual Overrides
 
-- If the user explicitly asks to audit an epic, use `savepoint-audit` even if the router is not `audit-pending`.
+- If the user explicitly asks to audit or re-audit a completed epic, use `savepoint-audit-epic` even if the router is not `audit-pending`.
+- If the user explicitly asks to audit or re-audit one in-progress task, use `savepoint-audit-task` and leave `state: task-building` unchanged. This is a request-qualified skill override, not a new state; the review is read-only and writes no audit file.
 - If the user reports a concrete bug, regression, or broken expectation and asks to record it, use `savepoint-create-defect`.
 - Audit writes exactly one `.savepoint/releases/{release}/epics/{E##-epic}/E##-Audit.md` before applying any proposals.
 - Audit files keep `## Proposed Changes` — admin/apply metadata outside the visible findings sections.

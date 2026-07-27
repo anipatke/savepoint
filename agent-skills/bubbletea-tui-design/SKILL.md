@@ -5,7 +5,7 @@ description: Bubble Tea and Lip Gloss TUI design and implementation guide for Sa
 
 # Bubble Tea TUI Design
 
-Use this skill for Savepoint's Go terminal UI mechanics. `.savepoint/visual-identity.md` owns the Atari-Noir visual direction, palette, and product design constraints; this skill owns how to implement that direction with Bubble Tea, Lip Gloss, and Go tests.
+Use this skill for Savepoint's Go terminal UI mechanics. `.savepoint/visual-identity.md` documents the project's design system (palette, typography, patterns) with Atari-Noir as the example theme; its TUI adaptation appendix covers terminal-specific translations. This skill owns how to implement that direction with Bubble Tea, Lip Gloss, and Go tests.
 
 ## Current Stack
 
@@ -20,7 +20,7 @@ Do not introduce Ink, React, TypeScript TUI components, or `ink-testing-library`
 ## Quick Workflow
 
 1. Read the active task and its context files first.
-2. Read `.savepoint/visual-identity.md` only when the task touches rendering, layout, theme, glyphs, or design-system behavior.
+2. Read `.savepoint/visual-identity.md` for design-system context; focus on the TUI adaptation appendix when the task touches rendering, layout, theme, glyphs, or design-system behavior.
 3. Locate the smallest board surface involved:
    - model/state: `internal/board/model.go`
    - event handling: `internal/board/update.go`

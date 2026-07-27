@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E36: Visual-identity Template Polish

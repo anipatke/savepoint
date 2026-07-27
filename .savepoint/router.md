@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
-release: v1.3
-epic: E22
-task: E22-agent-launcher-foundation/T001-launcher-config-contract
-next_action: E33 audit applied and closed; all v1.4 epics audited. Resume in-progress E22-agent-launcher-foundation/T001-launcher-config-contract.
+state: pre-implementation
+release: v1.5
+epic: none
+task: none
+next_action: "v1.5 shipped as npm 1.3.0 via a master merge. Define and prioritize the next release."
 ```
 
 ## State → action

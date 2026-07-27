@@ -55,17 +55,23 @@ func MergeAgentGuide(targetPath, rendered string) error {
 		return fmt.Errorf("read agent guide: %w", err)
 	}
 
-	merged := replaceManagedBlock(string(existing), block)
+	merged, _ := replaceManagedBlock(string(existing), block)
 	return AtomicWrite(targetPath, []byte(merged))
 }
 
-func replaceManagedBlock(existing, block string) string {
+// replaceManagedBlock swaps the managed block into existing, and reports
+// whether a complete marker pair was there to swap. A file with no markers, or
+// only one of the pair, has no place to put the block: the merged result then
+// appends it, which adopts the whole file as an agent guide. Callers that must
+// not adopt silently — upgrade — check the flag; callers that mean to adopt —
+// init scaffolding — ignore it.
+func replaceManagedBlock(existing, block string) (string, bool) {
 	begin := strings.Index(existing, managedBegin)
 	end := strings.Index(existing, managedEnd)
 	if begin != -1 && end != -1 && end > begin {
 		endIdx := end + len(managedEnd)
-		return existing[:begin] + block + existing[endIdx:]
+		return existing[:begin] + block + existing[endIdx:], true
 	}
 	trimmed := strings.TrimRight(existing, "\n")
-	return trimmed + "\n\n" + block + "\n"
+	return trimmed + "\n\n" + block + "\n", false
 }

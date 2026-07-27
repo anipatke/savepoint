@@ -16,8 +16,10 @@ The phase skill is the canonical workflow source. This guide defines routing, te
 | epic-design | savepoint-system-design |
 | epic-task-breakdown | savepoint-create-task |
 | task-building | savepoint-build-task |
-| audit-pending | savepoint-audit |
+| audit-pending | savepoint-audit-epic |
 | defect-building | savepoint-build-task |
+
+An explicit request to audit or re-audit one in-progress task uses `savepoint-audit-task` while `state` stays `task-building`. It is a request-qualified override of the phase skill, not a router state.
 
 Use the `skill` tool when the listed skill is available. If the agent says the skill is not found, read `agent-skills/{skill}/SKILL.md` directly and follow it as the active skill.
 
@@ -61,7 +63,14 @@ If yes → append `## Drift Notes` to task file.
 
 ## Audit
 
-Audit is agent-led via the `savepoint-audit` skill — follow it for the file layout, section rules, and apply/close flow. The builder must not audit its own epic; start a fresh session.
+Audit is agent-led and split by intent:
+
+- `savepoint-audit-epic` — the `audit-pending` phase workflow, or an explicit audit of a completed epic. It requires a session independent from the builder, runs the Full health check, and writes the single `E##-Audit.md` handoff file. The builder must not audit its own epic; start a fresh session.
+- `savepoint-audit-task` — an explicit request to audit or re-audit one in-progress task. Router `state` stays `task-building`, the review is read-only, it runs the Quick health check, and it returns `CLEAR` or `NEEDS WORK` without writing any file.
+
+Both skills load `agent-skills/references/audit-method.md`, the shared non-triggerable audit method: scope locks, coverage matrices, workflow and side-effect locks, adversarial pass, re-audit convergence, and materiality.
+
+When the project has `.savepoint/Guardrails.md` (policy) and `.savepoint/Health-Check.md` (evidence modes), both audits apply them — Quick at task handoff and task audit, Full at epic audit. Skip the related step when either file is absent; absence is not a finding.
 
 - Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
 - During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
@@ -77,16 +86,7 @@ Audit is agent-led via the `savepoint-audit` skill — follow it for the file la
 
 ## Code Style
 
-- **One job per file** — split files when responsibilities mix.
-- **One job per function** — small, named, testable units.
-- **Test branches** — cover meaningful conditionals and edge cases.
-- **Types document intent** — prefer explicit types over comments.
-- **Build only what is needed** — no speculative abstractions.
-- **Handle errors at boundaries** — validate inputs, APIs, IO, and external data.
-- **One source of truth** — no duplicated rules, constants, state, or config.
-- **Comments explain why** — not what the code already says.
-- **Content lives in data** — keep copy/config out of logic.
-- **Small diffs** — minimal, reviewable, behaviour-preserving changes.
+Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.md` are the single source of truth. Read them when writing or reviewing code. They are Guideline severity and advisory — they inform review but never block on their own. If the project has no `.savepoint/Guardrails.md`, code style is not defined for it.
 
 ## Build
 

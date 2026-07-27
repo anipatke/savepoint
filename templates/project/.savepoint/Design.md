@@ -8,7 +8,7 @@ last_audited: never
 
 > Project-level architecture. Audit-kept fresh: every epic's audit step merges its delta into this document.
 >
-> **Visual identity** lives separately in `.savepoint/visual-identity.md` and is loaded only for TUI/theme/visual tasks.
+> **Visual identity** lives separately in `.savepoint/visual-identity.md` and defines the project's design system (palette, typography, patterns).
 >
 > Fill each section with concrete, falsifiable claims. Generic architecture docs produce generic agents.
 
@@ -31,7 +31,9 @@ Show the canonical directory tree as a fenced code block, then list 2–3 placem
 > └── .savepoint/
 >     ├── PRD.md                      ← project vision (rare changes)
 >     ├── Design.md                   ← project architecture (this file)
->     ├── visual-identity.md          ← design system; loaded conditionally for TUI work
+>     ├── visual-identity.md          ← design system (palette, type, patterns)
+>     ├── Guardrails.md               ← engineering policy, severity model, rule index
+>     ├── Health-Check.md             ← Quick/Full/Deep evidence gates
 >     ├── router.md                   ← state-machine routing
 >     ├── config.yml                  ← theme, quality_gates, verify_strict
 >     └── releases/
@@ -115,7 +117,7 @@ Numbered workflow steps 0–5 (Quality Gates through Apply + Close). Then 4–5 
 > - `audit-pending` is a **hard gate**: next epic's tasks cannot enter `in_progress` until prior epic is `audited` or the user explicitly skips the audit.
 > - `E##-Audit.md` has two user-facing sections: `## Main Findings` and `## Code Style Review`. File-specific `### Target File` / `### Replace` / `### With` blocks belong under a separate `## Proposed Changes` admin section so the TUI Audit tab can omit them.
 > - Apply/close must rewrite `## Main Findings` and `## Code Style Review` in the same `E##-Audit.md` so the TUI Audit tab shows resolved findings and remaining risks instead of stale pre-apply blockers.
-> - There is no `<tool> audit` CLI pipeline in the active design. Audit is performed by agents using `agent-skills/savepoint-audit/SKILL.md`.
+> - There is no `<tool> audit` CLI pipeline in the active design. Epic audit is performed by agents using `agent-skills/savepoint-audit-epic/SKILL.md`; an explicit read-only review of one in-progress task uses `agent-skills/savepoint-audit-task/SKILL.md`. Both apply the shared method in `agent-skills/references/audit-method.md`.
 >
 > Three layers:
 > - **Layer 1 (mechanical):** user's chosen linter. Quality gate config: see `.savepoint/config.yml`.
@@ -126,7 +128,7 @@ Numbered workflow steps 0–5 (Quality Gates through Apply + Close). Then 4–5 
 
 Theming, render fallbacks, layout, terminal color policy, border policy, board persistence, keybindings. Skip this section if the project has no TUI.
 
-> **Theming:** define a single theme as the default. For full design tokens and rendering rules, see `.savepoint/visual-identity.md` (loaded conditionally for TUI tasks). Live values live in `config.yml` `theme:` section.
+> **Theming:** define a single theme as the default. For full design tokens and rendering rules, see `.savepoint/visual-identity.md`. If your project includes a terminal UI, the TUI adaptation appendix covers terminal-specific translations. Live values live in `config.yml` `theme:` section.
 >
 > **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 >

@@ -105,6 +105,11 @@ func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) err
 
 	report, err := savepointinit.UpgradeProjectAssets(sub, opts.Dir, opts.DryRun, opts.Force)
 	if err != nil {
+		// A failure part-way through still applied whatever came before it.
+		// Print that work before the error so the user knows what changed.
+		if report != nil && len(report.Actions) > 0 {
+			fmt.Print(report.Format())
+		}
 		return err
 	}
 
