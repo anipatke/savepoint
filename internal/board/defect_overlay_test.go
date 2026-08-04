@@ -277,23 +277,62 @@ func TestUpdate_defectOverlaySpaceDoneIsNoop(t *testing.T) {
 	}
 }
 
-func TestUpdate_defectOverlaySpaceInProgressIsNoop(t *testing.T) {
+func TestUpdate_defectOverlaySpaceResolvesInProgressDefect(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "D001.md")
+	content := `---
+id: v1/D001
+release: v1
+status: in_progress
+stage: audit
+severity: medium
+title: "Bug"
+---
+
+# Body`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	m := NewModel(nil, "v1", "E01")
 	m.SelectedRelease = "v1"
-	m.AllDefects = []data.Defect{{Release: "v1", ID: "D001", Status: data.DefectInProgress, Stage: data.StageBuild}}
+	m.AllDefects = []data.Defect{{
+		Release: "v1", ID: "v1/D001", Status: data.DefectInProgress,
+		Stage: data.StageAudit, Severity: data.SeverityMedium, Title: "Bug",
+		Path: path, Mtime: fi.ModTime(),
+	}}
 	m.Overlay = OverlayDefect
 
 	got, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	updated := requireModel(t, got)
 
-	if cmd != nil {
-		t.Fatal("space on in-progress defect returned command, want clear no-op")
+	if cmd == nil {
+		t.Fatal("space on in-progress defect returned nil command")
 	}
-	if !strings.Contains(updated.StatusMessage, "in progress") {
-		t.Errorf("StatusMessage = %q, want in progress no-op", updated.StatusMessage)
+	msg := cmd()
+	got, _ = updated.Update(msg)
+	updated = requireModel(t, got)
+
+	if updated.AllDefects[0].Status != data.DefectResolved {
+		t.Errorf("Status = %q, want resolved", updated.AllDefects[0].Status)
 	}
-	if updated.AllDefects[0].Status != data.DefectInProgress {
-		t.Errorf("Status = %q, want in_progress (noop)", updated.AllDefects[0].Status)
+	if updated.AllDefects[0].Stage != "" {
+		t.Errorf("Stage = %q, want empty", updated.AllDefects[0].Stage)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(result), "status: resolved") {
+		t.Errorf("defect file missing status: resolved; got %s", result)
+	}
+	if strings.Contains(string(result), "stage:") {
+		t.Errorf("defect file retained stage after resolution; got %s", result)
 	}
 }
 

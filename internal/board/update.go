@@ -1003,7 +1003,7 @@ func (m Model) handleDefectOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		defect := defects[m.DefectCursor]
 		switch defect.Status {
-		case "", data.DefectOpen:
+		case "", data.DefectOpen, data.DefectInProgress:
 			if defect.Path == "" {
 				m.StatusMessage = "Defect not updated: missing file path"
 				return m, nil
@@ -1014,8 +1014,6 @@ func (m Model) handleDefectOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, writeDefectStatusCmd(next, defect.Mtime)
 		case data.DefectResolved:
 			m.StatusMessage = "Defect already resolved"
-		case data.DefectInProgress:
-			m.StatusMessage = "Defect in progress: resolve after lifecycle stage is closed"
 		default:
 			m.StatusMessage = "Defect not updated: invalid status " + string(defect.Status)
 		}

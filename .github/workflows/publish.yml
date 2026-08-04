@@ -63,6 +63,8 @@ jobs:
 
       - run: npm publish
         if: steps.check.outputs.publish == 'true'
+        env:
+          VERSION: v${{ steps.check.outputs.version }}
 
       # Record the release as a tag so history stays bisectable and the tag-push
       # path above still works for manual releases.
