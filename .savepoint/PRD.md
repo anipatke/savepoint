@@ -5,6 +5,20 @@ status: active
 
 # Savepoint — Product Vision
 
+## V2 product direction
+
+The next release serves AI-assisted solo builders through **Idea → Design → Task → Check**: a simpler visible workflow and a more reliable execution handoff. Strong planning prepares one Objective's Tasks at a time; efficient executors deliver bounded, verifiable outcomes; fresh checker sessions verify technical integrity. Every Task belongs to an Objective, including tiny projects.
+
+Technical clearance and owner acceptance are separate. Owner validation is required where the planner identifies meaningful behavior or decisions for the owner to assess; technical Tasks may complete after independent clearance. Checks preserve material findings as Issues, with Defect retained as a type. Stable identity and checked evidence support project continuity through the board and read-only `resume`.
+
+The first V2 release includes safe migration of active work, archived historical records, coherent agent guidance, lifecycle gates, onboarding, board changes, and resume. Automatic evidence capture, hooks, and push enforcement are deferred. Context is focused and measured rather than constrained by a universal byte limit. Software tests and small repeatable agent evaluations provide evidence of workflow quality; they do not guarantee correctness across all agents.
+
+The confirmed scope and ordered delivery backlog are in [v2-PRD.md](releases/v2/v2-PRD.md); proposed technical contracts are in [v2-Design.md](releases/v2/v2-Design.md). The existing V1 workflow governs this repository until the tested cutover. Future V2 ownership rules do not change current task-completion authority.
+
+## Existing V1 baseline
+
+The following describes the existing product and its historical targets. V2 supersedes the hierarchy, mandatory owner acceptance for technical Tasks, and fixed context-budget targets through the explicit migration and workflow cutover above.
+
 ## What it is
 
 A public OSS CLI + Bubble Tea TUI that scaffolds an opinionated AI-driven development workflow. The user runs `npx savepoint init` in an empty directory, points any AI agent (Claude / Cursor / Cline / Gemini / Aider / Codex) at the project, and the embedded prompt templates carry the agent through:

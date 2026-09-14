@@ -12,11 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: pre-implementation
-release: v1.5
-epic: none
+state: epic-design
+release: v2
+epic: E42-project-schema-identity
 task: none
-next_action: "D001 repaired and verified for npm 1.3.1. Define and prioritize the next release."
+next_action: Design E42-project-schema-identity.
 ```
 
 ## State → action

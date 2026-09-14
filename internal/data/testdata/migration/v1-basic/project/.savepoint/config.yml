@@ -1,0 +1,6 @@
+quality_gates:
+  lint: null
+  typecheck: null
+  test: null
+theme:
+  bg: "#000000"

@@ -7,6 +7,8 @@ last_audited: v1.5/E40-upgrade-safety
 # Savepoint — System Architecture
 
 > Project-level architecture. Audit-kept fresh: every epic's audit step merges its delta into this document.
+
+> **Planned V2 delta:** [v2-Design.md](releases/v2/v2-Design.md) records the proposed successor architecture and implementation boundaries. This document remains the current V1 baseline until changes are implemented and reconciled; proposed V2 behavior must not be treated as shipped behavior.
 >
 > **Visual identity** lives separately in `.savepoint/visual-identity.md` and is loaded only for TUI/theme/visual tasks.
 

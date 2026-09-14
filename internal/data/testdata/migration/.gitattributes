@@ -1,0 +1,9 @@
+# Frozen V1 migration source fixtures. Never let git normalize their line
+# endings — v1-basic/project/.savepoint/releases/v1/epics/E01-example/tasks/
+# T002-follow-up.md is deliberately CRLF, and every v1-history file is
+# deliberately LF; both must stay byte-exact on every platform and regardless
+# of core.autocrlf, because each fixture's manifest.yml records the exact-byte
+# SHA-256 that its tests verify. Every new fixture directory needs a rule here.
+# See README.md.
+v1-basic/** -text
+v1-history/** -text
