@@ -80,6 +80,59 @@ func (r *ConfigReader) Read(path string) (*Config, error) {
 	return &config, nil
 }
 
+// SchemaVersion identifies the project record schema a .savepoint project
+// declares via config.yml. It is independent of package, release, and
+// .upgrade-manifest.yml versions.
+type SchemaVersion int
+
+const (
+	// SchemaVersionV1 is selected when config.yml has no explicit
+	// schema_version. It signals transitional V1 discovery behavior, not a
+	// declared version.
+	SchemaVersionV1 SchemaVersion = 0
+	SchemaVersionV2 SchemaVersion = 2
+)
+
+type schemaVersionDoc struct {
+	SchemaVersion yaml.Node `yaml:"schema_version"`
+}
+
+// ReadSchemaVersion reads only the schema_version field from the config.yml
+// at path, independent of theme/quality_gates/launcher parsing. Absence of
+// the file or the field selects SchemaVersionV1. A present but non-integer
+// value returns ErrMalformedSchemaVersion; a present integer other than 2
+// returns ErrUnsupportedSchemaVersion. Both errors identify path and the
+// supplied value.
+func ReadSchemaVersion(path string) (SchemaVersion, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return SchemaVersionV1, nil
+	}
+	if err != nil {
+		return SchemaVersionV1, fmt.Errorf("failed to read config: %w", err)
+	}
+
+	var doc schemaVersionDoc
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return SchemaVersionV1, fmt.Errorf("failed to parse config YAML: %w", err)
+	}
+
+	if doc.SchemaVersion.Kind == 0 {
+		return SchemaVersionV1, nil
+	}
+
+	var version int
+	if err := doc.SchemaVersion.Decode(&version); err != nil {
+		return SchemaVersionV1, fmt.Errorf("%w: %s: schema_version %q", ErrMalformedSchemaVersion, path, doc.SchemaVersion.Value)
+	}
+
+	if SchemaVersion(version) != SchemaVersionV2 {
+		return SchemaVersionV1, fmt.Errorf("%w: %s: schema_version %d", ErrUnsupportedSchemaVersion, path, version)
+	}
+
+	return SchemaVersionV2, nil
+}
+
 func fillThemeDefaults(theme Theme) Theme {
 	if theme.BG == "" {
 		theme.BG = defaultTheme.BG

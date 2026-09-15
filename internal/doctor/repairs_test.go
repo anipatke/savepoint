@@ -140,6 +140,55 @@ func TestAuditValidationRepair(t *testing.T) {
 	}
 }
 
+func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		contains string
+	}{
+		{"v2-check-malformed", "result must be CLEAR or NEEDS WORK"},
+		{"v2-check-missing-scope-target", "Create the Task or Objective"},
+		{"v2-check-missing-reference", "Create the Check named in supersedes"},
+		{"v2-check-supersedes-conflict", "supersedes chain"},
+		{"v2-evidence-malformed", "evidence field"},
+		{"v2-evidence-missing-reference", "name a Check that exists"},
+		{"v2-check-immutable", "immutable once written"},
+		{"unknown-name", "Review the V2 project diagnostic"},
+	}
+	for _, tt := range tests {
+		got := V2ProblemRepair(tt.name)
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("V2ProblemRepair(%q) = %q, want containing %q", tt.name, got, tt.contains)
+		}
+	}
+}
+
+func TestV2ProblemRepair_invalidIDNamesEveryV2RecordFamily(t *testing.T) {
+	got := V2ProblemRepair("v2-invalid-id")
+	for _, identity := range []string{"O### (Objective)", "T### (Task)", "C### (Check)", "I### (Issue reference)"} {
+		if !strings.Contains(got, identity) {
+			t.Errorf("V2ProblemRepair(v2-invalid-id) = %q, want %q guidance", got, identity)
+		}
+	}
+}
+
+func TestV2ConsistencyRepair(t *testing.T) {
+	tests := []struct {
+		name     string
+		contains string
+	}{
+		{"v2-done-without-clearance", "Record a Check and a current freshness assessment"},
+		{"v2-acceptance-superseded", "owner accept the Task's actual latest Check"},
+		{"v2-evidence-contradicts-status", "Advance the Task's status to done"},
+		{"unknown-name", "Review the Task's recorded evidence"},
+	}
+	for _, tt := range tests {
+		got := V2ConsistencyRepair(tt.name)
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("V2ConsistencyRepair(%q) = %q, want containing %q", tt.name, got, tt.contains)
+		}
+	}
+}
+
 // TestAuditRepairsDistinguishReferenceKinds proves the broken-link suggestions
 // name different frontmatter lists for task, defect, and duplicate references.
 func TestAuditRepairsDistinguishReferenceKinds(t *testing.T) {

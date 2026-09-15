@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v1.5/E40-upgrade-safety
+last_audited: v2/E43-task-check-gates
 ---
 
 # Savepoint — System Architecture
@@ -23,6 +23,7 @@ last_audited: v1.5/E40-upgrade-safety
   - Audit: 5–15KB.
   - Anything that breaks these bounds violates the wedge.
 - **Go data-reader boundary:** established in epic `E02-data-readers` (2026-05-01). `internal/data` owns Savepoint file parsing and discovery for the Go implementation: task frontmatter models including task complexity metadata, markdown YAML extraction, router state parsing, config theme defaults, release/epic/task directory listing, task lifecycle validation/defaulting, write-time status validation, and boundary error sentinels.
+- **Transitional V2 evidence boundary:** established across E42 and E43. `internal/data` detects V2 schema, strictly loads identity-keyed Objective, Task, and immutable Check records through confined paths, preserves authored record content on managed writes, resolves numeric Check history and freshness, and owns canonical dependency, lifecycle, authority, acceptance, exception, and replan decisions. `internal/doctor` reports the same structural and evidence diagnostics without rewriting project files. These APIs are implemented for later V2 consumers; current V1 board/router behavior remains unchanged until cutover.
 - **Template assets** live under `templates/` with helpers in `src/templates/` (epic E04).
 - **Init command** (`savepoint init`) validates target directories, scaffolds rendered copies of `templates/project/`, merges Savepoint instructions into an existing root agent guide using a managed block while preserving user content and casing variants, creates the initial `.savepoint/releases/v1/epics` skeleton plus release PRD, prints the rendered magic prompt, attempts best-effort clipboard copy, and optionally runs `npm install` after scaffolding (v1.1 E07, refined in E16).
 - **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned skills and shared references while preserving project-owned state. `.savepoint/.upgrade-manifest.yml` records SHA-256 provenance for each `agent-skills/*/SKILL.md`: an unmodified outdated skill refreshes in place, a customized skill is kept with the incoming version written as `SKILL.md.new`, and `--force` first saves the prior content as `SKILL.md.bak`. A pre-manifest project takes the one-time recoverable backup-and-replace path. The root agent guide refreshes only its marked managed block; an unmarked or half-marked guide conflicts unless forced, with casing preserved for sidecars. Dry run follows the same decisions without writes. Missing Guardrails, Health-Check, and audit scaffold assets install without overwriting existing copies; all other `.savepoint/` project state remains untouched, so router compatibility is maintained by the tolerant reader contract rather than migration. A retired generic audit skill is archived under `.savepoint/migrations/` before removal. Writes are ordered for recoverability: the command proves the manifest is writable before touching any asset, writes a backup before the replacement it protects, and returns the partial report with the error if a write still fails.

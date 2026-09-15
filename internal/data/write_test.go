@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -951,6 +952,1212 @@ Keep this text.`
 	}
 	if !strings.Contains(string(result), "Keep this text.") {
 		t.Error("body content not preserved")
+	}
+}
+
+func TestWriteObjectiveV2_updatesStatusPreservesUnknownFieldsAndBody(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Objective.md")
+	content := `---
+id: O002
+title: "Load V2 work with stable identity"
+status: planned
+depends_on: [O001]
+release: v2
+owner:
+  team: platform
+  contact: "team@example.com"
+---
+
+# Objective
+
+## Notes
+
+Authored planning notes that must survive the rewrite.`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+	objective.Status = ColumnInProgress
+
+	if err := WriteObjectiveV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeObjectiveV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() after write error = %v", err)
+	}
+	if reparsed.Status != ColumnInProgress {
+		t.Errorf("Status = %q, want in_progress", reparsed.Status)
+	}
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
+		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
+	}
+	if reparsed.Release != "v2" {
+		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	}
+	if !strings.Contains(string(result), "team: platform") {
+		t.Error("unknown nested field not preserved")
+	}
+	if !strings.Contains(string(result), "team@example.com") {
+		t.Error("unknown nested field value not preserved")
+	}
+	if !strings.Contains(string(result), "Authored planning notes that must survive the rewrite.") {
+		t.Error("authored body content not preserved")
+	}
+	if !strings.Contains(string(result), "## Notes") {
+		t.Error("authored heading not preserved")
+	}
+}
+
+func TestWriteObjectiveV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Objective.md")
+	content := `---
+id: O003
+title: "No-op objective"
+status: in_progress
+---
+
+# Objective`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+
+	if err := WriteObjectiveV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
+func TestWriteObjectiveV2_refusesUnsupportedStatusAndLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Objective.md")
+	content := `---
+id: O004
+title: "Guarded objective"
+status: planned
+---
+
+# Objective`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+	objective.Status = ColumnType("archived")
+
+	err = WriteObjectiveV2(objective)
+	if err == nil {
+		t.Fatal("WriteObjectiveV2() expected error for unsupported status")
+	}
+	if !errors.Is(err, ErrV2InvalidLifecycle) {
+		t.Fatalf("WriteObjectiveV2() error = %v, want ErrV2InvalidLifecycle", err)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("error %v is not path-qualified with %q", err, path)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != content {
+		t.Error("file content changed despite validation refusal")
+	}
+}
+
+func TestWriteTaskV2_updatesStatusAndStagePreservesDependencies(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T005.md")
+	content := `---
+id: T005
+title: "Show clear project errors"
+objective: O002
+status: planned
+depends_on:
+  - task: T003
+  - task: T004
+    requires: accepted
+release: v2
+---
+
+# Task
+
+Authored task notes.`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
+		t.Errorf("Status/Stage = %q/%q, want in_progress/build", reparsed.Status, reparsed.Stage)
+	}
+	if len(reparsed.DependsOn) != 2 {
+		t.Fatalf("DependsOn len = %d, want 2 preserved", len(reparsed.DependsOn))
+	}
+	if reparsed.DependsOn[1].Task != "T004" || reparsed.DependsOn[1].Requires != TaskDependencyAccepted {
+		t.Errorf("DependsOn[1] = %+v, want T004/accepted preserved", reparsed.DependsOn[1])
+	}
+	if reparsed.Release != "v2" {
+		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	}
+	if !strings.Contains(string(result), "Authored task notes.") {
+		t.Error("authored body content not preserved")
+	}
+}
+
+func TestWriteTaskV2_removesStageWhenLeavingInProgress(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T006.md")
+	content := `---
+id: T006
+title: "Finish up"
+objective: O002
+status: in_progress
+stage: audit
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Status = ColumnDone
+	task.Stage = ""
+
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), "stage:") {
+		t.Error("stage field should be removed when leaving in_progress")
+	}
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	if reparsed.Status != ColumnDone || reparsed.Stage != "" {
+		t.Errorf("Status/Stage = %q/%q, want done/empty", reparsed.Status, reparsed.Stage)
+	}
+}
+
+func TestWriteTaskV2_refusesInProgressWithoutStageAndLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T007.md")
+	content := `---
+id: T007
+title: "Guarded task"
+objective: O002
+status: planned
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Status = ColumnInProgress
+	task.Stage = ""
+
+	err = WriteTaskV2(task)
+	if err == nil {
+		t.Fatal("WriteTaskV2() expected error for in_progress without stage")
+	}
+	if !errors.Is(err, ErrV2InvalidLifecycle) {
+		t.Fatalf("WriteTaskV2() error = %v, want ErrV2InvalidLifecycle", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != content {
+		t.Error("file content changed despite validation refusal")
+	}
+}
+
+func TestWriteTaskV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T008.md")
+	content := `---
+id: T008
+title: "No-op task"
+objective: O002
+status: in_progress
+stage: test
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
+func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T009.md")
+	content := "---\r\nid: T009\r\ntitle: \"CRLF task\"\r\nobjective: O002\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Count(string(result), "\n") != strings.Count(string(result), "\r\n") {
+		t.Errorf("result did not preserve CRLF line endings throughout: %q", string(result))
+	}
+	if !strings.Contains(string(result), "Authored notes.") {
+		t.Error("authored body content not preserved across CRLF rewrite")
+	}
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
+		t.Errorf("Status/Stage = %q/%q, want in_progress/build", reparsed.Status, reparsed.Stage)
+	}
+}
+
+func TestWriteTaskV2_preservesLFLineEndingsByDefault(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T010.md")
+	content := "---\nid: T010\ntitle: \"LF task\"\nobjective: O002\nstatus: planned\n---\n\n# Task\n"
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), "\r\n") {
+		t.Errorf("LF source should not gain CRLF endings: %q", string(result))
+	}
+}
+
+func TestWriteObjectiveV2_writeFailureIsPathQualifiedAndLeavesRecordIntact(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: permission checks do not apply")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Objective.md")
+	content := `---
+id: O005
+title: "Read-only objective"
+status: planned
+---
+
+# Objective`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+	objective.Status = ColumnInProgress
+
+	if err := os.Chmod(path, 0444); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(path, 0644)
+
+	err = WriteObjectiveV2(objective)
+	if err == nil {
+		t.Fatal("WriteObjectiveV2() expected error writing to a read-only file")
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("error %v is not path-qualified with %q", err, path)
+	}
+
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != content {
+		t.Error("existing record was truncated or altered despite the write failure")
+	}
+}
+
+func TestWriteV2Record_resolvesDiscoveredRelativePathFromProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
+	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+
+	objectives, tasks, err := DiscoverV2Records(root)
+	if err != nil {
+		t.Fatalf("DiscoverV2Records() error = %v", err)
+	}
+	objective := objectives["O001"]
+	task := tasks["T001"]
+	if objective == nil || task == nil {
+		t.Fatal("DiscoverV2Records() did not return both V2 records")
+	}
+	if filepath.IsAbs(objective.Source.Path) || filepath.IsAbs(task.Source.Path) {
+		t.Fatalf("source paths must remain project-relative: objective=%q task=%q", objective.Source.Path, task.Source.Path)
+	}
+	if objective.Source.ProjectRoot != root || task.Source.ProjectRoot != root {
+		t.Fatalf("source project roots = %q/%q, want %q", objective.Source.ProjectRoot, task.Source.ProjectRoot, root)
+	}
+
+	otherWorkingDir := t.TempDir()
+	t.Chdir(otherWorkingDir)
+
+	objective.Status = ColumnInProgress
+	if err := WriteObjectiveV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveV2() from unrelated cwd error = %v", err)
+	}
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() from unrelated cwd error = %v", err)
+	}
+
+	objectiveBytes, err := os.ReadFile(filepath.Join(root, objective.Source.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(objectiveBytes), "status: in_progress") {
+		t.Errorf("objective file at project root was not updated: %s", objectiveBytes)
+	}
+	taskBytes, err := os.ReadFile(filepath.Join(root, task.Source.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(taskBytes), "status: in_progress") || !strings.Contains(string(taskBytes), "stage: build") {
+		t.Errorf("task file at project root was not updated: %s", taskBytes)
+	}
+}
+
+func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
+	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+
+	_, tasks, err := DiscoverV2Records(root)
+	if err != nil {
+		t.Fatalf("DiscoverV2Records() error = %v", err)
+	}
+	task := tasks["T001"]
+	if task == nil {
+		t.Fatal("DiscoverV2Records() did not return T001")
+	}
+
+	path := filepath.Join(root, task.Source.Path)
+	userEdit := "---\nid: T001\ntitle: \"First task\"\nobjective: O001\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
+	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+	err = WriteTaskV2(task)
+	if !errors.Is(err, ErrV2SourceConflict) {
+		t.Fatalf("WriteTaskV2() error = %v, want ErrV2SourceConflict", err)
+	}
+	if !errors.Is(err, ErrMtimeConflict) {
+		t.Fatalf("WriteTaskV2() error = %v, want ErrMtimeConflict compatibility marker", err)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("WriteTaskV2() error = %v, want path %q", err, path)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != userEdit {
+		t.Fatalf("stale write changed user content:\n got: %s\nwant: %s", got, userEdit)
+	}
+}
+
+func TestWriteTaskEvidenceV2_setsAllSubBlocksPreservesUnknownFieldsAndBody(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T020.md")
+	content := `---
+id: T020
+title: "No evidence yet"
+objective: O002
+status: in_progress
+stage: build
+depends_on:
+  - task: T010
+release: v2
+---
+
+# Task
+
+Authored task notes.`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	if task.Evidence != nil {
+		t.Fatalf("Evidence = %+v, want nil before write", task.Evidence)
+	}
+
+	assessedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
+	recordedAt := time.Date(2026, 9, 14, 1, 0, 0, 0, time.UTC)
+	replanAt := time.Date(2026, 9, 14, 2, 0, 0, 0, time.UTC)
+	task.Evidence = &Evidence{
+		LastCheck: "C001",
+		Freshness: &Freshness{
+			State:      FreshnessCurrent,
+			Check:      "C001",
+			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+			AssessedAt: assessedAt,
+			Basis:      "Reviewed diff against AC.",
+		},
+		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+		Exception: &Exception{
+			Requirements: []string{"TEST-08"},
+			Reason:       "Owner accepted known risk.",
+			Owner:        "owner-1",
+			RecordedAt:   recordedAt,
+			Check:        "C001",
+		},
+		Replan: &Replan{
+			Reason:     "Plan needs revisiting.",
+			RecordedBy: Actor{Role: ActorRolePlanner, Session: "sess-2"},
+			RecordedAt: replanAt,
+		},
+	}
+
+	if err := WriteTaskEvidenceV2(task); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	if reparsed.Evidence == nil {
+		t.Fatal("Evidence = nil, want populated evidence")
+	}
+	if reparsed.Evidence.LastCheck != "C001" {
+		t.Errorf("LastCheck = %q, want C001", reparsed.Evidence.LastCheck)
+	}
+	if reparsed.Evidence.Freshness == nil || reparsed.Evidence.Freshness.State != FreshnessCurrent {
+		t.Errorf("Freshness = %+v, want state current", reparsed.Evidence.Freshness)
+	}
+	if reparsed.Evidence.OwnerValidation == nil || !reparsed.Evidence.OwnerValidation.Required {
+		t.Errorf("OwnerValidation = %+v, want required true", reparsed.Evidence.OwnerValidation)
+	}
+	if reparsed.Evidence.OwnerValidation.AcceptedBy != (Actor{Role: ActorRoleOwner, Session: "owner-1"}) {
+		t.Errorf("OwnerValidation.AcceptedBy = %+v, want owner/owner-1", reparsed.Evidence.OwnerValidation.AcceptedBy)
+	}
+	if reparsed.Evidence.Exception == nil || reparsed.Evidence.Exception.Owner != "owner-1" {
+		t.Errorf("Exception = %+v, want owner owner-1", reparsed.Evidence.Exception)
+	}
+	if reparsed.Evidence.Replan == nil || reparsed.Evidence.Replan.Reason != "Plan needs revisiting." {
+		t.Errorf("Replan = %+v, want reason set", reparsed.Evidence.Replan)
+	}
+
+	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
+		t.Errorf("Status/Stage = %q/%q, want in_progress/build preserved", reparsed.Status, reparsed.Stage)
+	}
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T010" {
+		t.Errorf("DependsOn = %v, want [T010] preserved", reparsed.DependsOn)
+	}
+	if reparsed.Release != "v2" {
+		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	}
+	if !strings.Contains(string(result), "Authored task notes.") {
+		t.Error("authored body content not preserved")
+	}
+}
+
+func TestWriteTaskEvidenceV2_removesReplanKeyRatherThanEmptyValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T021.md")
+	content := `---
+id: T021
+title: "Replan flagged"
+objective: O002
+status: in_progress
+stage: build
+last_check: C001
+replan:
+  reason: "Plan needs revisiting."
+  recorded_by:
+    role: planner
+    session: sess-2
+  recorded_at: '2026-09-14T02:00:00Z'
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	if task.Evidence == nil || task.Evidence.Replan == nil {
+		t.Fatalf("Evidence = %+v, want replan present before write", task.Evidence)
+	}
+
+	task.Evidence.Replan = nil
+
+	if err := WriteTaskEvidenceV2(task); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), "replan:") {
+		t.Error("replan key should be removed, not written empty")
+	}
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	if reparsed.Evidence == nil {
+		t.Fatal("Evidence = nil, want last_check preserved")
+	}
+	if reparsed.Evidence.Replan != nil {
+		t.Errorf("Replan = %+v, want nil after clearing", reparsed.Evidence.Replan)
+	}
+	if reparsed.Evidence.LastCheck != "C001" {
+		t.Errorf("LastCheck = %q, want C001 preserved", reparsed.Evidence.LastCheck)
+	}
+}
+
+func TestWriteTaskEvidenceV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T022.md")
+	content := `---
+id: T022
+title: "Fully evidenced task"
+objective: O002
+status: in_progress
+stage: build
+last_check: C001
+freshness:
+  state: current
+  check: C001
+  assessed_by:
+    role: checker
+    session: sess-1
+  assessed_at: '2026-09-14T00:00:00Z'
+  basis: "Reviewed diff against AC."
+owner_validation:
+  required: true
+  accepted_check: C001
+  accepted_by:
+    role: owner
+    session: owner-1
+exception:
+  requirements:
+    - TEST-08
+  reason: "Owner accepted known risk."
+  owner: owner-1
+  recorded_at: '2026-09-14T01:00:00Z'
+  check: C001
+replan:
+  reason: "Plan needs revisiting."
+  recorded_by:
+    role: planner
+    session: sess-2
+  recorded_at: '2026-09-14T02:00:00Z'
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+
+	if err := WriteTaskEvidenceV2(task); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
+func TestWriteTaskEvidenceV2_refusesStaleSourceWithoutOverwritingUserEdit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T023.md")
+	content := `---
+id: T023
+title: "Guarded evidence write"
+objective: O002
+status: planned
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+
+	userEdit := "---\nid: T023\ntitle: \"Guarded evidence write\"\nobjective: O002\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
+	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task.Evidence = &Evidence{LastCheck: "C001"}
+
+	err = WriteTaskEvidenceV2(task)
+	if !errors.Is(err, ErrV2SourceConflict) {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrV2SourceConflict", err)
+	}
+	if !errors.Is(err, ErrMtimeConflict) {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrMtimeConflict compatibility marker", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != userEdit {
+		t.Fatalf("stale write changed user content:\n got: %s\nwant: %s", got, userEdit)
+	}
+}
+
+func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T024.md")
+	content := "---\r\nid: T024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O002\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Evidence = &Evidence{LastCheck: "C001"}
+
+	if err := WriteTaskEvidenceV2(task); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(result), "\n") != strings.Count(string(result), "\r\n") {
+		t.Errorf("result did not preserve CRLF line endings throughout: %q", string(result))
+	}
+	if !strings.Contains(string(result), "Authored notes.") {
+		t.Error("authored body content not preserved across CRLF rewrite")
+	}
+}
+
+func TestWriteTaskEvidenceV2_rejectsMalformedEvidenceLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T025.md")
+	content := `---
+id: T025
+title: "Guarded malformed evidence"
+objective: O002
+status: planned
+---
+
+# Task`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	task.Evidence = &Evidence{
+		Freshness: &Freshness{
+			State:      FreshnessState("bogus"),
+			Check:      "C001",
+			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+			AssessedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+			Basis:      "Reviewed diff against AC.",
+		},
+	}
+
+	err = WriteTaskEvidenceV2(task)
+	if err == nil {
+		t.Fatal("WriteTaskEvidenceV2() expected error for malformed freshness state")
+	}
+	if !errors.Is(err, ErrV2EvidenceMalformed) {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != content {
+		t.Error("file content changed despite validation refusal")
+	}
+}
+
+func TestCreateCheckV2_writesNewFileAllocatesFirstID(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Checks: map[string]*CheckV2{}}
+
+	fields := NewCheckV2{
+		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:    CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Issues:    []string{"I001"},
+		Body:      "\n\n# Check\n\nOutcome notes.\n",
+	}
+
+	check, err := CreateCheckV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateCheckV2() error = %v", err)
+	}
+	if check.ID != "C001" {
+		t.Errorf("ID = %q, want C001", check.ID)
+	}
+
+	path := filepath.Join(root, "checks", "C001.md")
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("checks/C001.md not written: %v", err)
+	}
+	if !strings.Contains(string(result), "Outcome notes.") {
+		t.Error("authored body content not written")
+	}
+
+	reparsed, err := DecodeCheckV2(filepath.Join("checks", "C001.md"), string(result))
+	if err != nil {
+		t.Fatalf("DecodeCheckV2() after create error = %v", err)
+	}
+	if reparsed.Scope.ID != "T001" || reparsed.Result != CheckResultClear {
+		t.Errorf("reparsed = %+v, want scope T001/CLEAR", reparsed)
+	}
+}
+
+func TestCreateCheckV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Checks: map[string]*CheckV2{
+		"C001": {ID: "C001"},
+		"C002": {ID: "C002"},
+	}}
+
+	fields := NewCheckV2{
+		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:    CheckResultNeedsWork,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:      "\n\n# Check\n",
+	}
+
+	check, err := CreateCheckV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateCheckV2() error = %v", err)
+	}
+	if check.ID != "C003" {
+		t.Errorf("ID = %q, want C003 as next unused id", check.ID)
+	}
+}
+
+func TestCreateCheckV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
+	root := t.TempDir()
+	checksDir := filepath.Join(root, "checks")
+	if err := os.MkdirAll(checksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	leftover := "not a check record"
+	if err := os.WriteFile(filepath.Join(checksDir, "C001.md"), []byte(leftover), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	index := &V2Index{Checks: map[string]*CheckV2{}}
+	fields := NewCheckV2{
+		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:    CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:      "\n\n# Check\n",
+	}
+
+	check, err := CreateCheckV2(root, index, fields)
+	if check != nil {
+		t.Errorf("CreateCheckV2() returned %+v, want nil on collision", check)
+	}
+	if !errors.Is(err, ErrV2CheckImmutable) {
+		t.Fatalf("CreateCheckV2() error = %v, want ErrV2CheckImmutable", err)
+	}
+
+	result, err := os.ReadFile(filepath.Join(checksDir, "C001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != leftover {
+		t.Error("existing file at colliding path was modified")
+	}
+}
+
+type fakeV2CheckTempFile struct {
+	path     string
+	contents []byte
+	chmodErr error
+	writeErr error
+	writeN   int
+	syncErr  error
+	closeErr error
+}
+
+func (f *fakeV2CheckTempFile) Name() string { return f.path }
+
+func (f *fakeV2CheckTempFile) Chmod(os.FileMode) error { return f.chmodErr }
+
+func (f *fakeV2CheckTempFile) Write(content []byte) (int, error) {
+	if f.writeErr != nil {
+		return 0, f.writeErr
+	}
+	f.contents = append(f.contents[:0], content...)
+	if f.writeN > 0 && f.writeN < len(content) {
+		return f.writeN, nil
+	}
+	return len(content), nil
+}
+
+func (f *fakeV2CheckTempFile) Sync() error { return f.syncErr }
+
+func (f *fakeV2CheckTempFile) Close() error { return f.closeErr }
+
+type fakeV2CheckFileSystem struct {
+	temp       *fakeV2CheckTempFile
+	mkdirErr   error
+	createErr  error
+	removeErr  error
+	linkErr    error
+	published  map[string][]byte
+	removeCall int
+}
+
+func (f *fakeV2CheckFileSystem) operations() v2CheckFileOperations {
+	return v2CheckFileOperations{
+		mkdirAll: func(string, os.FileMode) error {
+			return f.mkdirErr
+		},
+		createTemp: func(dir, _ string) (v2CheckTempFile, error) {
+			if f.createErr != nil {
+				return nil, f.createErr
+			}
+			if f.temp == nil {
+				f.temp = &fakeV2CheckTempFile{path: filepath.Join(dir, "temp-check")}
+			}
+			return f.temp, nil
+		},
+		remove: func(string) error {
+			f.removeCall++
+			return f.removeErr
+		},
+		link: func(_, path string) error {
+			if f.linkErr != nil {
+				return f.linkErr
+			}
+			if f.published == nil {
+				f.published = map[string][]byte{}
+			}
+			f.published[path] = append([]byte(nil), f.temp.contents...)
+			return nil
+		},
+	}
+}
+
+func TestCreateV2CheckFile_operationFailuresPreserveFinalState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "checks", "C001.md")
+	wantContent := []byte("check content")
+	failure := errors.New("injected failure")
+
+	cases := []struct {
+		name       string
+		configure  func(*fakeV2CheckFileSystem)
+		wantAbsent bool
+		wantError  bool
+		wantErrMsg string
+	}{
+		{name: "directory creation", configure: func(fs *fakeV2CheckFileSystem) { fs.mkdirErr = failure }, wantAbsent: true, wantError: true},
+		{name: "temporary creation", configure: func(fs *fakeV2CheckFileSystem) { fs.createErr = failure }, wantAbsent: true, wantError: true},
+		{name: "permission change", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), chmodErr: failure}
+		}, wantAbsent: true, wantError: true},
+		{name: "write", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), writeErr: failure}
+		}, wantAbsent: true, wantError: true},
+		{name: "short write", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), writeN: 1}
+		}, wantAbsent: true, wantError: true},
+		{name: "sync", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), syncErr: failure}
+		}, wantAbsent: true, wantError: true},
+		{name: "close", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), closeErr: failure}
+		}, wantAbsent: true, wantError: true},
+		{name: "hard-link publication", configure: func(fs *fakeV2CheckFileSystem) { fs.linkErr = failure }, wantAbsent: true, wantError: true},
+		{name: "cleanup after successful publication", configure: func(fs *fakeV2CheckFileSystem) { fs.removeErr = failure }, wantAbsent: false, wantError: true},
+		{name: "primary and cleanup failure", configure: func(fs *fakeV2CheckFileSystem) {
+			fs.temp = &fakeV2CheckTempFile{path: filepath.Join(filepath.Dir(path), "temp-check"), writeErr: failure}
+			fs.removeErr = errors.New("cleanup failure")
+		}, wantAbsent: true, wantError: true, wantErrMsg: "cleanup failure"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := &fakeV2CheckFileSystem{}
+			tc.configure(fs)
+			previous := v2CheckFileOps
+			v2CheckFileOps = fs.operations()
+			t.Cleanup(func() { v2CheckFileOps = previous })
+
+			err := createV2CheckFile(path, wantContent)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("createV2CheckFile() error = %v, wantError = %v", err, tc.wantError)
+			}
+			if tc.wantErrMsg != "" && !strings.Contains(err.Error(), tc.wantErrMsg) {
+				t.Fatalf("createV2CheckFile() error = %v, want it to include %q", err, tc.wantErrMsg)
+			}
+			published, ok := fs.published[path]
+			if tc.wantAbsent {
+				if ok {
+					t.Fatalf("published final file = %q, want final path absent", published)
+				}
+				return
+			}
+			if !ok || string(published) != string(wantContent) {
+				t.Fatalf("published final file = %q, want byte-identical %q", published, wantContent)
+			}
+			if fs.removeCall != 1 {
+				t.Errorf("cleanup calls = %d, want 1", fs.removeCall)
+			}
+		})
+	}
+}
+
+func TestCreateCheckV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Checks: map[string]*CheckV2{}}
+
+	fields := NewCheckV2{
+		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:    CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: ""}, // missing required session
+		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:      "\n\n# Check\n",
+	}
+
+	check, err := CreateCheckV2(root, index, fields)
+	if err == nil {
+		t.Fatal("CreateCheckV2() expected error for missing checked_by.session")
+	}
+	if check != nil {
+		t.Errorf("CreateCheckV2() returned %+v, want nil on validation failure", check)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(root, "checks", "C001.md")); !os.IsNotExist(statErr) {
+		t.Errorf("checks/C001.md exists after rejected record, statErr = %v", statErr)
 	}
 }
 

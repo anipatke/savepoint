@@ -34,6 +34,7 @@ func TestDiagnosticReport_FormatContainsSections(t *testing.T) {
 	sections := []string{
 		"Config Check",
 		"Router Check",
+		"Project Check",
 		"Structure Check",
 		"Dependency Check",
 		"Audit State Check",

@@ -14,9 +14,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: epic-design
 release: v2
-epic: E42-project-schema-identity
-task: none
-next_action: Design E42-project-schema-identity.
+epic: E44
+next_action: Design E44-issues-objective-checks.
 ```
 
 ## State → action

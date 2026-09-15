@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,6 +88,137 @@ type Problem struct {
 	Line    int
 	Message string
 	Repair  string
+}
+
+// CheckProject validates schema, record, identity, path, and reference-graph
+// diagnostics by loading root through the shared data-layer project loader
+// (data.LoadProject) rather than re-deriving V2 schema, record, or graph
+// rules here. A V1 project (no explicit schema_version, or an absent
+// config.yml) reports no problems from this check; V1 structural diagnostics
+// remain CheckStructure's job. A V2 project's single structural diagnostic —
+// a malformed/unsupported schema_version, an invalid or duplicate record ID,
+// a path/record mismatch, an unsafe path, missing ownership, a missing
+// dependency target, a self-dependency, or a reference cycle — is reported
+// with a stable diagnostic name plus the record path and identity context
+// data.LoadProject's error already carries. Doctor only reads: LoadProject
+// never writes to the project.
+func CheckProject(root string) []Problem {
+	project, err := data.LoadProject(root)
+	if err != nil {
+		name := v2DiagnosticName(err)
+		return []Problem{{
+			File:    root,
+			Message: fmt.Sprintf("[%s] %v", name, err),
+			Repair:  V2ProblemRepair(name),
+		}}
+	}
+	if project.SchemaVersion == data.SchemaVersionV2 {
+		return v2ConsistencyProblems(project.V2)
+	}
+	return nil
+}
+
+// v2ConsistencyProblems reports every evaluation-level inconsistency
+// data.InspectTaskConsistency finds in a successfully loaded V2 index —
+// mismatches between a Task's recorded status and its recorded evidence that
+// do not fail the load itself. Each Problem's File names the Task's source
+// record so the reported record path and identity context point straight at
+// the file to review; doctor only reports these, it never repairs or
+// rewrites a Check, an evidence field, or a record status.
+func v2ConsistencyProblems(index *data.V2Index) []Problem {
+	var problems []Problem
+	for _, diagnostic := range data.InspectTaskConsistency(index) {
+		name := v2ConsistencyDiagnosticName(diagnostic.Kind)
+		file := v2TaskSourcePath(index, diagnostic.Task)
+		problems = append(problems, Problem{
+			File:    file,
+			Message: fmt.Sprintf("[%s] task %s: %s", name, diagnostic.Task, diagnostic.Detail),
+			Repair:  V2ConsistencyRepair(name),
+		})
+	}
+	return problems
+}
+
+// v2TaskSourcePath looks up taskID's source record path in index, falling
+// back to the ID itself if the task is somehow absent — InspectTaskConsistency
+// only ever names Tasks already present in the same index.
+func v2TaskSourcePath(index *data.V2Index, taskID string) string {
+	if task, ok := index.Tasks[taskID]; ok {
+		return task.Source.Path
+	}
+	return taskID
+}
+
+// v2ConsistencyDiagnosticName maps a data.ConsistencyDiagnosticKind
+// (InspectTaskConsistency's result) to the stable diagnostic name doctor
+// reports it under. Every kind InspectTaskConsistency defines has a name
+// here so a project's diagnostic name never changes between doctor runs.
+func v2ConsistencyDiagnosticName(kind data.ConsistencyDiagnosticKind) string {
+	switch kind {
+	case data.ConsistencyDoneWithoutClearance:
+		return "v2-done-without-clearance"
+	case data.ConsistencyAcceptanceSuperseded:
+		return "v2-acceptance-superseded"
+	case data.ConsistencyEvidenceContradictsStatus:
+		return "v2-evidence-contradicts-status"
+	default:
+		return "v2-evidence-inconsistency"
+	}
+}
+
+// v2DiagnosticName maps a data.LoadProject error to the stable diagnostic
+// name doctor reports it under. Every V2 structural sentinel in
+// internal/data/errors.go has a name here so a project's diagnostic name
+// never changes between doctor runs.
+func v2DiagnosticName(err error) string {
+	switch {
+	case errors.Is(err, data.ErrMalformedSchemaVersion):
+		return "schema-version-malformed"
+	case errors.Is(err, data.ErrUnsupportedSchemaVersion):
+		return "schema-version-unsupported"
+	case errors.Is(err, data.ErrV2MissingField):
+		return "v2-missing-field"
+	case errors.Is(err, data.ErrV2InvalidID):
+		return "v2-invalid-id"
+	case errors.Is(err, data.ErrV2InvalidOwnership):
+		return "v2-invalid-ownership"
+	case errors.Is(err, data.ErrV2InvalidLifecycle):
+		return "v2-invalid-lifecycle"
+	case errors.Is(err, data.ErrV2InvalidDependency):
+		return "v2-invalid-dependency"
+	case errors.Is(err, data.ErrV2DuplicateID):
+		return "v2-duplicate-id"
+	case errors.Is(err, data.ErrV2PathMismatch):
+		return "v2-path-mismatch"
+	case errors.Is(err, data.ErrV2UnsafePath):
+		return "v2-unsafe-path"
+	case errors.Is(err, data.ErrV2MissingOwner):
+		return "v2-missing-owner"
+	case errors.Is(err, data.ErrV2MissingDependencyTarget):
+		return "v2-missing-dependency-target"
+	case errors.Is(err, data.ErrV2SelfDependency):
+		return "v2-self-dependency"
+	case errors.Is(err, data.ErrV2DependencyCycle):
+		return "v2-dependency-cycle"
+	case errors.Is(err, data.ErrV2Malformed):
+		return "v2-record-malformed"
+	case errors.Is(err, data.ErrV2CheckMalformed):
+		return "v2-check-malformed"
+	case errors.Is(err, data.ErrV2CheckMissingScopeTarget):
+		return "v2-check-missing-scope-target"
+	case errors.Is(err, data.ErrV2CheckMissingReference):
+		return "v2-check-missing-reference"
+	case errors.Is(err, data.ErrV2CheckSupersedesConflict):
+		return "v2-check-supersedes-conflict"
+	case errors.Is(err, data.ErrV2EvidenceMalformed):
+		return "v2-evidence-malformed"
+	case errors.Is(err, data.ErrV2EvidenceMissingReference):
+		return "v2-evidence-missing-reference"
+	case errors.Is(err, data.ErrV2CheckImmutable):
+		return "v2-check-immutable"
+	default:
+		return "v2-project-error"
+	}
 }
 
 func (p Problem) Error() string {

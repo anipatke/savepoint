@@ -284,6 +284,36 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	}
 }
 
+// TestMigrationSourceBasicLoadProjectDispatch proves the E42 schema-dispatch
+// boundary (LoadProject) reaches the frozen v1-basic fixture through
+// transitional V1 dispatch exactly as calling Discover directly would, and
+// that doing so never touches the frozen source bytes.
+func TestMigrationSourceBasicLoadProjectDispatch(t *testing.T) {
+	const fixture = "v1-basic"
+	savepointRoot := filepath.Join(migrationFixtureDir(fixture), "project", ".savepoint")
+
+	project, err := LoadProject(savepointRoot)
+	if err != nil {
+		t.Fatalf("LoadProject() error = %v", err)
+	}
+	if project.SchemaVersion != SchemaVersionV1 {
+		t.Fatalf("LoadProject() SchemaVersion = %v, want SchemaVersionV1", project.SchemaVersion)
+	}
+	if project.V1 == nil {
+		t.Fatal("LoadProject() V1 discover adapter = nil, want non-nil for transitional V1 dispatch")
+	}
+
+	epics, err := project.V1.ListEpics(savepointRoot, "v1")
+	if err != nil {
+		t.Fatalf("project.V1.ListEpics() error = %v", err)
+	}
+	if len(epics) != 1 || epics[0].ID != "E01-example" {
+		t.Fatalf("project.V1.ListEpics() = %v, want [E01-example]", epics)
+	}
+
+	assertFixtureBytesMatchManifest(t, fixture)
+}
+
 func TestMigrationSourceBasicFailures(t *testing.T) {
 	const fixture = "v1-basic"
 	const relT1 = "project/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md"

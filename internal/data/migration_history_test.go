@@ -351,6 +351,36 @@ func TestMigrationHistoryRawAndNormalized(t *testing.T) {
 // TestMigrationHistoryFailures exercises the reader's behavior on malformed
 // and unresolved-reference variants using temporary copies only; the frozen
 // fixture bytes must be unchanged before and after.
+// TestMigrationHistoryLoadProjectDispatch proves the E42 schema-dispatch
+// boundary (LoadProject) reaches the frozen v1-history fixture, with its two
+// releases, through transitional V1 dispatch, and that doing so never
+// touches the frozen source bytes.
+func TestMigrationHistoryLoadProjectDispatch(t *testing.T) {
+	const fixture = "v1-history"
+	savepointRoot := filepath.Join(migrationFixtureDir(fixture), "project", ".savepoint")
+
+	project, err := LoadProject(savepointRoot)
+	if err != nil {
+		t.Fatalf("LoadProject() error = %v", err)
+	}
+	if project.SchemaVersion != SchemaVersionV1 {
+		t.Fatalf("LoadProject() SchemaVersion = %v, want SchemaVersionV1", project.SchemaVersion)
+	}
+	if project.V1 == nil {
+		t.Fatal("LoadProject() V1 discover adapter = nil, want non-nil for transitional V1 dispatch")
+	}
+
+	releases, err := project.V1.ListReleases(savepointRoot)
+	if err != nil {
+		t.Fatalf("project.V1.ListReleases() error = %v", err)
+	}
+	if len(releases) != 2 || releases[0].ID != "v1" || releases[1].ID != "v1.1" {
+		t.Fatalf("project.V1.ListReleases() = %v, want [v1 v1.1]", releases)
+	}
+
+	assertFixtureBytesMatchManifest(t, fixture)
+}
+
 func TestMigrationHistoryFailures(t *testing.T) {
 	parser := NewParser()
 

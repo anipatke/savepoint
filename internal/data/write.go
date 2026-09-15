@@ -1,9 +1,11 @@
 package data
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -233,13 +235,521 @@ func setMappingField(mapping *yaml.Node, key, value string) {
 	mapping.Content = append(mapping.Content, keyNode, valNode)
 }
 
-func removeMappingField(mapping *yaml.Node, key string) {
+func removeMappingField(mapping *yaml.Node, key string) bool {
 	for i := 0; i < len(mapping.Content)-1; i += 2 {
 		if mapping.Content[i].Value == key {
 			mapping.Content = append(mapping.Content[:i], mapping.Content[i+2:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func mappingFieldValue(mapping *yaml.Node, key string) (string, bool) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1].Value, true
+		}
+	}
+	return "", false
+}
+
+// v2FieldPatch is one owned frontmatter field a managed V2 write may change.
+// Value patches a scalar field. Node patches a nested mapping field (an
+// already-encoded sub-block, such as evidence's freshness or
+// owner_validation) and takes precedence over Value when set. Remove deletes
+// the key entirely — used for Task stage, which must not appear at all
+// outside status: in_progress, and for absent evidence sub-blocks — rather
+// than writing an empty value.
+type v2FieldPatch struct {
+	Key    string
+	Value  string
+	Node   *yaml.Node
+	Remove bool
+}
+
+// patchV2Mapping applies patches to mapping and reports whether any patch
+// actually changed an existing value or key presence. It only ever touches
+// the keys named by patches via setMappingField/setMappingNode/
+// removeMappingField, so every other mapping entry passes through untouched.
+func patchV2Mapping(mapping *yaml.Node, patches []v2FieldPatch) bool {
+	changed := false
+	for _, patch := range patches {
+		if patch.Remove {
+			if removeMappingField(mapping, patch.Key) {
+				changed = true
+			}
+			continue
+		}
+		if patch.Node != nil {
+			if existing, ok := mappingFieldNode(mapping, patch.Key); ok && nodesEqualByEncoding(existing, patch.Node) {
+				continue
+			}
+			setMappingNode(mapping, patch.Key, patch.Node)
+			changed = true
+			continue
+		}
+		if value, ok := mappingFieldValue(mapping, patch.Key); ok && value == patch.Value {
+			continue
+		}
+		setMappingField(mapping, patch.Key, patch.Value)
+		changed = true
+	}
+	return changed
+}
+
+// setMappingNode sets key's value to value, a fully-formed nested node, in
+// place — used for structured evidence sub-blocks that setMappingField's
+// scalar-only assignment cannot express. It replaces an existing value node
+// wholesale rather than merging into it, matching the "patch only the named
+// nested fields" contract: a sub-block is written or removed as a whole.
+func setMappingNode(mapping *yaml.Node, key string, value *yaml.Node) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		if mapping.Content[i].Value == key {
+			mapping.Content[i+1] = value
 			return
 		}
 	}
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: key, Tag: "!!str"}
+	mapping.Content = append(mapping.Content, keyNode, value)
+}
+
+func mappingFieldNode(mapping *yaml.Node, key string) (*yaml.Node, bool) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1], true
+		}
+	}
+	return nil, false
+}
+
+// nodesEqualByEncoding reports whether a and b marshal to identical YAML
+// once source formatting is normalized away, which is how patchV2Mapping
+// detects a nested sub-block patch that changes nothing. A node read from
+// disk keeps the quote/flow style its author wrote (e.g. single-quoted
+// timestamps); a freshly encoded replacement node never carries that style.
+// Comparing raw marshal output would report a style difference as a content
+// change, so both sides are style-normalized first and marshalled again,
+// which still quotes a value exactly when its tag requires it.
+func nodesEqualByEncoding(a, b *yaml.Node) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	encodedA, errA := yaml.Marshal(styleNormalizedV2Node(a))
+	encodedB, errB := yaml.Marshal(styleNormalizedV2Node(b))
+	if errA != nil || errB != nil {
+		return false
+	}
+	return string(encodedA) == string(encodedB)
+}
+
+// styleNormalizedV2Node deep-copies n with every node's Style cleared so
+// nodesEqualByEncoding compares semantic YAML content instead of incidental
+// source formatting.
+func styleNormalizedV2Node(n *yaml.Node) *yaml.Node {
+	clone := cloneYAMLNode(n)
+	clearV2NodeStyle(clone)
+	return clone
+}
+
+func clearV2NodeStyle(n *yaml.Node) {
+	if n == nil {
+		return
+	}
+	n.Style = 0
+	for _, child := range n.Content {
+		clearV2NodeStyle(child)
+	}
+}
+
+// encodeV2Node encodes v (a frontmatter-shaped struct) into a standalone
+// yaml.Node, giving a managed V2 write a nested sub-block value it can hand
+// to setMappingNode.
+func encodeV2Node(v any) (*yaml.Node, error) {
+	var node yaml.Node
+	if err := node.Encode(v); err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
+// cloneYAMLNode deep-copies a yaml.Node so a managed V2 write can patch and
+// marshal a scratch copy of a record's retained frontmatter without ever
+// mutating the loaded record in memory, even when validation later refuses
+// the patched content.
+func cloneYAMLNode(n *yaml.Node) *yaml.Node {
+	if n == nil {
+		return nil
+	}
+	clone := *n
+	if n.Content != nil {
+		clone.Content = make([]*yaml.Node, len(n.Content))
+		for i, child := range n.Content {
+			clone.Content[i] = cloneYAMLNode(child)
+		}
+	}
+	return &clone
+}
+
+func resolveV2SourcePath(source V2SourceDocument) (string, error) {
+	if source.Path == "" {
+		return "", fmt.Errorf("%w: empty V2 source path", ErrV2UnsafePath)
+	}
+	if filepath.IsAbs(source.Path) || source.ProjectRoot == "" {
+		return filepath.Clean(source.Path), nil
+	}
+
+	root, err := filepath.Abs(source.ProjectRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve V2 project root %q: %w", source.ProjectRoot, err)
+	}
+	root = filepath.Clean(root)
+	path := filepath.Clean(filepath.Join(root, source.Path))
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", fmt.Errorf("resolve V2 source %s: %w", source.Path, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%w: %s escapes project root", ErrV2UnsafePath, source.Path)
+	}
+	return path, nil
+}
+
+func checkV2SourceFresh(source V2SourceDocument, path string) (os.FileInfo, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%w: %s is a symlink", ErrV2UnsafePath, path)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("write %s: target is a directory", path)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	if source.contentHashSet && sha256.Sum256(content) != source.contentHash {
+		return nil, fmt.Errorf("%w: %w: %s", ErrV2SourceConflict, ErrMtimeConflict, path)
+	}
+	return info, nil
+}
+
+// replaceV2File writes content to a same-directory temporary file and
+// replaces path only after the complete temporary file has been flushed and
+// closed. The finalCheck runs after the temp file is durable and immediately
+// before the rename, closing the load/replace freshness window as far as the
+// platform's rename primitive permits.
+func replaceV2File(path string, content []byte, mode os.FileMode, finalCheck func() error) (retErr error) {
+	temp, err := os.CreateTemp(filepath.Dir(path), ".savepoint-v2-write-*")
+	if err != nil {
+		return fmt.Errorf("write %s: create temporary file: %w", path, err)
+	}
+	tempPath := temp.Name()
+	defer func() {
+		if tempPath == "" {
+			return
+		}
+		if cleanupErr := os.Remove(tempPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			if retErr != nil {
+				retErr = fmt.Errorf("%w (cleanup %s: %v)", retErr, tempPath, cleanupErr)
+			} else {
+				retErr = fmt.Errorf("cleanup %s: %w", tempPath, cleanupErr)
+			}
+		}
+	}()
+
+	if err := temp.Chmod(mode.Perm()); err != nil {
+		closeErr := temp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("write %s: set temporary permissions: %w (close: %v)", path, err, closeErr)
+		}
+		return fmt.Errorf("write %s: set temporary permissions: %w", path, err)
+	}
+
+	written, writeErr := temp.Write(content)
+	if writeErr != nil || written != len(content) {
+		closeErr := temp.Close()
+		if writeErr == nil {
+			writeErr = fmt.Errorf("short write: wrote %d of %d bytes", written, len(content))
+		}
+		if closeErr != nil {
+			return fmt.Errorf("write %s: %w (close: %v)", path, writeErr, closeErr)
+		}
+		return fmt.Errorf("write %s: %w", path, writeErr)
+	}
+
+	if err := temp.Sync(); err != nil {
+		closeErr := temp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("write %s: flush temporary file: %w (close: %v)", path, err, closeErr)
+		}
+		return fmt.Errorf("write %s: flush temporary file: %w", path, err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("write %s: close temporary file: %w", path, err)
+	}
+
+	if finalCheck != nil {
+		if err := finalCheck(); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("write %s: replace file: %w", path, err)
+	}
+	tempPath = ""
+	return nil
+}
+
+// writeV2Record is the shared no-op detection, preservation, and
+// validate-before-replace boundary behind WriteObjectiveV2 and WriteTaskV2.
+// Patches apply to a clone of source's retained document, so a validation
+// failure never mutates the caller's loaded record, and the file is left
+// completely untouched — no marshal, no write, no modified-time change —
+// when no patch changes an existing value.
+func writeV2Record(source *V2SourceDocument, patches []v2FieldPatch, validate func(content string) error) error {
+	if source == nil {
+		return fmt.Errorf("write V2 record: nil source")
+	}
+	path, err := resolveV2SourcePath(*source)
+	if err != nil {
+		return err
+	}
+
+	cloned := cloneYAMLNode(&source.Frontmatter)
+	if cloned == nil || cloned.Kind != yaml.DocumentNode || len(cloned.Content) == 0 {
+		return fmt.Errorf("%s: unexpected yaml structure", path)
+	}
+
+	mapping := cloned.Content[0]
+	if mapping.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s: frontmatter is not a mapping", path)
+	}
+
+	if !patchV2Mapping(mapping, patches) {
+		return nil
+	}
+
+	out, err := yaml.Marshal(cloned)
+	if err != nil {
+		return fmt.Errorf("%s: marshal yaml: %w", path, err)
+	}
+
+	newContent := "---\n" + strings.TrimSpace(string(out)) + "\n---" + source.Body
+	if source.CRLF {
+		newContent = strings.ReplaceAll(newContent, "\n", "\r\n")
+	}
+
+	if err := validate(newContent); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+
+	info, err := checkV2SourceFresh(*source, path)
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm()&0222 == 0 {
+		return fmt.Errorf("write %s: %w", path, os.ErrPermission)
+	}
+	if err := replaceV2File(path, []byte(newContent), info.Mode(), func() error {
+		latest, err := checkV2SourceFresh(*source, path)
+		if err != nil {
+			return err
+		}
+		if latest.Mode().Perm()&0222 == 0 {
+			return fmt.Errorf("write %s: %w", path, os.ErrPermission)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Keep a successfully managed record usable for another write in the
+	// same process. Failed validation, freshness checks, and replacement leave
+	// the caller's retained document untouched.
+	source.Frontmatter = *cloned
+	source.contentHash = sha256.Sum256([]byte(newContent))
+	source.contentHashSet = true
+	return nil
+}
+
+// WriteObjectiveV2 patches only the status field of a V2 Objective record's
+// frontmatter to match objective.Status, preserving every other YAML
+// key/value and the authored Markdown body unchanged. The patched content is
+// validated as a decodable ObjectiveV2 before any file is replaced, so a
+// malformed or unsupported status is refused and the file is left
+// untouched. Writing the status the file already has is a no-op.
+func WriteObjectiveV2(objective *ObjectiveV2) error {
+	return writeV2Record(&objective.Source, []v2FieldPatch{
+		{Key: "status", Value: string(objective.Status)},
+	}, func(content string) error {
+		_, err := DecodeObjectiveV2(objective.Source.Path, content)
+		return err
+	})
+}
+
+// WriteTaskV2 patches only the status and stage fields of a V2 Task record's
+// frontmatter to match task.Status and task.Stage, preserving every other
+// YAML key/value (including depends_on and unknown fields) and the authored
+// Markdown body unchanged. An empty task.Stage removes the stage key rather
+// than writing it empty, matching the V2 rule that stage only applies to
+// status: in_progress. The patched content is validated as a decodable
+// TaskV2 before any file is replaced, so an unsafe or malformed lifecycle
+// value is refused and the file is left untouched.
+func WriteTaskV2(task *TaskV2) error {
+	patches := []v2FieldPatch{
+		{Key: "status", Value: string(task.Status)},
+	}
+	if task.Stage == "" {
+		patches = append(patches, v2FieldPatch{Key: "stage", Remove: true})
+	} else {
+		patches = append(patches, v2FieldPatch{Key: "stage", Value: string(task.Stage)})
+	}
+
+	return writeV2Record(&task.Source, patches, func(content string) error {
+		_, err := DecodeTaskV2(task.Source.Path, content)
+		return err
+	})
+}
+
+// WriteTaskEvidenceV2 patches only the evidence fields — last_check,
+// freshness, owner_validation, exception, and replan — of a V2 Task
+// record's frontmatter to match task.Evidence, preserving every other YAML
+// key/value (including status, stage, depends_on, and unknown fields) and
+// the authored Markdown body unchanged. A nil Evidence, or a nil sub-block
+// within it, removes that key rather than writing an empty value — clearing
+// a replan flag goes through this path. The patched content is validated as
+// a decodable TaskV2 before any file is replaced, so a malformed evidence
+// value is refused and the file is left untouched, and writing values the
+// record already has is a no-op.
+func WriteTaskEvidenceV2(task *TaskV2) error {
+	patches, err := taskEvidencePatches(task.Evidence)
+	if err != nil {
+		return err
+	}
+
+	return writeV2Record(&task.Source, patches, func(content string) error {
+		_, err := DecodeTaskV2(task.Source.Path, content)
+		return err
+	})
+}
+
+func taskEvidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
+	var lastCheck *string
+	var freshness *Freshness
+	var ownerValidation *OwnerValidation
+	var exception *Exception
+	var replan *Replan
+	if evidence != nil {
+		if evidence.LastCheck != "" {
+			lastCheck = &evidence.LastCheck
+		}
+		freshness = evidence.Freshness
+		ownerValidation = evidence.OwnerValidation
+		exception = evidence.Exception
+		replan = evidence.Replan
+	}
+
+	patches := []v2FieldPatch{lastCheckV2Patch(lastCheck)}
+
+	freshnessPatch, err := freshnessV2Patch(freshness)
+	if err != nil {
+		return nil, err
+	}
+	ownerValidationPatch, err := ownerValidationV2Patch(ownerValidation)
+	if err != nil {
+		return nil, err
+	}
+	exceptionPatch, err := exceptionV2Patch(exception)
+	if err != nil {
+		return nil, err
+	}
+	replanPatch, err := replanV2Patch(replan)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(patches, freshnessPatch, ownerValidationPatch, exceptionPatch, replanPatch), nil
+}
+
+func lastCheckV2Patch(lastCheck *string) v2FieldPatch {
+	if lastCheck == nil {
+		return v2FieldPatch{Key: "last_check", Remove: true}
+	}
+	return v2FieldPatch{Key: "last_check", Value: *lastCheck}
+}
+
+func freshnessV2Patch(freshness *Freshness) (v2FieldPatch, error) {
+	if freshness == nil {
+		return v2FieldPatch{Key: "freshness", Remove: true}, nil
+	}
+	node, err := encodeV2Node(freshnessV2Frontmatter{
+		State:      string(freshness.State),
+		Check:      freshness.Check,
+		AssessedBy: evidenceActorFrontmatter{Role: string(freshness.AssessedBy.Role), Session: freshness.AssessedBy.Session},
+		AssessedAt: freshness.AssessedAt.Format(time.RFC3339),
+		Basis:      freshness.Basis,
+	})
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode freshness evidence: %w", err)
+	}
+	return v2FieldPatch{Key: "freshness", Node: node}, nil
+}
+
+func ownerValidationV2Patch(ownerValidation *OwnerValidation) (v2FieldPatch, error) {
+	if ownerValidation == nil {
+		return v2FieldPatch{Key: "owner_validation", Remove: true}, nil
+	}
+	raw := ownerValidationV2Frontmatter{
+		Required:      ownerValidation.Required,
+		AcceptedCheck: ownerValidation.AcceptedCheck,
+	}
+	if ownerValidation.AcceptedBy.Role != "" || ownerValidation.AcceptedBy.Session != "" {
+		raw.AcceptedBy = &evidenceActorFrontmatter{
+			Role:    string(ownerValidation.AcceptedBy.Role),
+			Session: ownerValidation.AcceptedBy.Session,
+		}
+	}
+	node, err := encodeV2Node(raw)
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode owner_validation evidence: %w", err)
+	}
+	return v2FieldPatch{Key: "owner_validation", Node: node}, nil
+}
+
+func exceptionV2Patch(exception *Exception) (v2FieldPatch, error) {
+	if exception == nil {
+		return v2FieldPatch{Key: "exception", Remove: true}, nil
+	}
+	node, err := encodeV2Node(exceptionV2Frontmatter{
+		Requirements: exception.Requirements,
+		Reason:       exception.Reason,
+		Owner:        exception.Owner,
+		RecordedAt:   exception.RecordedAt.Format(time.RFC3339),
+		Check:        exception.Check,
+	})
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode exception evidence: %w", err)
+	}
+	return v2FieldPatch{Key: "exception", Node: node}, nil
+}
+
+func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
+	if replan == nil {
+		return v2FieldPatch{Key: "replan", Remove: true}, nil
+	}
+	node, err := encodeV2Node(replanV2Frontmatter{
+		Reason:     replan.Reason,
+		RecordedBy: evidenceActorFrontmatter{Role: string(replan.RecordedBy.Role), Session: replan.RecordedBy.Session},
+		RecordedAt: replan.RecordedAt.Format(time.RFC3339),
+	})
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode replan evidence: %w", err)
+	}
+	return v2FieldPatch{Key: "replan", Node: node}, nil
 }
 
 func WriteRouterState(root string, state *RouterState, expectedMtime time.Time) error {
@@ -284,4 +794,190 @@ func WriteRouterState(root string, state *RouterState, expectedMtime time.Time) 
 	newContent := normalized[:yamlStart] + "\n" + strings.TrimSpace(string(out)) + "\n" + normalized[yamlStart+yamlEnd:]
 
 	return os.WriteFile(path, []byte(newContent), 0644)
+}
+
+// NewCheckV2 is the caller-supplied content for a Check creation: every
+// field CreateCheckV2 needs except the ID and Source, which it derives
+// itself — the ID from next-unused allocation over index, and Source from
+// the file it writes. Body is the exact Markdown appended after the
+// frontmatter delimiter, in the same form V2SourceDocument.Body holds it
+// (including its leading newline).
+type NewCheckV2 struct {
+	Scope      CheckScope
+	Result     CheckResult
+	CheckedBy  Actor
+	CheckedAt  time.Time
+	Reviewed   *ReviewedBasis
+	Issues     []string
+	Supersedes string
+	Body       string
+}
+
+// CreateCheckV2 allocates the next unused Check ID over index, marshals a
+// new Check record from fields, and writes it create-only to
+// root/checks/{id}.md. Checks are immutable once written: CreateCheckV2
+// never rewrites or deletes an existing file, and refuses an ID collision
+// with ErrV2CheckImmutable rather than overwriting it. The marshalled
+// content is validated as a decodable CheckV2 before the file is created, so
+// a rejected record leaves no file behind.
+func CreateCheckV2(root string, index *V2Index, fields NewCheckV2) (*CheckV2, error) {
+	id := nextV2CheckID(index)
+
+	raw := checkV2Frontmatter{
+		ID:         id,
+		Scope:      checkScopeFrontmatter{Kind: string(fields.Scope.Kind), ID: fields.Scope.ID},
+		Result:     string(fields.Result),
+		CheckedBy:  checkActorFrontmatter{Role: string(fields.CheckedBy.Role), Session: fields.CheckedBy.Session},
+		CheckedAt:  fields.CheckedAt.Format(time.RFC3339),
+		Issues:     fields.Issues,
+		Supersedes: fields.Supersedes,
+	}
+	if fields.Reviewed != nil {
+		raw.Reviewed = &reviewedFrontmatter{
+			BaseCommit:   fields.Reviewed.BaseCommit,
+			HeadCommit:   fields.Reviewed.HeadCommit,
+			Files:        fields.Reviewed.Files,
+			Dependencies: fields.Reviewed.Dependencies,
+		}
+	}
+
+	out, err := yaml.Marshal(&raw)
+	if err != nil {
+		return nil, fmt.Errorf("create check %s: marshal yaml: %w", id, err)
+	}
+
+	relPath := filepath.Join(v2ChecksDirName, id+".md")
+	content := "---\n" + strings.TrimSpace(string(out)) + "\n---" + fields.Body
+
+	check, err := DecodeCheckV2(relPath, content)
+	if err != nil {
+		return nil, fmt.Errorf("create check %s: %w", id, err)
+	}
+
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("create check %s: resolve project root %q: %w", id, root, err)
+	}
+	path := filepath.Join(rootAbs, relPath)
+
+	if err := createV2CheckFile(path, []byte(content)); err != nil {
+		return nil, err
+	}
+
+	check.Source.ProjectRoot = rootAbs
+	return check, nil
+}
+
+// nextV2CheckID allocates the next unused Check ID from index.Checks: one
+// past the highest numeric ID already present, formatted with at least
+// three digits. It never reuses an ID already present. Migration
+// reservations extend this allocation rule in E45; E43 allocates over active
+// records only.
+func nextV2CheckID(index *V2Index) string {
+	next := 1
+	for id := range index.Checks {
+		n, err := strconv.Atoi(strings.TrimPrefix(id, "C"))
+		if err != nil {
+			continue
+		}
+		if n >= next {
+			next = n + 1
+		}
+	}
+	return fmt.Sprintf("C%03d", next)
+}
+
+// v2CheckTempFile is the small file boundary needed by createV2CheckFile.
+// Keeping the boundary narrower than *os.File makes every create-only
+// operation failure deterministic in tests without changing the production
+// write sequence.
+type v2CheckTempFile interface {
+	Name() string
+	Chmod(os.FileMode) error
+	Write([]byte) (int, error)
+	Sync() error
+	Close() error
+}
+
+type v2CheckFileOperations struct {
+	mkdirAll   func(string, os.FileMode) error
+	createTemp func(string, string) (v2CheckTempFile, error)
+	remove     func(string) error
+	link       func(string, string) error
+}
+
+var v2CheckFileOps = v2CheckFileOperations{
+	mkdirAll: os.MkdirAll,
+	createTemp: func(dir, pattern string) (v2CheckTempFile, error) {
+		return os.CreateTemp(dir, pattern)
+	},
+	remove: os.Remove,
+	link:   os.Link,
+}
+
+// createV2CheckFile writes content to path create-only: it fully writes and
+// syncs a same-directory temporary file, then hard-links it into place so an
+// existing file at path is never rewritten, truncated, or replaced —
+// os.Rename would silently overwrite, which immutability cannot allow.
+// A collision at path is reported as ErrV2CheckImmutable. The operation
+// boundary is injectable only for deterministic tests; production defaults
+// remain the standard filesystem calls above.
+func createV2CheckFile(path string, content []byte) (retErr error) {
+	ops := v2CheckFileOps
+	dir := filepath.Dir(path)
+	if err := ops.mkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+
+	temp, err := ops.createTemp(dir, ".savepoint-v2-check-*")
+	if err != nil {
+		return fmt.Errorf("create %s: create temporary file: %w", path, err)
+	}
+	tempPath := temp.Name()
+	defer func() {
+		if removeErr := ops.remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			if retErr != nil {
+				retErr = fmt.Errorf("%w (cleanup %s: %v)", retErr, tempPath, removeErr)
+			} else {
+				retErr = fmt.Errorf("cleanup %s: %w", tempPath, removeErr)
+			}
+		}
+	}()
+
+	if err := temp.Chmod(0644); err != nil {
+		closeErr := temp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("create %s: set temporary permissions: %w (close: %v)", path, err, closeErr)
+		}
+		return fmt.Errorf("create %s: set temporary permissions: %w", path, err)
+	}
+	written, writeErr := temp.Write(content)
+	if writeErr != nil || written != len(content) {
+		closeErr := temp.Close()
+		if writeErr == nil {
+			writeErr = fmt.Errorf("short write: wrote %d of %d bytes", written, len(content))
+		}
+		if closeErr != nil {
+			return fmt.Errorf("create %s: %w (close: %v)", path, writeErr, closeErr)
+		}
+		return fmt.Errorf("create %s: %w", path, writeErr)
+	}
+	if err := temp.Sync(); err != nil {
+		closeErr := temp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("create %s: flush temporary file: %w (close: %v)", path, err, closeErr)
+		}
+		return fmt.Errorf("create %s: flush temporary file: %w", path, err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("create %s: close temporary file: %w", path, err)
+	}
+
+	if err := ops.link(tempPath, path); err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("%w: %s", ErrV2CheckImmutable, path)
+		}
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"strings"
@@ -174,6 +175,55 @@ func extractChecklistItems(content, heading string) []CheckItem {
 		}
 	}
 	return items
+}
+
+// V2SourceDocument couples a V2 record's project-relative path with its raw
+// frontmatter YAML node and Markdown body. Strict V2 decoders project typed
+// fields from Frontmatter via Node.Decode while retaining the document a
+// later preserving rewrite needs, instead of going through the healing
+// map[string]any path V1 parsing uses.
+type V2SourceDocument struct {
+	// Path is retained as the project-relative source path when the record
+	// comes from discovery. ProjectRoot carries the resolution context for a
+	// later managed write, so callers do not need to keep the same cwd.
+	Path        string
+	ProjectRoot string
+	Frontmatter yaml.Node
+	Body        string
+	// CRLF records whether the original source used Windows line endings, so
+	// a managed rewrite can reproduce the same line-ending form instead of
+	// silently normalizing it to LF.
+	CRLF bool
+
+	// contentHash is the load-time freshness token. It is deliberately based
+	// on the exact source bytes, rather than only mtime, because filesystems
+	// may have coarse timestamp resolution and editors may preserve mtimes.
+	contentHash    [sha256.Size]byte
+	contentHashSet bool
+}
+
+// ParseV2Document splits content into its frontmatter YAML node and body,
+// giving schema-specific V2 decoders a raw projection boundary distinct from
+// the V1 struct-tag decode path in ParseTaskFile.
+func ParseV2Document(path, content string) (V2SourceDocument, error) {
+	fm, body, err := SplitFrontmatterBody(content)
+	if err != nil {
+		return V2SourceDocument{}, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(fm), &node); err != nil {
+		return V2SourceDocument{}, fmt.Errorf("parse error for %s: failed to parse YAML: %w", path, err)
+	}
+
+	return V2SourceDocument{
+		Path:           path,
+		Frontmatter:    node,
+		Body:           body,
+		CRLF:           strings.Contains(content, "\r\n"),
+		contentHash:    sha256.Sum256([]byte(content)),
+		contentHashSet: true,
+	}, nil
 }
 
 type defectFrontmatter struct {

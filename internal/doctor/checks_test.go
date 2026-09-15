@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
@@ -1638,4 +1639,408 @@ func problemsContain(problems []Problem, want string) bool {
 		}
 	}
 	return false
+}
+
+// --- CheckProject ---
+
+func writeV2Objective(t *testing.T, root, dirName, id, title string) string {
+	t.Helper()
+	path := filepath.Join(root, "objectives", dirName, "Objective.md")
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: planned\n---\n\n# "+title+"\n")
+	return path
+}
+
+func writeV2Task(t *testing.T, root, objDirName, fileName, id, title, objective string) string {
+	t.Helper()
+	path := filepath.Join(root, "objectives", objDirName, "tasks", fileName)
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nobjective: "+objective+"\nstatus: planned\n---\n\n# "+title+"\n")
+	return path
+}
+
+func TestCheckProject_v1ProjectNoProblems(t *testing.T) {
+	root := t.TempDir()
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+
+	if problems := CheckProject(root); len(problems) != 0 {
+		t.Fatalf("CheckProject() = %v, want no problems for a V1 project", problems)
+	}
+}
+
+func TestCheckProject_v2ValidNoProblems(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+
+	if problems := CheckProject(root); len(problems) != 0 {
+		t.Fatalf("CheckProject() = %v, want no problems for a valid V2 project", problems)
+	}
+}
+
+func TestCheckProject_SchemaVersionMalformed(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: nope\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 {
+		t.Fatalf("CheckProject() = %v, want exactly 1 problem", problems)
+	}
+	if !strings.Contains(problems[0].Message, "[schema-version-malformed]") {
+		t.Errorf("CheckProject()[0].Message = %q, want the schema-version-malformed diagnostic name", problems[0].Message)
+	}
+	if problems[0].File != root {
+		t.Errorf("CheckProject()[0].File = %q, want project root %q", problems[0].File, root)
+	}
+	if problems[0].Repair == "" {
+		t.Error("CheckProject()[0].Repair is empty, want a typed repair suggestion")
+	}
+}
+
+func TestCheckProject_SchemaVersionUnsupported(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 99\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[schema-version-unsupported]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming schema-version-unsupported", problems)
+	}
+}
+
+// TestCheckProject_MissingTaskTitleNotBackfilledFromObjective proves doctor
+// reports a missing V2 Task title as an actionable schema error rather than
+// silently accepting the Task's objective owner reference as a display
+// title substitute.
+func TestCheckProject_MissingTaskTitleNotBackfilledFromObjective(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
+		"---\nid: T001\nobjective: O001\nstatus: planned\n---\n\n# Write it\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 {
+		t.Fatalf("CheckProject() = %v, want exactly 1 problem", problems)
+	}
+	if !strings.Contains(problems[0].Message, "[v2-missing-field]") {
+		t.Errorf("CheckProject()[0].Message = %q, want the v2-missing-field diagnostic name", problems[0].Message)
+	}
+	if !strings.Contains(problems[0].Message, "missing required field title") {
+		t.Errorf("CheckProject()[0].Message = %q, want it to name the missing title field, not accept objective O001 as a substitute", problems[0].Message)
+	}
+}
+
+func TestCheckProject_MissingOwner(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O999")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-missing-owner]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-missing-owner", problems)
+	}
+}
+
+func TestCheckProject_DependencyCycle(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-dependency-cycle]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-dependency-cycle", problems)
+	}
+}
+
+// TestCheckProject_ReadOnly proves CheckProject never writes to the project
+// it inspects, for a valid V1 project with quality gates configured, a valid
+// V2 project, and an invalid V2 project.
+func TestCheckProject_ReadOnly(t *testing.T) {
+	t.Run("valid V1 project with quality gates configured", func(t *testing.T) {
+		root := t.TempDir()
+		testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+		configPath := filepath.Join(root, "config.yml")
+		before, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		RunAllChecks(root, "")
+
+		after, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(before) != string(after) {
+			t.Fatalf("RunAllChecks() changed config.yml:\nbefore: %s\nafter: %s", before, after)
+		}
+	})
+
+	t.Run("valid V2 project", func(t *testing.T) {
+		root := t.TempDir()
+		testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+		writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+		taskPath := writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+		before, err := os.ReadFile(taskPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if problems := CheckProject(root); len(problems) != 0 {
+			t.Fatalf("CheckProject() = %v, want no problems", problems)
+		}
+
+		after, err := os.ReadFile(taskPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(before) != string(after) {
+			t.Fatalf("CheckProject() changed %s:\nbefore: %s\nafter: %s", taskPath, before, after)
+		}
+	})
+
+	t.Run("invalid V2 project", func(t *testing.T) {
+		root := t.TempDir()
+		testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+		writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+		taskPath := writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O999")
+		before, err := os.ReadFile(taskPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if problems := CheckProject(root); len(problems) == 0 {
+			t.Fatal("CheckProject() = no problems, want the missing-owner diagnostic")
+		}
+
+		after, err := os.ReadFile(taskPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(before) != string(after) {
+			t.Fatalf("CheckProject() changed %s:\nbefore: %s\nafter: %s", taskPath, before, after)
+		}
+	})
+}
+
+// --- CheckProject: Check and evidence diagnostics ---
+
+func writeV2Check(t *testing.T, root, id, scope, result, supersedes string) string {
+	t.Helper()
+	path := filepath.Join(root, "checks", id+".md")
+	body := "---\nid: " + id + "\nscope: " + scope + "\nresult: " + result + "\n" +
+		"checked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n"
+	if supersedes != "" {
+		body += "supersedes: " + supersedes + "\n"
+	}
+	body += "---\n\n# Check\n"
+	testutil.WriteFile(t, path, body)
+	return path
+}
+
+func TestCheckProject_CheckMalformed(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "BOGUS", "")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-check-malformed]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-check-malformed", problems)
+	}
+	if problems[0].Repair == "" {
+		t.Error("CheckProject()[0].Repair is empty, want a typed repair suggestion")
+	}
+}
+
+func TestCheckProject_CheckMissingScopeTarget(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T999}", "CLEAR", "")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-check-missing-scope-target]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-check-missing-scope-target", problems)
+	}
+}
+
+func TestCheckProject_CheckMissingReference(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C002", "{kind: task, id: T001}", "CLEAR", "C001")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-check-missing-reference]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-check-missing-reference", problems)
+	}
+}
+
+func TestCheckProject_CheckSupersedesConflict(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	writeV2Check(t, root, "C002", "{kind: task, id: T001}", "CLEAR", "C001")
+	writeV2Check(t, root, "C003", "{kind: task, id: T001}", "CLEAR", "C001")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-check-supersedes-conflict]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-check-supersedes-conflict", problems)
+	}
+}
+
+func TestCheckProject_EvidenceMalformed(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: planned\n"+
+			"freshness: {state: bogus, check: C001, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
+			"---\n\n# Write it\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-evidence-malformed]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-evidence-malformed", problems)
+	}
+}
+
+func TestCheckProject_EvidenceMissingReference(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: planned\nlast_check: C999\n---\n\n# Write it\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-evidence-missing-reference]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-evidence-missing-reference", problems)
+	}
+}
+
+// TestCheckProject_v2ValidWithChecksNoProblems proves a clean V2 project
+// carrying real Check and evidence records — current clearance on a
+// technical Task and an owner-accepted Task — reports no problems.
+func TestCheckProject_v2ValidWithChecksNoProblems(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: done\n"+
+			"freshness: {state: current, check: C001, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
+			"---\n\n# Write it\n")
+
+	if problems := CheckProject(root); len(problems) != 0 {
+		t.Fatalf("CheckProject() = %v, want no problems for a clean V2 project with checks", problems)
+	}
+}
+
+// TestCheckProject_ConsistencyDiagnostics proves doctor reports every
+// evaluation-level inconsistency InspectTaskConsistency finds — done without
+// current clearance, owner acceptance naming a superseded check, and
+// evidence that clears completion while status lags — alongside structural
+// load failures, in deterministic (task ID) order, without failing the load.
+func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+
+	// T001: marked done but no Check was ever recorded.
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: done\n---\n\n# Alpha\n")
+
+	// T002: owner accepted C002, but C003 has since superseded it as latest.
+	writeV2Check(t, root, "C002", "{kind: task, id: T002}", "CLEAR", "")
+	writeV2Check(t, root, "C003", "{kind: task, id: T002}", "CLEAR", "C002")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: in_progress\nstage: audit\n"+
+			"freshness: {state: current, check: C003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: rechecked}\n"+
+			"owner_validation: {required: true, accepted_check: C002, accepted_by: {role: owner, session: owner-1}}\n"+
+			"---\n\n# Beta\n")
+
+	// T003: evidence clears completion (current clearance, no owner
+	// validation required) but status was never advanced to done.
+	writeV2Check(t, root, "C004", "{kind: task, id: T003}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T003-gamma.md"),
+		"---\nid: T003\ntitle: \"Gamma\"\nobjective: O001\nstatus: in_progress\nstage: audit\n"+
+			"freshness: {state: current, check: C004, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
+			"---\n\n# Gamma\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 3 {
+		t.Fatalf("CheckProject() = %+v, want 3 consistency problems", problems)
+	}
+
+	wantOrder := []string{"[v2-done-without-clearance]", "[v2-acceptance-superseded]", "[v2-evidence-contradicts-status]"}
+	for i, want := range wantOrder {
+		if !strings.Contains(problems[i].Message, want) {
+			t.Errorf("problems[%d].Message = %q, want containing %q (deterministic task-ID order)", i, problems[i].Message, want)
+		}
+		if problems[i].Repair == "" {
+			t.Errorf("problems[%d].Repair is empty, want a typed repair suggestion", i)
+		}
+		if !strings.HasSuffix(problems[i].File, ".md") {
+			t.Errorf("problems[%d].File = %q, want the Task's source record path", i, problems[i].File)
+		}
+	}
+}
+
+// TestCheckProject_ConsistencyReadOnly proves CheckProject never writes to a
+// V2 project carrying Check and evidence records that trip a consistency
+// diagnostic: every file's bytes and modification time stay unchanged.
+func TestCheckProject_ConsistencyReadOnly(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	taskPath := filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md")
+	testutil.WriteFile(t, taskPath, "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: done\n---\n\n# Alpha\n")
+
+	type snapshot struct {
+		bytes []byte
+		mtime time.Time
+	}
+	before := map[string]snapshot{}
+	for _, p := range []string{taskPath} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[p] = snapshot{bytes: raw, mtime: info.ModTime()}
+	}
+
+	if problems := CheckProject(root); len(problems) == 0 {
+		t.Fatal("CheckProject() = no problems, want the done-without-clearance diagnostic")
+	}
+
+	for p, want := range before {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(raw) != string(want.bytes) {
+			t.Fatalf("CheckProject() changed %s bytes:\nbefore: %s\nafter: %s", p, want.bytes, raw)
+		}
+		if !info.ModTime().Equal(want.mtime) {
+			t.Fatalf("CheckProject() changed %s mtime: before=%v after=%v", p, want.mtime, info.ModTime())
+		}
+	}
 }

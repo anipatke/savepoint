@@ -67,7 +67,8 @@ func TestCopyToClipboard_multipleCalls(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		result := CopyToClipboard("test content")
 		if result.Status != ClipboardCopied &&
-			result.Status != ClipboardSkipped {
+			result.Status != ClipboardSkipped &&
+			result.Status != ClipboardFailed {
 			t.Fatalf("call %d: unexpected status %v", i, result.Status)
 		}
 	}

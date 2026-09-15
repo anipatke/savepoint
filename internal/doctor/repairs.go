@@ -154,6 +154,80 @@ func AuditValidationRepair(code data.AuditValidationCode) string {
 	}
 }
 
+// V2ProblemRepair maps a CheckProject diagnostic name (v2DiagnosticName in
+// checks.go) to a manual repair suggestion. Doctor never repairs V2 project
+// files itself; the reported Problem's File already names the project root,
+// and the diagnostic message carries the specific record path and identity.
+func V2ProblemRepair(name string) string {
+	switch name {
+	case "schema-version-malformed":
+		return "Set config.yml's schema_version to the integer 2, or remove the field for a V1 project"
+	case "schema-version-unsupported":
+		return "Set config.yml's schema_version to 2, the only supported explicit value, or remove the field for a V1 project"
+	case "v2-missing-field":
+		return "Add the missing required field named in the diagnostic to the record's frontmatter"
+	case "v2-invalid-id":
+		return "Set the record's id or reference to a valid family identity: O### (Objective), T### (Task), C### (Check), or I### (Issue reference), each with at least three digits"
+	case "v2-invalid-ownership":
+		return "Set the Task's objective field to exactly one existing O### Objective id"
+	case "v2-invalid-lifecycle":
+		return "Set status (and stage while status is in_progress) to a supported V2 lifecycle value"
+	case "v2-invalid-dependency":
+		return "Fix the depends_on entry: task must be a T### id and requires must be clear or accepted"
+	case "v2-duplicate-id":
+		return "Rename one of the two records reporting the same id so each global id is declared once"
+	case "v2-path-mismatch":
+		return "Rename the directory or file so its name starts with the id the record declares"
+	case "v2-unsafe-path":
+		return "Remove the symlink or case-aliasing path reported in the diagnostic; V2 records must resolve inside the project root"
+	case "v2-missing-owner":
+		return "Create the referenced O### Objective, or fix the Task's objective field to reference one that exists"
+	case "v2-missing-dependency-target":
+		return "Create the referenced dependency record, or remove it from depends_on"
+	case "v2-self-dependency":
+		return "Remove the record's own id from its depends_on list"
+	case "v2-dependency-cycle":
+		return "Break the circular dependency chain named in the diagnostic"
+	case "v2-record-malformed":
+		return "Fix the YAML frontmatter between the --- delimiters in the named record file"
+	case "v2-check-malformed":
+		return "Fix the named Check field in the record's frontmatter — result must be CLEAR or NEEDS WORK, checked_by.role a supported actor role, and checked_at a parseable RFC 3339 timestamp"
+	case "v2-check-missing-scope-target":
+		return "Create the Task or Objective the Check's scope names, or fix scope.id to reference one that exists"
+	case "v2-check-missing-reference":
+		return "Create the Check named in supersedes, or remove the supersedes field"
+	case "v2-check-supersedes-conflict":
+		return "Fix the supersedes chain: it must name a Check with the same scope, no two Checks may supersede the same target, and the chain must not cycle"
+	case "v2-evidence-malformed":
+		return "Fix the named evidence field in the record's frontmatter — state and role values must be one of the supported options and timestamps must be parseable RFC 3339"
+	case "v2-evidence-missing-reference":
+		return "Fix the evidence field to name a Check that exists, or remove the reference"
+	case "v2-check-immutable":
+		return "A Check record is immutable once written — record a new Check with supersedes naming this one instead of editing it"
+	default:
+		return "Review the V2 project diagnostic and fix the reported record"
+	}
+}
+
+// V2ConsistencyRepair maps a doctor consistency diagnostic name
+// (v2ConsistencyDiagnosticName in checks.go, derived from
+// data.ConsistencyDiagnosticKind) to a manual repair suggestion. Doctor never
+// rewrites a Check, an evidence field, or a record status itself; every
+// suggestion here names the record the diagnostic already carries the path
+// to.
+func V2ConsistencyRepair(name string) string {
+	switch name {
+	case "v2-done-without-clearance":
+		return "Record a Check and a current freshness assessment before treating the Task as done, or set status back to reflect its real progress"
+	case "v2-acceptance-superseded":
+		return "Have the owner accept the Task's actual latest Check; an acceptance naming a superseded Check no longer applies"
+	case "v2-evidence-contradicts-status":
+		return "Advance the Task's status to done to match its recorded evidence, or correct the evidence if completion was not actually reached"
+	default:
+		return "Review the Task's recorded evidence against its status and fix the mismatch"
+	}
+}
+
 // GateSuggestion returns a command-specific repair hint.
 func GateSuggestion(name string) string {
 	switch name {

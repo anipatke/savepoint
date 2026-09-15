@@ -1,7 +1,10 @@
 package data
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -99,6 +102,85 @@ func TestFillThemeDefaults_EmptyAccents(t *testing.T) {
 		if result.Accents[k] != v {
 			t.Errorf("Accents[%s] = %v, want default %v", k, result.Accents[k], v)
 		}
+	}
+}
+
+func TestReadSchemaVersion(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		absent  bool
+		want    SchemaVersion
+		wantErr error
+	}{
+		{
+			name:   "absent file selects V1",
+			absent: true,
+			want:   SchemaVersionV1,
+		},
+		{
+			name:    "absent field selects V1",
+			content: "theme:\n  bg: \"#000000\"\n",
+			want:    SchemaVersionV1,
+		},
+		{
+			name:    "explicit version 2 selects V2",
+			content: "schema_version: 2\n",
+			want:    SchemaVersionV2,
+		},
+		{
+			name:    "malformed non-integer version fails named",
+			content: "schema_version: not-a-number\n",
+			want:    SchemaVersionV1,
+			wantErr: ErrMalformedSchemaVersion,
+		},
+		{
+			name:    "unsupported explicit version fails named",
+			content: "schema_version: 3\n",
+			want:    SchemaVersionV1,
+			wantErr: ErrUnsupportedSchemaVersion,
+		},
+		{
+			name:    "version 1 is an unsupported explicit version",
+			content: "schema_version: 1\n",
+			want:    SchemaVersionV1,
+			wantErr: ErrUnsupportedSchemaVersion,
+		},
+		{
+			name:    "unrelated version-shaped fields do not select V2",
+			content: "theme:\n  bg: \"#000000\"\nagent_launcher:\n  terminal:\n    mode: auto\n# package version: 1.3.1, release: v2, upgrade-manifest schema: 2\n",
+			want:    SchemaVersionV1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var path string
+			if tc.absent {
+				path = filepath.Join(t.TempDir(), "config.yml")
+			} else {
+				dir := t.TempDir()
+				path = filepath.Join(dir, "config.yml")
+				if err := os.WriteFile(path, []byte(tc.content), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := ReadSchemaVersion(path)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("ReadSchemaVersion() error = %v, want wrapping %v", err, tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), path) {
+					t.Errorf("ReadSchemaVersion() error = %v, want it to identify path %v", err, path)
+				}
+			} else if err != nil {
+				t.Fatalf("ReadSchemaVersion() unexpected error = %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("ReadSchemaVersion() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
