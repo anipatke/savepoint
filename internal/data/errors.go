@@ -46,4 +46,7 @@ var (
 	ErrV2IssueResolutionMissingProof  = errors.New("v2 issue verified resolution names no usable proof check")
 	ErrV2IssueResolutionUnusableProof = errors.New("v2 issue verified resolution's proof check is not a listed CLEAR check")
 	ErrV2IssueResolutionFieldMismatch = errors.New("v2 issue resolution field does not satisfy its disposition's obligations")
+
+	ErrV2IssueAlreadyExists        = errors.New("v2 issue record already exists at the target path")
+	ErrV2IssueHistoryNotAppendOnly = errors.New("v2 issue history write is not a pure append over the recorded entries")
 )

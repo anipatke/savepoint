@@ -2161,6 +2161,917 @@ func TestCreateCheckV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
 	}
 }
 
+func TestCreateIssueV2_writesNewFileAllocatesFirstID(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Issues: map[string]*IssueV2{}}
+
+	fields := NewIssueV2{
+		Title: "Broken retry loop",
+		Type:  IssueTypeDefect,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginCheck,
+			Check: "C001",
+			Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Checks: []string{"C001"},
+		Body:   "\n\n# Issue\n\nSummary notes.\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateIssueV2() error = %v", err)
+	}
+	if issue.ID != "I001" {
+		t.Errorf("ID = %q, want I001", issue.ID)
+	}
+	if issue.Status != IssueStatusOpen {
+		t.Errorf("Status = %q, want open", issue.Status)
+	}
+
+	path := filepath.Join(root, "issues", "I001-broken-retry-loop.md")
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("issues/I001-broken-retry-loop.md not written: %v", err)
+	}
+	if !strings.Contains(string(result), "Summary notes.") {
+		t.Error("authored body content not written")
+	}
+
+	reparsed, err := DecodeIssueV2(filepath.Join("issues", "I001-broken-retry-loop.md"), string(result))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() after create error = %v", err)
+	}
+	if reparsed.Type != IssueTypeDefect || reparsed.Status != IssueStatusOpen {
+		t.Errorf("reparsed = %+v, want type defect/status open", reparsed)
+	}
+	if len(reparsed.Checks) != 1 || reparsed.Checks[0] != "C001" {
+		t.Errorf("Checks = %v, want [C001]", reparsed.Checks)
+	}
+}
+
+func TestCreateIssueV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Issues: map[string]*IssueV2{
+		"I001": {ID: "I001"},
+		"I002": {ID: "I002"},
+	}}
+
+	fields := NewIssueV2{
+		Title: "Second issue",
+		Type:  IssueTypeDrift,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginReport,
+			Actor: Actor{Role: ActorRolePlanner, Session: "sess-1"},
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Body: "\n\n# Issue\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateIssueV2() error = %v", err)
+	}
+	if issue.ID != "I003" {
+		t.Errorf("ID = %q, want I003 as next unused id", issue.ID)
+	}
+}
+
+func TestCreateIssueV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
+	root := t.TempDir()
+	issuesDir := filepath.Join(root, "issues")
+	if err := os.MkdirAll(issuesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	leftover := "not an issue record"
+	if err := os.WriteFile(filepath.Join(issuesDir, "I001-collides-with-existing-file.md"), []byte(leftover), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	index := &V2Index{Issues: map[string]*IssueV2{}}
+	fields := NewIssueV2{
+		Title: "Collides with existing file",
+		Type:  IssueTypeDefect,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginReport,
+			Actor: Actor{Role: ActorRolePlanner, Session: "sess-1"},
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Body: "\n\n# Issue\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if issue != nil {
+		t.Errorf("CreateIssueV2() returned %+v, want nil on collision", issue)
+	}
+	if !errors.Is(err, ErrV2IssueAlreadyExists) {
+		t.Fatalf("CreateIssueV2() error = %v, want ErrV2IssueAlreadyExists", err)
+	}
+
+	result, err := os.ReadFile(filepath.Join(issuesDir, "I001-collides-with-existing-file.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result) != leftover {
+		t.Error("existing file at colliding path was modified")
+	}
+}
+
+func TestCreateIssueV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Issues: map[string]*IssueV2{}}
+
+	fields := NewIssueV2{
+		Title: "Missing actor session",
+		Type:  IssueTypeDefect,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginReport,
+			Actor: Actor{Role: ActorRolePlanner, Session: ""}, // missing required session
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Body: "\n\n# Issue\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if err == nil {
+		t.Fatal("CreateIssueV2() expected error for missing source.actor.session")
+	}
+	if issue != nil {
+		t.Errorf("CreateIssueV2() returned %+v, want nil on validation failure", issue)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(root, "issues")); !os.IsNotExist(statErr) {
+		t.Errorf("issues/ directory exists after rejected record, statErr = %v", statErr)
+	}
+}
+
+func issueV2FixtureContent() string {
+	return `---
+id: I010
+title: "Broken retry loop"
+type: defect
+status: open
+source:
+  kind: check
+  check: C001
+  actor:
+    role: checker
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+owner:
+  team: platform
+---
+
+# Issue
+
+## Summary
+
+Authored issue notes that must survive the rewrite.`
+}
+
+func TestWriteIssueV2_updatesManagedFieldsPreservesUnknownFieldsAndBody(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I010.md")
+	content := issueV2FixtureContent()
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	issue.Status = IssueStatusResolved
+	issue.Severity = "high"
+	issue.Tasks = []string{"T010"}
+	issue.Checks = []string{"C001"}
+	issue.DuplicateOf = ""
+	resolvedAt := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	issue.Resolution = &IssueResolution{
+		Disposition: IssueDispositionVerified,
+		Check:       "C001",
+		Actor:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		At:          resolvedAt,
+		Reason:      "Recheck confirmed the fix.",
+	}
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeIssueV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() after write error = %v", err)
+	}
+	if reparsed.Status != IssueStatusResolved {
+		t.Errorf("Status = %q, want resolved", reparsed.Status)
+	}
+	if reparsed.Severity != "high" {
+		t.Errorf("Severity = %q, want high", reparsed.Severity)
+	}
+	if len(reparsed.Tasks) != 1 || reparsed.Tasks[0] != "T010" {
+		t.Errorf("Tasks = %v, want [T010]", reparsed.Tasks)
+	}
+	if reparsed.Resolution == nil || reparsed.Resolution.Disposition != IssueDispositionVerified {
+		t.Errorf("Resolution = %+v, want disposition verified", reparsed.Resolution)
+	}
+	if reparsed.Title != "Broken retry loop" || reparsed.Origin.Check != "C001" {
+		t.Errorf("unrelated fields not preserved: %+v", reparsed)
+	}
+	if !strings.Contains(string(result), "team: platform") {
+		t.Error("unknown nested field not preserved")
+	}
+	if !strings.Contains(string(result), "Authored issue notes that must survive the rewrite.") {
+		t.Error("authored body content not preserved")
+	}
+}
+
+func TestWriteIssueV2_clearingResolutionOnReopenRemovesKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I011.md")
+	content := `---
+id: I011
+title: "Reopened issue"
+type: defect
+status: resolved
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: owner-1
+  at: "2026-09-14T01:00:00Z"
+  reason: "Accepted known risk."
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	issue.Status = IssueStatusOpen
+	issue.Resolution = nil
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), "resolution:") {
+		t.Error("resolution key should be removed when reopening clears it")
+	}
+
+	reparsed, err := DecodeIssueV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() after write error = %v", err)
+	}
+	if reparsed.Status != IssueStatusOpen || reparsed.Resolution != nil {
+		t.Errorf("reparsed = %+v, want open with no resolution", reparsed)
+	}
+}
+
+func TestWriteIssueV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I012.md")
+	content := issueV2FixtureContent()
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
+func TestCreateIssueV2ThenWriteIssueV2_roundTripsAsNoOp(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Issues: map[string]*IssueV2{}}
+
+	fields := NewIssueV2{
+		Title: "Freshly created, nothing to patch",
+		Type:  IssueTypeOther,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginReport,
+			Actor: Actor{Role: ActorRolePlanner, Session: "sess-1"},
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Body: "\n\n# Issue\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateIssueV2() error = %v", err)
+	}
+
+	path := filepath.Join(root, issue.Source.Path)
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Error("ModTime changed writing back a freshly created issue's own empty fields")
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("bytes changed writing back a freshly created issue's own empty fields")
+	}
+}
+
+func TestWriteIssueV2_refusesUnsupportedStatusAndLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I013.md")
+	content := issueV2FixtureContent()
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	issue.Status = "planned" // Task lifecycle vocabulary, invalid for an Issue
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = WriteIssueV2(issue)
+	if err == nil {
+		t.Fatal("WriteIssueV2() expected error for planned status")
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("file changed despite refused write")
+	}
+}
+
+func TestWriteIssueV2_preservesCRLFLineEndings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I014.md")
+	content := "---\r\nid: I014\r\ntitle: \"CRLF issue\"\r\ntype: defect\r\nstatus: open\r\nsource:\r\n  kind: report\r\n  actor:\r\n    role: planner\r\n    session: sess-1\r\n  at: \"2026-09-14T00:00:00Z\"\r\n---\r\n\r\n# Issue\r\n\r\nAuthored notes.\r\n"
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	issue.Status = IssueStatusInProgress
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Count(string(result), "\n") != strings.Count(string(result), "\r\n") {
+		t.Errorf("result did not preserve CRLF line endings throughout: %q", string(result))
+	}
+	if !strings.Contains(string(result), "Authored notes.") {
+		t.Error("authored body content not preserved across CRLF rewrite")
+	}
+
+	reparsed, err := DecodeIssueV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() after write error = %v", err)
+	}
+	if reparsed.Status != IssueStatusInProgress {
+		t.Errorf("Status = %q, want in_progress", reparsed.Status)
+	}
+}
+
+func issueHistoryFixtureEntry() IssueHistoryEntry {
+	return IssueHistoryEntry{
+		At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		Kind:  IssueHistoryObserved,
+		Note:  "Found during review.",
+		Check: "C001",
+	}
+}
+
+func TestWriteIssueHistoryV2_appendsEntryPreservesEarlierEntries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I020.md")
+	content := `---
+id: I020
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: check
+  check: C001
+  actor:
+    role: checker
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+    note: "Found during review."
+    check: C001
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	if len(issue.History) != 1 {
+		t.Fatalf("History = %v, want 1 recorded entry", issue.History)
+	}
+
+	appended := IssueHistoryEntry{
+		At:    time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+		Actor: Actor{Role: ActorRoleExecutor, Session: "sess-2"},
+		Kind:  IssueHistoryRepairAttempted,
+		Note:  "Patched the retry loop.",
+	}
+	entries := append(append([]IssueHistoryEntry{}, issue.History...), appended)
+
+	if err := WriteIssueHistoryV2(issue, entries); err != nil {
+		t.Fatalf("WriteIssueHistoryV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeIssueV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() after write error = %v", err)
+	}
+	if len(reparsed.History) != 2 {
+		t.Fatalf("History = %v, want 2 entries", reparsed.History)
+	}
+	if reparsed.History[0].Note != "Found during review." || reparsed.History[0].Check != "C001" {
+		t.Errorf("History[0] = %+v, want earlier entry preserved byte-for-byte", reparsed.History[0])
+	}
+	if reparsed.History[1].Kind != IssueHistoryRepairAttempted || reparsed.History[1].Note != "Patched the retry loop." {
+		t.Errorf("History[1] = %+v, want the appended entry", reparsed.History[1])
+	}
+}
+
+func TestWriteIssueHistoryV2_refusesShorterListLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I021.md")
+	content := `---
+id: I021
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+    note: "Found during review."
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = WriteIssueHistoryV2(issue, []IssueHistoryEntry{})
+	if !errors.Is(err, ErrV2IssueHistoryNotAppendOnly) {
+		t.Fatalf("WriteIssueHistoryV2() error = %v, want ErrV2IssueHistoryNotAppendOnly", err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("file changed despite refused shorter history write")
+	}
+}
+
+func TestWriteIssueHistoryV2_refusesEditedEntryLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I022.md")
+	content := `---
+id: I022
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+    note: "Found during review."
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	edited := issue.History[0]
+	edited.Note = "Rewritten note."
+	err = WriteIssueHistoryV2(issue, []IssueHistoryEntry{edited})
+	if !errors.Is(err, ErrV2IssueHistoryNotAppendOnly) {
+		t.Fatalf("WriteIssueHistoryV2() error = %v, want ErrV2IssueHistoryNotAppendOnly", err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("file changed despite refused edited-entry history write")
+	}
+}
+
+func TestWriteIssueHistoryV2_refusesReorderedEntriesLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I023.md")
+	content := `---
+id: I023
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+    note: "First."
+  - at: "2026-09-15T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: rechecked
+    note: "Second."
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	if len(issue.History) != 2 {
+		t.Fatalf("History = %v, want 2 recorded entries", issue.History)
+	}
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reordered := []IssueHistoryEntry{issue.History[1], issue.History[0]}
+	err = WriteIssueHistoryV2(issue, reordered)
+	if !errors.Is(err, ErrV2IssueHistoryNotAppendOnly) {
+		t.Fatalf("WriteIssueHistoryV2() error = %v, want ErrV2IssueHistoryNotAppendOnly", err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("file changed despite refused reordered history write")
+	}
+}
+
+func TestWriteIssueHistoryV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I024.md")
+	content := `---
+id: I024
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+    note: "Found during review."
+    check: C001
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	if err := WriteIssueHistoryV2(issue, issue.History); err != nil {
+		t.Fatalf("WriteIssueHistoryV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op history write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op history write")
+	}
+}
+
+func TestWriteObjectiveEvidenceV2_setsSubBlocksPreservesUnknownFieldsAndBody(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "O020.md")
+	content := `---
+id: O020
+title: "No evidence yet"
+status: in_progress
+depends_on: [O001]
+release: v2
+---
+
+# Objective
+
+Authored objective notes.`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+	if objective.Evidence != nil {
+		t.Fatalf("Evidence = %+v, want nil before write", objective.Evidence)
+	}
+
+	assessedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
+	objective.Evidence = &Evidence{
+		LastCheck: "C001",
+		Freshness: &Freshness{
+			State:      FreshnessCurrent,
+			Check:      "C001",
+			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+			AssessedAt: assessedAt,
+			Basis:      "Objective integration Check is current.",
+		},
+	}
+
+	if err := WriteObjectiveEvidenceV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveEvidenceV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reparsed, err := DecodeObjectiveV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() after write error = %v", err)
+	}
+	if reparsed.Evidence == nil || reparsed.Evidence.LastCheck != "C001" {
+		t.Errorf("Evidence = %+v, want LastCheck C001", reparsed.Evidence)
+	}
+	if reparsed.Evidence.Freshness == nil || reparsed.Evidence.Freshness.State != FreshnessCurrent {
+		t.Errorf("Freshness = %+v, want state current", reparsed.Evidence.Freshness)
+	}
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
+		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
+	}
+	if reparsed.Release != "v2" {
+		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	}
+	if !strings.Contains(string(result), "Authored objective notes.") {
+		t.Error("authored body content not preserved")
+	}
+}
+
+func TestWriteObjectiveEvidenceV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "O021.md")
+	content := `---
+id: O021
+title: "No-op objective evidence"
+status: in_progress
+last_check: C001
+freshness:
+  state: current
+  check: C001
+  assessed_by:
+    role: checker
+    session: sess-1
+  assessed_at: "2026-09-14T00:00:00Z"
+  basis: "Objective integration Check is current."
+---
+
+# Objective`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+
+	if err := WriteObjectiveEvidenceV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveEvidenceV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
 func TestWriteDefectStatus_removesStageWhenDone(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "D002.md")

@@ -175,15 +175,15 @@ type issueV2Frontmatter struct {
 	Status string `yaml:"status"`
 	// Stage is decoded only so it can be rejected: it is a Task lifecycle
 	// field that an Issue must never carry.
-	Stage        string                      `yaml:"stage"`
+	Stage        string                      `yaml:"stage,omitempty"`
 	Source       *issueOriginFrontmatter     `yaml:"source"`
-	Tasks        []string                    `yaml:"tasks"`
-	Checks       []string                    `yaml:"checks"`
-	GuardrailIDs []string                    `yaml:"guardrail_ids"`
-	Severity     string                      `yaml:"severity"`
-	Resolution   *issueResolutionFrontmatter `yaml:"resolution"`
-	DuplicateOf  string                      `yaml:"duplicate_of"`
-	History      []issueHistoryFrontmatter   `yaml:"history"`
+	Tasks        []string                    `yaml:"tasks,omitempty"`
+	Checks       []string                    `yaml:"checks,omitempty"`
+	GuardrailIDs []string                    `yaml:"guardrail_ids,omitempty"`
+	Severity     string                      `yaml:"severity,omitempty"`
+	Resolution   *issueResolutionFrontmatter `yaml:"resolution,omitempty"`
+	DuplicateOf  string                      `yaml:"duplicate_of,omitempty"`
+	History      []issueHistoryFrontmatter   `yaml:"history,omitempty"`
 }
 
 // DecodeIssueV2 strictly decodes a V2 Issue record from content. It requires a

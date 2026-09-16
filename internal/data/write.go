@@ -626,7 +626,7 @@ func WriteTaskV2(task *TaskV2) error {
 // value is refused and the file is left untouched, and writing values the
 // record already has is a no-op.
 func WriteTaskEvidenceV2(task *TaskV2) error {
-	patches, err := taskEvidencePatches(task.Evidence)
+	patches, err := evidencePatches(task.Evidence)
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,30 @@ func WriteTaskEvidenceV2(task *TaskV2) error {
 	})
 }
 
-func taskEvidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
+// WriteObjectiveEvidenceV2 patches only the evidence fields — last_check,
+// freshness, owner_validation, exception, and replan — of a V2 Objective
+// record's frontmatter to match objective.Evidence, through the same
+// evidencePatches builder WriteTaskEvidenceV2 uses, preserving every other
+// YAML key/value (including status, depends_on, and unknown fields) and the
+// authored Markdown body unchanged. The patched content is validated as a
+// decodable ObjectiveV2 before any file is replaced.
+func WriteObjectiveEvidenceV2(objective *ObjectiveV2) error {
+	patches, err := evidencePatches(objective.Evidence)
+	if err != nil {
+		return err
+	}
+
+	return writeV2Record(&objective.Source, patches, func(content string) error {
+		_, err := DecodeObjectiveV2(objective.Source.Path, content)
+		return err
+	})
+}
+
+// evidencePatches builds the shared last_check/freshness/owner_validation/
+// exception/replan patches for the Evidence block common to Task and
+// Objective records, so WriteTaskEvidenceV2 and WriteObjectiveEvidenceV2
+// have exactly one encoding of it between them.
+func evidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
 	var lastCheck *string
 	var freshness *Freshness
 	var ownerValidation *OwnerValidation
@@ -915,14 +938,23 @@ var v2CheckFileOps = v2CheckFileOperations{
 	link:   os.Link,
 }
 
-// createV2CheckFile writes content to path create-only: it fully writes and
+// createV2CheckFile writes a new Check record create-only. It is a thin call
+// over createV2RecordFile so a collision is reported as ErrV2CheckImmutable,
+// matching Checks' immutable-once-written contract.
+func createV2CheckFile(path string, content []byte) error {
+	return createV2RecordFile(path, content, ErrV2CheckImmutable)
+}
+
+// createV2RecordFile writes content to path create-only: it fully writes and
 // syncs a same-directory temporary file, then hard-links it into place so an
 // existing file at path is never rewritten, truncated, or replaced —
-// os.Rename would silently overwrite, which immutability cannot allow.
-// A collision at path is reported as ErrV2CheckImmutable. The operation
-// boundary is injectable only for deterministic tests; production defaults
-// remain the standard filesystem calls above.
-func createV2CheckFile(path string, content []byte) (retErr error) {
+// os.Rename would silently overwrite, which a create-only write cannot
+// allow. A collision at path is reported wrapping existsErr, the calling
+// record family's own diagnostic, so a Check collision and an Issue
+// collision are told apart. The operation boundary is injectable only for
+// deterministic tests; production defaults remain the standard filesystem
+// calls above.
+func createV2RecordFile(path string, content []byte, existsErr error) (retErr error) {
 	ops := v2CheckFileOps
 	dir := filepath.Dir(path)
 	if err := ops.mkdirAll(dir, 0755); err != nil {
@@ -975,9 +1007,275 @@ func createV2CheckFile(path string, content []byte) (retErr error) {
 
 	if err := ops.link(tempPath, path); err != nil {
 		if os.IsExist(err) {
-			return fmt.Errorf("%w: %s", ErrV2CheckImmutable, path)
+			return fmt.Errorf("%w: %s", existsErr, path)
 		}
 		return fmt.Errorf("create %s: %w", path, err)
 	}
 	return nil
+}
+
+// NewIssueV2 is the caller-supplied content for an Issue creation: every
+// field CreateIssueV2 needs except the ID and Source, which it derives
+// itself — the ID from next-unused allocation over index, and Source from
+// the file it writes. A newly created Issue always starts status: open,
+// matching the design's "Open -> in_progress when repair starts" flow:
+// resolution and history are recorded later through WriteIssueV2 and
+// WriteIssueHistoryV2. Body is the exact Markdown appended after the
+// frontmatter delimiter, in the same form V2SourceDocument.Body holds it
+// (including its leading newline).
+type NewIssueV2 struct {
+	Title        string
+	Type         IssueType
+	Origin       IssueOrigin
+	Tasks        []string
+	Checks       []string
+	GuardrailIDs []string
+	Severity     string
+	Body         string
+}
+
+// CreateIssueV2 allocates the next unused Issue ID over index, marshals a new
+// Issue record from fields with status: open, and writes it create-only to
+// root/issues/{id}-{slug}.md, matching the {ID}-{slug}.md convention Tasks
+// and Epics already use. CreateIssueV2 never rewrites or deletes an existing
+// file, and refuses an ID collision with ErrV2IssueAlreadyExists rather than
+// overwriting it. The marshalled content is validated as a decodable
+// IssueV2 before the file is created, so a rejected record leaves no file
+// behind.
+func CreateIssueV2(root string, index *V2Index, fields NewIssueV2) (*IssueV2, error) {
+	id := nextV2IssueID(index)
+
+	raw := issueV2Frontmatter{
+		ID:     id,
+		Title:  fields.Title,
+		Type:   string(fields.Type),
+		Status: string(IssueStatusOpen),
+		Source: &issueOriginFrontmatter{
+			Kind:  string(fields.Origin.Kind),
+			Check: fields.Origin.Check,
+			Actor: evidenceActorFrontmatter{Role: string(fields.Origin.Actor.Role), Session: fields.Origin.Actor.Session},
+			At:    fields.Origin.At.Format(time.RFC3339),
+		},
+		Tasks:        fields.Tasks,
+		Checks:       fields.Checks,
+		GuardrailIDs: fields.GuardrailIDs,
+		Severity:     fields.Severity,
+	}
+
+	out, err := yaml.Marshal(&raw)
+	if err != nil {
+		return nil, fmt.Errorf("create issue %s: marshal yaml: %w", id, err)
+	}
+
+	filename := id
+	if slug := issueV2Slug(fields.Title); slug != "" {
+		filename = id + "-" + slug
+	}
+	relPath := filepath.Join(v2IssuesDirName, filename+".md")
+	content := "---\n" + strings.TrimSpace(string(out)) + "\n---" + fields.Body
+
+	issue, err := DecodeIssueV2(relPath, content)
+	if err != nil {
+		return nil, fmt.Errorf("create issue %s: %w", id, err)
+	}
+
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("create issue %s: resolve project root %q: %w", id, root, err)
+	}
+	path := filepath.Join(rootAbs, relPath)
+
+	if err := createV2RecordFile(path, []byte(content), ErrV2IssueAlreadyExists); err != nil {
+		return nil, err
+	}
+
+	issue.Source.ProjectRoot = rootAbs
+	return issue, nil
+}
+
+// issueV2Slug converts title into the lowercase, hyphen-separated slug
+// CreateIssueV2 appends to the allocated ID, matching the {ID}-{slug}.md
+// filename convention Tasks and Epics already use. Discovery only requires a
+// filename to start with its declared ID, so an empty slug (an all-symbol
+// title) is not an error — CreateIssueV2 falls back to the bare ID.
+func issueV2Slug(title string) string {
+	var b strings.Builder
+	lastHyphen := true
+	for _, r := range strings.ToLower(title) {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastHyphen = false
+		default:
+			if !lastHyphen {
+				b.WriteByte('-')
+				lastHyphen = true
+			}
+		}
+	}
+	return strings.TrimSuffix(b.String(), "-")
+}
+
+// nextV2IssueID allocates the next unused Issue ID from index.Issues: one
+// past the highest numeric ID already present, formatted with at least three
+// digits. It never reuses an ID already present, and allocates over active
+// records only, matching nextV2CheckID.
+func nextV2IssueID(index *V2Index) string {
+	next := 1
+	for id := range index.Issues {
+		n, err := strconv.Atoi(strings.TrimPrefix(id, "I"))
+		if err != nil {
+			continue
+		}
+		if n >= next {
+			next = n + 1
+		}
+	}
+	return fmt.Sprintf("I%03d", next)
+}
+
+// WriteIssueV2 patches only the status, resolution, duplicate_of, tasks,
+// checks, and severity fields of a V2 Issue record's frontmatter to match
+// issue's in-memory fields, preserving every other YAML key, unknown field,
+// and the authored Markdown body unchanged. History is never touched here —
+// it has its own append-only path in WriteIssueHistoryV2. The patched
+// content is validated as a decodable IssueV2 before any file is replaced,
+// so a malformed value is refused and the file is left untouched, and
+// writing values the record already has is a no-op.
+func WriteIssueV2(issue *IssueV2) error {
+	patches, err := issueManagedPatches(issue)
+	if err != nil {
+		return err
+	}
+
+	return writeV2Record(&issue.Source, patches, func(content string) error {
+		_, err := DecodeIssueV2(issue.Source.Path, content)
+		return err
+	})
+}
+
+func issueManagedPatches(issue *IssueV2) ([]v2FieldPatch, error) {
+	tasksPatch, err := issueListV2Patch("tasks", issue.Tasks)
+	if err != nil {
+		return nil, err
+	}
+	checksPatch, err := issueListV2Patch("checks", issue.Checks)
+	if err != nil {
+		return nil, err
+	}
+	resolutionPatch, err := issueResolutionV2Patch(issue.Resolution)
+	if err != nil {
+		return nil, err
+	}
+
+	return []v2FieldPatch{
+		{Key: "status", Value: string(issue.Status)},
+		resolutionPatch,
+		issueScalarV2Patch("duplicate_of", issue.DuplicateOf),
+		tasksPatch,
+		checksPatch,
+		issueScalarV2Patch("severity", issue.Severity),
+	}, nil
+}
+
+// issueListV2Patch patches an optional identity-reference list field,
+// removing the key entirely when values is empty rather than writing an
+// empty sequence — matching CreateIssueV2's omitempty output for the same
+// field, so writing a record its own empty list back is a no-op.
+func issueListV2Patch(key string, values []string) (v2FieldPatch, error) {
+	if len(values) == 0 {
+		return v2FieldPatch{Key: key, Remove: true}, nil
+	}
+	node, err := encodeV2Node(values)
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode issue %s: %w", key, err)
+	}
+	return v2FieldPatch{Key: key, Node: node}, nil
+}
+
+// issueScalarV2Patch patches an optional scalar Issue field, removing the
+// key entirely when value is empty rather than writing it blank — matching
+// the rule that an absent optional field stays absent.
+func issueScalarV2Patch(key, value string) v2FieldPatch {
+	if value == "" {
+		return v2FieldPatch{Key: key, Remove: true}
+	}
+	return v2FieldPatch{Key: key, Value: value}
+}
+
+func issueResolutionV2Patch(resolution *IssueResolution) (v2FieldPatch, error) {
+	if resolution == nil {
+		return v2FieldPatch{Key: "resolution", Remove: true}, nil
+	}
+	node, err := encodeV2Node(issueResolutionFrontmatter{
+		Disposition: string(resolution.Disposition),
+		Check:       resolution.Check,
+		Actor:       evidenceActorFrontmatter{Role: string(resolution.Actor.Role), Session: resolution.Actor.Session},
+		At:          resolution.At.Format(time.RFC3339),
+		Reason:      resolution.Reason,
+	})
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode issue resolution: %w", err)
+	}
+	return v2FieldPatch{Key: "resolution", Node: node}, nil
+}
+
+// WriteIssueHistoryV2 replaces issue's recorded history with entries, which
+// must extend it: entries shorter than the recorded history, or differing in
+// any already-recorded entry, are refused with ErrV2IssueHistoryNotAppendOnly
+// and leave the file untouched. Every earlier entry's fields are preserved
+// byte-for-byte in the rewritten frontmatter because they are the same
+// values re-marshalled, never edited. The patched content is validated as a
+// decodable IssueV2 before any file is replaced, and appending the same
+// entries the record already has is a no-op.
+func WriteIssueHistoryV2(issue *IssueV2, entries []IssueHistoryEntry) error {
+	if err := validateAppendOnlyIssueHistory(issue.Source.Path, issue.ID, issue.History, entries); err != nil {
+		return err
+	}
+
+	node, err := encodeV2Node(issueHistoryV2Frontmatter(entries))
+	if err != nil {
+		return fmt.Errorf("encode issue history: %w", err)
+	}
+
+	return writeV2Record(&issue.Source, []v2FieldPatch{{Key: "history", Node: node}}, func(content string) error {
+		_, err := DecodeIssueV2(issue.Source.Path, content)
+		return err
+	})
+}
+
+// validateAppendOnlyIssueHistory refuses any write whose entries do not
+// start with recorded's exact entries in the same order: a shorter list, a
+// reordered entry, or an edited entry are each a named diagnostic rather
+// than a silently accepted rewrite of the past.
+func validateAppendOnlyIssueHistory(path, id string, recorded, entries []IssueHistoryEntry) error {
+	if len(entries) < len(recorded) {
+		return fmt.Errorf("%w: %s: issue %s history has %d recorded entries, write has only %d", ErrV2IssueHistoryNotAppendOnly, path, id, len(recorded), len(entries))
+	}
+	for i, existing := range recorded {
+		if !issueHistoryEntryEqual(existing, entries[i]) {
+			return fmt.Errorf("%w: %s: issue %s history entry %d differs from the recorded entry", ErrV2IssueHistoryNotAppendOnly, path, id, i)
+		}
+	}
+	return nil
+}
+
+func issueHistoryEntryEqual(a, b IssueHistoryEntry) bool {
+	return a.At.Equal(b.At) && a.Actor == b.Actor && a.Kind == b.Kind && a.Note == b.Note && a.Check == b.Check
+}
+
+// issueHistoryV2Frontmatter re-marshals entries in recorded order into the
+// frontmatter shape decodeIssueHistory reads back.
+func issueHistoryV2Frontmatter(entries []IssueHistoryEntry) []issueHistoryFrontmatter {
+	out := make([]issueHistoryFrontmatter, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, issueHistoryFrontmatter{
+			At:    entry.At.Format(time.RFC3339),
+			Actor: evidenceActorFrontmatter{Role: string(entry.Actor.Role), Session: entry.Actor.Session},
+			Kind:  string(entry.Kind),
+			Note:  entry.Note,
+			Check: entry.Check,
+		})
+	}
+	return out
 }
