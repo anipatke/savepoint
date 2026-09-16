@@ -190,7 +190,7 @@ func decodeFreshnessV2(path, recordKind, id string, raw freshnessV2Frontmatter) 
 		return nil, fmt.Errorf("%w: %s: %s %s freshness.check %q must match C plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
 	}
 
-	assessedBy, err := decodeEvidenceActor(path, recordKind, id, "freshness.assessed_by", raw.AssessedBy)
+	assessedBy, err := decodeV2Actor(ErrV2EvidenceMalformed, path, recordKind, id, "freshness.assessed_by", raw.AssessedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func decodeFreshnessV2(path, recordKind, id string, raw freshnessV2Frontmatter) 
 		return nil, fmt.Errorf("%w: %s: %s %s current freshness requires freshness.assessed_by.role checker", ErrV2EvidenceMalformed, path, recordKind, id)
 	}
 
-	assessedAt, err := decodeEvidenceTimestamp(path, recordKind, id, "freshness.assessed_at", raw.AssessedAt)
+	assessedAt, err := decodeV2Timestamp(ErrV2EvidenceMalformed, path, recordKind, id, "freshness.assessed_at", raw.AssessedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func decodeOwnerValidationV2(path, recordKind, id string, raw ownerValidationV2F
 	if raw.AcceptedBy == nil {
 		return nil, fmt.Errorf("%w: %s: %s %s missing required field owner_validation.accepted_by", ErrV2MissingField, path, recordKind, id)
 	}
-	acceptedBy, err := decodeEvidenceActor(path, recordKind, id, "owner_validation.accepted_by", *raw.AcceptedBy)
+	acceptedBy, err := decodeV2Actor(ErrV2EvidenceMalformed, path, recordKind, id, "owner_validation.accepted_by", *raw.AcceptedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func decodeExceptionV2(path, recordKind, id string, raw exceptionV2Frontmatter) 
 		return nil, fmt.Errorf("%w: %s: %s %s missing required field exception.owner", ErrV2MissingField, path, recordKind, id)
 	}
 
-	recordedAt, err := decodeEvidenceTimestamp(path, recordKind, id, "exception.recorded_at", raw.RecordedAt)
+	recordedAt, err := decodeV2Timestamp(ErrV2EvidenceMalformed, path, recordKind, id, "exception.recorded_at", raw.RecordedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -286,12 +286,12 @@ func decodeReplanV2(path, recordKind, id string, raw replanV2Frontmatter) (*Repl
 		return nil, fmt.Errorf("%w: %s: %s %s missing required field replan.reason", ErrV2MissingField, path, recordKind, id)
 	}
 
-	recordedBy, err := decodeEvidenceActor(path, recordKind, id, "replan.recorded_by", raw.RecordedBy)
+	recordedBy, err := decodeV2Actor(ErrV2EvidenceMalformed, path, recordKind, id, "replan.recorded_by", raw.RecordedBy)
 	if err != nil {
 		return nil, err
 	}
 
-	recordedAt, err := decodeEvidenceTimestamp(path, recordKind, id, "replan.recorded_at", raw.RecordedAt)
+	recordedAt, err := decodeV2Timestamp(ErrV2EvidenceMalformed, path, recordKind, id, "replan.recorded_at", raw.RecordedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,10 @@ func decodeReplanV2(path, recordKind, id string, raw replanV2Frontmatter) (*Repl
 	return &Replan{Reason: raw.Reason, RecordedBy: recordedBy, RecordedAt: recordedAt}, nil
 }
 
-func decodeEvidenceActor(path, recordKind, id, fieldName string, raw evidenceActorFrontmatter) (Actor, error) {
+// decodeV2Actor decodes one {role, session} provenance block. malformed is
+// the calling record family's own diagnostic, so an Issue's bad actor is
+// reported as an Issue problem rather than an evidence one.
+func decodeV2Actor(malformed error, path, recordKind, id, fieldName string, raw evidenceActorFrontmatter) (Actor, error) {
 	if raw.Role == "" {
 		return Actor{}, fmt.Errorf("%w: %s: %s %s missing required field %s.role", ErrV2MissingField, path, recordKind, id, fieldName)
 	}
@@ -307,7 +310,7 @@ func decodeEvidenceActor(path, recordKind, id, fieldName string, raw evidenceAct
 	switch role {
 	case ActorRolePlanner, ActorRoleExecutor, ActorRoleChecker, ActorRoleOwner:
 	default:
-		return Actor{}, fmt.Errorf("%w: %s: %s %s %s.role %q; use planner, executor, checker, or owner", ErrV2EvidenceMalformed, path, recordKind, id, fieldName, raw.Role)
+		return Actor{}, fmt.Errorf("%w: %s: %s %s %s.role %q; use planner, executor, checker, or owner", malformed, path, recordKind, id, fieldName, raw.Role)
 	}
 	if raw.Session == "" {
 		return Actor{}, fmt.Errorf("%w: %s: %s %s missing required field %s.session", ErrV2MissingField, path, recordKind, id, fieldName)
@@ -315,13 +318,15 @@ func decodeEvidenceActor(path, recordKind, id, fieldName string, raw evidenceAct
 	return Actor{Role: role, Session: raw.Session}, nil
 }
 
-func decodeEvidenceTimestamp(path, recordKind, id, fieldName, raw string) (time.Time, error) {
+// decodeV2Timestamp decodes one required RFC 3339 field, reporting an
+// unparseable value under the calling record family's malformed diagnostic.
+func decodeV2Timestamp(malformed error, path, recordKind, id, fieldName, raw string) (time.Time, error) {
 	if strings.TrimSpace(raw) == "" {
 		return time.Time{}, fmt.Errorf("%w: %s: %s %s missing required field %s", ErrV2MissingField, path, recordKind, id, fieldName)
 	}
 	parsed, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: %s: %s %s %s %q is not a parseable RFC 3339 timestamp: %v", ErrV2EvidenceMalformed, path, recordKind, id, fieldName, raw, err)
+		return time.Time{}, fmt.Errorf("%w: %s: %s %s %s %q is not a parseable RFC 3339 timestamp: %v", malformed, path, recordKind, id, fieldName, raw, err)
 	}
 	return parsed, nil
 }

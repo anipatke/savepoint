@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E44-issues-objective-checks
-task: E44-issues-objective-checks/T001-record-durable-follow-up
-next_action: Build E44-issues-objective-checks/T001-record-durable-follow-up.
+task: E44-issues-objective-checks/T004-save-issues-without-losing-history
+next_action: Build E44-issues-objective-checks/T004-save-issues-without-losing-history.
 ```
 
 ## State → action

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -599,6 +600,84 @@ func TestV1BoardTransitions_unaffectedByV2GateAdditions(t *testing.T) {
 	}
 	if task.Column != ColumnPlanned {
 		t.Fatalf("task lifecycle = %q, want planned", task.Column)
+	}
+}
+
+// TestGateDecisions_unaffectedByOpenIssuesOfEveryType proves no Issue type,
+// severity, or open count changes any Task gate decision: ResolveTaskStart,
+// ResolveTaskAdvance, and ResolveTaskCompletion return identical decisions
+// with and without open Issues of every type present. Issues never gate
+// directly — material blocking is expressed by a Check recording NEEDS WORK
+// alone.
+func TestGateDecisions_unaffectedByOpenIssuesOfEveryType(t *testing.T) {
+	buildIndex := func() *V2Index {
+		index := newV2TestIndex()
+		mustCheck(index, "C001", "T002", CheckResultClear)
+		index.Tasks["T002"] = mustCurrentTask("T002", "C001", nil)
+		index.Tasks["T002"].Status = ColumnDone
+		index.Tasks["T001"] = &TaskV2{
+			ID: "T001", Objective: "O001", Status: ColumnPlanned,
+			DependsOn: []TaskDependencyV2{{Task: "T002", Requires: TaskDependencyClear}},
+		}
+		return index
+	}
+
+	without := buildIndex()
+	startWithout := ResolveTaskStart(without, "T001")
+
+	without.Tasks["T001"].Status = ColumnInProgress
+	without.Tasks["T001"].Stage = StageBuild
+	advanceWithout := ResolveTaskAdvance(without, "T001")
+
+	without.Tasks["T001"].Stage = StageAudit
+	completionWithout := ResolveTaskCompletion(without, "T001")
+
+	with := buildIndex()
+	with.Issues = map[string]*IssueV2{}
+	for i, issueType := range []IssueType{IssueTypeDefect, IssueTypeDrift, IssueTypeGuardrail, IssueTypeVerification, IssueTypeOther} {
+		id := fmt.Sprintf("I%03d", i+1)
+		with.Issues[id] = &IssueV2{ID: id, Type: issueType, Status: IssueStatusOpen, Severity: "critical"}
+	}
+	with.TaskIssues = map[string][]string{"T001": {"I001", "I002", "I003", "I004", "I005"}}
+
+	startWith := ResolveTaskStart(with, "T001")
+	if !reflect.DeepEqual(startWithout, startWith) {
+		t.Fatalf("ResolveTaskStart() with open issues = %+v, want identical to without = %+v", startWith, startWithout)
+	}
+
+	with.Tasks["T001"].Status = ColumnInProgress
+	with.Tasks["T001"].Stage = StageBuild
+	advanceWith := ResolveTaskAdvance(with, "T001")
+	if !reflect.DeepEqual(advanceWithout, advanceWith) {
+		t.Fatalf("ResolveTaskAdvance() with open issues = %+v, want identical to without = %+v", advanceWith, advanceWithout)
+	}
+
+	with.Tasks["T001"].Stage = StageAudit
+	completionWith := ResolveTaskCompletion(with, "T001")
+	if !reflect.DeepEqual(completionWithout, completionWith) {
+		t.Fatalf("ResolveTaskCompletion() with open issues = %+v, want identical to without = %+v", completionWith, completionWithout)
+	}
+}
+
+// TestResolveTaskCompletion_needsWorkCheckReferencingIssueBlocksThroughClearanceAlone
+// proves a NEEDS WORK Check that names an Issue still blocks solely through
+// E43's existing clearance rules, with no Issue-derived blocker kind
+// introduced.
+func TestResolveTaskCompletion_needsWorkCheckReferencingIssueBlocksThroughClearanceAlone(t *testing.T) {
+	index := newV2TestIndex()
+	check := mustCheck(index, "C001", "T001", CheckResultNeedsWork)
+	check.Issues = []string{"I001"}
+	index.Issues = map[string]*IssueV2{
+		"I001": {ID: "I001", Type: IssueTypeDefect, Status: IssueStatusOpen},
+	}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit}
+
+	got := ResolveTaskCompletion(index, "T001")
+	if got.Allowed {
+		t.Fatalf("ResolveTaskCompletion() Allowed = true, want false (NEEDS WORK check)")
+	}
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
+		t.Fatalf("Blockers = %+v, want exactly one GateBlockClearanceNeedsWork, no Issue-derived blocker kind", got.Blockers)
 	}
 }
 

@@ -189,6 +189,7 @@ const (
 	v2ObjectiveFileName = "Objective.md"
 	v2TasksDirName      = "tasks"
 	v2ChecksDirName     = "checks"
+	v2IssuesDirName     = "issues"
 )
 
 // DiscoverV2Records confines discovery to root/objectives and decodes every
@@ -357,23 +358,58 @@ func discoverV2Tasks(confined *v2PathConfiner, objDirPath, relObjDir string, tas
 }
 
 // DiscoverV2Checks confines discovery to root/checks and decodes every Check
-// record found there into an identity-keyed map. Like DiscoverV2Records, it
-// never consults record content to build filesystem paths, rejects a path
-// resolving outside the project root or aliasing an already-visited path on
-// a case-insensitive filesystem, and rejects a duplicate global ID and a
-// filename that does not start with the ID the record declares. root is the
-// .savepoint directory. A missing checks/ directory is not an error: a
-// project may not yet have any recorded evaluations.
+// record found there into an identity-keyed map. root is the .savepoint
+// directory. A missing checks/ directory is not an error: a project may not
+// yet have any recorded evaluations.
 //
 // DiscoverV2Checks validates structure only: it does not resolve a Check's
 // scope target against the rest of the index, or validate supersedes chains
 // — that is project.go's job once the caller has the full V2Index.
 func DiscoverV2Checks(root string) (map[string]*CheckV2, error) {
-	checks := map[string]*CheckV2{}
+	return discoverV2FlatDir(root, v2ChecksDirName, "check", DecodeCheckV2)
+}
 
-	checksPath := filepath.Join(root, v2ChecksDirName)
-	if _, statErr := os.Lstat(checksPath); os.IsNotExist(statErr) {
-		return checks, nil
+// DiscoverV2Issues confines discovery to root/issues and decodes every Issue
+// record found there into an identity-keyed map, under the same confinement,
+// filename-prefix, and duplicate-identity rules Checks use. root is the
+// .savepoint directory. A missing issues/ directory is not an error: a
+// project may have no durable follow-up yet.
+//
+// DiscoverV2Issues validates structure only: it does not resolve an Issue's
+// task, check, or duplicate_of references against the rest of the index —
+// that is project.go's job once the caller has the full V2Index.
+func DiscoverV2Issues(root string) (map[string]*IssueV2, error) {
+	return discoverV2FlatDir(root, v2IssuesDirName, "issue", DecodeIssueV2)
+}
+
+// v2FlatRecord is what a record family filed directly under one flat
+// directory must expose for discoverV2FlatDir to index it: the global ID the
+// record declares, and a handle to the source document whose resolution
+// context discovery fills in.
+type v2FlatRecord interface {
+	recordID() string
+	sourceDocument() *V2SourceDocument
+}
+
+func (c *CheckV2) recordID() string                  { return c.ID }
+func (c *CheckV2) sourceDocument() *V2SourceDocument { return &c.Source }
+
+func (i *IssueV2) recordID() string                  { return i.ID }
+func (i *IssueV2) sourceDocument() *V2SourceDocument { return &i.Source }
+
+// discoverV2FlatDir walks root/dirName and decodes every *.md file there
+// through decode, keying the result by declared ID. Like DiscoverV2Records it
+// never consults record content to build filesystem paths, rejects a path
+// resolving outside the project root or aliasing an already-visited path on a
+// case-insensitive filesystem, and rejects a duplicate global ID and a
+// filename that does not start with the ID the record declares. recordKind
+// names the family in diagnostics. A missing directory is not an error.
+func discoverV2FlatDir[T v2FlatRecord](root, dirName, recordKind string, decode func(path, content string) (T, error)) (map[string]T, error) {
+	records := map[string]T{}
+
+	dirPath := filepath.Join(root, dirName)
+	if _, statErr := os.Lstat(dirPath); os.IsNotExist(statErr) {
+		return records, nil
 	}
 
 	rootAbs, err := filepath.Abs(root)
@@ -383,15 +419,15 @@ func DiscoverV2Checks(root string) (map[string]*CheckV2, error) {
 
 	confined := &v2PathConfiner{rootAbs: rootAbs, seen: map[string]string{}}
 
-	checksInfo, err := confined.stat(checksPath, v2ChecksDirName)
+	dirInfo, err := confined.stat(dirPath, dirName)
 	if err != nil {
 		return nil, err
 	}
-	if !checksInfo.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", checksPath)
+	if !dirInfo.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", dirPath)
 	}
 
-	entries, err := os.ReadDir(checksPath)
+	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
@@ -401,39 +437,40 @@ func DiscoverV2Checks(root string) (map[string]*CheckV2, error) {
 			continue
 		}
 
-		checkFilePath := filepath.Join(checksPath, entry.Name())
-		relCheckFile := filepath.Join(v2ChecksDirName, entry.Name())
-		checkFileInfo, err := confined.stat(checkFilePath, relCheckFile)
+		filePath := filepath.Join(dirPath, entry.Name())
+		relFile := filepath.Join(dirName, entry.Name())
+		fileInfo, err := confined.stat(filePath, relFile)
 		if err != nil {
 			return nil, err
 		}
-		if checkFileInfo.IsDir() {
+		if fileInfo.IsDir() {
 			continue
 		}
 
-		content, err := os.ReadFile(checkFilePath)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", checkFilePath, err)
+			return nil, fmt.Errorf("read %s: %w", filePath, err)
 		}
 
-		check, err := DecodeCheckV2(relCheckFile, string(content))
+		record, err := decode(relFile, string(content))
 		if err != nil {
 			return nil, err
 		}
-		check.Source.ProjectRoot = rootAbs
+		record.sourceDocument().ProjectRoot = rootAbs
 
+		id := record.recordID()
 		baseName := strings.TrimSuffix(entry.Name(), ".md")
-		if !strings.HasPrefix(baseName, check.ID) {
-			return nil, fmt.Errorf("%w: %s: check %s file name %q does not start with its id", ErrV2PathMismatch, relCheckFile, check.ID, entry.Name())
+		if !strings.HasPrefix(baseName, id) {
+			return nil, fmt.Errorf("%w: %s: %s %s file name %q does not start with its id", ErrV2PathMismatch, relFile, recordKind, id, entry.Name())
 		}
 
-		if existing, ok := checks[check.ID]; ok {
-			return nil, fmt.Errorf("%w: check %s declared at both %s and %s", ErrV2DuplicateID, check.ID, existing.Source.Path, relCheckFile)
+		if existing, ok := records[id]; ok {
+			return nil, fmt.Errorf("%w: %s %s declared at both %s and %s", ErrV2DuplicateID, recordKind, id, existing.sourceDocument().Path, relFile)
 		}
-		checks[check.ID] = check
+		records[id] = record
 	}
 
-	return checks, nil
+	return records, nil
 }
 
 // v2PathConfiner rejects two ways a discovered path could escape the safe,

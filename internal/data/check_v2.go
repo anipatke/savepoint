@@ -72,14 +72,17 @@ type ReviewedBasis struct {
 // evaluations; nothing here is healed, so a malformed field is a named
 // diagnostic rather than a silently defaulted value.
 type CheckV2 struct {
-	ID         string
-	Scope      CheckScope
-	Result     CheckResult
-	CheckedBy  Actor
-	CheckedAt  time.Time
-	Reviewed   *ReviewedBasis
-	Issues     []string // I### identity references only; never loaded or validated here
-	Supersedes string   // C### reference to the Check this run replaces, empty if none
+	ID        string
+	Scope     CheckScope
+	Result    CheckResult
+	CheckedBy Actor
+	CheckedAt time.Time
+	Reviewed  *ReviewedBasis
+	// Issues are I### references decoded for shape here and resolved against
+	// the Issue records at index time, where this list is the authoritative
+	// record of which Issues the evaluation opened.
+	Issues     []string
+	Supersedes string // C### reference to the Check this run replaces, empty if none
 	Source     V2SourceDocument
 }
 

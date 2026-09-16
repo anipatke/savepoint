@@ -70,9 +70,20 @@ type V2Index struct {
 	Objectives map[string]*ObjectiveV2
 	Tasks      map[string]*TaskV2
 	Checks     map[string]*CheckV2
+	// Issues holds every durable follow-up record keyed by its global I###
+	// identity, the identity that survives repair, recheck, and reopening.
+	Issues map[string]*IssueV2
 	// ObjectiveTasks maps an Objective ID to the sorted IDs of the Tasks
 	// that declare it as their owner.
 	ObjectiveTasks map[string][]string
+	// TaskIssues maps a Task ID to the sorted IDs of the Issues that name it
+	// as carrying their repair.
+	TaskIssues map[string][]string
+	// CheckIssues maps a Check ID to the sorted IDs of the Issues that name
+	// it. Both maps are built from the Issue side: an Issue may legally name
+	// a recheck or proof Check that never recorded it, while the pairing rule
+	// guarantees every Check-side link appears there too.
+	CheckIssues map[string][]string
 	// ScopeChecks maps a Task or Objective ID to the IDs of the Checks that
 	// name it as their scope target, in recorded (ascending C### ID) order.
 	ScopeChecks map[string][]string
@@ -99,11 +110,19 @@ func LoadV2Index(root string) (*V2Index, error) {
 		return nil, err
 	}
 
+	issues, err := DiscoverV2Issues(root)
+	if err != nil {
+		return nil, err
+	}
+
 	index := &V2Index{
 		Objectives:     objectives,
 		Tasks:          tasks,
 		Checks:         checks,
+		Issues:         issues,
 		ObjectiveTasks: map[string][]string{},
+		TaskIssues:     map[string][]string{},
+		CheckIssues:    map[string][]string{},
 		ScopeChecks:    map[string][]string{},
 		LatestCheck:    map[string]string{},
 	}
@@ -128,7 +147,137 @@ func LoadV2Index(root string) (*V2Index, error) {
 		return nil, err
 	}
 
+	if err := validateIssueDuplicateGraph(index); err != nil {
+		return nil, err
+	}
+
+	if err := validateIssueLinkTargets(index); err != nil {
+		return nil, err
+	}
+
+	if err := validateCheckIssuePairing(index); err != nil {
+		return nil, err
+	}
+
+	if err := validateIssueResolutionObligations(index); err != nil {
+		return nil, err
+	}
+
+	indexIssueLinks(index)
+
 	return index, nil
+}
+
+// validateIssueLinkTargets resolves every Issue reference that crosses record
+// families — a Check's issues, and an Issue's tasks and checks — against the
+// records actually discovered, so a link that names nothing fails the load
+// closed instead of being carried as an unresolvable string. Checks are
+// walked in recorded order and Issues in sorted ID order, so a project with
+// several dangling references reports the same one first on every run.
+func validateIssueLinkTargets(index *V2Index) error {
+	for _, id := range sortedV2CheckIDs(index.Checks) {
+		check := index.Checks[id]
+		for _, issueID := range check.Issues {
+			if _, ok := index.Issues[issueID]; !ok {
+				return fmt.Errorf("%w: %s: check %s names missing issue %s", ErrV2IssueMissingLinkTarget, check.Source.Path, id, issueID)
+			}
+		}
+	}
+
+	for _, id := range slices.Sorted(maps.Keys(index.Issues)) {
+		issue := index.Issues[id]
+		for _, taskID := range issue.Tasks {
+			if _, ok := index.Tasks[taskID]; !ok {
+				return fmt.Errorf("%w: %s: issue %s names missing task %s", ErrV2IssueMissingLinkTarget, issue.Source.Path, id, taskID)
+			}
+		}
+		for _, checkID := range issue.Checks {
+			if _, ok := index.Checks[checkID]; !ok {
+				return fmt.Errorf("%w: %s: issue %s names missing check %s", ErrV2IssueMissingLinkTarget, issue.Source.Path, id, checkID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateCheckIssuePairing enforces the one authoritative direction of the
+// Check-to-Issue relation. A Check is immutable, so its issues list is the
+// record of which Issues that evaluation opened, and the Issue's mutable
+// checks list must mirror it. A Check naming an Issue that does not name it
+// back is a named diagnostic over both records rather than a reconciliation:
+// the two sides disagree about what was observed, and only their authors know
+// which one is wrong. The reverse asymmetry is legal — an Issue may name a
+// recheck or proof Check that observed it without recording it. It runs after
+// validateIssueLinkTargets, where every named Issue is proven to exist.
+func validateCheckIssuePairing(index *V2Index) error {
+	for _, id := range sortedV2CheckIDs(index.Checks) {
+		check := index.Checks[id]
+		for _, issueID := range check.Issues {
+			if !slices.Contains(index.Issues[issueID].Checks, id) {
+				return fmt.Errorf("%w: %s: check %s names issue %s, which does not name check %s in its checks", ErrV2IssueUnpairedCheckLink, check.Source.Path, id, issueID, id)
+			}
+		}
+	}
+	return nil
+}
+
+// indexIssueLinks builds the Task-to-Issue and Check-to-Issue maps once at
+// load, so no consumer has to walk every Issue to answer what follow-up hangs
+// off one record. It runs after link validation, where every reference has
+// been proven to resolve.
+func indexIssueLinks(index *V2Index) {
+	for _, id := range slices.Sorted(maps.Keys(index.Issues)) {
+		issue := index.Issues[id]
+		for _, taskID := range issue.Tasks {
+			index.TaskIssues[taskID] = appendUniqueIssueID(index.TaskIssues[taskID], id)
+		}
+		for _, checkID := range issue.Checks {
+			index.CheckIssues[checkID] = appendUniqueIssueID(index.CheckIssues[checkID], id)
+		}
+	}
+}
+
+// appendUniqueIssueID appends id unless it is already the last entry. A record
+// may legally repeat a reference, and a repeat lands next to its twin because
+// one Issue's references are walked together and Issues are walked in
+// ascending ID order — so the maps stay sorted and list each Issue once.
+func appendUniqueIssueID(ids []string, id string) []string {
+	if len(ids) > 0 && ids[len(ids)-1] == id {
+		return ids
+	}
+	return append(ids, id)
+}
+
+// validateIssueDuplicateGraph validates every duplicate_of reference by
+// global ID: the canonical Issue must exist and must be a different Issue,
+// and the resulting graph must not close into a cycle where every Issue
+// points at another and none is canonical. It walks IDs in sorted order so a
+// project reports the same diagnostic on every run, and reuses the shared
+// cycle walk so a duplicate chain is described exactly as a dependency cycle
+// is.
+func validateIssueDuplicateGraph(index *V2Index) error {
+	ids := slices.Sorted(maps.Keys(index.Issues))
+	edges := make(map[string][]string, len(ids))
+
+	for _, id := range ids {
+		issue := index.Issues[id]
+		if issue.DuplicateOf == "" {
+			continue
+		}
+		if issue.DuplicateOf == id {
+			return fmt.Errorf("%w: %s: issue %s duplicates itself", ErrV2IssueSelfDuplicate, issue.Source.Path, id)
+		}
+		if _, ok := index.Issues[issue.DuplicateOf]; !ok {
+			return fmt.Errorf("%w: %s: issue %s duplicates missing issue %s", ErrV2IssueMissingDuplicateTarget, issue.Source.Path, id, issue.DuplicateOf)
+		}
+		edges[id] = append(edges[id], issue.DuplicateOf)
+	}
+
+	if cycle := findV2Cycle(ids, edges); cycle != nil {
+		return fmt.Errorf("%w: issue duplicate_of cycle %s", ErrV2IssueDuplicateCycle, describeV2Cycle(cycle, func(id string) string { return index.Issues[id].Source.Path }))
+	}
+	return nil
 }
 
 // validateEvidenceReferences resolves every Check reference named in Task

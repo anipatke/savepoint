@@ -411,3 +411,129 @@ func TestDiscoverV2Checks_rejectsCaseCollision(t *testing.T) {
 		t.Fatalf("DiscoverV2Checks() error = %v, want ErrV2UnsafePath", err)
 	}
 }
+
+func writeV2IssueFixture(t *testing.T, root, fileName, id, status string) {
+	t.Helper()
+	content := "---\nid: " + id + "\ntitle: \"Follow-up\"\ntype: defect\nstatus: " + status +
+		"\nsource: {kind: report, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n"
+	testutil.WriteFile(t, filepath.Join(root, v2IssuesDirName, fileName), content)
+}
+
+func TestDiscoverV2Issues_valid(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I002-beta.md", "I002", "in_progress")
+
+	issues, err := DiscoverV2Issues(root)
+	if err != nil {
+		t.Fatalf("DiscoverV2Issues() error = %v", err)
+	}
+	if len(issues) != 2 {
+		t.Fatalf("DiscoverV2Issues() = %d issues, want 2", len(issues))
+	}
+	if issues["I001"] == nil || issues["I001"].Status != IssueStatusOpen {
+		t.Errorf("issues[I001] = %+v, want status open", issues["I001"])
+	}
+	if issues["I002"] == nil || issues["I002"].Source.Path != filepath.Join(v2IssuesDirName, "I002-beta.md") {
+		t.Errorf("issues[I002] = %+v, want its project-relative source path", issues["I002"])
+	}
+}
+
+func TestDiscoverV2Issues_absentIssuesDir(t *testing.T) {
+	root := t.TempDir()
+
+	issues, err := DiscoverV2Issues(root)
+	if err != nil {
+		t.Fatalf("DiscoverV2Issues() error = %v, want nil for a project with no issues/ yet", err)
+	}
+	if len(issues) != 0 {
+		t.Errorf("DiscoverV2Issues() = %v, want empty", issues)
+	}
+}
+
+func TestDiscoverV2Issues_fileNameMismatch(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I002-wrong-name.md", "I001", "open")
+
+	_, err := DiscoverV2Issues(root)
+	if !errors.Is(err, ErrV2PathMismatch) {
+		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2PathMismatch", err)
+	}
+}
+
+func TestDiscoverV2Issues_duplicateID(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I001-alpha-again.md", "I001", "open")
+
+	_, err := DiscoverV2Issues(root)
+	if !errors.Is(err, ErrV2DuplicateID) {
+		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2DuplicateID", err)
+	}
+}
+
+// TestDiscoverV2Issues_rejectsTraversalFilename proves a filename that tries
+// to climb out of issues/ is never treated as a record: discovery walks real
+// directory entries, so the escape attempt is simply not an Issue file.
+func TestDiscoverV2Issues_rejectsTraversalFilename(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	testutil.WriteFile(t, filepath.Join(root, "I999-escaped.md"),
+		"---\nid: I999\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
+
+	issues, err := DiscoverV2Issues(root)
+	if err != nil {
+		t.Fatalf("DiscoverV2Issues() error = %v", err)
+	}
+	if _, ok := issues["I999"]; ok {
+		t.Error("DiscoverV2Issues() indexed a record outside issues/, want confinement to the issues directory")
+	}
+}
+
+func TestDiscoverV2Issues_rejectsSymlinkEscape(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on windows")
+	}
+
+	root := t.TempDir()
+	outside := t.TempDir()
+	outsideFile := filepath.Join(outside, "I001-alpha.md")
+	testutil.WriteFile(t, outsideFile,
+		"---\nid: I001\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
+
+	testutil.MkdirAll(t, filepath.Join(root, v2IssuesDirName))
+	link := filepath.Join(root, v2IssuesDirName, "I001-alpha.md")
+	if err := os.Symlink(outsideFile, link); err != nil {
+		t.Fatalf("os.Symlink() error = %v", err)
+	}
+
+	_, err := DiscoverV2Issues(root)
+	if !errors.Is(err, ErrV2UnsafePath) {
+		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2UnsafePath", err)
+	}
+}
+
+func TestDiscoverV2Issues_rejectsCaseCollision(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2IssueFixture(t, root, "i001-Alpha.md", "I002", "open")
+
+	_, err := DiscoverV2Issues(root)
+	if !errors.Is(err, ErrV2UnsafePath) {
+		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2UnsafePath", err)
+	}
+}
+
+// TestDiscoverV2Issues_malformedRecordFailsClosed proves a structurally bad
+// Issue stops the load rather than being skipped, so a project never reports
+// fewer Issues than it actually has.
+func TestDiscoverV2Issues_malformedRecordFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I002-beta.md", "I002", "done")
+
+	_, err := DiscoverV2Issues(root)
+	if !errors.Is(err, ErrV2InvalidLifecycle) {
+		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2InvalidLifecycle", err)
+	}
+}

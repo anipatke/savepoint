@@ -41,7 +41,9 @@
       "Bash(git commit -q -m ' *)",
       "Bash(git commit *)",
       "Read(//home/user/.claude/**)",
-      "Bash(/usr/bin/bash /home/user/.claude/statusline-command.sh)"
+      "Bash(/usr/bin/bash /home/user/.claude/statusline-command.sh)",
+      "Bash(gofmt -w internal/data/check_v2.go)",
+      "Bash(gofmt -l internal/data/)"
     ]
   }
 }

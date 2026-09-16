@@ -33,4 +33,17 @@ var (
 	ErrV2EvidenceMalformed        = errors.New("v2 record evidence has a malformed field")
 	ErrV2EvidenceMissingReference = errors.New("v2 record evidence names a check that does not exist")
 	ErrV2CheckImmutable           = errors.New("v2 check record already exists and cannot be rewritten")
+
+	ErrV2IssueMalformed              = errors.New("v2 issue record has a malformed field")
+	ErrV2IssueMissingDuplicateTarget = errors.New("v2 issue duplicate_of names an issue that does not exist")
+	ErrV2IssueSelfDuplicate          = errors.New("v2 issue is marked a duplicate of itself")
+	ErrV2IssueDuplicateCycle         = errors.New("v2 issues form a duplicate_of cycle")
+	ErrV2IssueMissingLinkTarget      = errors.New("v2 issue link names a record that does not exist")
+	ErrV2IssueUnpairedCheckLink      = errors.New("v2 check names an issue that does not name it back")
+
+	ErrV2IssueResolutionRequired      = errors.New("v2 issue status resolved requires a resolution")
+	ErrV2IssueResolutionNotAllowed    = errors.New("v2 issue resolution is present on a non-resolved status")
+	ErrV2IssueResolutionMissingProof  = errors.New("v2 issue verified resolution names no usable proof check")
+	ErrV2IssueResolutionUnusableProof = errors.New("v2 issue verified resolution's proof check is not a listed CLEAR check")
+	ErrV2IssueResolutionFieldMismatch = errors.New("v2 issue resolution field does not satisfy its disposition's obligations")
 )
