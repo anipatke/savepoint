@@ -137,7 +137,8 @@ const (
 	// required and the owner has not accepted the current Check.
 	GateBlockOwnerAcceptance GateBlockKind = "owner_acceptance_required"
 	// GateBlockInvalidState means the Task's recorded status/stage is not a
-	// state AdvanceTaskLifecycleState recognizes.
+	// state AdvanceTaskLifecycleState recognizes, or, for an Objective
+	// completion decision, that one of its owned Tasks is not done.
 	GateBlockInvalidState GateBlockKind = "invalid_state"
 	// GateBlockCheckerAuthority means a CLEAR Check or its current freshness
 	// assessment was not recorded by an identified checker session.
@@ -304,7 +305,7 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("no freshness assessment recorded for latest check %s", clearance.Check)})
 		}
 	case ClearanceCurrent:
-		if ownerValidationRequired(task) && !ownerAcceptedCheck(task, clearance.Check) {
+		if ownerValidationRequired(task.Evidence) && !ownerAcceptedCheck(task.Evidence, clearance.Check) {
 			blockers = append(blockers, GateBlocker{Kind: GateBlockOwnerAcceptance, Detail: fmt.Sprintf("owner has not accepted current check %s", clearance.Check)})
 		}
 	}
@@ -313,34 +314,38 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 		return GateDecision{Allowed: true, Actor: ActorRoleChecker}
 	}
 
-	if exception := applicableException(task, index.LatestCheck[taskID]); exception != nil {
+	if exception := applicableException(task.Evidence, index.LatestCheck[taskID]); exception != nil {
 		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
 	}
 
 	return GateDecision{Blockers: blockers}
 }
 
-func ownerValidationRequired(task *TaskV2) bool {
-	return task.Evidence != nil && task.Evidence.OwnerValidation != nil && task.Evidence.OwnerValidation.Required
+// ownerValidationRequired and ownerAcceptedCheck read the shared Evidence
+// block so Task and Objective completion decisions apply the same owner-
+// acceptance rule without restating it.
+func ownerValidationRequired(evidence *Evidence) bool {
+	return evidence != nil && evidence.OwnerValidation != nil && evidence.OwnerValidation.Required
 }
 
-func ownerAcceptedCheck(task *TaskV2, checkID string) bool {
-	if task.Evidence == nil || task.Evidence.OwnerValidation == nil || checkID == "" {
+func ownerAcceptedCheck(evidence *Evidence, checkID string) bool {
+	if evidence == nil || evidence.OwnerValidation == nil || checkID == "" {
 		return false
 	}
-	accepted := task.Evidence.OwnerValidation
+	accepted := evidence.OwnerValidation
 	return accepted.AcceptedCheck == checkID && accepted.AcceptedBy.Role == ActorRoleOwner && strings.TrimSpace(accepted.AcceptedBy.Session) != ""
 }
 
-// applicableException returns task's recorded exception only when it names
-// latestCheckID, the target's current latest Check. An exception naming any
-// other Check — one a later Check has superseded — does not carry forward
-// and returns nil, so the caller falls back to reporting normal blockers.
-func applicableException(task *TaskV2, latestCheckID string) *Exception {
-	if task.Evidence == nil || task.Evidence.Exception == nil {
+// applicableException returns evidence's recorded exception only when it
+// names latestCheckID, the target's current latest Check. An exception
+// naming any other Check — one a later Check has superseded — does not carry
+// forward and returns nil, so the caller falls back to reporting normal
+// blockers. Shared by Task and Objective completion.
+func applicableException(evidence *Evidence, latestCheckID string) *Exception {
+	if evidence == nil || evidence.Exception == nil {
 		return nil
 	}
-	exception := task.Evidence.Exception
+	exception := evidence.Exception
 	if latestCheckID == "" || exception.Check != latestCheckID {
 		return nil
 	}
