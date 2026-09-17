@@ -1233,12 +1233,19 @@ func WriteIssueHistoryV2(issue *IssueV2, entries []IssueHistoryEntry) error {
 		return err
 	}
 
-	node, err := encodeV2Node(issueHistoryV2Frontmatter(entries))
-	if err != nil {
-		return fmt.Errorf("encode issue history: %w", err)
+	// An empty history removes the key rather than recording an empty
+	// sequence, so writing no entries to a record that has none stays a true
+	// no-op instead of rewriting the file with `history: []`.
+	patch := v2FieldPatch{Key: "history", Remove: true}
+	if len(entries) > 0 {
+		node, err := encodeV2Node(issueHistoryV2Frontmatter(entries))
+		if err != nil {
+			return fmt.Errorf("encode issue history: %w", err)
+		}
+		patch = v2FieldPatch{Key: "history", Node: node}
 	}
 
-	return writeV2Record(&issue.Source, []v2FieldPatch{{Key: "history", Node: node}}, func(content string) error {
+	return writeV2Record(&issue.Source, []v2FieldPatch{patch}, func(content string) error {
 		_, err := DecodeIssueV2(issue.Source.Path, content)
 		return err
 	})

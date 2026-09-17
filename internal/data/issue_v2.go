@@ -145,27 +145,31 @@ type IssueV2 struct {
 	Source      V2SourceDocument
 }
 
+// The optional fields carry omitempty so a written record never records a
+// blank value for a field the record does not declare, matching the rule
+// that an absent optional field stays absent. An accepted resolution in
+// particular must not appear to name a proof check.
 type issueOriginFrontmatter struct {
 	Kind  string                   `yaml:"kind"`
-	Check string                   `yaml:"check"`
+	Check string                   `yaml:"check,omitempty"`
 	Actor evidenceActorFrontmatter `yaml:"actor"`
 	At    string                   `yaml:"at"`
 }
 
 type issueResolutionFrontmatter struct {
 	Disposition string                   `yaml:"disposition"`
-	Check       string                   `yaml:"check"`
+	Check       string                   `yaml:"check,omitempty"`
 	Actor       evidenceActorFrontmatter `yaml:"actor"`
 	At          string                   `yaml:"at"`
-	Reason      string                   `yaml:"reason"`
+	Reason      string                   `yaml:"reason,omitempty"`
 }
 
 type issueHistoryFrontmatter struct {
 	At    string                   `yaml:"at"`
 	Actor evidenceActorFrontmatter `yaml:"actor"`
 	Kind  string                   `yaml:"kind"`
-	Note  string                   `yaml:"note"`
-	Check string                   `yaml:"check"`
+	Note  string                   `yaml:"note,omitempty"`
+	Check string                   `yaml:"check,omitempty"`
 }
 
 type issueV2Frontmatter struct {

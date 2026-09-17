@@ -2210,6 +2210,39 @@ func TestCreateIssueV2_writesNewFileAllocatesFirstID(t *testing.T) {
 	}
 }
 
+// TestCreateIssueV2_reportOriginOmitsEmptyCheckKey proves a report-sourced
+// Issue, which carries no source Check, is written without a blank
+// `check: ""` key under source — an absent optional field must stay absent
+// in the written bytes, not just decode back to the same value.
+func TestCreateIssueV2_reportOriginOmitsEmptyCheckKey(t *testing.T) {
+	root := t.TempDir()
+	index := &V2Index{Issues: map[string]*IssueV2{}}
+
+	fields := NewIssueV2{
+		Title: "Reported directly",
+		Type:  IssueTypeDrift,
+		Origin: IssueOrigin{
+			Kind:  IssueOriginReport,
+			Actor: Actor{Role: ActorRolePlanner, Session: "sess-1"},
+			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		},
+		Body: "\n\n# Issue\n",
+	}
+
+	issue, err := CreateIssueV2(root, index, fields)
+	if err != nil {
+		t.Fatalf("CreateIssueV2() error = %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, "issues", issue.ID+"-reported-directly.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "check:") {
+		t.Errorf("written record names an empty source.check key, want it omitted entirely:\n%s", raw)
+	}
+}
+
 func TestCreateIssueV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	root := t.TempDir()
 	index := &V2Index{Issues: map[string]*IssueV2{
@@ -2447,6 +2480,58 @@ resolution:
 	}
 	if reparsed.Status != IssueStatusOpen || reparsed.Resolution != nil {
 		t.Errorf("reparsed = %+v, want open with no resolution", reparsed)
+	}
+}
+
+// TestWriteIssueV2_acceptedResolutionOmitsProofCheckKey proves an accepted
+// resolution, whose entire contract is that it must not name a proof Check,
+// is written without a blank `check: ""` key under resolution — naming an
+// empty check there would misleadingly look like an unset proof reference
+// rather than a disposition that forbids one.
+func TestWriteIssueV2_acceptedResolutionOmitsProofCheckKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I013.md")
+	content := `---
+id: I013
+title: "Accepted risk"
+type: guardrail
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	issue.Status = IssueStatusResolved
+	issue.Resolution = &IssueResolution{
+		Disposition: IssueDispositionAccepted,
+		Actor:       Actor{Role: ActorRoleOwner, Session: "owner-1"},
+		At:          time.Date(2026, 9, 14, 1, 0, 0, 0, time.UTC),
+		Reason:      "Accepted known risk.",
+	}
+
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), "check:") {
+		t.Errorf("accepted resolution names a check key, want it omitted entirely:\n%s", result)
 	}
 }
 
@@ -2704,6 +2789,63 @@ history:
 	}
 }
 
+// TestWriteIssueHistoryV2_appendPreservesPriorEntryBytes proves appending a
+// new entry does not rewrite an earlier entry's own rendered YAML: a prior
+// entry recorded without a note or check must not gain blank `note: ""` or
+// `check: ""` keys just because a later write touched the file.
+func TestWriteIssueHistoryV2_appendPreservesPriorEntryBytes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I025.md")
+	content := `---
+id: I025
+title: "History issue"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+history:
+  - at: "2026-09-14T00:00:00Z"
+    actor:
+      role: checker
+      session: sess-1
+    kind: observed
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+
+	appended := IssueHistoryEntry{
+		At:    time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		Kind:  IssueHistoryRechecked,
+	}
+	entries := append(append([]IssueHistoryEntry{}, issue.History...), appended)
+
+	if err := WriteIssueHistoryV2(issue, entries); err != nil {
+		t.Fatalf("WriteIssueHistoryV2() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(result), `note: ""`) || strings.Contains(string(result), `check: ""`) {
+		t.Errorf("write introduced a blank placeholder key on a field the record never declared:\n%s", result)
+	}
+}
+
 func TestWriteIssueHistoryV2_refusesShorterListLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "I021.md")
@@ -2939,6 +3081,71 @@ history:
 	}
 	if string(beforeBytes) != string(afterBytes) {
 		t.Error("file bytes changed on no-op history write")
+	}
+}
+
+// TestWriteIssueHistoryV2_emptyOnHistoryFreeIssueIsNoOp proves writing zero
+// entries to an Issue that already has no history key stays a true no-op:
+// bytes and modification time unchanged, and no `history: []` key appears.
+func TestWriteIssueHistoryV2_emptyOnHistoryFreeIssueIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I026.md")
+	content := `---
+id: I026
+title: "No history yet"
+type: defect
+status: open
+source:
+  kind: report
+  actor:
+    role: planner
+    session: sess-1
+  at: "2026-09-14T00:00:00Z"
+---
+
+# Issue`
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	if len(issue.History) != 0 {
+		t.Fatalf("History = %v, want none recorded", issue.History)
+	}
+
+	if err := WriteIssueHistoryV2(issue, nil); err != nil {
+		t.Fatalf("WriteIssueHistoryV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("ModTime changed on empty-history no-op write: before %v, after %v", before.ModTime(), after.ModTime())
+	}
+	if string(beforeBytes) != string(afterBytes) {
+		t.Errorf("file bytes changed on empty-history no-op write:\nbefore: %s\nafter: %s", beforeBytes, afterBytes)
 	}
 }
 

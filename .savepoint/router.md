@@ -12,10 +12,10 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: audit-pending
+state: epic-design
 release: v2
-epic: E44-issues-objective-checks
-next_action: Fresh audit agent reads E44-Detail.md, task files, drift notes, Design.md, AGENTS.md, and scoped changed files; write E44-Audit.md.
+epic: E45-safe-migration
+next_action: Define what E45-safe-migration adds, files it touches, and architectural delta. Then transition to epic-task-breakdown.
 ```
 
 ## State → action

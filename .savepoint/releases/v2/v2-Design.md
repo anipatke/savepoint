@@ -112,13 +112,13 @@ Fresh session means independent from the executor conversation; model names are 
 
 Objective frontmatter: `id`, `title`, `status: planned|in_progress|done`, `depends_on: [O###]`, optional `release`, `last_check`, and the same freshness/exception evidence structure. Body: Outcome, Why, Success Conditions, Architectural Considerations, Boundaries. Task membership is derived from Task ownership, not a second manually maintained list. An Objective reaches done only after its Tasks meet completion rules and its independent integration Check is current (or an explicit scoped owner exception). Cross-task repair goes through Tasks. Dependent Objectives cannot start from Task-only clearance.
 
-Issue frontmatter: `id`, `title`, `type: defect|drift|guardrail|verification|other`, `status: open|in_progress|resolved`, `source`, `tasks`, `checks`, `guardrail_ids`, optional severity, `resolution`, and `duplicate_of`. Body: Summary, Evidence, Proof Needed, History. Type is descriptive, never sufficient by itself to block a Task.
+Issue frontmatter: `id`, `title`, `type: defect|drift|guardrail|verification|other`, `status: open|in_progress|resolved`, `source`, `tasks`, `checks`, `guardrail_ids`, optional severity, `resolution`, `duplicate_of`, and `history`. Body: Summary, Evidence, Proof Needed. Type is descriptive, never sufficient by itself to block a Task.
 
 - Checker explains material blocking against AC, required evidence, or applicable policy. Advisory style is nonblocking. Pending owner acceptance lives on the Task, not a duplicate Issue unless durable follow-up is needed.
 - Open → in_progress when repair starts; executor reports repair evidence without closing it. Checker verifies proof and closes. Owner acceptance is needed when declared; accepting unresolved risk requires an explicit owner decision.
 - Resolved disposition distinguishes `verified`, `accepted`, and `duplicate`. Accepted is not fixed; duplicate points to canonical Issue and is not proof of repair. Reopen the same ID for the same recurring problem with dated evidence.
 - Link out-of-scope repairs to new Tasks. Search existing Issues by symptom, location, violated requirement, and linked work before creating an ID. No probabilistic automatic deduplication service is required.
-- History records observations, repair attempts, rechecks, deferrals, and owner decisions. Deferral stays open with reason, not another lifecycle state. Check records replace immutable audit run history; issue listings/counts are derived without a separate register.
+- History is an append-only frontmatter list of `{at, actor, kind, note, check}` entries recording observations, repair attempts, rechecks, deferrals, reopenings, and owner decisions. It lives in frontmatter, not the body, because it must be machine-appended, ordered, dated, and provably append-only: a managed write that would shorten, reorder, or edit a recorded entry is refused. Deferral stays open with reason, not another lifecycle state. Check records replace immutable audit run history; issue listings/counts are derived without a separate register.
 
 ## 7. Idea, Design, Guardrails, and planning readiness
 
