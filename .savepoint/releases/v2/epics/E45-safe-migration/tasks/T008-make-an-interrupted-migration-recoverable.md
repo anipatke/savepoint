@@ -7,7 +7,7 @@ depends_on:
     - E45-safe-migration/T001-decide-how-windows-replaces-a-file
     - E45-safe-migration/T003-plan-the-conversion-before-touching-anything
 complexity_tier: high
-complexity_reason: Owns the recovery guarantee: backup verification, journal states, and interruption behavior at every step.
+complexity_reason: "Owns the recovery guarantee: backup verification, journal states, and interruption behavior at every step."
 ---
 
 # T008: Make an interrupted migration recoverable

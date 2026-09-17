@@ -6,7 +6,7 @@ objective: Convert PRD, router, config, and Health-Check into their V2 places wi
 depends_on:
     - E45-safe-migration/T003-plan-the-conversion-before-touching-anything
 complexity_tier: medium
-complexity_reason: Several small document mappings with one firm rule: preserve authored content, infer nothing.
+complexity_reason: "Several small document mappings with one firm rule: preserve authored content, infer nothing."
 ---
 
 # T006: Carry the project documents across

@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E45-safe-migration
-task: T001-decide-how-windows-replaces-a-file
-next_action: Build T001. Observe Windows replacement behavior on an NTFS path from the Windows host, record the decision and rejected alternatives, then implement the primitive. T008 and T009 depend on its outcome; T002 is independently unblocked.
+task: E45-safe-migration/T002-take-stock-of-what-exists
+next_action: Build E45-safe-migration/T002-take-stock-of-what-exists.
 ```
 
 ## State → action
