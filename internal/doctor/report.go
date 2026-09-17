@@ -3,6 +3,8 @@ package doctor
 import (
 	"fmt"
 	"strings"
+
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // QualityGateReport wraps quality gate results.
@@ -21,6 +23,7 @@ type DiagnosticReport struct {
 	Orphans       []Problem
 	Defects       []Problem
 	AuditRegister []Problem
+	Issues        *IssuePosture
 	Gates         QualityGateReport
 	EpicFilter    string
 }
@@ -40,6 +43,7 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report.Orphans = CheckOrphans(root)
 	report.Defects = CheckDefects(root)
 	report.AuditRegister = CheckAuditRegister(root)
+	report.Issues = IssuePostureReport(root)
 	report.Gates.Results = RunQualityGates(root)
 
 	return report
@@ -119,6 +123,9 @@ func (r *DiagnosticReport) Format() string {
 	sectionHeader(&b, "Audit Register Check")
 	printProblems(&b, "audit-register", r.AuditRegister)
 
+	sectionHeader(&b, "Issue Posture")
+	printIssuePosture(&b, r.Issues)
+
 	sectionHeader(&b, "Quality Gates")
 	for _, g := range r.Gates.Results {
 		status := "PASS"
@@ -178,6 +185,26 @@ func printProblems(b *strings.Builder, category string, problems []Problem) {
 		fmt.Fprintf(b, "    repair: %s\n", problemRepair(p))
 	}
 	b.WriteString("\n")
+}
+
+// printIssuePosture prints the Issue backlog counts IssuePostureReport
+// derived from the loaded index. An open or in_progress Issue is advisory: it
+// is never printed as a problem and never affects HasProblems.
+func printIssuePosture(b *strings.Builder, posture *IssuePosture) {
+	if posture == nil {
+		fmt.Fprintf(b, "  (not a V2 project)\n\n")
+		return
+	}
+	fmt.Fprintf(b, "  status: open=%d in_progress=%d resolved=%d\n",
+		posture.StatusCounts[data.IssueStatusOpen],
+		posture.StatusCounts[data.IssueStatusInProgress],
+		posture.StatusCounts[data.IssueStatusResolved])
+	fmt.Fprintf(b, "  type: defect=%d drift=%d guardrail=%d verification=%d other=%d\n\n",
+		posture.TypeCounts[data.IssueTypeDefect],
+		posture.TypeCounts[data.IssueTypeDrift],
+		posture.TypeCounts[data.IssueTypeGuardrail],
+		posture.TypeCounts[data.IssueTypeVerification],
+		posture.TypeCounts[data.IssueTypeOther])
 }
 
 // problemRepair prefers a problem's typed repair suggestion, falling back to

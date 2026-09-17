@@ -1,6 +1,9 @@
 package data
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func mustObjectiveCheck(index *V2Index, id, objectiveID string, result CheckResult) *CheckV2 {
 	check := &CheckV2{
@@ -404,5 +407,68 @@ func TestResolveTaskCompletion_unchangedByObjectiveGate(t *testing.T) {
 	got = ResolveTaskCompletion(index, "T001")
 	if !got.Allowed || got.Actor != ActorRoleChecker {
 		t.Fatalf("got = %+v, want allowed under checker authority once owner accepts", got)
+	}
+}
+
+func TestInspectObjectiveConsistency_ignoresObjectivesNotDone(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+
+	if got := InspectObjectiveConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want none for a not-done objective", got)
+	}
+}
+
+func TestInspectObjectiveConsistency_doneWithoutCurrentClearance(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+
+	got := InspectObjectiveConsistency(index)
+	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyDoneWithoutClearance || got[0].Objective != "O001" {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O001", got)
+	}
+}
+
+func TestInspectObjectiveConsistency_doneWithIncompleteTask(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
+	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
+	index.Objectives["O001"].Status = ColumnDone
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+
+	got := InspectObjectiveConsistency(index)
+	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyIncompleteTask || got[0].Objective != "O001" {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyIncompleteTask naming O001", got)
+	}
+	if !strings.Contains(got[0].Detail, "T001") {
+		t.Errorf("Detail = %q, want the incomplete task named", got[0].Detail)
+	}
+}
+
+func TestInspectObjectiveConsistency_cleanObjectiveReportsNothing(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
+	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
+	index.Objectives["O001"].Status = ColumnDone
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+
+	if got := InspectObjectiveConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want none for a consistent done objective", got)
+	}
+}
+
+func TestInspectObjectiveConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O002-b/Objective.md"}}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+
+	got := InspectObjectiveConsistency(index)
+	if len(got) != 2 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want 2 problems (one per done objective)", got)
+	}
+	if got[0].Objective != "O001" || got[1].Objective != "O002" {
+		t.Fatalf("InspectObjectiveConsistency() order = [%s, %s], want sorted [O001, O002]", got[0].Objective, got[1].Objective)
 	}
 }

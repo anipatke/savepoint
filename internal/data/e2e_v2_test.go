@@ -178,3 +178,179 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Errorf("T002 file lost its authored Markdown body:\n%s", rawT002)
 	}
 }
+
+// TestE44_EpicScenario proves the E44 Issue and Objective-integration
+// behavior end to end on a temporary project built from real files: a Task
+// cannot start while its owning Objective waits on a dependency Objective
+// with no current integration clearance, the dependency Objective closes
+// under checker authority once its own Objective-scoped Check is current,
+// readiness then clears for the downstream Task, an Issue observed against
+// that Objective Check resolves as verified proof, and a later Check against
+// the same scope leaves both the Objective's clearance and the Issue's proof
+// stale — detected by InspectObjectiveConsistency and InspectIssueConsistency
+// without rewriting any record.
+func TestE44_EpicScenario(t *testing.T) {
+	root := t.TempDir()
+	checkedAt := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+
+	writeV2ObjectiveFixture(t, root, "O001-ship", "O001", "Ship it")
+	writeV2ObjectiveFixture(t, root, "O002-follow-on", "O002", "Follow on", "O001")
+	writeV2TaskFixture(t, root, "O001-ship", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2TaskFixture(t, root, "O002-follow-on", "T002-beta.md", "T002", "Beta", "O002")
+
+	// --- T002 cannot start while its owning Objective O002 waits on O001 ---
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	start := ResolveTaskStart(index, "T002")
+	if start.Allowed {
+		t.Fatalf("ResolveTaskStart(T002) = %+v, want blocked on the owning objective's dependency", start)
+	}
+	if len(start.Blockers) != 1 || start.Blockers[0].Kind != GateBlockObjectiveDependency {
+		t.Fatalf("ResolveTaskStart(T002) Blockers = %+v, want one GateBlockObjectiveDependency", start.Blockers)
+	}
+
+	// --- close T001 under checker authority ---
+	c001, err := CreateCheckV2(root, index, NewCheckV2{
+		Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
+		Body: "\n\n# Check\n\nT001 reviewed clean.\n",
+	})
+	if err != nil {
+		t.Fatalf("CreateCheckV2(C001) error = %v", err)
+	}
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	t001 := index.Tasks["T001"]
+	t001.Evidence = &Evidence{Freshness: &Freshness{
+		State: FreshnessCurrent, Check: c001.ID,
+		AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, AssessedAt: checkedAt, Basis: "reviewed",
+	}}
+	if err := WriteTaskEvidenceV2(t001); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2(T001) error = %v", err)
+	}
+	t001.Status = ColumnDone
+	if err := WriteTaskV2(t001); err != nil {
+		t.Fatalf("WriteTaskV2(T001) error = %v", err)
+	}
+
+	// --- close O001 itself under checker authority once its integration
+	//     Check is current ---
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	co1, err := CreateCheckV2(root, index, NewCheckV2{
+		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O001"}, Result: CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
+		Body: "\n\n# Check\n\nO001 integration reviewed.\n",
+	})
+	if err != nil {
+		t.Fatalf("CreateCheckV2(CO1) error = %v", err)
+	}
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	o001 := index.Objectives["O001"]
+	o001.Evidence = &Evidence{Freshness: &Freshness{
+		State: FreshnessCurrent, Check: co1.ID,
+		AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, AssessedAt: checkedAt, Basis: "integration reviewed",
+	}}
+	if err := WriteObjectiveEvidenceV2(o001); err != nil {
+		t.Fatalf("WriteObjectiveEvidenceV2(O001) error = %v", err)
+	}
+
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	completion := ResolveObjectiveCompletion(index, "O001")
+	if !completion.Allowed || completion.Actor != ActorRoleChecker {
+		t.Fatalf("ResolveObjectiveCompletion(O001) = %+v, want allowed under checker authority", completion)
+	}
+	o001 = index.Objectives["O001"]
+	o001.Status = ColumnDone
+	if err := WriteObjectiveV2(o001); err != nil {
+		t.Fatalf("WriteObjectiveV2(O001) error = %v", err)
+	}
+
+	// --- O002's dependency on O001 is now satisfied, so T002 can start ---
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	dep := ResolveObjectiveDependency(index, "O001")
+	if !dep.Satisfied {
+		t.Fatalf("ResolveObjectiveDependency(O001) = %+v, want satisfied", dep)
+	}
+	start2 := ResolveTaskStart(index, "T002")
+	if !start2.Allowed {
+		t.Fatalf("ResolveTaskStart(T002) = %+v, want allowed once the owning objective's dependency clears", start2)
+	}
+
+	// --- an Issue observed against O001's integration Check resolves as
+	//     verified proof, using that same Check ---
+	issue, err := CreateIssueV2(root, index, NewIssueV2{
+		Title: "Latency regression", Type: IssueTypeDefect,
+		Origin: IssueOrigin{Kind: IssueOriginCheck, Check: co1.ID, Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"}, At: checkedAt},
+		Checks: []string{co1.ID},
+		Body:   "\n\n# Issue\n\nObserved during integration review.\n",
+	})
+	if err != nil {
+		t.Fatalf("CreateIssueV2() error = %v", err)
+	}
+	issue.Status = IssueStatusResolved
+	issue.Resolution = &IssueResolution{
+		Disposition: IssueDispositionVerified, Check: co1.ID,
+		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"}, At: checkedAt,
+	}
+	if err := WriteIssueV2(issue); err != nil {
+		t.Fatalf("WriteIssueV2(I001 verified) error = %v", err)
+	}
+
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	if got := index.IssueStatusCounts()[IssueStatusResolved]; got != 1 {
+		t.Errorf("IssueStatusCounts()[resolved] = %d, want 1", got)
+	}
+	if got := index.IssueTypeCounts()[IssueTypeDefect]; got != 1 {
+		t.Errorf("IssueTypeCounts()[defect] = %d, want 1", got)
+	}
+	if got := InspectObjectiveConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want none before a later Check supersedes O001's proof", got)
+	}
+	if got := InspectIssueConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want none while the verified proof is still latest", got)
+	}
+
+	// --- a later Objective-scoped Check leaves O001's own clearance stale
+	//     (freshness still names the superseded Check) and the Issue's
+	//     verified proof superseded, without rewriting any record ---
+	_, err = CreateCheckV2(root, index, NewCheckV2{
+		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O001"}, Result: CheckResultClear,
+		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-2"}, CheckedAt: checkedAt.Add(24 * time.Hour),
+		Supersedes: co1.ID, Body: "\n\n# Check\n\nO001 re-reviewed after a rerun.\n",
+	})
+	if err != nil {
+		t.Fatalf("CreateCheckV2(rerun) error = %v", err)
+	}
+
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	objectiveProblems := InspectObjectiveConsistency(index)
+	if len(objectiveProblems) != 1 || objectiveProblems[0].Kind != ObjectiveConsistencyDoneWithoutClearance || objectiveProblems[0].Objective != "O001" {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O001", objectiveProblems)
+	}
+	issueProblems := InspectIssueConsistency(index)
+	if len(issueProblems) != 1 || issueProblems[0].Kind != IssueConsistencyProofSuperseded || issueProblems[0].Issue != issue.ID {
+		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming %s", issueProblems, issue.ID)
+	}
+}

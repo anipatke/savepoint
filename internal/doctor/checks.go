@@ -136,6 +136,24 @@ func v2ConsistencyProblems(index *data.V2Index) []Problem {
 			Repair:  V2ConsistencyRepair(name),
 		})
 	}
+	for _, diagnostic := range data.InspectObjectiveConsistency(index) {
+		name := v2ObjectiveConsistencyDiagnosticName(diagnostic.Kind)
+		file := v2ObjectiveSourcePath(index, diagnostic.Objective)
+		problems = append(problems, Problem{
+			File:    file,
+			Message: fmt.Sprintf("[%s] objective %s: %s", name, diagnostic.Objective, diagnostic.Detail),
+			Repair:  V2ConsistencyRepair(name),
+		})
+	}
+	for _, diagnostic := range data.InspectIssueConsistency(index) {
+		name := v2IssueConsistencyDiagnosticName(diagnostic.Kind)
+		file := v2IssueSourcePath(index, diagnostic.Issue)
+		problems = append(problems, Problem{
+			File:    file,
+			Message: fmt.Sprintf("[%s] issue %s: %s", name, diagnostic.Issue, diagnostic.Detail),
+			Repair:  V2ConsistencyRepair(name),
+		})
+	}
 	return problems
 }
 
@@ -147,6 +165,56 @@ func v2TaskSourcePath(index *data.V2Index, taskID string) string {
 		return task.Source.Path
 	}
 	return taskID
+}
+
+// v2ObjectiveSourcePath looks up objectiveID's source record path in index,
+// falling back to the ID itself if the objective is somehow absent —
+// InspectObjectiveConsistency only ever names Objectives already present in
+// the same index.
+func v2ObjectiveSourcePath(index *data.V2Index, objectiveID string) string {
+	if objective, ok := index.Objectives[objectiveID]; ok {
+		return objective.Source.Path
+	}
+	return objectiveID
+}
+
+// v2IssueSourcePath looks up issueID's source record path in index, falling
+// back to the ID itself if the issue is somehow absent — InspectIssueConsistency
+// only ever names Issues already present in the same index.
+func v2IssueSourcePath(index *data.V2Index, issueID string) string {
+	if issue, ok := index.Issues[issueID]; ok {
+		return issue.Source.Path
+	}
+	return issueID
+}
+
+// v2ObjectiveConsistencyDiagnosticName maps a
+// data.ObjectiveConsistencyDiagnosticKind (InspectObjectiveConsistency's
+// result) to the stable diagnostic name doctor reports it under. Every kind
+// InspectObjectiveConsistency defines has a name here so a project's
+// diagnostic name never changes between doctor runs.
+func v2ObjectiveConsistencyDiagnosticName(kind data.ObjectiveConsistencyDiagnosticKind) string {
+	switch kind {
+	case data.ObjectiveConsistencyDoneWithoutClearance:
+		return "v2-objective-done-without-clearance"
+	case data.ObjectiveConsistencyIncompleteTask:
+		return "v2-objective-done-with-incomplete-task"
+	default:
+		return "v2-objective-evidence-inconsistency"
+	}
+}
+
+// v2IssueConsistencyDiagnosticName maps a data.IssueConsistencyDiagnosticKind
+// (InspectIssueConsistency's result) to the stable diagnostic name doctor
+// reports it under. Every kind InspectIssueConsistency defines has a name
+// here so a project's diagnostic name never changes between doctor runs.
+func v2IssueConsistencyDiagnosticName(kind data.IssueConsistencyDiagnosticKind) string {
+	switch kind {
+	case data.IssueConsistencyProofSuperseded:
+		return "v2-issue-verified-proof-superseded"
+	default:
+		return "v2-issue-evidence-inconsistency"
+	}
 }
 
 // v2ConsistencyDiagnosticName maps a data.ConsistencyDiagnosticKind
@@ -216,6 +284,32 @@ func v2DiagnosticName(err error) string {
 		return "v2-evidence-missing-reference"
 	case errors.Is(err, data.ErrV2CheckImmutable):
 		return "v2-check-immutable"
+	case errors.Is(err, data.ErrV2IssueMissingDuplicateTarget):
+		return "v2-issue-missing-duplicate-target"
+	case errors.Is(err, data.ErrV2IssueSelfDuplicate):
+		return "v2-issue-self-duplicate"
+	case errors.Is(err, data.ErrV2IssueDuplicateCycle):
+		return "v2-issue-duplicate-cycle"
+	case errors.Is(err, data.ErrV2IssueMissingLinkTarget):
+		return "v2-issue-missing-link-target"
+	case errors.Is(err, data.ErrV2IssueUnpairedCheckLink):
+		return "v2-issue-unpaired-check-link"
+	case errors.Is(err, data.ErrV2IssueResolutionRequired):
+		return "v2-issue-resolution-required"
+	case errors.Is(err, data.ErrV2IssueResolutionNotAllowed):
+		return "v2-issue-resolution-not-allowed"
+	case errors.Is(err, data.ErrV2IssueResolutionMissingProof):
+		return "v2-issue-resolution-missing-proof"
+	case errors.Is(err, data.ErrV2IssueResolutionUnusableProof):
+		return "v2-issue-resolution-unusable-proof"
+	case errors.Is(err, data.ErrV2IssueResolutionFieldMismatch):
+		return "v2-issue-resolution-field-mismatch"
+	case errors.Is(err, data.ErrV2IssueAlreadyExists):
+		return "v2-issue-already-exists"
+	case errors.Is(err, data.ErrV2IssueHistoryNotAppendOnly):
+		return "v2-issue-history-not-append-only"
+	case errors.Is(err, data.ErrV2IssueMalformed):
+		return "v2-issue-malformed"
 	default:
 		return "v2-project-error"
 	}
@@ -229,6 +323,31 @@ func (p Problem) Error() string {
 		return fmt.Sprintf("%s: %s", p.File, p.Message)
 	}
 	return p.Message
+}
+
+// IssuePosture summarizes a V2 project's Issue backlog by status and type,
+// computed at report time. Doctor stores no separate summary, register, or
+// cached total anywhere in the project: every count here is derived fresh
+// from the loaded index.
+type IssuePosture struct {
+	StatusCounts map[data.IssueStatus]int
+	TypeCounts   map[data.IssueType]int
+}
+
+// IssuePostureReport computes a V2 project's Issue backlog counts directly
+// from the loaded index at report time. It returns nil for a V1 project or
+// one that fails to load — CheckProject already reports load failures
+// separately, and Issue posture is advisory only: it never contributes to
+// DiagnosticReport.HasProblems.
+func IssuePostureReport(root string) *IssuePosture {
+	project, err := data.LoadProject(root)
+	if err != nil || project.SchemaVersion != data.SchemaVersionV2 {
+		return nil
+	}
+	return &IssuePosture{
+		StatusCounts: project.V2.IssueStatusCounts(),
+		TypeCounts:   project.V2.IssueTypeCounts(),
+	}
 }
 
 // CheckStructure validates release/epic/task structure and YAML across the project.

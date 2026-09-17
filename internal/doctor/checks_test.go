@@ -1928,6 +1928,291 @@ func TestCheckProject_EvidenceMissingReference(t *testing.T) {
 	}
 }
 
+func writeV2Issue(t *testing.T, root, fileName, id, status, issueType, extra string) string {
+	t.Helper()
+	path := filepath.Join(root, "issues", fileName)
+	body := "---\nid: " + id + "\ntitle: \"Follow-up\"\ntype: " + issueType + "\nstatus: " + status +
+		"\nsource: {kind: report, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z'}\n" + extra +
+		"---\n\n# Issue\n"
+	testutil.WriteFile(t, path, body)
+	return path
+}
+
+func TestCheckProject_IssueMalformed(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-bad.md", "I001", "open", "bogus", "")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-malformed]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-malformed", problems)
+	}
+}
+
+func TestCheckProject_IssueMissingDuplicateTarget(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "duplicate_of: I999\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-missing-duplicate-target]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-missing-duplicate-target", problems)
+	}
+}
+
+func TestCheckProject_IssueSelfDuplicate(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "duplicate_of: I001\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-self-duplicate]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-self-duplicate", problems)
+	}
+}
+
+func TestCheckProject_IssueDuplicateCycle(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "duplicate_of: I002\n")
+	writeV2Issue(t, root, "I002-y.md", "I002", "open", "defect", "duplicate_of: I001\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-duplicate-cycle]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-duplicate-cycle", problems)
+	}
+}
+
+func TestCheckProject_IssueMissingLinkTarget(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "tasks: [T999]\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-missing-link-target]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-missing-link-target", problems)
+	}
+}
+
+func TestCheckProject_IssueUnpairedCheckLink(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	testutil.WriteFile(t, filepath.Join(root, "checks", "C001.md"),
+		"---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\n"+
+			"checked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I001]\n---\n\n# Check\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-unpaired-check-link]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-unpaired-check-link", problems)
+	}
+}
+
+func TestCheckProject_IssueResolutionRequired(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "resolved", "defect", "")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-resolution-required]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-resolution-required", problems)
+	}
+}
+
+func TestCheckProject_IssueResolutionNotAllowed(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect",
+		"resolution: {disposition: accepted, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z', reason: \"risk accepted\"}\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-resolution-not-allowed]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-resolution-not-allowed", problems)
+	}
+}
+
+func TestCheckProject_IssueResolutionMissingProof(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-x.md", "I001", "resolved", "defect",
+		"resolution: {disposition: verified, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z'}\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-resolution-missing-proof]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-resolution-missing-proof", problems)
+	}
+}
+
+func TestCheckProject_IssueResolutionUnusableProof(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	writeV2Issue(t, root, "I001-x.md", "I001", "resolved", "defect",
+		"resolution: {disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z'}\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-resolution-unusable-proof]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-resolution-unusable-proof", problems)
+	}
+}
+
+func TestCheckProject_IssueResolutionFieldMismatch(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	writeV2Issue(t, root, "I001-x.md", "I001", "resolved", "defect",
+		"checks: [C001]\nresolution: {disposition: accepted, check: C001, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z', reason: \"n/a\"}\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-resolution-field-mismatch]") {
+		t.Fatalf("CheckProject() = %v, want 1 problem naming v2-issue-resolution-field-mismatch", problems)
+	}
+}
+
+// TestV2DiagnosticName_noNewIssueSentinelFallsThrough proves every new E44
+// data sentinel — including the write-time-only ones CheckProject can never
+// actually surface, since doctor never writes — maps to a name other than the
+// generic fallback, so v2DiagnosticName stays a complete registry of every
+// named diagnostic.
+func TestV2DiagnosticName_noNewIssueSentinelFallsThrough(t *testing.T) {
+	sentinels := []error{
+		data.ErrV2IssueMalformed,
+		data.ErrV2IssueMissingDuplicateTarget,
+		data.ErrV2IssueSelfDuplicate,
+		data.ErrV2IssueDuplicateCycle,
+		data.ErrV2IssueMissingLinkTarget,
+		data.ErrV2IssueUnpairedCheckLink,
+		data.ErrV2IssueResolutionRequired,
+		data.ErrV2IssueResolutionNotAllowed,
+		data.ErrV2IssueResolutionMissingProof,
+		data.ErrV2IssueResolutionUnusableProof,
+		data.ErrV2IssueResolutionFieldMismatch,
+		data.ErrV2IssueAlreadyExists,
+		data.ErrV2IssueHistoryNotAppendOnly,
+	}
+	for _, sentinel := range sentinels {
+		name := v2DiagnosticName(fmt.Errorf("wrap: %w", sentinel))
+		if name == "v2-project-error" {
+			t.Errorf("v2DiagnosticName(%v) fell through to the generic fallback", sentinel)
+		}
+		if V2ProblemRepair(name) == "Review the V2 project diagnostic and fix the reported record" {
+			t.Errorf("V2ProblemRepair(%q) fell through to the generic repair suggestion", name)
+		}
+	}
+}
+
+// TestCheckProject_ObjectiveConsistencyDiagnostics proves doctor reports every
+// evaluation-level inconsistency InspectObjectiveConsistency finds — a done
+// Objective without current integration clearance, and a done Objective with
+// an incomplete owned Task — named against the Objective's own source record.
+func TestCheckProject_ObjectiveConsistencyDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "Objective.md"),
+		"---\nid: O001\ntitle: \"Ship it\"\nstatus: done\n---\n\n# Ship it\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: in_progress\nstage: build\n---\n\n# Write it\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 2 {
+		t.Fatalf("CheckProject() = %+v, want 2 objective consistency problems", problems)
+	}
+	if !strings.Contains(problems[0].Message, "[v2-objective-done-without-clearance]") {
+		t.Errorf("problems[0].Message = %q, want v2-objective-done-without-clearance", problems[0].Message)
+	}
+	if !strings.Contains(problems[1].Message, "[v2-objective-done-with-incomplete-task]") {
+		t.Errorf("problems[1].Message = %q, want v2-objective-done-with-incomplete-task", problems[1].Message)
+	}
+	for _, p := range problems {
+		if p.Repair == "" {
+			t.Errorf("problem %+v missing repair", p)
+		}
+		if !strings.HasSuffix(p.File, "Objective.md") {
+			t.Errorf("problem File = %q, want the Objective's source record path", p.File)
+		}
+	}
+}
+
+// TestCheckProject_IssueVerifiedProofSuperseded proves doctor reports a
+// verified Issue whose proof Check has been superseded by a later Check
+// recorded against the same scope — an inconsistency a successful load
+// cannot refuse by itself.
+func TestCheckProject_IssueVerifiedProofSuperseded(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	writeV2Check(t, root, "C002", "{kind: task, id: T001}", "CLEAR", "C001")
+	writeV2Issue(t, root, "I001-flaky.md", "I001", "resolved", "defect",
+		"checks: [C001]\nresolution: {disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z'}\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-issue-verified-proof-superseded]") {
+		t.Fatalf("CheckProject() = %+v, want 1 problem naming v2-issue-verified-proof-superseded", problems)
+	}
+	if !strings.HasSuffix(problems[0].File, "I001-flaky.md") {
+		t.Errorf("problems[0].File = %q, want the Issue's source record path", problems[0].File)
+	}
+}
+
+// TestCheckProject_OpenAdvisoryIssueDoesNotFailLoad proves an open Issue with
+// no resolution is purely advisory: structural and gate evidence decide
+// health, so a project carrying only an open Issue alongside otherwise-clean
+// records reports no problems.
+func TestCheckProject_OpenAdvisoryIssueDoesNotFailLoad(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+
+	if problems := CheckProject(root); len(problems) != 0 {
+		t.Fatalf("CheckProject() = %v, want no problems: an open advisory Issue must not make the project unhealthy", problems)
+	}
+}
+
+// TestIssuePostureReport_derivedCountsNoStoredSummary proves Issue posture is
+// computed fresh from the loaded index every call, with no summary cached
+// between them.
+func TestIssuePostureReport_derivedCountsNoStoredSummary(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Issue(t, root, "I001-a.md", "I001", "open", "defect", "")
+
+	posture := IssuePostureReport(root)
+	if posture == nil {
+		t.Fatal("IssuePostureReport() = nil, want a posture for a V2 project")
+	}
+	if posture.StatusCounts[data.IssueStatusOpen] != 1 {
+		t.Errorf("StatusCounts[open] = %d, want 1", posture.StatusCounts[data.IssueStatusOpen])
+	}
+	if posture.TypeCounts[data.IssueTypeDefect] != 1 {
+		t.Errorf("TypeCounts[defect] = %d, want 1", posture.TypeCounts[data.IssueTypeDefect])
+	}
+
+	writeV2Issue(t, root, "I002-b.md", "I002", "open", "drift", "")
+	posture2 := IssuePostureReport(root)
+	if posture2.StatusCounts[data.IssueStatusOpen] != 2 {
+		t.Errorf("StatusCounts[open] after a second Issue = %d, want 2 (recomputed, not cached)", posture2.StatusCounts[data.IssueStatusOpen])
+	}
+}
+
+func TestIssuePostureReport_v1ProjectReturnsNil(t *testing.T) {
+	root := t.TempDir()
+	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
+
+	if got := IssuePostureReport(root); got != nil {
+		t.Errorf("IssuePostureReport() = %+v, want nil for a V1 project", got)
+	}
+}
+
 // TestCheckProject_v2ValidWithChecksNoProblems proves a clean V2 project
 // carrying real Check and evidence records — current clearance on a
 // technical Task and an owner-accepted Task — reports no problems.
@@ -2025,6 +2310,60 @@ func TestCheckProject_ConsistencyReadOnly(t *testing.T) {
 
 	if problems := CheckProject(root); len(problems) == 0 {
 		t.Fatal("CheckProject() = no problems, want the done-without-clearance diagnostic")
+	}
+
+	for p, want := range before {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(raw) != string(want.bytes) {
+			t.Fatalf("CheckProject() changed %s bytes:\nbefore: %s\nafter: %s", p, want.bytes, raw)
+		}
+		if !info.ModTime().Equal(want.mtime) {
+			t.Fatalf("CheckProject() changed %s mtime: before=%v after=%v", p, want.mtime, info.ModTime())
+		}
+	}
+}
+
+// TestCheckProject_ObjectiveAndIssueConsistencyReadOnly proves CheckProject
+// never writes to a V2 project carrying Objective and Issue records that trip
+// the new E44 consistency diagnostics: every file's bytes and modification
+// time stay unchanged.
+func TestCheckProject_ObjectiveAndIssueConsistencyReadOnly(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	objectivePath := filepath.Join(root, "objectives", "O001-ship", "Objective.md")
+	testutil.WriteFile(t, objectivePath, "---\nid: O001\ntitle: \"Ship it\"\nstatus: done\n---\n\n# Ship it\n")
+	taskPath := writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+	checkC001Path := writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
+	checkC002Path := writeV2Check(t, root, "C002", "{kind: task, id: T001}", "CLEAR", "C001")
+	issuePath := writeV2Issue(t, root, "I001-flaky.md", "I001", "resolved", "defect",
+		"checks: [C001]\nresolution: {disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z'}\n")
+
+	type snapshot struct {
+		bytes []byte
+		mtime time.Time
+	}
+	before := map[string]snapshot{}
+	for _, p := range []string{objectivePath, taskPath, checkC001Path, checkC002Path, issuePath} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[p] = snapshot{bytes: raw, mtime: info.ModTime()}
+	}
+
+	if problems := CheckProject(root); len(problems) == 0 {
+		t.Fatal("CheckProject() = no problems, want the objective and issue consistency diagnostics")
 	}
 
 	for p, want := range before {

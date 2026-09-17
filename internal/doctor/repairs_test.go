@@ -152,6 +152,19 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 		{"v2-evidence-malformed", "evidence field"},
 		{"v2-evidence-missing-reference", "name a Check that exists"},
 		{"v2-check-immutable", "immutable once written"},
+		{"v2-issue-malformed", "type, status, source, resolution, and history"},
+		{"v2-issue-missing-duplicate-target", "duplicate_of to an existing I### Issue"},
+		{"v2-issue-self-duplicate", "own id from its duplicate_of"},
+		{"v2-issue-duplicate-cycle", "circular duplicate_of chain"},
+		{"v2-issue-missing-link-target", "tasks, checks, or issues reference"},
+		{"v2-issue-unpaired-check-link", "checks field"},
+		{"v2-issue-resolution-required", "resolution block naming a disposition"},
+		{"v2-issue-resolution-not-allowed", "Remove the resolution block"},
+		{"v2-issue-resolution-missing-proof", "CLEAR C### Check"},
+		{"v2-issue-resolution-unusable-proof", "recorded CLEAR"},
+		{"v2-issue-resolution-field-mismatch", "accepted needs an owner actor"},
+		{"v2-issue-already-exists", "cannot be overwritten by create"},
+		{"v2-issue-history-not-append-only", "Append new history entries"},
 		{"unknown-name", "Review the V2 project diagnostic"},
 	}
 	for _, tt := range tests {
@@ -179,6 +192,9 @@ func TestV2ConsistencyRepair(t *testing.T) {
 		{"v2-done-without-clearance", "Record a Check and a current freshness assessment"},
 		{"v2-acceptance-superseded", "owner accept the Task's actual latest Check"},
 		{"v2-evidence-contradicts-status", "Advance the Task's status to done"},
+		{"v2-objective-done-without-clearance", "Record an Objective-scoped Check"},
+		{"v2-objective-done-with-incomplete-task", "Finish the named owned Task"},
+		{"v2-issue-verified-proof-superseded", "Record a fresh proof Check"},
 		{"unknown-name", "Review the Task's recorded evidence"},
 	}
 	for _, tt := range tests {

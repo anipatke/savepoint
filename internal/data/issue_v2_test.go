@@ -632,3 +632,87 @@ func projectFiles(t *testing.T, root string) []string {
 	}
 	return files
 }
+
+func mustVerifiedIssue(id, proofCheck string) *IssueV2 {
+	return &IssueV2{
+		ID:     id,
+		Status: IssueStatusResolved,
+		Checks: []string{proofCheck},
+		Resolution: &IssueResolution{
+			Disposition: IssueDispositionVerified,
+			Check:       proofCheck,
+			Actor:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		},
+		Source: V2SourceDocument{Path: "issues/" + id + "-x.md"},
+	}
+}
+
+func TestInspectIssueConsistency_ignoresUnresolvedAndNonVerifiedIssues(t *testing.T) {
+	index := &V2Index{
+		Issues: map[string]*IssueV2{
+			"I001": {ID: "I001", Status: IssueStatusOpen},
+			"I002": {ID: "I002", Status: IssueStatusResolved, Resolution: &IssueResolution{Disposition: IssueDispositionAccepted}},
+		},
+		Checks:      map[string]*CheckV2{},
+		LatestCheck: map[string]string{},
+	}
+
+	if got := InspectIssueConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want none for open/accepted issues", got)
+	}
+}
+
+func TestInspectIssueConsistency_verifiedProofStillLatestReportsNothing(t *testing.T) {
+	index := &V2Index{
+		Issues: map[string]*IssueV2{"I001": mustVerifiedIssue("I001", "C001")},
+		Checks: map[string]*CheckV2{
+			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
+		},
+		LatestCheck: map[string]string{"T001": "C001"},
+	}
+
+	if got := InspectIssueConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want none when the proof check is still latest", got)
+	}
+}
+
+func TestInspectIssueConsistency_verifiedProofSuperseded(t *testing.T) {
+	index := &V2Index{
+		Issues: map[string]*IssueV2{"I001": mustVerifiedIssue("I001", "C001")},
+		Checks: map[string]*CheckV2{
+			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
+			"C002": {ID: "C002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear, Supersedes: "C001"},
+		},
+		LatestCheck: map[string]string{"T001": "C002"},
+	}
+
+	got := InspectIssueConsistency(index)
+	if len(got) != 1 || got[0].Kind != IssueConsistencyProofSuperseded || got[0].Issue != "I001" {
+		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming I001", got)
+	}
+	if !strings.Contains(got[0].Detail, "C001") || !strings.Contains(got[0].Detail, "C002") {
+		t.Errorf("Detail = %q, want both the proof and its superseder named", got[0].Detail)
+	}
+}
+
+func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
+	index := &V2Index{
+		Issues: map[string]*IssueV2{
+			"I002": mustVerifiedIssue("I002", "C001"),
+			"I001": mustVerifiedIssue("I001", "C001"),
+		},
+		Checks: map[string]*CheckV2{
+			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
+			"C002": {ID: "C002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear, Supersedes: "C001"},
+		},
+		LatestCheck: map[string]string{"T001": "C002"},
+	}
+
+	got := InspectIssueConsistency(index)
+	if len(got) != 2 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want 2 problems", got)
+	}
+	if got[0].Issue != "I001" || got[1].Issue != "I002" {
+		t.Fatalf("InspectIssueConsistency() order = [%s, %s], want sorted [I001, I002]", got[0].Issue, got[1].Issue)
+	}
+}

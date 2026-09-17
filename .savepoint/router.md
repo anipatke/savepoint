@@ -12,11 +12,10 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
+state: audit-pending
 release: v2
 epic: E44-issues-objective-checks
-task: E44-issues-objective-checks/T007-explain-broken-follow-up-evidence
-next_action: Build E44-issues-objective-checks/T007-explain-broken-follow-up-evidence.
+next_action: Fresh audit agent reads E44-Detail.md, task files, drift notes, Design.md, AGENTS.md, and scoped changed files; write E44-Audit.md.
 ```
 
 ## State → action

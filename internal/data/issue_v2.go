@@ -563,6 +563,58 @@ func validateDuplicateResolution(issue *IssueV2) error {
 	return nil
 }
 
+// IssueConsistencyDiagnosticKind names one way a resolved Issue's recorded
+// proof can go stale after a hand edit or a later Check.
+type IssueConsistencyDiagnosticKind string
+
+const (
+	// IssueConsistencyProofSuperseded means a verified Issue's proof Check is
+	// no longer its scope target's latest recorded Check.
+	IssueConsistencyProofSuperseded IssueConsistencyDiagnosticKind = "verified_proof_superseded"
+)
+
+// IssueConsistencyDiagnostic names one inconsistency InspectIssueConsistency
+// found in a resolved Issue's recorded proof.
+type IssueConsistencyDiagnostic struct {
+	Issue  string
+	Kind   IssueConsistencyDiagnosticKind
+	Detail string
+}
+
+// InspectIssueConsistency reports every verified Issue whose proof Check has
+// been superseded by a later Check recorded against the same scope target,
+// without rewriting any record. Decoding and validateVerifiedResolution
+// already guarantee a verified resolution's proof Check exists, appears in
+// the Issue's checks, and recorded CLEAR at load time; what a load cannot
+// refuse is a later Check recorded against that same scope afterward, which
+// leaves the proof stale even though its own CLEAR result never changes. It
+// walks Issue IDs in sorted order and returns every problem found, mirroring
+// InspectTaskConsistency's read-only, sorted, return-everything shape.
+func InspectIssueConsistency(index *V2Index) []IssueConsistencyDiagnostic {
+	var diagnostics []IssueConsistencyDiagnostic
+
+	for _, id := range slices.Sorted(maps.Keys(index.Issues)) {
+		issue := index.Issues[id]
+		if issue.Resolution == nil || issue.Resolution.Disposition != IssueDispositionVerified {
+			continue
+		}
+
+		proof, ok := index.Checks[issue.Resolution.Check]
+		if !ok {
+			continue
+		}
+		if latest := index.LatestCheck[proof.Scope.ID]; latest != "" && latest != proof.ID {
+			diagnostics = append(diagnostics, IssueConsistencyDiagnostic{
+				Issue:  id,
+				Kind:   IssueConsistencyProofSuperseded,
+				Detail: fmt.Sprintf("verified resolution's proof check %s has been superseded by %s", proof.ID, latest),
+			})
+		}
+	}
+
+	return diagnostics
+}
+
 // IssueIDsWithStatus returns the sorted IDs of every Issue currently in
 // status.
 //

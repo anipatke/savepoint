@@ -41,6 +41,7 @@ func TestDiagnosticReport_FormatContainsSections(t *testing.T) {
 		"Orphan Check",
 		"Defect Check",
 		"Audit Register Check",
+		"Issue Posture",
 		"Quality Gates",
 		"PROBLEMS FOUND",
 	}
@@ -138,6 +139,49 @@ last_seen: "2026-07-01"
 		if !strings.Contains(output, want) {
 			t.Errorf("report.Format() missing %q, got:\n%s", want, output)
 		}
+	}
+}
+
+// TestDiagnosticReport_IssuePostureAdvisoryOnlyOnV1Project proves the Issue
+// Posture section reports "(not a V2 project)" for a V1 project and never
+// contributes to HasProblems.
+func TestDiagnosticReport_IssuePostureAdvisoryOnlyOnV1Project(t *testing.T) {
+	root := t.TempDir()
+	writeReportProject(t, root)
+	report := RunAllChecks(root, "")
+
+	if report.Issues != nil {
+		t.Fatalf("Issues = %+v, want nil for a V1 project", report.Issues)
+	}
+	output := report.Format()
+	if !strings.Contains(output, "(not a V2 project)") {
+		t.Errorf("report.Format() missing V1 Issue Posture note, got:\n%s", output)
+	}
+	if report.HasProblems() {
+		t.Fatal("HasProblems() = true, want false: Issue posture must never contribute to health")
+	}
+}
+
+// TestDiagnosticReport_IssuePostureCountsInPlainOutput proves an open Issue's
+// counts reach the plain doctor output and never flip HasProblems, matching
+// the rule that Issue posture is advisory only.
+func TestDiagnosticReport_IssuePostureCountsInPlainOutput(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	testutil.WriteFile(t, filepath.Join(root, "issues", "I001-flaky.md"),
+		"---\nid: I001\ntitle: \"Flaky\"\ntype: defect\nstatus: open\n"+
+			"source: {kind: report, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
+
+	report := RunAllChecks(root, "")
+	if report.Issues == nil || report.Issues.StatusCounts["open"] != 1 {
+		t.Fatalf("Issues = %+v, want status open=1", report.Issues)
+	}
+	output := report.Format()
+	if !strings.Contains(output, "open=1") {
+		t.Errorf("report.Format() missing open Issue count, got:\n%s", output)
+	}
+	if len(report.Project) != 0 {
+		t.Fatalf("Project = %v, want no problems: an open Issue alone does not fail the load", report.Project)
 	}
 }
 

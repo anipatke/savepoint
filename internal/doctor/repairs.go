@@ -204,6 +204,32 @@ func V2ProblemRepair(name string) string {
 		return "Fix the evidence field to name a Check that exists, or remove the reference"
 	case "v2-check-immutable":
 		return "A Check record is immutable once written — record a new Check with supersedes naming this one instead of editing it"
+	case "v2-issue-malformed":
+		return "Fix the named Issue field in the record's frontmatter — type, status, source, resolution, and history each have a fixed vocabulary"
+	case "v2-issue-missing-duplicate-target":
+		return "Set duplicate_of to an existing I### Issue id, or remove the field"
+	case "v2-issue-self-duplicate":
+		return "Remove the Issue's own id from its duplicate_of field, or point it at a different canonical Issue"
+	case "v2-issue-duplicate-cycle":
+		return "Break the circular duplicate_of chain named in the diagnostic so one Issue in the ring is canonical"
+	case "v2-issue-missing-link-target":
+		return "Fix the named tasks, checks, or issues reference to name a record that exists, or remove it"
+	case "v2-issue-unpaired-check-link":
+		return "Add the Check's id to the named Issue's checks field, or remove the Issue from the Check's issues field"
+	case "v2-issue-resolution-required":
+		return "Add a resolution block naming a disposition, or set the Issue's status back to open or in_progress"
+	case "v2-issue-resolution-not-allowed":
+		return "Remove the resolution block, or set the Issue's status to resolved"
+	case "v2-issue-resolution-missing-proof":
+		return "Set resolution.check to an existing, CLEAR C### Check that appears in the Issue's checks field"
+	case "v2-issue-resolution-unusable-proof":
+		return "Point resolution.check at a Check that recorded CLEAR and is listed in the Issue's checks field"
+	case "v2-issue-resolution-field-mismatch":
+		return "Fix the resolution field for its disposition: accepted needs an owner actor and reason and no proof check; duplicate needs duplicate_of and no proof check"
+	case "v2-issue-already-exists":
+		return "Choose a different Issue id or file path — an existing Issue record cannot be overwritten by create"
+	case "v2-issue-history-not-append-only":
+		return "Append new history entries after the recorded ones rather than editing, reordering, or removing any existing entry"
 	default:
 		return "Review the V2 project diagnostic and fix the reported record"
 	}
@@ -223,6 +249,12 @@ func V2ConsistencyRepair(name string) string {
 		return "Have the owner accept the Task's actual latest Check; an acceptance naming a superseded Check no longer applies"
 	case "v2-evidence-contradicts-status":
 		return "Advance the Task's status to done to match its recorded evidence, or correct the evidence if completion was not actually reached"
+	case "v2-objective-done-without-clearance":
+		return "Record an Objective-scoped Check and a current freshness assessment before treating the Objective as done, or set status back to reflect its real progress"
+	case "v2-objective-done-with-incomplete-task":
+		return "Finish the named owned Task before closing the Objective, or set the Objective's status back to reflect its real progress"
+	case "v2-issue-verified-proof-superseded":
+		return "Record a fresh proof Check against the Issue's verified resolution, or update resolution.check to name the current latest Check for that scope"
 	default:
 		return "Review the Task's recorded evidence against its status and fix the mismatch"
 	}
