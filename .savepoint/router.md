@@ -12,10 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: epic-design
+state: task-building
 release: v2
 epic: E45-safe-migration
-next_action: Define what E45-safe-migration adds, files it touches, and architectural delta. Then transition to epic-task-breakdown.
+task: T001-decide-how-windows-replaces-a-file
+next_action: Build T001. Observe Windows replacement behavior on an NTFS path from the Windows host, record the decision and rejected alternatives, then implement the primitive. T008 and T009 depend on its outcome; T002 is independently unblocked.
 ```
 
 ## State → action
