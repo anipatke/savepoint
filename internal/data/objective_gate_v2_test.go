@@ -257,6 +257,131 @@ func TestResolveObjectiveCompletion_unknownObjectiveReturnsZeroDecision(t *testi
 	}
 }
 
+func TestResolveObjectiveDependency_missingObjectiveBlocksAsNotDone(t *testing.T) {
+	index := newV2TestIndex()
+
+	got := ResolveObjectiveDependency(index, "O404")
+	if got.Satisfied {
+		t.Fatalf("Satisfied = true, want false (no such objective)")
+	}
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O404" {
+		t.Fatalf("Block = %+v, want NotDone naming O404", got.Block)
+	}
+}
+
+func TestResolveObjectiveDependency_notDoneBlocksReadiness(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnInProgress}
+
+	got := ResolveObjectiveDependency(index, "O002")
+	if got.Satisfied {
+		t.Fatalf("Satisfied = true, want false (dependency objective not done)")
+	}
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O002" {
+		t.Fatalf("Block = %+v, want NotDone naming O002", got.Block)
+	}
+}
+
+func TestResolveObjectiveDependency_satisfiedWhenDoneAndClearanceCurrent(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O002", CheckResultClear)
+	dependency := mustCurrentObjective("O002", "C001", nil)
+	dependency.Status = ColumnDone
+	index.Objectives["O002"] = dependency
+
+	got := ResolveObjectiveDependency(index, "O002")
+	if !got.Satisfied {
+		t.Fatalf("Satisfied = false, want true, block = %+v", got.Block)
+	}
+	if got.Block != nil {
+		t.Errorf("Block = %+v, want nil when satisfied", got.Block)
+	}
+}
+
+func TestResolveObjectiveDependency_eachClearanceStateBlocksWithItsOwnReason(t *testing.T) {
+	cases := []struct {
+		name     string
+		build    func(index *V2Index)
+		evidence *Evidence
+	}{
+		{
+			name:  "missing",
+			build: func(index *V2Index) {},
+		},
+		{
+			name:  "needs_work",
+			build: func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork) },
+		},
+		{
+			name:  "unknown",
+			build: func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultClear) },
+		},
+		{
+			name:     "stale",
+			build:    func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C001", Basis: "flagged stale"}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			tc.build(index)
+			index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnDone, Evidence: tc.evidence}
+
+			got := ResolveObjectiveDependency(index, "O002")
+			if got.Satisfied {
+				t.Fatalf("Satisfied = true, want false")
+			}
+			wantClearance := ClearanceState(tc.name)
+			if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotCleared || got.Block.Clearance != wantClearance {
+				t.Fatalf("Block = %+v, want NotCleared with clearance %q", got.Block, wantClearance)
+			}
+		})
+	}
+}
+
+func TestResolveObjectiveDependency_clearedByExceptionReportedDistinctlyNotAsCurrent(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork)
+	index.Objectives["O002"] = &ObjectiveV2{
+		ID:     "O002",
+		Status: ColumnDone,
+		Evidence: &Evidence{
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+		},
+	}
+
+	got := ResolveObjectiveDependency(index, "O002")
+	if got.Satisfied {
+		t.Fatalf("Satisfied = true, want false (an exception is not current clearance)")
+	}
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockClearedByException {
+		t.Fatalf("Block = %+v, want ClearedByException, reported distinctly from NotCleared", got.Block)
+	}
+}
+
+func TestResolveObjectiveDependency_exceptionNamingOtherCheckStillBlocksAsNotCleared(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork)
+	mustObjectiveCheck(index, "C002", "O002", CheckResultNeedsWork) // supersedes C001 as the latest
+	index.Objectives["O002"] = &ObjectiveV2{
+		ID:     "O002",
+		Status: ColumnDone,
+		Evidence: &Evidence{
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+		},
+	}
+
+	got := ResolveObjectiveDependency(index, "O002")
+	if got.Satisfied {
+		t.Fatalf("Satisfied = true, want false")
+	}
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotCleared || got.Block.Clearance != ClearanceNeedsWork {
+		t.Fatalf("Block = %+v, want NotCleared/needs_work (exception names a superseded check, not the latest)", got.Block)
+	}
+}
+
 // TestResolveTaskCompletion_unchangedByObjectiveGate is the regression case
 // required alongside ResolveObjectiveCompletion: adding Objective completion
 // must not alter a single Task completion decision.

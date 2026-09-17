@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E44-issues-objective-checks
-task: E44-issues-objective-checks/T006-wait-for-objectives-that-are-not-ready
-next_action: Build E44-issues-objective-checks/T006-wait-for-objectives-that-are-not-ready.
+task: E44-issues-objective-checks/T007-explain-broken-follow-up-evidence
+next_action: Build E44-issues-objective-checks/T007-explain-broken-follow-up-evidence.
 ```
 
 ## State → action

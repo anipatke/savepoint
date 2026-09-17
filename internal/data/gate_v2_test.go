@@ -3,6 +3,7 @@ package data
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -200,6 +201,119 @@ func TestResolveTaskStart_namesEveryUnsatisfiedDependency(t *testing.T) {
 	}
 	if !targets["T002"] || !targets["T003"] {
 		t.Fatalf("Blocker targets = %+v, want T002 and T003 both named", targets)
+	}
+}
+
+func TestResolveTaskStart_blockedWhenOwningObjectiveDependencyUnsatisfied(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnInProgress}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, DependsOn: []string{"O002"}}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
+
+	got := ResolveTaskStart(index, "T001")
+	if got.Allowed {
+		t.Fatalf("Allowed = true, want false (owning objective waits on O002)")
+	}
+	if len(got.Blockers) != 1 {
+		t.Fatalf("Blockers = %+v, want exactly one", got.Blockers)
+	}
+	blocker := got.Blockers[0]
+	if blocker.Kind != GateBlockObjectiveDependency || blocker.ObjectiveDependency == nil {
+		t.Fatalf("Blocker = %+v, want GateBlockObjectiveDependency with ObjectiveDependency set", blocker)
+	}
+	if blocker.ObjectiveDependency.Target != "O002" {
+		t.Errorf("ObjectiveDependency.Target = %q, want O002", blocker.ObjectiveDependency.Target)
+	}
+	if !strings.Contains(blocker.Detail, "O001") || !strings.Contains(blocker.Detail, "O002") {
+		t.Errorf("Detail = %q, want both the waiting objective O001 and the dependency O002 named", blocker.Detail)
+	}
+}
+
+func TestResolveTaskStart_namesEveryUnsatisfiedObjectiveDependency(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnInProgress}
+	index.Objectives["O003"] = &ObjectiveV2{ID: "O003", Status: ColumnInProgress}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, DependsOn: []string{"O002", "O003"}}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
+
+	got := ResolveTaskStart(index, "T001")
+	if got.Allowed {
+		t.Fatalf("Allowed = true, want false")
+	}
+	if len(got.Blockers) != 2 {
+		t.Fatalf("Blockers = %+v, want one per unsatisfied objective dependency", got.Blockers)
+	}
+	targets := map[string]bool{}
+	for _, blocker := range got.Blockers {
+		if blocker.Kind != GateBlockObjectiveDependency || blocker.ObjectiveDependency == nil {
+			t.Fatalf("Blocker = %+v, want GateBlockObjectiveDependency", blocker)
+		}
+		targets[blocker.ObjectiveDependency.Target] = true
+	}
+	if !targets["O002"] || !targets["O003"] {
+		t.Fatalf("Blocker targets = %+v, want O002 and O003 both named", targets)
+	}
+}
+
+func TestResolveTaskStart_allowedWhenOwningObjectiveDependencySatisfied(t *testing.T) {
+	index := newV2TestIndex()
+	mustObjectiveCheck(index, "C001", "O002", CheckResultClear)
+	dependency := mustCurrentObjective("O002", "C001", nil)
+	dependency.Status = ColumnDone
+	index.Objectives["O002"] = dependency
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, DependsOn: []string{"O002"}}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
+
+	got := ResolveTaskStart(index, "T001")
+	if !got.Allowed || len(got.Blockers) != 0 {
+		t.Fatalf("ResolveTaskStart() = %+v, want allowed with no blockers", got)
+	}
+}
+
+func TestResolveTaskStart_noObjectiveDependenciesStartsAsBefore(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
+
+	got := ResolveTaskStart(index, "T001")
+	if !got.Allowed || len(got.Blockers) != 0 {
+		t.Fatalf("ResolveTaskStart() = %+v, want allowed with no blockers (objective declares no dependencies)", got)
+	}
+}
+
+func TestResolveTaskStart_unrelatedObjectiveUnaffectedByAnotherBlockedObjective(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O004"] = &ObjectiveV2{ID: "O004", Status: ColumnInProgress}
+	index.Objectives["O003"] = &ObjectiveV2{ID: "O003", Status: ColumnInProgress, DependsOn: []string{"O004"}}
+	index.Objectives["O005"] = &ObjectiveV2{ID: "O005", Status: ColumnInProgress}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O005", Status: ColumnPlanned}
+
+	got := ResolveTaskStart(index, "T001")
+	if !got.Allowed || len(got.Blockers) != 0 {
+		t.Fatalf("ResolveTaskStart() = %+v, want allowed (an unrelated objective's blocked dependency does not spill over)", got)
+	}
+}
+
+// TestResolveTaskAdvanceAndCompletion_unaffectedByObjectiveDependencyGate is
+// the regression case required alongside the Objective dependency addition
+// to ResolveTaskStart: only start consults Objective readiness.
+func TestResolveTaskAdvanceAndCompletion_unaffectedByObjectiveDependencyGate(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnInProgress} // unsatisfied dependency
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, DependsOn: []string{"O002"}}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild}
+
+	advance := ResolveTaskAdvance(index, "T001")
+	if !advance.Allowed {
+		t.Fatalf("ResolveTaskAdvance() = %+v, want allowed (objective dependency readiness only gates start)", advance)
+	}
+
+	mustCheck(index, "C001", "T001", CheckResultClear)
+	index.Tasks["T001"] = mustCurrentTask("T001", "C001", nil)
+
+	completion := ResolveTaskCompletion(index, "T001")
+	if !completion.Allowed {
+		t.Fatalf("ResolveTaskCompletion() = %+v, want allowed (objective dependency readiness only gates start)", completion)
 	}
 }
 

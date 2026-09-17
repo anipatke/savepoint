@@ -143,16 +143,24 @@ const (
 	// GateBlockCheckerAuthority means a CLEAR Check or its current freshness
 	// assessment was not recorded by an identified checker session.
 	GateBlockCheckerAuthority GateBlockKind = "checker_authority"
+	// GateBlockObjectiveDependency means the Task's owning Objective has an
+	// unsatisfied Objective dependency; ObjectiveDependency names which one
+	// and why, so a consumer can explain that the wait is at the Objective
+	// level rather than the Task's own dependencies.
+	GateBlockObjectiveDependency GateBlockKind = "objective_dependency"
 )
 
 // GateBlocker names one unmet requirement blocking a start, advance, or
 // completion decision. Dependency is set only for GateBlockDependency, so
 // callers get the same typed DependencyBlock ResolveTaskDependencyV2 already
-// reports rather than a second dependency vocabulary.
+// reports rather than a second dependency vocabulary. ObjectiveDependency is
+// set only for GateBlockObjectiveDependency, mirroring the same pattern for
+// ResolveObjectiveDependency's typed block.
 type GateBlocker struct {
-	Kind       GateBlockKind
-	Detail     string
-	Dependency *DependencyBlock
+	Kind                GateBlockKind
+	Detail              string
+	Dependency          *DependencyBlock
+	ObjectiveDependency *ObjectiveDependencyBlock
 }
 
 // GateDecision is the resolved outcome for one Task start, advance, or
@@ -207,6 +215,24 @@ func ResolveTaskStart(index *V2Index, taskID string) GateDecision {
 			Detail:     fmt.Sprintf("dependency %s requires %s: %s", decision.Block.Target, decision.Block.Requires, decision.Block.Kind),
 			Dependency: decision.Block,
 		})
+	}
+
+	if len(blockers) > 0 {
+		return GateDecision{Blockers: blockers}
+	}
+
+	if objective, ok := index.Objectives[task.Objective]; ok {
+		for _, dep := range objective.DependsOn {
+			decision := ResolveObjectiveDependency(index, dep)
+			if decision.Satisfied {
+				continue
+			}
+			blockers = append(blockers, GateBlocker{
+				Kind:                GateBlockObjectiveDependency,
+				Detail:              fmt.Sprintf("owning objective %s waits on objective %s: %s", task.Objective, decision.Block.Target, decision.Block.Kind),
+				ObjectiveDependency: decision.Block,
+			})
+		}
 	}
 
 	if len(blockers) > 0 {
