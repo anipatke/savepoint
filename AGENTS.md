@@ -97,7 +97,7 @@ make build && make test
 | `internal/buildtool/` | Makefile helper, cross-compile including Windows targets, archives, distribution checksums |
 | `internal/doctor/` | Read-only project diagnostics, integrity checks, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
 | `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers, audit-register models/loaders and finding backlink lookups |
-| `internal/migrate/` | One-time V1-to-V2 project conversion; the platform file replacement primitive that operation's writes go through, and a read-only source inventory (exact-byte hashing, confined walk) and role classification against the frozen fixture vocabulary |
+| `internal/migrate/` | One-time V1-to-V2 project conversion; the platform file replacement primitive that operation's writes go through, a read-only source inventory (exact-byte hashing, confined walk), role classification against the frozen fixture vocabulary, and the migrate command body: target validation, preview, decisions loading, and the guarded apply |
 | `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
 | `internal/styles/` | Atari-Noir palette, TUI styles |
 | `templates/` | Scaffold markdown, YAML, prompts, and defect workflow guidance |
