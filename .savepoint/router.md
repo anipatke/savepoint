@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E45-safe-migration
-task: E45-safe-migration/T007-ask-instead-of-guessing
-next_action: Build E45-safe-migration/T007-ask-instead-of-guessing.
+task: E45-safe-migration/T008-make-an-interrupted-migration-recoverable
+next_action: Build E45-safe-migration/T008-make-an-interrupted-migration-recoverable.
 ```
 
 ## State → action

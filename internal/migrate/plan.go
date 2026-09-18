@@ -163,36 +163,9 @@ type Conflict struct {
 	Detail string
 }
 
-// AmbiguityKind names one of the four blocking-ambiguity shapes the epic
-// defines. Plan detects the first two directly, since they fall out of
-// identity allocation and dependency resolution; duplicate source identity
-// and unresolved narrative findings are named here for the shared vocabulary
-// but are not yet detected by this task — see T007.
-type AmbiguityKind string
-
-const (
-	AmbiguityUnrecognizedLifecycle   AmbiguityKind = "unrecognized_lifecycle"
-	AmbiguityMissingDependencyTarget AmbiguityKind = "missing_dependency_target"
-	AmbiguityDuplicateSourceIdentity AmbiguityKind = "duplicate_source_identity"
-	AmbiguityUnresolvedNarrativeFind AmbiguityKind = "unresolved_narrative_finding"
-)
-
-// Ambiguity is one named, stably identified condition that blocks apply
-// until an owner decision resolves it. ID is derived from Kind and Path, so
-// the same project previews the same ambiguity IDs every run.
-type Ambiguity struct {
-	ID       string
-	Kind     AmbiguityKind
-	Path     string
-	Detail   string
-	Resolved bool
-	Decision string // the owner-supplied resolution, once Decisions names this ID
-}
-
-// Decisions maps an Ambiguity ID to the owner-supplied resolution recorded
-// against it. The full decisions-file schema (T007) reads this from an
-// explicit input file; Plan itself only consumes the resolved map.
-type Decisions map[string]string
+// AmbiguityKind, Ambiguity, and Decisions live in decisions.go, alongside the
+// stable ID derivation and the blocking-versus-advisory classification: this
+// file only detects ambiguities as it walks the project.
 
 // Clock and OperationIDSource are injected so Plan and its callers can
 // render byte-identical output across repeated runs in tests, and so a real
@@ -218,6 +191,14 @@ type ConversionPlan struct {
 	WaivedRefs  []WaivedReference
 	Conflicts   []Conflict
 	Ambiguities []Ambiguity
+
+	// Appliable is false exactly when at least one blocking Ambiguity is
+	// unresolved; UnresolvedBlockingIDs names every one of them, sorted, so a
+	// refusal to apply can name concrete IDs rather than say only that
+	// ambiguities exist. It does not fold in Conflicts, which block apply for
+	// an unrelated reason and are reported separately.
+	Appliable             bool
+	UnresolvedBlockingIDs []string
 
 	// Sources is the raw inventory Plan computed, retained so a manifest can
 	// be built from the same read without walking the project a second time.
@@ -311,17 +292,29 @@ func Plan(projectRoot string, decisions Decisions, now Clock, newOperationID Ope
 	if err := b.build(); err != nil {
 		return nil, err
 	}
+	if err := validateDecisions(decisions, b.ambiguities); err != nil {
+		return nil, err
+	}
+
+	var unresolvedBlocking []string
+	for _, a := range b.ambiguities {
+		if a.Blocking && !a.Resolved {
+			unresolvedBlocking = append(unresolvedBlocking, a.ID)
+		}
+	}
 
 	return &ConversionPlan{
-		GeneratedAt: now(),
-		OperationID: newOperationID(),
-		Targets:     b.targets,
-		Documents:   b.documents,
-		Archives:    b.archives,
-		Prereqs:     b.prereqs,
-		WaivedRefs:  b.waivedRefs,
-		Ambiguities: b.ambiguities,
-		Sources:     sources,
+		GeneratedAt:           now(),
+		OperationID:           newOperationID(),
+		Targets:               b.targets,
+		Documents:             b.documents,
+		Archives:              b.archives,
+		Prereqs:               b.prereqs,
+		WaivedRefs:            b.waivedRefs,
+		Ambiguities:           b.ambiguities,
+		Appliable:             len(unresolvedBlocking) == 0,
+		UnresolvedBlockingIDs: unresolvedBlocking,
+		Sources:               sources,
 	}, nil
 }
 
@@ -376,6 +369,11 @@ type planBuilder struct {
 	// issueByFindingID tracks whether a given finding ID converted to an
 	// Issue, so a duplicate finding can tell whether its canonical did too.
 	issueByFindingID map[string]string // finding ID -> allocated I### (absent = archived)
+	// taskIdentitySeen tracks the first source path to declare a given task
+	// ID within one release+epic scope, so a second file declaring the same
+	// ID raises AmbiguityDuplicateSourceIdentity instead of silently
+	// shadowing or overwriting the first.
+	taskIdentitySeen map[string]string // "release/epic/originalID" -> first source path
 }
 
 type plannedTaskOutcome struct {
@@ -387,6 +385,7 @@ type plannedTaskOutcome struct {
 func (b *planBuilder) build() error {
 	b.taskByLegacyPath = map[string]plannedTaskOutcome{}
 	b.issueByFindingID = map[string]string{}
+	b.taskIdentitySeen = map[string]string{}
 
 	savepointRoot := filepath.Join(b.root, ".savepoint")
 	discover := data.NewDiscover()
@@ -495,7 +494,8 @@ func (b *planBuilder) planEpic(discover *data.Discover, savepointRoot, release, 
 
 	if !recognized {
 		b.addAmbiguity(AmbiguityUnrecognizedLifecycle, sf.Path,
-			fmt.Sprintf("epic %s/%s has unrecognized status %q; no Objective or Task under it can be planned until an owner decision resolves it", release, epic, raw.Status))
+			fmt.Sprintf("epic %s/%s has unrecognized status %q; no Objective or Task under it can be planned until an owner decision resolves it", release, epic, raw.Status),
+			epicStatusChoices())
 		return nil
 	}
 	_ = healed
@@ -579,9 +579,19 @@ func (b *planBuilder) planTasksImpl(discover *data.Discover, savepointRoot, rele
 		status, _, recognized := resolveTaskStatus(raw)
 		if !recognized {
 			b.addAmbiguity(AmbiguityUnrecognizedLifecycle, rel,
-				fmt.Sprintf("task %s has unrecognized status %q; it cannot be planned as active or archived until an owner decision resolves it", task.ID, raw))
+				fmt.Sprintf("task %s has unrecognized status %q; it cannot be planned as active or archived until an owner decision resolves it", task.ID, raw),
+				taskStatusChoices())
 			continue
 		}
+
+		identityScope := release + "/" + epic + "/" + task.ID
+		if firstPath, seen := b.taskIdentitySeen[identityScope]; seen {
+			b.addAmbiguityDiscriminated(AmbiguityDuplicateSourceIdentity, rel, firstPath,
+				fmt.Sprintf("task id %s is declared by both %s and %s; allocation cannot tell which one it actually names", task.ID, firstPath, rel),
+				[]string{"keep_first", "keep_second"})
+			continue
+		}
+		b.taskIdentitySeen[identityScope] = rel
 
 		if archiveOnly || status == string(data.ColumnDone) {
 			archivePath := archivePathFor(rel)
@@ -644,8 +654,9 @@ func (b *planBuilder) resolveTaskDependencies(rel string, outcome plannedTaskOut
 		for _, ref := range outcome.task.DependsOn {
 			resolution := data.ResolveDependency(ref, outcome.task, allTasks, map[string]string{})
 			if resolution.Kind != data.DependencyTask {
-				b.addAmbiguity(AmbiguityMissingDependencyTarget, rel,
-					fmt.Sprintf("task %s depends_on %q, which does not resolve to any known task", outcome.task.ID, ref))
+				b.addAmbiguityDiscriminated(AmbiguityMissingDependencyTarget, rel, ref,
+					fmt.Sprintf("task %s depends_on %q, which does not resolve to any known task", outcome.task.ID, ref),
+					missingDependencyChoices())
 				continue
 			}
 			depOutcome := b.findTaskOutcomeByID(resolution.ID, resolution.TaskStatus)
@@ -659,8 +670,9 @@ func (b *planBuilder) resolveTaskDependencies(rel string, outcome plannedTaskOut
 					Evidence:    completionEvidence(depOutcome.task),
 				})
 			default:
-				b.addAmbiguity(AmbiguityMissingDependencyTarget, rel,
-					fmt.Sprintf("task %s depends_on %q, which resolved but was never planned", outcome.task.ID, ref))
+				b.addAmbiguityDiscriminated(AmbiguityMissingDependencyTarget, rel, ref,
+					fmt.Sprintf("task %s depends_on %q, which resolved but was never planned", outcome.task.ID, ref),
+					missingDependencyChoices())
 			}
 		}
 	}
@@ -815,7 +827,8 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 		canonical, exists := all[finding.DuplicateOf]
 		if !exists {
 			b.addAmbiguity(AmbiguityUnresolvedNarrativeFind, path,
-				fmt.Sprintf("finding %s is marked duplicate of %q, which names no known finding in this project", finding.ID, finding.DuplicateOf))
+				fmt.Sprintf("finding %s is marked duplicate of %q, which names no known finding in this project", finding.ID, finding.DuplicateOf),
+				unresolvedNarrativeFindingChoices())
 			return nil
 		}
 
@@ -851,7 +864,8 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 
 	default:
 		b.addAmbiguity(AmbiguityUnrecognizedLifecycle, path,
-			fmt.Sprintf("finding %s has unrecognized status %q", finding.ID, finding.Status))
+			fmt.Sprintf("finding %s has unrecognized status %q", finding.ID, finding.Status),
+			findingStatusChoices())
 		return nil
 	}
 }
@@ -1029,21 +1043,17 @@ func (b *planBuilder) archiveRemainingRoles() {
 				ArchivePath: archivePathFor(path),
 				Role:        role,
 			})
+			if role == RoleUnclassified {
+				// Advisory only: the file is archived intact regardless of
+				// this ambiguity's resolution, so it never blocks apply. It
+				// is named purely so the owner can see what migration could
+				// not place, per AC4.
+				b.addAmbiguity(AmbiguityUnclassifiedFile, path,
+					fmt.Sprintf("%s matched no known V1 file role; it is archived byte-for-byte at %s rather than converted or dropped", path, archivePathFor(path)),
+					nil)
+			}
 		}
 	}
-}
-
-func (b *planBuilder) addAmbiguity(kind AmbiguityKind, path, detail string) {
-	id := string(kind) + ":" + path
-	decision, resolved := b.decisions[id]
-	b.ambiguities = append(b.ambiguities, Ambiguity{
-		ID:       id,
-		Kind:     kind,
-		Path:     path,
-		Detail:   detail,
-		Resolved: resolved,
-		Decision: decision,
-	})
 }
 
 func (b *planBuilder) readSource(rel string) (string, error) {
@@ -1155,4 +1165,54 @@ func readRawTaskStatus(content string) (string, error) {
 		return raw.Status, nil
 	}
 	return raw.Column, nil
+}
+
+// The choices* helpers below are the concrete, enumerable resolutions T007's
+// AC2 requires each ambiguity to state. Choices resolve the *ambiguity Plan
+// raised* (which status the owner means, whether to drop a reference, which
+// of two duplicate declarations is canonical, how to treat an unresolved
+// duplicate finding) — none of them describe the deeper V1 source edit that
+// naturally follows and belongs to the owner, not to migration.
+
+func epicStatusChoices() []string {
+	statuses := data.CanonicalEpicStatuses()
+	choices := make([]string, len(statuses))
+	for i, s := range statuses {
+		choices[i] = string(s)
+	}
+	return choices
+}
+
+func taskStatusChoices() []string {
+	statuses := data.CanonicalTaskStatuses()
+	choices := make([]string, len(statuses))
+	for i, s := range statuses {
+		choices[i] = string(s)
+	}
+	return choices
+}
+
+func findingStatusChoices() []string {
+	return []string{
+		string(data.FindingOpen), string(data.FindingTriaged), string(data.FindingMapped),
+		string(data.FindingInProgress), string(data.FindingFixed), string(data.FindingVerified),
+		string(data.FindingDeferred), string(data.FindingOwnerDecision), string(data.FindingWaived),
+		string(data.FindingDuplicate),
+	}
+}
+
+// missingDependencyChoices is deliberately a single choice: migration never
+// invents a replacement dependency target, so the only decision it can offer
+// is to drop the reference. Naming a real target is a V1 source edit,
+// followed by a rerun that previews the corrected reference cleanly.
+func missingDependencyChoices() []string {
+	return []string{"drop_dependency"}
+}
+
+// unresolvedNarrativeFindingChoices resolves a `duplicate` finding whose
+// duplicate_of names no known finding: either it converts as its own
+// Issue (treat_as_original) or it is archived like a settled duplicate
+// (archive). Neither choice guesses which existing finding the owner meant.
+func unresolvedNarrativeFindingChoices() []string {
+	return []string{"treat_as_original", "archive"}
 }

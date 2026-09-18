@@ -85,10 +85,13 @@ type ManifestWaivedReference struct {
 }
 
 // ManifestDecision is one owner-supplied resolution recorded against a named
-// ambiguity, with its provenance.
+// ambiguity, with its provenance: the decision value itself, the
+// --decisions FILE path it came from, and when it was read.
 type ManifestDecision struct {
-	AmbiguityID string `yaml:"ambiguity_id"`
-	Decision    string `yaml:"decision"`
+	AmbiguityID string    `yaml:"ambiguity_id"`
+	Decision    string    `yaml:"decision"`
+	SourceFile  string    `yaml:"source_file,omitempty"`
+	DecidedAt   time.Time `yaml:"decided_at,omitempty"`
 }
 
 // BuildManifest projects plan into the manifest model. It is a pure
@@ -156,7 +159,12 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 		if !amb.Resolved {
 			continue
 		}
-		m.Decisions = append(m.Decisions, ManifestDecision{AmbiguityID: amb.ID, Decision: amb.Decision})
+		m.Decisions = append(m.Decisions, ManifestDecision{
+			AmbiguityID: amb.ID,
+			Decision:    amb.Decision,
+			SourceFile:  amb.DecisionSourceFile,
+			DecidedAt:   amb.DecisionAt,
+		})
 	}
 	sort.Slice(m.Decisions, func(i, j int) bool { return m.Decisions[i].AmbiguityID < m.Decisions[j].AmbiguityID })
 
