@@ -1,0 +1,433 @@
+fixture: v1-history
+note: Converted output of this fixture under the fixed clock and operation id in end_to_end_test.go. Regenerate only through the documented procedure at regenerateGoldenEnv; a mismatch is a behavior change to review, not a file to refresh.
+files:
+    - path: .savepoint/Idea.md
+      content: |
+        ---
+        type: project-prd
+        status: active
+        ---
+
+        # Example Project — Product Requirements
+
+        A minimal frozen product intent used only as migration source evidence: a small tool
+        whose baseline epic and Task short ID are reused across two releases, with authored
+        audit and defect history attached.
+
+        ## Vision
+
+        Ship the shared baseline in v1, then extend it in v1.1 under the same epic and Task
+        short ID while keeping the audit register and defect history intact and interpretable.
+    - path: .savepoint/issues/I001-shared.md
+      content: |
+        ---
+        id: I001
+        title: Follow-up drafted before the v1.1 baseline is confirmed stable
+        type: defect
+        status: open
+        source:
+            kind: migration
+            actor:
+                role: owner
+                session: .savepoint/releases/v1.1/defects/D001-shared.md
+            at: "2026-09-18T12:00:00Z"
+        tasks:
+            - T002
+        severity: low
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 defect body at `.savepoint/releases/v1.1/defects/D001-shared.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        # D001: Follow-up Drafted Before Baseline Confirmed
+
+        ## Symptom
+
+        `T002-follow-up` was drafted and scoped while `T001-shared` (v1.1) was still in
+        progress, before the redone baseline was confirmed stable.
+
+        ## Expected Behavior
+
+        A dependent follow-up Task should not be started until its same-epic dependency Task
+        reaches done.
+
+        ## Reproduction
+
+        1. Open the v1.1 release, epic `E01-example`.
+        2. Observe `T002-follow-up` exists with `depends_on: [T001-shared]` while T001-shared is
+           still `in_progress`.
+
+        ## Impact
+
+        Low: the follow-up remains `planned`, not started, so no premature work has happened.
+        Left open in this frozen fixture as release-scoped migration source evidence, distinct
+        from the resolved v1 record sharing the same short ID.
+    - path: .savepoint/issues/I002-F001.md
+      content: |-
+        ---
+        id: I002
+        title: Shared-epic dependency resolution lacked regression coverage
+        type: guardrail
+        status: in_progress
+        source:
+            kind: migration
+            actor:
+                role: owner
+                session: .savepoint/audit/findings/F001-awaiting-proof.md
+            at: "2026-09-18T12:00:00Z"
+        tasks:
+            - T001
+        guardrail_ids:
+            - TEST-05
+        severity: medium
+        history:
+            - at: "2026-07-01T00:00:00Z"
+              actor:
+                role: owner
+                session: .savepoint/audit/findings/F001-awaiting-proof.md
+              kind: repair_attempted
+              note: A regression test proving the same-epic short reference resolves within the active release, not a prior release's completed Task of the same short ID
+        legacy_fields:
+            reviewer_note: kept from v1 audit tooling; not part of the current finding schema
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 finding body at `.savepoint/audit/findings/F001-awaiting-proof.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        ## Summary
+
+        The shared-epic short dependency reference risked resolving to the completed v1
+        baseline Task instead of the in-progress v1.1 Task sharing the same short ID.
+
+        ## Evidence
+
+        `E01-example/T002-follow-up` (v1.1) depends on the short reference `T001-shared`, and
+        the same short ID also names a `done` Task in the v1 release, `E01-example/T001-shared`.
+
+        ## Proof
+
+        Not yet verified: the regression test named in `proof_needed` has not landed. Raw
+        `fixed` status is not proof of verification.
+
+        ## History
+
+        - 2026-06-20: Opened during the v1.1 baseline review.
+        - 2026-07-01: Marked `fixed` pending the named regression test; still unverified.
+
+
+        ## V1 Finding Metadata
+
+        - Confidence: high
+        - Source auditor: agent
+        - Proof needed: A regression test proving the same-epic short reference resolves within the active release, not a prior release's completed Task of the same short ID
+        - First seen: 2026-06-20
+        - Last seen: 2026-07-01
+        - Work item: E01-example/T001-shared
+        - Releases: v1.1
+        - Epics: E01-example
+        - Tasks: E01-example/T001-shared
+        - Locations: internal/data/dependency.go
+    - path: .savepoint/issues/I003-F003.md
+      content: |-
+        ---
+        id: I003
+        title: Duplicate of shared-epic dependency resolution finding
+        type: other
+        status: resolved
+        source:
+            kind: migration
+            actor:
+                role: owner
+                session: .savepoint/audit/findings/F003-duplicate.md
+            at: "2026-09-18T12:00:00Z"
+        tasks:
+            - T001
+        severity: medium
+        resolution:
+            disposition: duplicate
+            actor:
+                role: owner
+                session: .savepoint/audit/findings/F003-duplicate.md
+            at: "2026-07-01T00:00:00Z"
+            reason: migrated V1 finding F003 recorded as a duplicate of F001; no independent proof is tracked here
+        duplicate_of: I002
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 finding body at `.savepoint/audit/findings/F003-duplicate.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        ## Summary
+
+        Independently filed report of the same shared-epic dependency resolution risk already
+        tracked as `F001`, found again before reconciliation.
+
+        ## Evidence
+
+        Same symptom and location as `F001`: `E01-example/T002-follow-up`'s short dependency
+        reference and the same-short-ID collision with the done v1 Task.
+
+        ## Proof
+
+        No independent proof is tracked here; resolution follows `F001`'s proof, not this
+        record's.
+
+        ## History
+
+        - 2026-06-25: Filed independently before the 2026-07-01 reconciliation pass.
+        - 2026-07-01: Reconciled as `duplicate`, pointing at the canonical `F001`. The stable ID
+          `F003` is retained rather than deleted.
+
+
+        ## V1 Finding Metadata
+
+        - Confidence: high
+        - Source auditor: agent
+        - Proof needed: n/a; canonical finding is F001
+        - First seen: 2026-06-25
+        - Last seen: 2026-07-01
+        - Work item: E01-example/T001-shared
+        - Releases: v1.1
+        - Tasks: E01-example/T001-shared
+    - path: .savepoint/migrations/v1-to-v2.yml
+      content: |
+        manifest_schema_version: 1
+        generated_at: 2026-09-18T12:00:00Z
+        operation_id: op-e2e-fixed
+        sources:
+            - path: .savepoint/Design.md
+              sha256: e7fe9986d4433568986f9df7062c2c4edb4cf79dad409751fc5eeed4e91d6c55
+            - path: .savepoint/Health-Check.md
+              sha256: adb02e84af85276f542f61cff7f7f23c790f76bf4efc947a5725b57051778685
+            - path: .savepoint/PRD.md
+              sha256: dd62b08d7540ef73a8c5c009432a2aa5366496226e81b0641304a2cfe06c824e
+            - path: .savepoint/audit/findings/F001-awaiting-proof.md
+              sha256: deedeb15c595587f01c0dbe96c317117279d045edac4a0211221e619f8c6b679
+            - path: .savepoint/audit/findings/F002-owner-waiver.md
+              sha256: d28002ebf2b5bd450ffe58b455c69a2918e213c1c3dc954c027b1e47eeef57fd
+            - path: .savepoint/audit/findings/F003-duplicate.md
+              sha256: ac2a199a7c1c7f1c132e176678c03143b718f36bebbc9a25bb5c5a63d1229004
+            - path: .savepoint/audit/prompt.md
+              sha256: 74ac3e4006615f9c50eee34ccfeb4dc25633b4d04ff9c02b830d25cdf4998c21
+            - path: .savepoint/audit/register.md
+              sha256: 2c1ba187f170b0eb3e63a6d39319ae870a48871234afc1653012a8b1f493b3cc
+            - path: .savepoint/audit/runs/2026-07-01-example.md
+              sha256: 8650656d5bc5f40ce13dd18876db6aff361d36da2c983cea256b28a03aab14af
+            - path: .savepoint/config.yml
+              sha256: 295c7181c4a0645a191b9782963c34a04797ebe4523015c1f261e545f8a4d01f
+            - path: .savepoint/releases/v1.1/defects/D001-shared.md
+              sha256: ee00d88d689937fbb6f4bf800462656cf0f5504db28bae1a55afee15fee476b0
+            - path: .savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
+              sha256: 06248f0cabad2e63c9d932f935e3566cb28ac88b32bb51285d6848853e3da729
+            - path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
+              sha256: 29002d1712113e3b055f4e1634a1e8c25b5fc747f40f7109acee92f6a76c6eda
+            - path: .savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md
+              sha256: 8526383309a9eb97a84deee5cfe683d5f061771147683fb28f0b4c1d7f91790d
+            - path: .savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md
+              sha256: 271efb27959e754afc3a1e1cf909742041de0e31270e34195e2746a531722f87
+            - path: .savepoint/releases/v1.1/v1.1-PRD.md
+              sha256: 04e9a920234ac71d1d67f92b378ccc4c4134790da1e66c01963be04ceb78cdd6
+            - path: .savepoint/releases/v1/defects/D001-shared.md
+              sha256: fec217ffd6d8dca2b98e9703f32579a7230512f5f6651d121e9bae265abaaa31
+            - path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              sha256: fe6fef5478141af393432397561d289eb1105d10302dd504a61f6079864d4246
+            - path: .savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
+              sha256: e8bb0b9f4e6fe077c8aff12f8c5d31c591e40fe5b214ab9aa1f6b3fa14d8d3fe
+            - path: .savepoint/releases/v1/v1-PRD.md
+              sha256: 878523ffd0b4230243d1414ff9e407efec33ee37d73649763a28532c514edaeb
+            - path: .savepoint/router.md
+              sha256: 96084a8b100f04e712c183777afa1b87af5c062ea79a4f688bb30f19b0ee77bf
+        identities:
+            - global_id: I001
+              kind: issue
+              release: v1.1
+              path: .savepoint/releases/v1.1/defects/D001-shared.md
+              original_id: v1.1/D001-shared
+              target_path: issues/I001-shared.md
+            - global_id: I002
+              kind: issue
+              path: .savepoint/audit/findings/F001-awaiting-proof.md
+              original_id: F001
+              target_path: issues/I002-F001.md
+            - global_id: I003
+              kind: issue
+              path: .savepoint/audit/findings/F003-duplicate.md
+              original_id: F003
+              target_path: issues/I003-F003.md
+            - global_id: O001
+              kind: objective
+              release: v1.1
+              epic: E01-example
+              path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
+              original_id: E01-example
+              target_path: objectives/O001-example/Objective.md
+            - global_id: T001
+              kind: task
+              release: v1.1
+              epic: E01-example
+              path: .savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md
+              original_id: E01-example/T001-shared
+              target_path: objectives/O001-example/tasks/T001-shared.md
+            - global_id: T002
+              kind: task
+              release: v1.1
+              epic: E01-example
+              path: .savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md
+              original_id: E01-example/T002-follow-up
+              target_path: objectives/O001-example/tasks/T002-follow-up.md
+        archives:
+            - source_path: .savepoint/Health-Check.md
+              archive_path: archive/v1/.savepoint/Health-Check.md
+              role: health-check
+            - source_path: .savepoint/PRD.md
+              archive_path: archive/v1/.savepoint/PRD.md
+              role: product-prd
+            - source_path: .savepoint/audit/findings/F002-owner-waiver.md
+              archive_path: archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
+              role: finding
+              original_id: F002
+            - source_path: .savepoint/audit/prompt.md
+              archive_path: archive/v1/.savepoint/audit/prompt.md
+              role: audit-prompt
+            - source_path: .savepoint/audit/register.md
+              archive_path: archive/v1/.savepoint/audit/register.md
+              role: audit-register
+            - source_path: .savepoint/audit/runs/2026-07-01-example.md
+              archive_path: archive/v1/.savepoint/audit/runs/2026-07-01-example.md
+              role: audit-run
+            - source_path: .savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
+              archive_path: archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
+              role: epic-audit
+            - source_path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
+              archive_path: archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
+              role: epic-detail
+              release: v1.1
+              epic: E01-example
+              original_id: E01-example
+            - source_path: .savepoint/releases/v1/defects/D001-shared.md
+              archive_path: archive/v1/.savepoint/releases/v1/defects/D001-shared.md
+              role: defect
+              release: v1
+              original_id: v1/D001-shared
+            - source_path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              role: epic-detail
+              release: v1
+              epic: E01-example
+              original_id: E01-example
+            - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
+              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
+              role: task
+              release: v1
+              epic: E01-example
+              original_id: E01-example/T001-shared
+        waived_references:
+            - task: T001
+              archive_path: archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
+              reason: Owner decided Deep mode is unnecessary for this example project; only Quick is ever exercised here, and this frozen fixture will never reach production launch.
+    - path: .savepoint/objectives/O001-example/Objective.md
+      content: |
+        ---
+        id: O001
+        title: 'Epic E01: Example (v1.1 continuation)'
+        status: in_progress
+        release: v1.1
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 epic body at `.savepoint/releases/v1.1/epics/E01-example/E01-Detail.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        # Epic E01: Example (v1.1 continuation)
+
+        ## Purpose
+
+        Reuse the v1 baseline epic identity in v1.1: redo the baseline Task under the same
+        short ID, then extend it with a dependent follow-up. Frozen as migration source
+        evidence only; not a real epic with further work.
+
+        ## What this epic adds
+
+        - T001-shared: baseline redone for v1.1, in progress.
+        - T002-follow-up: dependent follow-up, planned, depends on T001-shared.
+
+        ## Components and files
+
+        None; this is a documentation-only example epic.
+    - path: .savepoint/objectives/O001-example/tasks/T001-shared.md
+      content: |
+        ---
+        id: T001
+        title: Redo the shared baseline output for v1.1 before the follow-up depends on it
+        objective: O001
+        status: in_progress
+        stage: build
+        release: v1.1
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 task body at `.savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        # T001: Shared Baseline (v1.1)
+
+        ## Acceptance Criteria
+
+        - [ ] Baseline output redone for v1.1
+
+        ## Implementation Plan
+
+        - [x] Read the v1 baseline for reference
+        - [ ] Redo the baseline output under v1.1 scope
+    - path: .savepoint/objectives/O001-example/tasks/T002-follow-up.md
+      content: |
+        ---
+        id: T002
+        title: Extend the v1.1 shared baseline with a dependent follow-up
+        objective: O001
+        status: planned
+        depends_on:
+            - task: T001
+        release: v1.1
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 task body at `.savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md` (release `v1.1`).
+
+        ## V1 Body (verbatim)
+
+        # T002: Follow-up (v1.1)
+
+        ## Acceptance Criteria
+
+        - [ ] Follow-up extends the v1.1 baseline
+
+        ## Implementation Plan
+
+        - [ ] Wait for T001-shared, then extend it
+    - path: .savepoint/router.md
+      content: |
+        # Agent State Machine
+
+        ## Read order
+
+        1. This file (router.md)
+        2. Current state → next action
+        3. Active epic E##-Detail.md
+        4. Active task file
+
+        ## Current state
+
+        ```yaml
+        state: task
+        objective: O001
+        task: T001
+        next_action: Build E01-example/T001-shared.
+        ```

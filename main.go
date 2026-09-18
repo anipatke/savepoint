@@ -2,15 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"embed"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/opencode/savepoint/cmd"
@@ -130,143 +125,20 @@ func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) err
 	return nil
 }
 
-// Distinct migrate target diagnostics, so a caller (and a test) can tell a
-// missing directory apart from an unwritable one or one that is not a
-// Savepoint project at all, per FS-06.
-var (
-	ErrMigrateTargetMissing      = errors.New("migrate: target directory does not exist")
-	ErrMigrateTargetNotSavepoint = errors.New("migrate: target directory is not a Savepoint project")
-	ErrMigrateTargetUnwritable   = errors.New("migrate: target directory is not writable")
-)
-
-// resolveMigrateTarget validates dir as a migration target and returns its
-// absolute path. Unlike data.Discover.FindSavepointRoot, it checks dir
-// itself rather than walking up through parent directories: migrate must
-// never silently operate on an unrelated ancestor project.
-func resolveMigrateTarget(dir string) (string, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", ErrMigrateTargetMissing, dir, err)
-	}
-
-	info, statErr := os.Stat(abs)
-	if statErr != nil {
-		if os.IsNotExist(statErr) {
-			return "", fmt.Errorf("%w: %s", ErrMigrateTargetMissing, dir)
-		}
-		return "", fmt.Errorf("%w: %s: %v", ErrMigrateTargetMissing, dir, statErr)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%w: %s is not a directory", ErrMigrateTargetMissing, dir)
-	}
-
-	savepointDir := filepath.Join(abs, ".savepoint")
-	if sInfo, sErr := os.Stat(savepointDir); sErr != nil || !sInfo.IsDir() {
-		return "", fmt.Errorf("%w: %s has no .savepoint directory", ErrMigrateTargetNotSavepoint, dir)
-	}
-
-	probe := filepath.Join(abs, ".savepoint-migrate-write-test")
-	if writeErr := os.WriteFile(probe, []byte{}, 0644); writeErr != nil {
-		return "", fmt.Errorf("%w: %s", ErrMigrateTargetUnwritable, dir)
-	}
-	os.Remove(probe)
-
-	return abs, nil
-}
-
-// newMigrationOperationID generates a fresh, effectively-unique operation
-// directory name for a real migration run. Tests inject their own
-// deterministic migrate.OperationIDSource; this is the one production
-// callers use.
-func newMigrationOperationID() string {
-	var suffix [4]byte
-	if _, err := rand.Read(suffix[:]); err != nil {
-		return fmt.Sprintf("op-%d", time.Now().UTC().UnixNano())
-	}
-	return fmt.Sprintf("op-%s-%s", time.Now().UTC().Format("20060102T150405Z"), hex.EncodeToString(suffix[:]))
-}
-
-// migrateRunner performs the actual migrate command work: cmd/migrate.go is
-// argument parsing and dispatch only, so every filesystem interaction and
-// every call into internal/migrate lives here, matching upgradeAssetsRunner
-// and initRunner above.
+// migrateRunner is the production wiring for the migrate command: it maps the
+// parsed options onto migrate.CommandOptions and supplies the real clock and
+// operation-ID source. All behavior lives in internal/migrate, matching
+// upgradeAssetsRunner and initRunner above.
 func migrateRunner(ctx context.Context, opts cmd.MigrateOptions) (int, error) {
-	root, err := resolveMigrateTarget(opts.Dir)
-	if err != nil {
-		return 1, err
-	}
-
-	willWrite := opts.WillWrite()
-
-	if opts.Recover {
-		report, pendingErr := migrate.PendingOperation(root)
-		if pendingErr != nil {
-			return 1, pendingErr
-		}
-		if report == nil {
-			fmt.Println("savepoint migrate --recover: no incomplete migration operation found")
-			if !willWrite {
-				return 0, nil
-			}
-		} else {
-			fmt.Println(report.RecoveryGuidance())
-			if !willWrite {
-				return 0, nil
-			}
-		}
-	}
-
-	now := time.Now
-
-	var decisions migrate.Decisions
-	if opts.DecisionsFile != "" {
-		decisions, err = migrate.ReadDecisionsFile(opts.DecisionsFile, now())
-		if err != nil {
-			return 1, err
-		}
-	}
-
-	plan, err := migrate.Plan(root, decisions, now, newMigrationOperationID)
-	if err != nil {
-		return 2, err
-	}
-
-	if plan.SchemaAlreadyV2 {
-		fmt.Print(migrate.FormatPreview(plan))
-		return 0, nil
-	}
-
-	if len(plan.Conflicts) > 0 {
-		fmt.Print(migrate.FormatPreview(plan))
-		return 1, fmt.Errorf("migrate: plan reports %d conflict(s); resolve before migrating", len(plan.Conflicts))
-	}
-
-	if !willWrite {
-		fmt.Print(migrate.FormatPreview(plan))
-		if !plan.Appliable {
-			return 1, fmt.Errorf("migrate: unresolved blocking ambiguities: %s", strings.Join(plan.UnresolvedBlockingIDs, ", "))
-		}
-		return 0, nil
-	}
-
-	if !plan.Appliable {
-		fmt.Print(migrate.FormatPreview(plan))
-		return 1, fmt.Errorf("migrate: unresolved blocking ambiguities: %s", strings.Join(plan.UnresolvedBlockingIDs, ", "))
-	}
-
-	result, err := migrate.Apply(root, plan)
-	if err != nil {
-		return 1, err
-	}
-	switch {
-	case result.AlreadyMigrated:
-		fmt.Println("project is already at schema_version: 2; nothing to migrate")
-	case result.Resumed:
-		fmt.Printf("resumed and completed migration operation %s\n", result.OperationID)
-	default:
-		fmt.Printf("migration complete: operation %s\n", result.OperationID)
-	}
-	return 0, nil
+	return migrate.RunCommand(migrate.CommandOptions{
+		Dir:            opts.Dir,
+		Write:          opts.WillWrite(),
+		DecisionsFile:  opts.DecisionsFile,
+		Recover:        opts.Recover,
+		Stdout:         os.Stdout,
+		Now:            time.Now,
+		NewOperationID: migrate.NewOperationID,
+	})
 }
 
 func initRunner(ctx context.Context, opts cmd.InitOptions) error {
