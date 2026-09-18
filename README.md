@@ -204,6 +204,30 @@ Real tools measuring real files—not AI opinion.
 
 ---
 
+## Migrating a Legacy Project (`savepoint migrate`)
+
+`savepoint migrate [dir]` converts a V1 project into V2 once: fresh Objectives, Tasks, and Issues for active work, a byte-preserved archive of everything it replaces, and a recorded reference map at `.savepoint/migrations/v1-to-v2.yml`.
+
+**Preview is the default and writes nothing.** Run it with no flags (or `--dry-run`, an explicit synonym for the same default) to see every planned record, archive, identity mapping, conflict, and owner decision required, with no file, directory, or backup created:
+
+```bash
+npx savepoint migrate
+```
+
+Add `--apply` when you are ready to write:
+
+```bash
+npx savepoint migrate --apply
+```
+
+Passing `--apply` together with `--dry-run` still previews — `--dry-run` always wins.
+
+* `--decisions FILE` supplies concrete answers to any blocking ambiguity the preview names (an unrecognized status, a missing dependency target, a duplicate task id, an unresolved duplicate finding). A plan with unresolved blocking ambiguities refuses to apply and exits nonzero, naming every unresolved ID.
+* `--recover` reports an incomplete migration operation and how to finish it; combined with `--apply`, it resumes and completes that operation.
+* A missing directory, an unwritable directory, or a directory that is not a Savepoint project each fail with a distinct, named error rather than a partial write.
+
+---
+
 ## Defects & Issues
 
 Savepoint distinguishes between planned tasks and discovered problems:

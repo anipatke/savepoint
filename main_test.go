@@ -1,12 +1,18 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/opencode/savepoint/internal/migrate"
 )
 
 func TestMainVersionFlagPrintsVersion(t *testing.T) {
@@ -73,6 +79,394 @@ func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
 	}
 	if !strings.Contains(result.stdout, "agent-skills/references/audit-method.md") {
 		t.Errorf("stdout = %q, want the already-applied work named", result.stdout)
+	}
+}
+
+const migrateFixtureProject = "internal/data/testdata/migration/v1-basic/project"
+
+// copyMigrateFixture copies the frozen v1-basic fixture into a fresh
+// temporary directory so command tests can preview or apply against it
+// without ever mutating the fixture itself.
+func copyMigrateFixture(t *testing.T) string {
+	t.Helper()
+	dst := t.TempDir()
+	err := filepath.WalkDir(migrateFixtureProject, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(migrateFixtureProject, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, content, 0644)
+	})
+	if err != nil {
+		t.Fatalf("copy migrate fixture: %v", err)
+	}
+	return dst
+}
+
+type fileSnapshot struct {
+	hash    string
+	modTime time.Time
+}
+
+// snapshotDir records every regular file's content hash and mtime under
+// root, so a test can prove a command wrote nothing at all rather than
+// merely "no new top-level file".
+func snapshotDir(t *testing.T, root string) map[string]fileSnapshot {
+	t.Helper()
+	snap := map[string]fileSnapshot{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(content)
+		snap[rel] = fileSnapshot{hash: hex.EncodeToString(sum[:]), modTime: info.ModTime()}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("snapshot %s: %v", root, err)
+	}
+	return snap
+}
+
+func assertSameSnapshot(t *testing.T, before, after map[string]fileSnapshot) {
+	t.Helper()
+	if len(before) != len(after) {
+		t.Fatalf("file count changed: before %d, after %d", len(before), len(after))
+	}
+	for path, want := range before {
+		got, ok := after[path]
+		if !ok {
+			t.Fatalf("%s was removed", path)
+		}
+		if got.hash != want.hash {
+			t.Fatalf("%s content changed", path)
+		}
+		if !got.modTime.Equal(want.modTime) {
+			t.Fatalf("%s mtime changed: before %v, after %v", path, want.modTime, got.modTime)
+		}
+	}
+}
+
+func writeMigrateMinimalProject(t *testing.T, root string) {
+	t.Helper()
+	mkdirAll(t, filepath.Join(root, ".savepoint"))
+	if err := os.WriteFile(filepath.Join(root, ".savepoint", "config.yml"), []byte("quality_gates: {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".savepoint", "router.md"), []byte("# Router\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeMigrateAmbiguousProject writes a minimal V1 project whose single task
+// carries an unrecognized status, so Plan raises exactly one blocking
+// AmbiguityUnrecognizedLifecycle ambiguity. It returns that ambiguity's
+// stable ID (kind:path, matching addAmbiguity in internal/migrate).
+func writeMigrateAmbiguousProject(t *testing.T, root string) string {
+	t.Helper()
+	writeMigrateMinimalProject(t, root)
+
+	epicDir := filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-x")
+	mkdirAll(t, epicDir)
+	if err := os.WriteFile(filepath.Join(epicDir, "E01-Detail.md"), []byte("---\nstatus: in_progress\n---\n\n# E01\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	taskDir := filepath.Join(epicDir, "tasks")
+	mkdirAll(t, taskDir)
+	taskPath := ".savepoint/releases/v1/epics/E01-x/tasks/T001-weird.md"
+	if err := os.WriteFile(filepath.Join(taskDir, "T001-weird.md"),
+		[]byte("---\nid: E01-x/T001-weird\nstatus: escalated\ndepends_on: []\n---\n\n# T001\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	return "unrecognized_lifecycle:" + taskPath
+}
+
+func TestMainMigrateHelpStillUsesNormalDispatch(t *testing.T) {
+	result := runMainForTest(t, []string{"migrate", "--help"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --help failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "Usage: migrate [dir]") {
+		t.Fatalf("stdout = %q, want migrate usage", result.stdout)
+	}
+	if !strings.Contains(result.stdout, "Preview is the default") {
+		t.Fatalf("stdout = %q, want it to state preview is the default", result.stdout)
+	}
+}
+
+func TestMainMigrateRejectsUnknownFlag(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--bogus"}, "")
+
+	if result.err == nil {
+		t.Fatal("savepoint migrate --bogus succeeded, want a nonzero exit")
+	}
+	if !strings.Contains(result.stderr, "unknown migrate flag") {
+		t.Fatalf("stderr = %q, want a named unknown-flag error", result.stderr)
+	}
+	if !strings.Contains(result.stdout, "Usage: migrate [dir]") {
+		t.Fatalf("stdout = %q, want usage text rather than the flag being silently ignored", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "Migration preview") {
+		t.Fatalf("stdout = %q, want a preview report", result.stdout)
+	}
+	if !strings.Contains(result.stdout, "Planned records") {
+		t.Fatalf("stdout = %q, want the planned records enumerated", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigrateDryRunIsSynonymOfDefault(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--dry-run"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --dry-run failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--apply", "--dry-run"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --apply --dry-run failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigratePreviewIsDeterministic(t *testing.T) {
+	dir := copyMigrateFixture(t)
+
+	first := runMainForTest(t, []string{"migrate", dir}, "")
+	if first.err != nil {
+		t.Fatalf("first savepoint migrate failed: %v\nstderr: %s", first.err, first.stderr)
+	}
+	second := runMainForTest(t, []string{"migrate", dir}, "")
+	if second.err != nil {
+		t.Fatalf("second savepoint migrate failed: %v\nstderr: %s", second.err, second.stderr)
+	}
+
+	if normalizeMigratePreview(first.stdout) != normalizeMigratePreview(second.stdout) {
+		t.Fatalf("preview output is not deterministic across runs:\n--- first ---\n%s\n--- second ---\n%s",
+			first.stdout, second.stdout)
+	}
+}
+
+// normalizeMigratePreview strips the operation id and generated-at lines,
+// which legitimately vary run to run against a real clock, so the test can
+// assert everything else about the report's structure and ordering is
+// stable.
+func normalizeMigratePreview(output string) string {
+	var kept []string
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "operation:") || strings.HasPrefix(line, "generated:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func TestMainMigrateApplyWritesAndActivatesSchema(t *testing.T) {
+	dir := copyMigrateFixture(t)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--apply"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --apply failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "migration complete") {
+		t.Fatalf("stdout = %q, want a completion message", result.stdout)
+	}
+
+	config, err := os.ReadFile(filepath.Join(dir, ".savepoint", "config.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(config), "schema_version: 2") {
+		t.Fatalf("config.yml = %q, want schema_version activated to 2", config)
+	}
+}
+
+func TestMainMigrateAmbiguousPlanBlocksAndNamesTheID(t *testing.T) {
+	dir := t.TempDir()
+	wantID := writeMigrateAmbiguousProject(t, dir)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir}, "")
+
+	if result.err == nil {
+		t.Fatal("savepoint migrate over an unresolved blocking ambiguity succeeded, want a nonzero exit")
+	}
+	if !strings.Contains(result.stderr, wantID) {
+		t.Fatalf("stderr = %q, want it to name the unresolved ambiguity id %s", result.stderr, wantID)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigrateDecisionsFileResolvesAmbiguity(t *testing.T) {
+	dir := t.TempDir()
+	ambiguityID := writeMigrateAmbiguousProject(t, dir)
+
+	decisionsPath := filepath.Join(dir, "decisions.yml")
+	decisionsContent := "decisions:\n  - id: " + ambiguityID + "\n    value: planned\n"
+	if err := os.WriteFile(decisionsPath, []byte(decisionsContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runMainForTest(t, []string{"migrate", dir, "--decisions", decisionsPath}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --decisions failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if strings.Contains(result.stdout, "BLOCKED") {
+		t.Fatalf("stdout = %q, want the resolved ambiguity to no longer block", result.stdout)
+	}
+}
+
+func TestMainMigrateRecoverWithNoPendingOperation(t *testing.T) {
+	dir := copyMigrateFixture(t)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--recover"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --recover failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "no incomplete migration operation found") {
+		t.Fatalf("stdout = %q, want a report that nothing is pending", result.stdout)
+	}
+}
+
+func TestMainMigrateRecoverReportsPendingOperation(t *testing.T) {
+	dir := copyMigrateFixture(t)
+
+	op, err := migrate.CreateOperation(dir, "op-test-recover", nil, nil, time.Now())
+	if err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+
+	result := runMainForTest(t, []string{"migrate", dir, "--recover"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --recover failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, op.Journal.OperationID) {
+		t.Fatalf("stdout = %q, want the pending operation named", result.stdout)
+	}
+}
+
+func TestMainMigrateMissingDirectory(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "does-not-exist")
+
+	result := runMainForTest(t, []string{"migrate", missing}, "")
+
+	if result.err == nil {
+		t.Fatal("savepoint migrate over a missing directory succeeded, want a nonzero exit")
+	}
+	if !strings.Contains(result.stderr, "target directory does not exist") {
+		t.Fatalf("stderr = %q, want a named missing-directory error", result.stderr)
+	}
+}
+
+func TestMainMigrateNotASavepointProject(t *testing.T) {
+	dir := t.TempDir()
+
+	result := runMainForTest(t, []string{"migrate", dir}, "")
+
+	if result.err == nil {
+		t.Fatal("savepoint migrate over a non-Savepoint directory succeeded, want a nonzero exit")
+	}
+	if !strings.Contains(result.stderr, "is not a Savepoint project") {
+		t.Fatalf("stderr = %q, want a named not-a-project error", result.stderr)
+	}
+}
+
+func TestMainMigrateUnwritableDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not enforced the same way on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("running as root bypasses directory permissions")
+	}
+
+	dir := copyMigrateFixture(t)
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0755) })
+
+	result := runMainForTest(t, []string{"migrate", dir}, "")
+
+	if result.err == nil {
+		t.Fatal("savepoint migrate over an unwritable directory succeeded, want a nonzero exit")
+	}
+	if !strings.Contains(result.stderr, "target directory is not writable") {
+		t.Fatalf("stderr = %q, want a named unwritable-directory error", result.stderr)
+	}
+}
+
+func TestMainUpgradeAssetsStillWorksAfterMigrateAdded(t *testing.T) {
+	// A regression guard for the new migrate dispatch case: the existing
+	// upgrade-assets command must behave exactly as before.
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+
+	result := runMainForTest(t, []string{"upgrade-assets", dir, "--dry-run"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint upgrade-assets --dry-run failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "Upgrade Report:") {
+		t.Fatalf("stdout = %q, want the upgrade report", result.stdout)
 	}
 }
 
