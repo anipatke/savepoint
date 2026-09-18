@@ -74,13 +74,41 @@ func ResolveTarget(dir string) (string, error) {
 		return "", fmt.Errorf("%w: %s has no .savepoint directory", ErrTargetNotSavepoint, dir)
 	}
 
-	probe := filepath.Join(abs, ".savepoint-migrate-write-test")
-	if writeErr := os.WriteFile(probe, []byte{}, 0644); writeErr != nil {
-		return "", fmt.Errorf("%w: %s", ErrTargetUnwritable, dir)
-	}
-	os.Remove(probe)
-
 	return abs, nil
+}
+
+// targetWriteabilityProbe is injected in tests so preview tests can prove the
+// write-only preflight is never called. It is deliberately separate from
+// ResolveTarget: resolving a target is a read-only operation shared by
+// preview and recovery-report modes.
+var targetWriteabilityProbe = probeTargetWriteability
+
+func probeTargetWriteability(root string) (err error) {
+	probe, err := os.CreateTemp(root, ".savepoint-migrate-write-test-*")
+	if err != nil {
+		return err
+	}
+	probePath := probe.Name()
+	defer func() {
+		// CreateTemp used O_CREATE|O_EXCL, so this cleanup can only target the
+		// unique file this probe created, never a user's pre-existing sentinel.
+		if removeErr := os.Remove(probePath); removeErr != nil && !os.IsNotExist(removeErr) {
+			if err == nil {
+				err = removeErr
+				return
+			}
+			err = fmt.Errorf("%w; cleanup writeability probe: %v", err, removeErr)
+		}
+	}()
+	err = probe.Close()
+	return err
+}
+
+func ensureTargetWritable(root string) error {
+	if err := targetWriteabilityProbe(root); err != nil {
+		return fmt.Errorf("%w: %s", ErrTargetUnwritable, root)
+	}
+	return nil
 }
 
 // RunCommand performs one `savepoint migrate` invocation and returns its exit
@@ -97,6 +125,27 @@ func RunCommand(opts CommandOptions) (int, error) {
 		code, done, err := reportRecovery(opts, root)
 		if done {
 			return code, err
+		}
+	}
+
+	if opts.Write {
+		if err := ensureTargetWritable(root); err != nil {
+			return 1, err
+		}
+		// A pending operation is authoritative. Do not build a fresh plan:
+		// doing so would generate a new operation ID/time and would also see
+		// the pending operation's already-created destinations as collisions.
+		pending, pendingErr := PendingOperation(root)
+		if pendingErr != nil {
+			return 1, pendingErr
+		}
+		if pending != nil {
+			result, applyErr := Apply(root, nil)
+			if applyErr != nil {
+				return 1, applyErr
+			}
+			fmt.Fprintln(opts.Stdout, applyOutcomeMessage(result))
+			return 0, nil
 		}
 	}
 
@@ -171,7 +220,7 @@ func (o CommandOptions) withDefaults() CommandOptions {
 // reportRecovery prints the pending-operation report --recover asks for. It
 // returns done=true when the invocation is finished (a preview-mode
 // --recover reports and stops); an --apply --recover run falls through to the
-// normal plan-and-apply path, which is what actually resumes the operation.
+// recorded-operation recovery path before any fresh planning.
 func reportRecovery(opts CommandOptions, root string) (code int, done bool, err error) {
 	report, pendingErr := PendingOperation(root)
 	if pendingErr != nil {

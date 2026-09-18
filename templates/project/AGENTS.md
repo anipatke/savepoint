@@ -108,3 +108,20 @@ make build && make test
 ## CLI Rules
 
 **Never run `savepoint` commands.** The CLI is for the human. Edit files directly.
+
+## V2 Routing (Inactive Until Cutover)
+
+This section documents the V2 routing model. It is not active: the `## Skill Activation` table above governs how this repository routes work today, and stays exactly as written until E47's cutover flips the scaffold default and retires the V1 activation table. Nothing below changes present-day behavior.
+
+| Router `state` | Skill |
+|-----------------|-------|
+| idea | savepoint-idea |
+| design | savepoint-design |
+| task | savepoint-task |
+| check | savepoint-check |
+
+`REPLAN REQUIRED`, returned by an executor that hits a materially invalid plan, routes back into `savepoint-design`. It is not a fifth router state — the state stays `design` while the planner resolves what broke.
+
+Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
+
+E47 activates this table as the scaffold default and retires the V1 activation table and its nine skills. E50 removes the transitional V1 readers. Neither happens in this task.

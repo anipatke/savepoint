@@ -75,6 +75,41 @@ func TestRunQualityGates_AllThree(t *testing.T) {
 	}
 }
 
+func TestRunQualityGates_BuildRunsBetweenTypecheckAndTest(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, "quality_gates:\n  lint: \"go version\"\n  typecheck: \"go version\"\n  build: \"go version\"\n  test: \"go version\"\ntheme:\n  bg: \"#000\"\n")
+
+	results := RunQualityGates(root)
+	if len(results) != 4 {
+		t.Fatalf("RunQualityGates() = %d results, want 4", len(results))
+	}
+	wantOrder := []string{"lint", "typecheck", "build", "test"}
+	for i, name := range wantOrder {
+		if results[i].Name != name {
+			t.Fatalf("RunQualityGates()[%d].Name = %q, want %q", i, results[i].Name, name)
+		}
+		if !results[i].Passed {
+			t.Fatalf("RunQualityGates() %s should pass: %v", results[i].Name, results[i])
+		}
+	}
+}
+
+func TestRunQualityGates_BuildOnly(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, "quality_gates:\n  lint: null\n  typecheck: null\n  build: \"go version\"\n  test: null\ntheme:\n  bg: \"#000\"\n")
+
+	results := RunQualityGates(root)
+	if len(results) != 1 {
+		t.Fatalf("RunQualityGates() = %d results, want 1 (build only)", len(results))
+	}
+	if results[0].Name != "build" {
+		t.Fatalf("RunQualityGates()[0].Name = %q, want \"build\"", results[0].Name)
+	}
+	if !results[0].Passed {
+		t.Fatalf("RunQualityGates() build should pass: %v", results[0])
+	}
+}
+
 func TestRunQualityGates_FailingCommand(t *testing.T) {
 	root := t.TempDir()
 	writeConfig(t, root, "quality_gates:\n  lint: \"cmd-that-does-not-exist-12345\"\n  typecheck: null\n  test: null\ntheme:\n  bg: \"#000\"\n")

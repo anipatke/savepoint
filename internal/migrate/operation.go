@@ -56,6 +56,11 @@ var (
 	// one — the same "never guess" rule the rest of this package applies to
 	// ambiguous project content.
 	ErrMultipleOperations = errors.New("migrate: more than one incomplete migration operation exists")
+	// ErrCreateDestinationExists means an additive migration output was
+	// occupied at the installation boundary. Create outputs are never allowed
+	// to replace that content; the operation remains pending so the owner can
+	// move the unrelated file and recover.
+	ErrCreateDestinationExists = errors.New("migrate: create destination already exists")
 )
 
 const (
@@ -115,6 +120,11 @@ type Journal struct {
 	CreatedAt    time.Time        `yaml:"created_at"`
 	SourceHashes []ManifestSource `yaml:"source_hashes"`
 	Entries      []JournalEntry   `yaml:"entries"`
+	// Plan is the original, fully resolved plan. It is persisted before any
+	// live project path is touched so a later command invocation can recover
+	// the original decisions, clock, operation ID, and output ordering rather
+	// than generating a fresh plan with different volatile values.
+	Plan *ConversionPlan `yaml:"plan,omitempty"`
 }
 
 // Operation is one migration operation directory bound to its journal.
@@ -149,6 +159,18 @@ func OperationDir(projectRoot, opID string) string {
 // leaves a half-formed operation directory that PendingOperation would later
 // mistake for one to resume.
 func CreateOperation(projectRoot, opID string, sourceHashes []ManifestSource, entries []JournalEntry, createdAt time.Time) (op *Operation, err error) {
+	return createOperation(projectRoot, opID, sourceHashes, entries, createdAt, nil)
+}
+
+// CreateOperationWithPlan is CreateOperation plus the original conversion
+// plan. The plan is part of the durable recovery record; keeping the existing
+// CreateOperation entry point preserves the plan-agnostic operation tests and
+// callers that only need the generic state machine.
+func CreateOperationWithPlan(projectRoot, opID string, sourceHashes []ManifestSource, entries []JournalEntry, createdAt time.Time, plan *ConversionPlan) (op *Operation, err error) {
+	return createOperation(projectRoot, opID, sourceHashes, entries, createdAt, plan)
+}
+
+func createOperation(projectRoot, opID string, sourceHashes []ManifestSource, entries []JournalEntry, createdAt time.Time, plan *ConversionPlan) (op *Operation, err error) {
 	dir := OperationDir(projectRoot, opID)
 
 	if mkErr := os.MkdirAll(operationsRootDir(projectRoot), 0755); mkErr != nil {
@@ -187,6 +209,7 @@ func CreateOperation(projectRoot, opID string, sourceHashes []ManifestSource, en
 			CreatedAt:    createdAt,
 			SourceHashes: append([]ManifestSource{}, sourceHashes...),
 			Entries:      plannedEntries,
+			Plan:         plan,
 		},
 	}
 	if createErr := op.createJournal(); createErr != nil {
@@ -377,13 +400,12 @@ func (op *Operation) WriteStaged(relPath string, content []byte) error {
 }
 
 // Install applies relPath's staged content to the live project: a create
-// writes it to a destination that must not already exist, a replace goes
-// through ReplaceFile so the destination is never truncated or missing
-// mid-write. A create destination is always a freshly allocated V2 path
-// nothing else could have written before this operation, so overwriting a
-// leftover from a previous incomplete attempt at the same operation is the
-// intended, retry-safe behavior — never a collision with unrelated user
-// content.
+// publishes through the platform's atomic no-replace primitive, a replace
+// goes through ReplaceFile so the destination is never truncated or missing
+// mid-write. If a create destination already contains the exact staged bytes,
+// it is treated as the operation's own prior publication (for example, a
+// crash after publication but before the journal update); any other existing
+// content is a named conflict and is never overwritten.
 func (op *Operation) Install(root, relPath string, mode os.FileMode) error {
 	e, err := op.entry(relPath)
 	if err != nil {
@@ -407,7 +429,7 @@ func (op *Operation) Install(root, relPath string, mode os.FileMode) error {
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 			return fmt.Errorf("install %s: create destination dir: %w", relPath, err)
 		}
-		if err := writeCompleteFile(dest, staged, mode); err != nil {
+		if err := installCreateOnly(dest, staged, mode, e.PlannedHash); err != nil {
 			return fmt.Errorf("install %s: %w", relPath, err)
 		}
 	case ActionReplace:
@@ -462,6 +484,30 @@ func (op *Operation) Verify(root, relPath string) error {
 		return err
 	}
 
+	if err := verifyInstalledEntry(root, relPath, e); err != nil {
+		return err
+	}
+
+	e.State = StepVerified
+	return op.persistJournal()
+}
+
+// verifyRecorded checks an entry that already reached StepVerified without
+// changing its journal state. Recovery uses it as a read-only preflight so a
+// user edit made after an earlier verification is still reported before any
+// later live write.
+func (op *Operation) verifyRecorded(root, relPath string) error {
+	e, err := op.entry(relPath)
+	if err != nil {
+		return err
+	}
+	if e.State != StepInstalled && e.State != StepVerified {
+		return fmt.Errorf("operation %s: %s is in state %s, want an installed or verified entry", op.Journal.OperationID, relPath, e.State)
+	}
+	return verifyInstalledEntry(root, relPath, e)
+}
+
+func verifyInstalledEntry(root, relPath string, e *JournalEntry) error {
 	dest := filepath.Join(root, filepath.FromSlash(relPath))
 	if e.Action == ActionRemove {
 		if _, statErr := os.Lstat(dest); statErr == nil {
@@ -469,18 +515,17 @@ func (op *Operation) Verify(root, relPath string) error {
 		} else if !os.IsNotExist(statErr) {
 			return fmt.Errorf("verify %s: %w", relPath, statErr)
 		}
-	} else {
-		content, readErr := os.ReadFile(dest)
-		if readErr != nil {
-			return fmt.Errorf("verify %s: %w", relPath, readErr)
-		}
-		if got := hashBytes(content); got != e.InstalledHash {
-			return fmt.Errorf("%w: %s hash %s, want %s", ErrVerificationFailed, relPath, got, e.InstalledHash)
-		}
+		return nil
 	}
 
-	e.State = StepVerified
-	return op.persistJournal()
+	content, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		return fmt.Errorf("verify %s: %w", relPath, readErr)
+	}
+	if got := hashBytes(content); got != e.InstalledHash {
+		return fmt.Errorf("%w: %s hash %s, want %s", ErrVerificationFailed, relPath, got, e.InstalledHash)
+	}
+	return nil
 }
 
 func hashBytes(content []byte) string {
@@ -490,18 +535,14 @@ func hashBytes(content []byte) string {
 
 // writeCompleteFile writes content to path as a single complete file, via a
 // temporary file in the same directory that is flushed, closed, and renamed
-// into place. Unlike ReplaceFile it freely overwrites an existing
-// destination, which is correct here because every caller uses it only for
-// the operation's own internal files (staging and backup copies) or for an
-// ActionCreate destination that is a freshly allocated path nothing else
-// could legitimately occupy — never for replacing a live file a user already
-// has. ReplaceFile owns that case.
+// into place. It is only for operation-owned staging and backup copies, where
+// overwrite is intentional. Live ActionCreate destinations use
+// writeCreateOnlyFile instead.
 func writeCompleteFile(path string, content []byte, mode os.FileMode) (err error) {
-	temp, err := os.CreateTemp(filepath.Dir(path), replaceTempPattern)
+	tempPath, err := writeCompleteTemp(path, content, mode)
 	if err != nil {
-		return fmt.Errorf("create temporary file: %w", err)
+		return err
 	}
-	tempPath := temp.Name()
 	defer func() {
 		if err != nil {
 			if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
@@ -510,25 +551,128 @@ func writeCompleteFile(path string, content []byte, mode os.FileMode) (err error
 		}
 	}()
 
-	if err = temp.Chmod(mode.Perm()); err != nil {
-		temp.Close()
-		return fmt.Errorf("set temporary permissions: %w", err)
-	}
-	if _, err = temp.Write(content); err != nil {
-		temp.Close()
-		return fmt.Errorf("write: %w", err)
-	}
-	if err = temp.Sync(); err != nil {
-		temp.Close()
-		return fmt.Errorf("flush: %w", err)
-	}
-	if err = temp.Close(); err != nil {
-		return fmt.Errorf("close: %w", err)
-	}
 	if err = os.Rename(tempPath, path); err != nil {
 		return fmt.Errorf("rename into place: %w", err)
 	}
 	return nil
+}
+
+// writeCreateOnlyFile prepares complete bytes and publishes them with the
+// platform-specific atomic no-replace primitive. A destination that appears
+// after planning therefore fails at the final installation boundary instead
+// of being replaced by rename.
+func writeCreateOnlyFile(path string, content []byte, mode os.FileMode) (retErr error) {
+	tempPath, err := writeCompleteTemp(path, content, mode)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if tempPath == "" {
+			return
+		}
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			if retErr != nil {
+				retErr = fmt.Errorf("%w (cleanup %s: %v)", retErr, tempPath, removeErr)
+			} else {
+				retErr = fmt.Errorf("cleanup %s: %w", tempPath, removeErr)
+			}
+		}
+	}()
+
+	if err := createDestinationAtomically(tempPath, path); err != nil {
+		if isCreateDestinationExistsError(err) {
+			return fmt.Errorf("%w: %s", ErrCreateDestinationExists, path)
+		}
+		return fmt.Errorf("create into place: %w", err)
+	}
+	if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+		return fmt.Errorf("create %s succeeded but temporary cleanup failed: %w", path, removeErr)
+	}
+	tempPath = ""
+	return nil
+}
+
+func writeCompleteTemp(path string, content []byte, mode os.FileMode) (string, error) {
+	temp, err := os.CreateTemp(filepath.Dir(path), replaceTempPattern)
+	if err != nil {
+		return "", fmt.Errorf("create temporary file: %w", err)
+	}
+	tempPath := temp.Name()
+
+	fail := func(err error) (string, error) {
+		if closeErr := temp.Close(); closeErr != nil {
+			err = fmt.Errorf("%w (close: %v)", err, closeErr)
+		}
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return "", fmt.Errorf("%w (cleanup %s: %v)", err, tempPath, removeErr)
+		}
+		return "", err
+	}
+
+	if err := temp.Chmod(mode.Perm()); err != nil {
+		return fail(fmt.Errorf("set temporary permissions: %w", err))
+	}
+	written, err := temp.Write(content)
+	if err != nil {
+		return fail(fmt.Errorf("write: %w", err))
+	}
+	if written != len(content) {
+		return fail(fmt.Errorf("short write: wrote %d of %d bytes", written, len(content)))
+	}
+	if err := temp.Sync(); err != nil {
+		return fail(fmt.Errorf("flush: %w", err))
+	}
+	if err := temp.Close(); err != nil {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return "", fmt.Errorf("close temporary file: %w (cleanup %s: %v)", err, tempPath, removeErr)
+		}
+		return "", fmt.Errorf("close temporary file: %w", err)
+	}
+	return tempPath, nil
+}
+
+func installCreateOnly(path string, content []byte, mode os.FileMode, plannedHash string) error {
+	if adopted, err := adoptExistingCreate(path, plannedHash); err != nil || adopted {
+		return err
+	}
+	if err := writeCreateOnlyFile(path, content, mode); err != nil {
+		if !errors.Is(err, ErrCreateDestinationExists) {
+			return err
+		}
+		// The destination may have been published by this operation between
+		// the initial read and the atomic create. Adopt it only when its bytes
+		// are exactly the planned bytes; unrelated content remains a conflict.
+		adopted, adoptErr := adoptExistingCreate(path, plannedHash)
+		if adoptErr != nil {
+			return adoptErr
+		}
+		if adopted {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func adoptExistingCreate(path, plannedHash string) (bool, error) {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect create destination %s: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%w: %s is not a regular file", ErrCreateDestinationExists, path)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, fmt.Errorf("inspect create destination %s: %w", path, err)
+	}
+	if hashBytes(content) != plannedHash {
+		return false, fmt.Errorf("%w: %s contains unrelated content", ErrCreateDestinationExists, path)
+	}
+	return true, nil
 }
 
 // PendingOperationReport is what PendingOperation returns for the single

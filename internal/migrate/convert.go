@@ -108,10 +108,16 @@ type taskDependsOnOutput struct {
 	Requires string `yaml:"requires,omitempty"`
 }
 
+type taskActorOutput struct {
+	Role    string `yaml:"role"`
+	Session string `yaml:"session"`
+}
+
 type taskOutputFrontmatter struct {
 	ID           string                `yaml:"id"`
 	Title        string                `yaml:"title"`
 	Objective    string                `yaml:"objective"`
+	PlannedBy    taskActorOutput       `yaml:"planned_by"`
 	Status       string                `yaml:"status"`
 	Stage        string                `yaml:"stage,omitempty"`
 	DependsOn    []taskDependsOnOutput `yaml:"depends_on,omitempty"`
@@ -262,6 +268,7 @@ func ConvertTask(root string, plan *ConversionPlan, target PlannedTarget) (strin
 		ID:           target.GlobalID,
 		Title:        title,
 		Objective:    objectiveID,
+		PlannedBy:    taskActorOutput{Role: string(data.ActorRolePlanner), Session: "migration"},
 		Status:       status,
 		Stage:        stage,
 		DependsOn:    dependsOn,

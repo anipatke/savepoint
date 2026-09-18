@@ -22,13 +22,13 @@ func TestE43_EpicScenario(t *testing.T) {
 
 	// T001 is a technical Task: no owner_validation declared.
 	t001Path := filepath.Join(root, v2ObjectivesDirName, "O001-ship", v2TasksDirName, "T001-alpha.md")
-	testutil.WriteFile(t, t001Path, "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: in_progress\nstage: audit\n---\n\n# Alpha\n\nAuthored plan notes for Alpha.\n")
+	testutil.WriteFile(t, t001Path, "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: audit\n---\n\n# Alpha\n\nAuthored plan notes for Alpha.\n")
 
 	// T002 declares owner_validation.required and carries an unknown
 	// frontmatter field and authored body content that every later evidence
 	// patch must preserve untouched.
 	t002Path := filepath.Join(root, v2ObjectivesDirName, "O001-ship", v2TasksDirName, "T002-beta.md")
-	testutil.WriteFile(t, t002Path, "---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: in_progress\nstage: audit\ncustom_note: keep-me\n---\n\n# Beta\n\nAuthored plan notes for Beta.\n")
+	testutil.WriteFile(t, t002Path, "---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: audit\ncustom_note: keep-me\n---\n\n# Beta\n\nAuthored plan notes for Beta.\n")
 
 	checkedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
 
@@ -46,11 +46,12 @@ func TestE43_EpicScenario(t *testing.T) {
 
 	// --- a technical Task closes under checker authority once current ---
 	c001, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
-		Result:    CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		CheckedAt: checkedAt,
-		Body:      "\n\n# Check\n\nT001 reviewed clean.\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		ExecutedSession: "build-001",
+		CheckedAt:       checkedAt,
+		Body:            "\n\n# Check\n\nT001 reviewed clean.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(C001) error = %v", err)
@@ -84,11 +85,12 @@ func TestE43_EpicScenario(t *testing.T) {
 
 	// --- an owner-validated Task waits until the owner accepts ---
 	c002, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T002"},
-		Result:    CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		CheckedAt: checkedAt,
-		Body:      "\n\n# Check\n\nT002 reviewed clean.\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T002"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		ExecutedSession: "build-001",
+		CheckedAt:       checkedAt,
+		Body:            "\n\n# Check\n\nT002 reviewed clean.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(C002) error = %v", err)
@@ -142,12 +144,13 @@ func TestE43_EpicScenario(t *testing.T) {
 
 	// --- a rerun supersedes the prior acceptance and freshness ---
 	_, err = CreateCheckV2(root, index, NewCheckV2{
-		Scope:      CheckScope{Kind: CheckScopeTask, ID: "T002"},
-		Result:     CheckResultClear,
-		CheckedBy:  Actor{Role: ActorRoleChecker, Session: "sess-2"},
-		CheckedAt:  checkedAt.Add(24 * time.Hour),
-		Supersedes: c002.ID,
-		Body:       "\n\n# Check\n\nT002 re-reviewed after a rerun.\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T002"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-2"},
+		ExecutedSession: "build-001",
+		CheckedAt:       checkedAt.Add(24 * time.Hour),
+		Supersedes:      c002.ID,
+		Body:            "\n\n# Check\n\nT002 re-reviewed after a rerun.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(rerun) error = %v", err)
@@ -215,7 +218,8 @@ func TestE44_EpicScenario(t *testing.T) {
 	c001, err := CreateCheckV2(root, index, NewCheckV2{
 		Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear,
 		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
-		Body: "\n\n# Check\n\nT001 reviewed clean.\n",
+		ExecutedSession: "build-001",
+		Body:            "\n\n# Check\n\nT001 reviewed clean.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(C001) error = %v", err)
@@ -246,7 +250,8 @@ func TestE44_EpicScenario(t *testing.T) {
 	co1, err := CreateCheckV2(root, index, NewCheckV2{
 		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O001"}, Result: CheckResultClear,
 		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
-		Body: "\n\n# Check\n\nO001 integration reviewed.\n",
+		ExecutedSession: "build-001",
+		Body:            "\n\n# Check\n\nO001 integration reviewed.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(CO1) error = %v", err)
@@ -335,7 +340,8 @@ func TestE44_EpicScenario(t *testing.T) {
 	_, err = CreateCheckV2(root, index, NewCheckV2{
 		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O001"}, Result: CheckResultClear,
 		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-2"}, CheckedAt: checkedAt.Add(24 * time.Hour),
-		Supersedes: co1.ID, Body: "\n\n# Check\n\nO001 re-reviewed after a rerun.\n",
+		ExecutedSession: "build-001",
+		Supersedes:      co1.ID, Body: "\n\n# Check\n\nO001 re-reviewed after a rerun.\n",
 	})
 	if err != nil {
 		t.Fatalf("CreateCheckV2(rerun) error = %v", err)

@@ -72,12 +72,13 @@ type ReviewedBasis struct {
 // evaluations; nothing here is healed, so a malformed field is a named
 // diagnostic rather than a silently defaulted value.
 type CheckV2 struct {
-	ID        string
-	Scope     CheckScope
-	Result    CheckResult
-	CheckedBy Actor
-	CheckedAt time.Time
-	Reviewed  *ReviewedBasis
+	ID              string
+	Scope           CheckScope
+	Result          CheckResult
+	CheckedBy       Actor
+	ExecutedSession string
+	CheckedAt       time.Time
+	Reviewed        *ReviewedBasis
 	// Issues are I### references decoded for shape here and resolved against
 	// the Issue records at index time, where this list is the authoritative
 	// record of which Issues the evaluation opened.
@@ -104,14 +105,15 @@ type reviewedFrontmatter struct {
 }
 
 type checkV2Frontmatter struct {
-	ID         string                `yaml:"id"`
-	Scope      checkScopeFrontmatter `yaml:"scope"`
-	Result     string                `yaml:"result"`
-	CheckedBy  checkActorFrontmatter `yaml:"checked_by"`
-	CheckedAt  string                `yaml:"checked_at"`
-	Reviewed   *reviewedFrontmatter  `yaml:"reviewed"`
-	Issues     []string              `yaml:"issues"`
-	Supersedes string                `yaml:"supersedes"`
+	ID              string                `yaml:"id"`
+	Scope           checkScopeFrontmatter `yaml:"scope"`
+	Result          string                `yaml:"result"`
+	CheckedBy       checkActorFrontmatter `yaml:"checked_by"`
+	ExecutedSession string                `yaml:"executed_session"`
+	CheckedAt       string                `yaml:"checked_at"`
+	Reviewed        *reviewedFrontmatter  `yaml:"reviewed"`
+	Issues          []string              `yaml:"issues"`
+	Supersedes      string                `yaml:"supersedes"`
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
@@ -119,7 +121,8 @@ type checkV2Frontmatter struct {
 // with its kind, a CLEAR or NEEDS WORK result, checked_by actor provenance,
 // and a parseable checked_at timestamp. A CLEAR Check must be recorded by a
 // checker; other roles may record NEEDS WORK evidence, but cannot author a
-// clearance-capable result. reviewed, issues, and supersedes are optional;
+// clearance-capable result. It also requires the non-empty execution session
+// that produced the work under review. reviewed, issues, and supersedes are optional;
 // when present they are validated for shape only — reviewed's fields are
 // recorded as given, issues are I### references with no Issue lookup, and
 // supersedes is a C### reference resolved later against the full index, not
@@ -161,6 +164,13 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		return nil, fmt.Errorf("%w: %s: check %s CLEAR result requires checked_by.role checker", ErrV2CheckMalformed, path, fields.ID)
 	}
 
+	if strings.TrimSpace(fields.ExecutedSession) == "" {
+		return nil, fmt.Errorf("%w: %s: check %s missing required field executed_session", ErrV2MissingField, path, fields.ID)
+	}
+	if fields.ExecutedSession == checkedBy.Session {
+		return nil, fmt.Errorf("%w: %s: check %s executed_session must differ from checked_by.session", ErrV2CheckMalformed, path, fields.ID)
+	}
+
 	if strings.TrimSpace(fields.CheckedAt) == "" {
 		return nil, fmt.Errorf("%w: %s: check %s missing required field checked_at", ErrV2MissingField, path, fields.ID)
 	}
@@ -192,15 +202,16 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 	}
 
 	return &CheckV2{
-		ID:         fields.ID,
-		Scope:      scope,
-		Result:     result,
-		CheckedBy:  checkedBy,
-		CheckedAt:  checkedAt,
-		Reviewed:   reviewed,
-		Issues:     issues,
-		Supersedes: fields.Supersedes,
-		Source:     doc,
+		ID:              fields.ID,
+		Scope:           scope,
+		Result:          result,
+		CheckedBy:       checkedBy,
+		ExecutedSession: fields.ExecutedSession,
+		CheckedAt:       checkedAt,
+		Reviewed:        reviewed,
+		Issues:          issues,
+		Supersedes:      fields.Supersedes,
+		Source:          doc,
 	}, nil
 }
 

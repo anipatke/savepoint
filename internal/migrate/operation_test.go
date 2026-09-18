@@ -327,6 +327,46 @@ func TestOperation_writeStagedRejectsContentNotMatchingPlannedHash(t *testing.T)
 	assertRecoverable(t, root, relPath, op)
 }
 
+func TestOperation_createInstallRejectsOccupiedDestinationAndPreservesBytes(t *testing.T) {
+	root := t.TempDir()
+	relPath := "new.md"
+	content := []byte("planned output\n")
+	op, err := CreateOperation(root, "op-create", nil, []JournalEntry{{
+		Path:        relPath,
+		Action:      ActionCreate,
+		PlannedHash: hashBytes(content),
+	}}, time.Now())
+	if err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+	if err := op.WriteStaged(relPath, content); err != nil {
+		t.Fatalf("WriteStaged() error = %v", err)
+	}
+
+	const userBytes = "unrelated user content\n"
+	if err := os.WriteFile(filepath.Join(root, relPath), []byte(userBytes), 0644); err != nil {
+		t.Fatalf("write occupied destination: %v", err)
+	}
+	if err := op.Install(root, relPath, 0644); !errors.Is(err, ErrCreateDestinationExists) {
+		t.Fatalf("Install() error = %v, want ErrCreateDestinationExists", err)
+	}
+	if got := readFile(t, filepath.Join(root, relPath)); got != userBytes {
+		t.Fatalf("occupied destination changed to %q; want %q", got, userBytes)
+	}
+
+	// Once the unrelated file is moved away, retrying the same staged entry
+	// still succeeds, proving the refusal did not poison the operation state.
+	if err := os.Remove(filepath.Join(root, relPath)); err != nil {
+		t.Fatalf("remove occupied destination: %v", err)
+	}
+	if err := op.Install(root, relPath, 0644); err != nil {
+		t.Fatalf("Install() after clearing destination error = %v", err)
+	}
+	if got := readFile(t, filepath.Join(root, relPath)); got != string(content) {
+		t.Fatalf("installed content = %q, want %q", got, content)
+	}
+}
+
 // TestOperation_installFailureLeavesLiveFileIntact injects a failure at the
 // install step by making the live file's directory unwritable, so ReplaceFile
 // cannot even create its temporary file. The original must survive untouched

@@ -13,6 +13,18 @@ func replaceDestination(tempPath, path string) error {
 	return os.Rename(tempPath, path)
 }
 
+// createDestinationAtomically links the complete temporary inode into the
+// destination name without replacement. POSIX link(2) is atomic with respect
+// to a competing creator: if the destination appeared after planning, the
+// link fails with EEXIST and the existing inode is left untouched.
+func createDestinationAtomically(tempPath, path string) error {
+	return os.Link(tempPath, path)
+}
+
+func isCreateDestinationExistsError(err error) bool {
+	return os.IsExist(err)
+}
+
 // isTransientReplaceError reports whether a failed replacement could succeed
 // on a retry. On Unix it never does: the experiment behind this contract found
 // no condition where rename failed for contention and then succeeded

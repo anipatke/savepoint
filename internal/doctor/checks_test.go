@@ -1713,7 +1713,7 @@ func writeV2Objective(t *testing.T, root, dirName, id, title string) string {
 func writeV2Task(t *testing.T, root, objDirName, fileName, id, title, objective string) string {
 	t.Helper()
 	path := filepath.Join(root, "objectives", objDirName, "tasks", fileName)
-	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nobjective: "+objective+"\nstatus: planned\n---\n\n# "+title+"\n")
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nobjective: "+objective+"\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\n---\n\n# "+title+"\n")
 	return path
 }
 
@@ -1806,9 +1806,9 @@ func TestCheckProject_DependencyCycle(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
 	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
-		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
 
 	problems := CheckProject(root)
 	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-dependency-cycle]") {
@@ -1893,7 +1893,7 @@ func writeV2Check(t *testing.T, root, id, scope, result, supersedes string) stri
 	t.Helper()
 	path := filepath.Join(root, "checks", id+".md")
 	body := "---\nid: " + id + "\nscope: " + scope + "\nresult: " + result + "\n" +
-		"checked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n"
+		"checked_by: {role: checker, session: sess-1}\nexecuted_session: build-1\nchecked_at: '2026-09-14T00:00:00Z'\n"
 	if supersedes != "" {
 		body += "supersedes: " + supersedes + "\n"
 	}
@@ -1965,7 +1965,7 @@ func TestCheckProject_EvidenceMalformed(t *testing.T) {
 	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
 	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
-		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: planned\n"+
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\n"+
 			"freshness: {state: bogus, check: C001, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
 			"---\n\n# Write it\n")
 
@@ -1980,7 +1980,7 @@ func TestCheckProject_EvidenceMissingReference(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
 	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
-		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: planned\nlast_check: C999\n---\n\n# Write it\n")
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\nlast_check: C999\n---\n\n# Write it\n")
 
 	problems := CheckProject(root)
 	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-evidence-missing-reference]") {
@@ -2061,7 +2061,7 @@ func TestCheckProject_IssueUnpairedCheckLink(t *testing.T) {
 	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
 	testutil.WriteFile(t, filepath.Join(root, "checks", "C001.md"),
 		"---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\n"+
-			"checked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I001]\n---\n\n# Check\n")
+			"checked_by: {role: checker, session: sess-1}\nexecuted_session: build-1\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I001]\n---\n\n# Check\n")
 	writeV2Issue(t, root, "I001-x.md", "I001", "open", "defect", "")
 
 	problems := CheckProject(root)
@@ -2177,7 +2177,7 @@ func TestCheckProject_ObjectiveConsistencyDiagnostics(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "Objective.md"),
 		"---\nid: O001\ntitle: \"Ship it\"\nstatus: done\n---\n\n# Ship it\n")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
-		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: in_progress\nstage: build\n---\n\n# Write it\n")
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: build\n---\n\n# Write it\n")
 
 	problems := CheckProject(root)
 	if len(problems) != 2 {
@@ -2282,7 +2282,7 @@ func TestCheckProject_v2ValidWithChecksNoProblems(t *testing.T) {
 	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
 	writeV2Check(t, root, "C001", "{kind: task, id: T001}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-write.md"),
-		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nstatus: done\n"+
+		"---\nid: T001\ntitle: \"Write it\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n"+
 			"freshness: {state: current, check: C001, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
 			"---\n\n# Write it\n")
 
@@ -2303,13 +2303,13 @@ func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 
 	// T001: marked done but no Check was ever recorded.
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: done\n---\n\n# Alpha\n")
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
 
 	// T002: owner accepted C002, but C003 has since superseded it as latest.
 	writeV2Check(t, root, "C002", "{kind: task, id: T002}", "CLEAR", "")
 	writeV2Check(t, root, "C003", "{kind: task, id: T002}", "CLEAR", "C002")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
-		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: in_progress\nstage: audit\n"+
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: audit\n"+
 			"freshness: {state: current, check: C003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: rechecked}\n"+
 			"owner_validation: {required: true, accepted_check: C002, accepted_by: {role: owner, session: owner-1}}\n"+
 			"---\n\n# Beta\n")
@@ -2318,7 +2318,7 @@ func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 	// validation required) but status was never advanced to done.
 	writeV2Check(t, root, "C004", "{kind: task, id: T003}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T003-gamma.md"),
-		"---\nid: T003\ntitle: \"Gamma\"\nobjective: O001\nstatus: in_progress\nstage: audit\n"+
+		"---\nid: T003\ntitle: \"Gamma\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: audit\n"+
 			"freshness: {state: current, check: C004, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
 			"---\n\n# Gamma\n")
 

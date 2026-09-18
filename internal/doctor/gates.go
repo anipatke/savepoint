@@ -48,6 +48,9 @@ func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult 
 	if cfg.QualityGates.Typecheck != nil && *cfg.QualityGates.Typecheck != "" {
 		results = append(results, runGate("typecheck", *cfg.QualityGates.Typecheck, root, timeout))
 	}
+	if cfg.QualityGates.Build != nil && *cfg.QualityGates.Build != "" {
+		results = append(results, runGate("build", *cfg.QualityGates.Build, root, timeout))
+	}
 	if cfg.QualityGates.Test != nil && *cfg.QualityGates.Test != "" {
 		results = append(results, runGate("test", *cfg.QualityGates.Test, root, timeout))
 	}

@@ -12,6 +12,7 @@ id: C001
 scope: {kind: task, id: T001}
 result: CLEAR
 checked_by: {role: checker, session: review-001}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 reviewed:
   base_commit: abc123
@@ -40,6 +41,9 @@ supersedes: C000
 	}
 	if check.CheckedBy != (Actor{Role: ActorRoleChecker, Session: "review-001"}) {
 		t.Errorf("CheckedBy = %+v, want {checker review-001}", check.CheckedBy)
+	}
+	if check.ExecutedSession != "build-001" {
+		t.Errorf("ExecutedSession = %q, want build-001", check.ExecutedSession)
 	}
 	wantTime, _ := time.Parse(time.RFC3339, "2026-09-14T00:00:00Z")
 	if !check.CheckedAt.Equal(wantTime) {
@@ -71,6 +75,7 @@ id: C002
 scope: {kind: objective, id: O001}
 result: NEEDS WORK
 checked_by: {role: owner, session: sess-1}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 ---
 
@@ -97,12 +102,41 @@ checked_at: '2026-09-14T00:00:00Z'
 	}
 }
 
+func TestDecodeCheckV2_executedSessionValidation(t *testing.T) {
+	tests := []struct {
+		name            string
+		executedSession string
+		checkedSession  string
+		wantErr         error
+	}{
+		{name: "missing", executedSession: "", checkedSession: "review-001", wantErr: ErrV2MissingField},
+		{name: "blank", executedSession: "   ", checkedSession: "review-001", wantErr: ErrV2MissingField},
+		{name: "malformed shape", executedSession: "{id: build-001}", checkedSession: "review-001", wantErr: ErrV2Malformed},
+		{name: "same as checker", executedSession: "review-001", checkedSession: "review-001", wantErr: ErrV2CheckMalformed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executedSession := ""
+			if tt.executedSession != "" {
+				executedSession = "executed_session: " + tt.executedSession + "\n"
+			}
+			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: " + tt.checkedSession + "}\n" + executedSession + "checked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			_, err := DecodeCheckV2("test.md", content)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestDecodeCheckV2_reviewedEmptyEntriesStayAbsent(t *testing.T) {
 	content := `---
 id: C002
 scope: {kind: task, id: T001}
 result: CLEAR
 checked_by: {role: checker, session: sess-1}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 reviewed:
   files: []
@@ -141,7 +175,7 @@ func TestDecodeCheckV2_malformedID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: \"" + tt.id + "\"\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: \"" + tt.id + "\"\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, ErrV2InvalidID) {
 				t.Fatalf("DecodeCheckV2() error = %v, want ErrV2InvalidID", err)
@@ -165,7 +199,7 @@ func TestDecodeCheckV2_scope(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: " + tt.scope + "\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C001\nscope: " + tt.scope + "\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -187,7 +221,7 @@ func TestDecodeCheckV2_result(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: \"" + tt.result + "\"\nchecked_by: {role: checker, session: s}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: \"" + tt.result + "\"\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -209,7 +243,7 @@ func TestDecodeCheckV2_checkedBy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: " + tt.checkedBy + "\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: " + tt.checkedBy + "\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -224,6 +258,7 @@ id: C001
 scope: {kind: task, id: T001}
 result: CLEAR
 checked_by: {role: executor, session: executor-1}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 ---
 
@@ -248,7 +283,7 @@ func TestDecodeCheckV2_checkedAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nchecked_at: \"" + tt.checkedAt + "\"\n---\n\n# Check"
+			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: \"" + tt.checkedAt + "\"\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -263,6 +298,7 @@ id: C001
 scope: {kind: task, id: T001}
 result: CLEAR
 checked_by: {role: checker, session: s}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 issues: [T001]
 ---
@@ -281,6 +317,7 @@ id: C001
 scope: {kind: task, id: T001}
 result: CLEAR
 checked_by: {role: checker, session: s}
+executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
 supersedes: T001
 ---

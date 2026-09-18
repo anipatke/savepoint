@@ -214,7 +214,7 @@ func TestLoadV2Index_integratedProjectScenario(t *testing.T) {
 	// document must retain them even though DecodeTaskV2 projects only the
 	// typed fields it knows about.
 	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-ship", v2TasksDirName, "T002-review-code.md"),
-		"---\nid: T002\ntitle: \"Review the code\"\nobjective: O001\nstatus: planned\nnotes: kept for reviewers\nmetadata:\n  reviewer:\n    name: sam\n---\n\n# Review the code\n")
+		"---\nid: T002\ntitle: \"Review the code\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\nnotes: kept for reviewers\nmetadata:\n  reviewer:\n    name: sam\n---\n\n# Review the code\n")
 
 	// T003 is owned by O002 but filed under O001's tasks/ directory: a moved
 	// Task whose ownership must come from its own objective field, not its
@@ -288,9 +288,9 @@ func TestLoadV2Index_taskCycleFromDisk(t *testing.T) {
 	root := t.TempDir()
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
 	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
 	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T002-beta.md"),
-		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2DependencyCycle) {
@@ -353,7 +353,7 @@ func TestLoadV2Index_checkSupersedesChain(t *testing.T) {
 	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
 	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -415,7 +415,7 @@ func TestLoadV2Index_checkSupersedesMissingTarget(t *testing.T) {
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
 	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C999\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C999\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckMissingReference) {
@@ -430,7 +430,7 @@ func TestLoadV2Index_checkSupersedesScopeMismatch(t *testing.T) {
 	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
 	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T002}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T002}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -446,9 +446,9 @@ func TestLoadV2Index_checkSupersedesFork(t *testing.T) {
 	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
 	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C003-also-rerun.md"),
-		"---\nid: C003\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-3}\nchecked_at: '2026-09-15T01:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C003\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T01:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -461,9 +461,9 @@ func TestLoadV2Index_checkSupersedesCycle(t *testing.T) {
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
 	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C001-first.md"),
-		"---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\nsupersedes: C002\n---\n\n# Check\n")
+		"---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\nsupersedes: C002\n---\n\n# Check\n")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-second.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -494,7 +494,7 @@ func TestLoadV2Index_evidenceReferencesResolve(t *testing.T) {
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
 	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
 	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: planned\n"+
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+
 			"last_check: C001\n"+
 			"freshness: {state: current, check: C001, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-15T00:00:00Z', basis: reviewed}\n"+
 			"owner_validation: {required: true, accepted_check: C001, accepted_by: {role: owner, session: owner-1}}\n"+
@@ -534,7 +534,7 @@ func TestLoadV2Index_evidenceMissingReference(t *testing.T) {
 			root := t.TempDir()
 			writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
 			testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-				"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nstatus: planned\n"+tt.field+"---\n\n# Alpha\n")
+				"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+tt.field+"---\n\n# Alpha\n")
 
 			_, err := LoadV2Index(root)
 			if !errors.Is(err, ErrV2EvidenceMissingReference) {
@@ -759,7 +759,7 @@ func writeV2LinkedIssueFixture(t *testing.T, root string, fixture v2IssueFixture
 func writeV2CheckWithIssuesFixture(t *testing.T, root, fileName, id, scopeKind, scopeID string, issues []string) {
 	t.Helper()
 	content := "---\nid: " + id + "\nscope: {kind: " + scopeKind + ", id: " + scopeID +
-		"}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n" +
+		"}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n" +
 		"issues: [" + joinIDs(issues) + "]\n---\n\n# Check\n"
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, fileName), content)
 }
@@ -1033,7 +1033,7 @@ func TestLoadV2Index_issueVerifiedResolutionRequiresProof(t *testing.T) {
 			name: "proof check recorded needs work",
 			setup: func(t *testing.T, root string) {
 				testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C001-alpha.md"),
-					"---\nid: C001\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
+					"---\nid: C001\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
 			},
 			resolution: verifiedResolution("C001"),
 			wantErr:    ErrV2IssueResolutionUnusableProof,
@@ -1218,7 +1218,7 @@ func TestLoadV2Index_issueVerifiedProofSupersededStillSatisfiesAtLoad(t *testing
 	writeV2LinkedProject(t, root)
 	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
 		fileName: "I001-alpha.md", id: "I001", status: "resolved", checks: []string{"C001"},
 		resolution: "{disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z', reason: repaired}",

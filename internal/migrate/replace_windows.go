@@ -16,6 +16,7 @@ import (
 var (
 	kernel32         = syscall.NewLazyDLL("kernel32.dll")
 	procReplaceFileW = kernel32.NewProc("ReplaceFileW")
+	procMoveFileExW  = kernel32.NewProc("MoveFileExW")
 )
 
 // errorSharingViolation is the only transient replacement failure the Windows
@@ -26,6 +27,12 @@ var (
 // the read-only attribute, which is a standing condition that no amount of
 // waiting clears.
 const errorSharingViolation = syscall.Errno(32)
+
+const (
+	errorFileExists      = syscall.Errno(80)
+	errorAlreadyExists   = syscall.Errno(183)
+	moveFileWriteThrough = 0x00000008
+)
 
 // replaceDestination replaces path with the completed temporary file at
 // tempPath using ReplaceFileW, which preserves the destination's attributes
@@ -38,6 +45,19 @@ const errorSharingViolation = syscall.Errno(32)
 // code a permission failure uses.
 func replaceDestination(tempPath, path string) error {
 	return replaceFileW(path, tempPath, "", 0)
+}
+
+// createDestinationAtomically uses MoveFileExW without
+// MOVEFILE_REPLACE_EXISTING. Windows performs the destination-name decision
+// as one operation, so a late-created destination is refused and preserved;
+// the completed temporary file is never copied over it.
+func createDestinationAtomically(tempPath, path string) error {
+	return moveFileExW(tempPath, path, moveFileWriteThrough)
+}
+
+func isCreateDestinationExistsError(err error) bool {
+	var errno syscall.Errno
+	return errors.As(err, &errno) && (errno == errorFileExists || errno == errorAlreadyExists)
 }
 
 // isTransientReplaceError reports whether a failed replacement could succeed
@@ -75,6 +95,32 @@ func replaceFileW(replaced, replacement, backup string, flags uint32) error {
 		uintptr(unsafe.Pointer(replacementPtr)),
 		uintptr(unsafe.Pointer(backupPtr)),
 		uintptr(flags), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			return e1
+		}
+		return syscall.EINVAL
+	}
+	return nil
+}
+
+func moveFileExW(source, destination string, flags uint32) error {
+	if err := procMoveFileExW.Find(); err != nil {
+		return fmt.Errorf("MoveFileExW unavailable: %w", err)
+	}
+	sourcePtr, err := syscall.UTF16PtrFromString(source)
+	if err != nil {
+		return err
+	}
+	destinationPtr, err := syscall.UTF16PtrFromString(destination)
+	if err != nil {
+		return err
+	}
+
+	r1, _, e1 := syscall.SyscallN(procMoveFileExW.Addr(),
+		uintptr(unsafe.Pointer(sourcePtr)),
+		uintptr(unsafe.Pointer(destinationPtr)),
+		uintptr(flags), 0, 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
 			return e1

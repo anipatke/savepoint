@@ -10,6 +10,7 @@ func TestDecodeTaskV2_valid(t *testing.T) {
 id: T005
 title: "Show clear project errors"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: in_progress
 stage: test
 depends_on:
@@ -34,6 +35,9 @@ release: v2
 	if task.Objective != "O002" {
 		t.Errorf("Objective = %q, want O002", task.Objective)
 	}
+	if task.PlannedBy != (Actor{Role: ActorRolePlanner, Session: "planning-001"}) {
+		t.Errorf("PlannedBy = %+v, want planner/planning-001", task.PlannedBy)
+	}
 	if task.Status != ColumnInProgress || task.Stage != StageTest {
 		t.Errorf("Status/Stage = %q/%q, want in_progress/test", task.Status, task.Stage)
 	}
@@ -56,6 +60,7 @@ func TestDecodeTaskV2_minimalValidPlanned(t *testing.T) {
 id: T001
 title: "Bare task"
 objective: O001
+planned_by: {role: planner, session: planning-001}
 status: planned
 ---
 
@@ -73,6 +78,36 @@ status: planned
 	}
 }
 
+func TestDecodeTaskV2_plannedByValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		plannedBy   string
+		wantErr     error
+		wantMessage string
+	}{
+		{name: "missing", plannedBy: "", wantErr: ErrV2MissingField},
+		{name: "malformed shape", plannedBy: "planner-001", wantErr: ErrV2Malformed},
+		{name: "missing role", plannedBy: "{session: planning-001}", wantErr: ErrV2MissingField},
+		{name: "missing session", plannedBy: "{role: planner}", wantErr: ErrV2MissingField},
+		{name: "blank session", plannedBy: "{role: planner, session: '   '}", wantErr: ErrV2MissingField},
+		{name: "wrong role", plannedBy: "{role: executor, session: execution-001}", wantErr: ErrV2TaskMalformed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plannedBy := ""
+			if tt.plannedBy != "" {
+				plannedBy = "planned_by: " + tt.plannedBy + "\n"
+			}
+			content := "---\nid: T005\ntitle: \"Task\"\nobjective: O002\n" + plannedBy + "status: planned\n---\n\n# Task"
+			_, err := DecodeTaskV2("test.md", content)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("DecodeTaskV2() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestDecodeTaskV2_malformedID(t *testing.T) {
 	tests := []struct {
 		name string
@@ -87,7 +122,7 @@ func TestDecodeTaskV2_malformedID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: \"" + tt.id + "\"\ntitle: \"Task\"\nobjective: O001\nstatus: planned\n---\n\n# Task"
+			content := "---\nid: \"" + tt.id + "\"\ntitle: \"Task\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\n---\n\n# Task"
 			_, err := DecodeTaskV2("test.md", content)
 			if !errors.Is(err, ErrV2InvalidID) {
 				t.Fatalf("DecodeTaskV2() error = %v, want ErrV2InvalidID", err)
@@ -120,7 +155,7 @@ status: planned
 func TestDecodeTaskV2_whitespaceOnlyTitle(t *testing.T) {
 	for _, title := range []string{"   ", "\t\t", "\n\t"} {
 		t.Run("whitespace", func(t *testing.T) {
-			content := "---\nid: T005\ntitle: \u0022" + title + "\u0022\nobjective: O002\nstatus: planned\n---\n\n# Task"
+			content := "---\nid: T005\ntitle: \u0022" + title + "\u0022\nobjective: O002\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\n---\n\n# Task"
 			_, err := DecodeTaskV2("test.md", content)
 			if !errors.Is(err, ErrV2MissingField) {
 				t.Fatalf("DecodeTaskV2() error = %v, want ErrV2MissingField", err)
@@ -141,7 +176,7 @@ func TestDecodeTaskV2_missingOrMalformedObjective(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: T005\ntitle: \"Task\"\nobjective: \"" + tt.objective + "\"\nstatus: planned\n---\n\n# Task"
+			content := "---\nid: T005\ntitle: \"Task\"\nobjective: \"" + tt.objective + "\"\nplanned_by: {role: planner, session: planning-001}\nstatus: planned\n---\n\n# Task"
 			_, err := DecodeTaskV2("test.md", content)
 			if !errors.Is(err, ErrV2InvalidOwnership) {
 				t.Fatalf("DecodeTaskV2() error = %v, want ErrV2InvalidOwnership", err)
@@ -222,7 +257,7 @@ func TestDecodeTaskV2_lifecycleNotHealed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: T005\ntitle: \"Task\"\nobjective: O002\n" + tt.fields + "---\n\n# Task"
+			content := "---\nid: T005\ntitle: \"Task\"\nobjective: O002\nplanned_by: {role: planner, session: planning-001}\n" + tt.fields + "---\n\n# Task"
 			_, err := DecodeTaskV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeTaskV2() error = %v, want %v", err, tt.wantErr)
@@ -236,6 +271,7 @@ func TestDecodeTaskV2_dependencyRequiresDefaultsOnlyWhenOmitted(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 depends_on:
   - task: T003
@@ -257,6 +293,7 @@ func TestDecodeTaskV2_dependencyRequiresRejectsUnknownValues(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 depends_on:
   - task: T003
@@ -276,6 +313,7 @@ func TestDecodeTaskV2_dependencyMalformedTaskID(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 depends_on:
   - task: T1
@@ -317,6 +355,7 @@ func TestDecodeTaskV2_releaseNeverEstablishesOwnership(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 ---
 
@@ -341,6 +380,7 @@ func TestDecodeTaskV2_typeIsolatedFromV1Task(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 ---
 
@@ -362,6 +402,7 @@ func TestDecodeTaskV2_evidenceValid(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 last_check: C001
 freshness:
@@ -401,6 +442,7 @@ func TestDecodeTaskV2_noEvidenceIsNil(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 ---
 
@@ -423,6 +465,7 @@ func TestDecodeTaskV2_malformedEvidencePropagatesDiagnostic(t *testing.T) {
 id: T005
 title: "Task"
 objective: O002
+planned_by: {role: planner, session: planning-001}
 status: planned
 freshness:
   state: expired

@@ -5,6 +5,7 @@ verify_strict: false # vibe-coder soft mode; tasks reach done on assertion. Set 
 quality_gates:
   lint: null
   typecheck: null
+  build: null
   test: null
   block_on_failure: true
 

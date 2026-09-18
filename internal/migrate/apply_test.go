@@ -283,6 +283,74 @@ func TestApply_preExistingCreateDestination_refusesCleanly(t *testing.T) {
 	assertNoPendingOperation(t, root)
 }
 
+// TestApply_lateCreateDestinationsAreCreateOnly covers the installation
+// boundary rather than only Plan's earlier collision scan. A user can create
+// any additive destination after Plan returns; each platform primitive must
+// refuse that late destination and preserve the user's bytes.
+func TestApply_lateCreateDestinationsAreCreateOnly(t *testing.T) {
+	cases := []struct {
+		name string
+		path func(*ConversionPlan) string
+	}{
+		{
+			name: "target",
+			path: func(plan *ConversionPlan) string {
+				for _, target := range plan.Targets {
+					return savepointPath(target.InstallPath())
+				}
+				return ""
+			},
+		},
+		{
+			name: "document",
+			path: func(plan *ConversionPlan) string {
+				for _, document := range plan.Documents {
+					if document.Kind == DocumentIdea {
+						return savepointPath(document.TargetPath)
+					}
+				}
+				return ""
+			},
+		},
+		{
+			name: "archive",
+			path: func(plan *ConversionPlan) string {
+				if len(plan.Archives) == 0 {
+					return ""
+				}
+				return plan.Archives[0].ArchivePath
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := copyFixtureProject(t, "v1-basic")
+			plan := mustPlan(t, root)
+			relPath := tc.path(plan)
+			if relPath == "" {
+				t.Fatal("fixture did not produce the create destination class")
+			}
+			path := filepath.Join(root, filepath.FromSlash(relPath))
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatalf("create late destination parent: %v", err)
+			}
+			const userBytes = "user content created after planning\n"
+			if err := os.WriteFile(path, []byte(userBytes), 0644); err != nil {
+				t.Fatalf("create late destination: %v", err)
+			}
+
+			_, err := Apply(root, plan)
+			if !errors.Is(err, ErrCreateDestinationExists) {
+				t.Fatalf("Apply() error = %v, want ErrCreateDestinationExists", err)
+			}
+			if got := readFile(t, path); got != userBytes {
+				t.Fatalf("late destination %s changed to %q; want the user's bytes %q", relPath, got, userBytes)
+			}
+		})
+	}
+}
+
 func TestApply_sourceChangedSincePreview_conflictNamesPath(t *testing.T) {
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)

@@ -444,7 +444,7 @@ func TestMainMigrateUnwritableDirectory(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(dir, 0755) })
 
-	result := runMainForTest(t, []string{"migrate", dir}, "")
+	result := runMainForTest(t, []string{"migrate", dir, "--apply"}, "")
 
 	if result.err == nil {
 		t.Fatal("savepoint migrate over an unwritable directory succeeded, want a nonzero exit")

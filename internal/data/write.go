@@ -822,18 +822,21 @@ func WriteRouterState(root string, state *RouterState, expectedMtime time.Time) 
 // NewCheckV2 is the caller-supplied content for a Check creation: every
 // field CreateCheckV2 needs except the ID and Source, which it derives
 // itself — the ID from next-unused allocation over index, and Source from
-// the file it writes. Body is the exact Markdown appended after the
-// frontmatter delimiter, in the same form V2SourceDocument.Body holds it
-// (including its leading newline).
+// the file it writes. ExecutedSession identifies the build session being
+// checked and is required even when CheckedBy names a different session.
+// Body is the exact Markdown appended after the frontmatter delimiter, in
+// the same form V2SourceDocument.Body holds it (including its leading
+// newline).
 type NewCheckV2 struct {
-	Scope      CheckScope
-	Result     CheckResult
-	CheckedBy  Actor
-	CheckedAt  time.Time
-	Reviewed   *ReviewedBasis
-	Issues     []string
-	Supersedes string
-	Body       string
+	Scope           CheckScope
+	Result          CheckResult
+	CheckedBy       Actor
+	ExecutedSession string
+	CheckedAt       time.Time
+	Reviewed        *ReviewedBasis
+	Issues          []string
+	Supersedes      string
+	Body            string
 }
 
 // CreateCheckV2 allocates the next unused Check ID over index, marshals a
@@ -847,13 +850,14 @@ func CreateCheckV2(root string, index *V2Index, fields NewCheckV2) (*CheckV2, er
 	id := nextV2CheckID(index)
 
 	raw := checkV2Frontmatter{
-		ID:         id,
-		Scope:      checkScopeFrontmatter{Kind: string(fields.Scope.Kind), ID: fields.Scope.ID},
-		Result:     string(fields.Result),
-		CheckedBy:  checkActorFrontmatter{Role: string(fields.CheckedBy.Role), Session: fields.CheckedBy.Session},
-		CheckedAt:  fields.CheckedAt.Format(time.RFC3339),
-		Issues:     fields.Issues,
-		Supersedes: fields.Supersedes,
+		ID:              id,
+		Scope:           checkScopeFrontmatter{Kind: string(fields.Scope.Kind), ID: fields.Scope.ID},
+		Result:          string(fields.Result),
+		CheckedBy:       checkActorFrontmatter{Role: string(fields.CheckedBy.Role), Session: fields.CheckedBy.Session},
+		ExecutedSession: fields.ExecutedSession,
+		CheckedAt:       fields.CheckedAt.Format(time.RFC3339),
+		Issues:          fields.Issues,
+		Supersedes:      fields.Supersedes,
 	}
 	if fields.Reviewed != nil {
 		raw.Reviewed = &reviewedFrontmatter{

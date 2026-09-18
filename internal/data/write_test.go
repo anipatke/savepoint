@@ -571,6 +571,48 @@ next_action: "Do the thing"
 	}
 }
 
+func TestWriteRouterState_quotesNextActionWithColon(t *testing.T) {
+	dir := t.TempDir()
+	content := `## Current state
+
+` + "```" + `yaml
+state: task-building
+release: v1
+epic: E03-board-tui-core
+task: ""
+next_action: "Do the thing"
+` + "```" + `
+`
+
+	path := filepath.Join(dir, "router.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "Create tasks: status: planned"
+	state := &RouterState{State: "task-building", NextAction: want}
+	if err := WriteRouterState(dir, state, fi.ModTime()); err != nil {
+		t.Fatalf("WriteRouterState() error = %v", err)
+	}
+
+	result, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := NewRouterReader().ReadState(string(result))
+	if err != nil {
+		t.Fatalf("ReadState() error = %v", err)
+	}
+	if parsed.NextAction != want {
+		t.Errorf("NextAction = %q, want %q", parsed.NextAction, want)
+	}
+}
+
 func TestApplyProposal_replacesText(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Design.md")
@@ -1121,6 +1163,7 @@ func TestWriteTaskV2_updatesStatusAndStagePreservesDependencies(t *testing.T) {
 id: T005
 title: "Show clear project errors"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: planned
 depends_on:
   - task: T003
@@ -1181,6 +1224,7 @@ func TestWriteTaskV2_removesStageWhenLeavingInProgress(t *testing.T) {
 id: T006
 title: "Finish up"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: audit
 ---
@@ -1226,6 +1270,7 @@ func TestWriteTaskV2_refusesInProgressWithoutStageAndLeavesFileUntouched(t *test
 id: T007
 title: "Guarded task"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
 
@@ -1266,6 +1311,7 @@ func TestWriteTaskV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 id: T008
 title: "No-op task"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: test
 ---
@@ -1316,7 +1362,7 @@ stage: test
 func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "T009.md")
-	content := "---\r\nid: T009\r\ntitle: \"CRLF task\"\r\nobjective: O002\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+	content := "---\r\nid: T009\r\ntitle: \"CRLF task\"\r\nobjective: O002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1357,7 +1403,7 @@ func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
 func TestWriteTaskV2_preservesLFLineEndingsByDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "T010.md")
-	content := "---\nid: T010\ntitle: \"LF task\"\nobjective: O002\nstatus: planned\n---\n\n# Task\n"
+	content := "---\nid: T010\ntitle: \"LF task\"\nobjective: O002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Task\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1498,7 +1544,7 @@ func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *tes
 	}
 
 	path := filepath.Join(root, task.Source.Path)
-	userEdit := "---\nid: T001\ntitle: \"First task\"\nobjective: O001\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
+	userEdit := "---\nid: T001\ntitle: \"First task\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
 	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -1532,6 +1578,7 @@ func TestWriteTaskEvidenceV2_setsAllSubBlocksPreservesUnknownFieldsAndBody(t *te
 id: T020
 title: "No evidence yet"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
 depends_on:
@@ -1638,6 +1685,7 @@ func TestWriteTaskEvidenceV2_removesReplanKeyRatherThanEmptyValue(t *testing.T) 
 id: T021
 title: "Replan flagged"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
 last_check: C001
@@ -1699,6 +1747,7 @@ func TestWriteTaskEvidenceV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 id: T022
 title: "Fully evidenced task"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
 last_check: C001
@@ -1781,6 +1830,7 @@ func TestWriteTaskEvidenceV2_refusesStaleSourceWithoutOverwritingUserEdit(t *tes
 id: T023
 title: "Guarded evidence write"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
 
@@ -1795,7 +1845,7 @@ status: planned
 		t.Fatalf("DecodeTaskV2() error = %v", err)
 	}
 
-	userEdit := "---\nid: T023\ntitle: \"Guarded evidence write\"\nobjective: O002\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
+	userEdit := "---\nid: T023\ntitle: \"Guarded evidence write\"\nobjective: O002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
 	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -1822,7 +1872,7 @@ status: planned
 func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "T024.md")
-	content := "---\r\nid: T024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O002\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+	content := "---\r\nid: T024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1857,6 +1907,7 @@ func TestWriteTaskEvidenceV2_rejectsMalformedEvidenceLeavesFileUntouched(t *test
 id: T025
 title: "Guarded malformed evidence"
 objective: O002
+planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
 
@@ -1902,12 +1953,13 @@ func TestCreateCheckV2_writesNewFileAllocatesFirstID(t *testing.T) {
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 
 	fields := NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
-		Result:    CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-		Issues:    []string{"I001"},
-		Body:      "\n\n# Check\n\nOutcome notes.\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		ExecutedSession: "build-001",
+		CheckedAt:       time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Issues:          []string{"I001"},
+		Body:            "\n\n# Check\n\nOutcome notes.\n",
 	}
 
 	check, err := CreateCheckV2(root, index, fields)
@@ -1944,11 +1996,12 @@ func TestCreateCheckV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	}}
 
 	fields := NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
-		Result:    CheckResultNeedsWork,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-		Body:      "\n\n# Check\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:          CheckResultNeedsWork,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		ExecutedSession: "build-001",
+		CheckedAt:       time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:            "\n\n# Check\n",
 	}
 
 	check, err := CreateCheckV2(root, index, fields)
@@ -1973,11 +2026,12 @@ func TestCreateCheckV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
 
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 	fields := NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
-		Result:    CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-		Body:      "\n\n# Check\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
+		ExecutedSession: "build-001",
+		CheckedAt:       time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:            "\n\n# Check\n",
 	}
 
 	check, err := CreateCheckV2(root, index, fields)
@@ -2141,11 +2195,12 @@ func TestCreateCheckV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 
 	fields := NewCheckV2{
-		Scope:     CheckScope{Kind: CheckScopeTask, ID: "T001"},
-		Result:    CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: ""}, // missing required session
-		CheckedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-		Body:      "\n\n# Check\n",
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Result:          CheckResultClear,
+		CheckedBy:       Actor{Role: ActorRoleChecker, Session: ""}, // missing required session
+		ExecutedSession: "build-001",
+		CheckedAt:       time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Body:            "\n\n# Check\n",
 	}
 
 	check, err := CreateCheckV2(root, index, fields)

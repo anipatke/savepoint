@@ -35,6 +35,7 @@ type TaskV2 struct {
 	ID        string
 	Title     string
 	Objective string // the single O### owner
+	PlannedBy Actor  // planner provenance recorded when the Task is created
 	Status    ColumnType
 	Stage     ProgressStage
 	DependsOn []TaskDependencyV2
@@ -52,6 +53,7 @@ type taskV2Frontmatter struct {
 	ID                    string                        `yaml:"id"`
 	Title                 string                        `yaml:"title"`
 	Objective             string                        `yaml:"objective"`
+	PlannedBy             evidenceActorFrontmatter      `yaml:"planned_by"`
 	Status                ColumnType                    `yaml:"status"`
 	Stage                 ProgressStage                 `yaml:"stage"`
 	DependsOn             []taskDependencyV2Frontmatter `yaml:"depends_on"`
@@ -62,9 +64,10 @@ type taskV2Frontmatter struct {
 // DecodeTaskV2 strictly decodes a V2 Task record from content. It requires a
 // valid global T### ID, a non-empty title distinct from any Objective
 // reference, exactly one O### objective owner, a canonical lifecycle
-// status/stage combination, and well-formed dependency records. Nothing here
-// is healed: missing titles, malformed IDs, unknown lifecycle values, and
-// invalid dependency requirements all return named diagnostics.
+// status/stage combination, planner provenance, and well-formed dependency
+// records. Nothing here is healed: missing titles, malformed IDs, unknown
+// lifecycle values, invalid provenance, and invalid dependency requirements
+// all return named diagnostics.
 func DecodeTaskV2(path, content string) (*TaskV2, error) {
 	doc, err := ParseV2Document(path, content)
 	if err != nil {
@@ -89,6 +92,11 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 
 	if !objectiveIDPattern.MatchString(fields.Objective) {
 		return nil, fmt.Errorf("%w: %s: task %s objective %q must be a single O### owner", ErrV2InvalidOwnership, path, fields.ID, fields.Objective)
+	}
+
+	plannedBy, err := decodeTaskPlanner(path, fields.ID, fields.PlannedBy)
+	if err != nil {
+		return nil, err
 	}
 
 	// Reuse the strict, non-healing write-path validator so V2 lifecycle
@@ -124,6 +132,7 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 		ID:        fields.ID,
 		Title:     fields.Title,
 		Objective: fields.Objective,
+		PlannedBy: plannedBy,
 		Status:    fields.Status,
 		Stage:     fields.Stage,
 		DependsOn: dependsOn,
@@ -131,4 +140,23 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 		Evidence:  evidence,
 		Source:    doc,
 	}, nil
+}
+
+// decodeTaskPlanner decodes the required planner provenance attached to a
+// Task. The shared actor decoder enforces the role vocabulary and scalar
+// session shape; this boundary additionally narrows the role to planner so a
+// Task cannot borrow execution, checking, or owner authority as its plan.
+func decodeTaskPlanner(path, taskID string, raw evidenceActorFrontmatter) (Actor, error) {
+	plannedBy, err := decodeV2Actor(ErrV2TaskMalformed, path, "task", taskID, "planned_by", raw)
+	if err != nil {
+		return Actor{}, err
+	}
+	if plannedBy.Role != ActorRolePlanner {
+		return Actor{}, fmt.Errorf("%w: %s: task %s planned_by.role %q; use planner", ErrV2TaskMalformed, path, taskID, plannedBy.Role)
+	}
+	if strings.TrimSpace(raw.Session) == "" {
+		return Actor{}, fmt.Errorf("%w: %s: task %s missing required field planned_by.session", ErrV2MissingField, path, taskID)
+	}
+
+	return plannedBy, nil
 }

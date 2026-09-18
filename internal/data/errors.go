@@ -16,6 +16,7 @@ var (
 	ErrV2MissingField             = errors.New("v2 record is missing a required field")
 	ErrV2InvalidID                = errors.New("v2 record has a malformed or invalid global ID")
 	ErrV2InvalidOwnership         = errors.New("v2 task has invalid objective ownership")
+	ErrV2TaskMalformed            = errors.New("v2 task record has a malformed field")
 	ErrV2InvalidLifecycle         = errors.New("v2 record has an unsupported lifecycle value")
 	ErrV2InvalidDependency        = errors.New("v2 record has an invalid dependency reference")
 	ErrV2DuplicateID              = errors.New("v2 record id is declared more than once")

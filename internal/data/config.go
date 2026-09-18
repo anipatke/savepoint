@@ -21,6 +21,7 @@ type Theme struct {
 type QualityGates struct {
 	Lint           *string `yaml:"lint"`
 	Typecheck      *string `yaml:"typecheck"`
+	Build          *string `yaml:"build"`
 	Test           *string `yaml:"test"`
 	BlockOnFailure bool    `yaml:"block_on_failure"`
 	Timeout        string  `yaml:"gate_timeout"`

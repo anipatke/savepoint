@@ -13,17 +13,12 @@
 // activateSchema below for why that last write is deliberately outside the
 // per-path journal every other write goes through).
 //
-// A second call against an incomplete operation resumes it: every step below
-// is idempotent over a JournalEntry's already-recorded State, so re-running
-// the same ordered walk against a partially completed journal does only the
-// work still outstanding. Resuming still depends on the caller supplying a
-// plan whose rendered content matches the interrupted attempt's — same
-// sources, same decisions, and (for Issue targets, which embed
-// plan.GeneratedAt) the same injected clock — because WriteStaged refuses to
-// stage content that does not hash to an entry's already-recorded planned
-// hash. That refusal is deliberate: content that no longer matches what the
-// interrupted attempt planned is exactly the case migration must never
-// silently paper over.
+// A second call against an incomplete operation resumes it from the durable
+// operation record: every complete output is recorded before the first live
+// install, so a new process does not need the original clock, operation-ID
+// source, decisions file, or in-memory plan.
+// Revalidation still refuses changed sources and installed outputs before any
+// later live write.
 package migrate
 
 import (
@@ -52,6 +47,10 @@ var (
 	// operation creation (a resume) — so the plan being applied no longer
 	// describes the project. Apply aborts before its first write.
 	ErrSourceConflict = errors.New("migrate: a source changed since it was recorded; the plan no longer describes the project")
+	// ErrRecoveryPlanMissing means an old or manually-created operation has no
+	// persisted plan and its caller supplied no compatible plan to reconstruct
+	// output bytes. A real command-created operation always records the plan.
+	ErrRecoveryPlanMissing = errors.New("migrate: pending operation has no recoverable plan")
 )
 
 // ApplyResult reports what Apply actually did.
@@ -76,41 +75,47 @@ func Apply(root string, plan *ConversionPlan) (*ApplyResult, error) {
 		return nil, err
 	}
 
-	if plan.SchemaAlreadyV2 {
-		return &ApplyResult{AlreadyMigrated: true}, nil
-	}
-	if len(plan.Conflicts) > 0 {
-		c := plan.Conflicts[0]
-		return nil, fmt.Errorf("%w: %s: %s", ErrPlanConflict, c.Path, c.Detail)
-	}
-	if !plan.Appliable {
-		return nil, fmt.Errorf("%w: %s", ErrPlanNotAppliable, strings.Join(plan.UnresolvedBlockingIDs, ", "))
-	}
-
 	pending, err := PendingOperation(rootAbs)
-	if err != nil {
-		return nil, err
-	}
-
-	sourcesToCheck := toManifestSources(plan.Sources)
-	if pending != nil {
-		sourcesToCheck = pending.Journal.SourceHashes
-	}
-	if err := revalidateSources(rootAbs, sourcesToCheck); err != nil {
-		return nil, err
-	}
-
-	batch, err := buildApplyBatch(rootAbs, plan)
 	if err != nil {
 		return nil, err
 	}
 
 	resumed := pending != nil
 	var op *Operation
+	var batch *applyBatch
 	if resumed {
 		op, err = LoadOperation(pending.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if err := revalidatePendingOperation(rootAbs, op); err != nil {
+			return nil, err
+		}
+		batch, err = recoverApplyBatch(rootAbs, op, plan)
 	} else {
-		op, err = CreateOperation(rootAbs, plan.OperationID, sourcesToCheck, batch.journalEntries(), plan.GeneratedAt)
+		if plan == nil {
+			return nil, fmt.Errorf("%w: no plan was supplied", ErrRecoveryPlanMissing)
+		}
+		if plan.SchemaAlreadyV2 {
+			return &ApplyResult{AlreadyMigrated: true}, nil
+		}
+		if len(plan.Conflicts) > 0 {
+			c := plan.Conflicts[0]
+			return nil, fmt.Errorf("%w: %s: %s", ErrPlanConflict, c.Path, c.Detail)
+		}
+		if !plan.Appliable {
+			return nil, fmt.Errorf("%w: %s", ErrPlanNotAppliable, strings.Join(plan.UnresolvedBlockingIDs, ", "))
+		}
+
+		sourcesToCheck := toManifestSources(plan.Sources)
+		if err := revalidateSources(rootAbs, sourcesToCheck); err != nil {
+			return nil, err
+		}
+		batch, err = buildApplyBatch(rootAbs, plan)
+		if err != nil {
+			return nil, err
+		}
+		op, err = CreateOperationWithPlan(rootAbs, plan.OperationID, sourcesToCheck, batch.journalEntries(), plan.GeneratedAt, plan)
 	}
 	if err != nil {
 		return nil, err
@@ -157,6 +162,117 @@ func toManifestSources(sources []SourceFile) []ManifestSource {
 	return out
 }
 
+// revalidatePendingOperation checks only source paths the interrupted
+// operation has not intentionally replaced or removed, then checks every
+// installed/verified output. Removed sources are expected to be absent after
+// their journalled removal; treating them as stale would make a valid
+// post-removal recovery impossible.
+func revalidatePendingOperation(root string, op *Operation) error {
+	byPath := make(map[string]JournalEntry, len(op.Journal.Entries))
+	for _, entry := range op.Journal.Entries {
+		byPath[entry.Path] = entry
+	}
+
+	var sources []ManifestSource
+	for _, source := range op.Journal.SourceHashes {
+		entry, touched := byPath[source.Path]
+		if touched && (entry.Action == ActionRemove || entry.Action == ActionReplace) &&
+			(entry.State == StepInstalled || entry.State == StepVerified) {
+			continue
+		}
+		sources = append(sources, source)
+	}
+	if err := revalidateSources(root, sources); err != nil {
+		return err
+	}
+
+	for _, entry := range op.Journal.Entries {
+		if entry.State != StepInstalled && entry.State != StepVerified {
+			continue
+		}
+		if err := op.verifyRecorded(root, entry.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// recoverApplyBatch reconstructs the publish order from the operation's
+// journal and staged bytes. It does not re-read source files for a normal
+// command-created operation, which is essential after archive removals have
+// already happened. If an operation was interrupted while preparing its
+// staging area, the persisted original plan fills only the missing entries;
+// source revalidation has already proved that those reads are still safe.
+func recoverApplyBatch(root string, op *Operation, fallback *ConversionPlan) (*applyBatch, error) {
+	b, missing, err := batchFromJournal(op)
+	if err != nil {
+		return nil, err
+	}
+	if len(missing) == 0 {
+		return b, nil
+	}
+
+	plan := op.Journal.Plan
+	if plan == nil {
+		plan = fallback
+	}
+	if plan == nil {
+		return nil, fmt.Errorf("%w: missing staged outputs for %s", ErrRecoveryPlanMissing, strings.Join(missing, ", "))
+	}
+	rendered, err := buildApplyBatch(root, plan)
+	if err != nil {
+		return nil, fmt.Errorf("reconstruct pending operation: %w", err)
+	}
+	renderedByPath := make(map[string]stagedWrite)
+	for _, write := range rendered.orderedWrites() {
+		renderedByPath[write.Path] = write
+	}
+
+	for _, path := range missing {
+		write, ok := renderedByPath[path]
+		if !ok {
+			return nil, fmt.Errorf("%w: journal path %s is absent from the recorded plan", ErrRecoveryPlanMissing, path)
+		}
+		entry, entryErr := op.entry(path)
+		if entryErr != nil {
+			return nil, entryErr
+		}
+		if write.Action != entry.Action || (write.Action != ActionRemove && hashBytes(write.Content) != entry.PlannedHash) {
+			return nil, fmt.Errorf("%w: recorded output for %s no longer matches the operation journal", ErrRecoveryPlanMissing, path)
+		}
+		for i := range b.ordered {
+			if b.ordered[i].Path == path {
+				b.ordered[i].Content = write.Content
+				break
+			}
+		}
+	}
+	return b, nil
+}
+
+func batchFromJournal(op *Operation) (*applyBatch, []string, error) {
+	b := &applyBatch{}
+	var missing []string
+	for _, entry := range op.Journal.Entries {
+		write := stagedWrite{Path: entry.Path, Action: entry.Action}
+		if entry.Action != ActionRemove {
+			content, err := os.ReadFile(op.StagingPath(entry.Path))
+			if os.IsNotExist(err) {
+				missing = append(missing, entry.Path)
+			} else if err != nil {
+				return nil, nil, fmt.Errorf("recover %s: read staged content: %w", entry.Path, err)
+			} else if hashBytes(content) != entry.PlannedHash {
+				return nil, nil, fmt.Errorf("recover %s: staged content hash does not match the operation journal", entry.Path)
+			} else {
+				write.Content = content
+			}
+		}
+		b.ordered = append(b.ordered, write)
+	}
+	sort.Strings(missing)
+	return b, missing, nil
+}
+
 // stagedWrite is one path's complete planned content, rendered once up
 // front so both CreateOperation (which needs every entry's planned hash
 // before the first write) and publish (which needs the bytes to stage) read
@@ -188,21 +304,35 @@ type applyBatch struct {
 	manifest       stagedWrite   // migrations/v1-to-v2.yml
 	replaces       []stagedWrite // router.md, rewritten in place
 	removes        []stagedWrite // archived sources, removed after their archive copy verifies
+	ordered        []stagedWrite // complete publish order, including the manifest
 }
+
+// afterPublishWriteHook is test-only fault injection for proving a real
+// command invocation can leave a journal behind and a later invocation can
+// recover it. Production callers leave it nil.
+var afterPublishWriteHook func(string) error
 
 func (b *applyBatch) journalEntries() []JournalEntry {
 	var entries []JournalEntry
-	add := func(list []stagedWrite) {
-		for _, w := range list {
-			entries = append(entries, w.journalEntry())
-		}
+	for _, w := range b.orderedWrites() {
+		entries = append(entries, w.journalEntry())
 	}
-	add(b.creates)
-	add(b.archiveCreates)
-	entries = append(entries, b.manifest.journalEntry())
-	add(b.replaces)
-	add(b.removes)
 	return entries
+}
+
+func (b *applyBatch) orderedWrites() []stagedWrite {
+	if b.ordered != nil {
+		return b.ordered
+	}
+	var ordered []stagedWrite
+	ordered = append(ordered, b.creates...)
+	ordered = append(ordered, b.archiveCreates...)
+	if b.manifest.Path != "" {
+		ordered = append(ordered, b.manifest)
+	}
+	ordered = append(ordered, b.replaces...)
+	ordered = append(ordered, b.removes...)
+	return ordered
 }
 
 // backupTargets is every entry that touches an existing live path and so
@@ -210,9 +340,12 @@ func (b *applyBatch) journalEntries() []JournalEntry {
 // removal. Creates need no backup — nothing at their destination exists yet
 // to lose.
 func (b *applyBatch) backupTargets() []stagedWrite {
-	all := make([]stagedWrite, 0, len(b.replaces)+len(b.removes))
-	all = append(all, b.replaces...)
-	all = append(all, b.removes...)
+	all := make([]stagedWrite, 0, len(b.orderedWrites()))
+	for _, w := range b.orderedWrites() {
+		if w.Action == ActionReplace || w.Action == ActionRemove {
+			all = append(all, w)
+		}
+	}
 	return all
 }
 
@@ -265,6 +398,7 @@ func buildApplyBatch(root string, plan *ConversionPlan) (*applyBatch, error) {
 		return nil, fmt.Errorf("build manifest: %w", err)
 	}
 	b.manifest = stagedWrite{Path: manifestRelPath(), Action: ActionCreate, Content: manifestContent}
+	b.ordered = b.orderedWrites()
 
 	return b, nil
 }
@@ -310,37 +444,55 @@ func savepointPath(p string) string {
 }
 
 // publish runs the ordered walk: back up everything that will be replaced
-// or removed, create additive records, write the archive and manifest,
-// replace in-place documents, then remove originals now that their archive
-// copies have verified. Every per-entry call below is idempotent over the
-// entry's already-recorded State, so calling publish again against a
-// journal left partway through by an earlier call does only the remaining
-// work.
+// or removed, stage every complete output, install additive records and
+// in-place documents, then remove originals now that their archive copies
+// have verified. All staging happens before the first live install. Every
+// per-entry call below is idempotent over the entry's already-recorded State,
+// so calling publish again against a journal left partway through by an
+// earlier call does only the remaining work.
 func publish(op *Operation, root string, b *applyBatch) error {
+	// An installed output may have been edited after the prior journal write
+	// but before this recovery call. Check all such paths before staging or
+	// installing anything else, so recovery never overwrites a user edit while
+	// progressing another entry.
+	for _, entry := range op.Journal.Entries {
+		if entry.State != StepInstalled && entry.State != StepVerified {
+			continue
+		}
+		if err := op.verifyRecorded(root, entry.Path); err != nil {
+			return err
+		}
+	}
 	for _, w := range b.backupTargets() {
 		if err := ensureBackedUp(op, root, w.Path); err != nil {
 			return err
 		}
 	}
-	for _, w := range b.creates {
-		if err := publishWrite(op, root, w); err != nil {
+	for _, w := range b.orderedWrites() {
+		if w.Action == ActionRemove {
+			continue
+		}
+		if err := stageWrite(op, w); err != nil {
 			return err
 		}
 	}
-	for _, w := range b.archiveCreates {
-		if err := publishWrite(op, root, w); err != nil {
+	for _, w := range b.orderedWrites() {
+		if w.Action == ActionRemove {
+			continue
+		}
+		if err := installStagedWrite(op, root, w); err != nil {
 			return err
 		}
-	}
-	if err := publishWrite(op, root, b.manifest); err != nil {
-		return err
-	}
-	for _, w := range b.replaces {
-		if err := publishWrite(op, root, w); err != nil {
-			return err
+		if afterPublishWriteHook != nil {
+			if err := afterPublishWriteHook(w.Path); err != nil {
+				return err
+			}
 		}
 	}
-	for _, w := range b.removes {
+	for _, w := range b.orderedWrites() {
+		if w.Action != ActionRemove {
+			continue
+		}
 		if err := publishRemoval(op, root, w.Path); err != nil {
 			return err
 		}
@@ -367,14 +519,29 @@ func ensureBackedUp(op *Operation, root, relPath string) error {
 // the interrupted attempt's fails loudly here rather than silently
 // installing the wrong bytes.
 func publishWrite(op *Operation, root string, w stagedWrite) error {
+	if err := stageWrite(op, w); err != nil {
+		return err
+	}
+	return installStagedWrite(op, root, w)
+}
+
+func stageWrite(op *Operation, w stagedWrite) error {
 	e, err := op.entry(w.Path)
 	if err != nil {
 		return err
 	}
-	if e.State != StepStaged && e.State != StepInstalled && e.State != StepVerified {
+	if e.State == StepPlanned || e.State == StepBackedUp {
 		if err := op.WriteStaged(w.Path, w.Content); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func installStagedWrite(op *Operation, root string, w stagedWrite) error {
+	e, err := op.entry(w.Path)
+	if err != nil {
+		return err
 	}
 	if e.State == StepStaged {
 		mode := os.FileMode(0644)
@@ -389,6 +556,11 @@ func publishWrite(op *Operation, root string, w stagedWrite) error {
 	}
 	if e.State == StepInstalled {
 		if err := op.Verify(root, w.Path); err != nil {
+			return err
+		}
+	}
+	if e.State == StepVerified {
+		if err := op.verifyRecorded(root, w.Path); err != nil {
 			return err
 		}
 	}

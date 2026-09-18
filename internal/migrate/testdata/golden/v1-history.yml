@@ -366,6 +366,9 @@ files:
         id: T001
         title: Redo the shared baseline output for v1.1 before the follow-up depends on it
         objective: O001
+        planned_by:
+            role: planner
+            session: migration
         status: in_progress
         stage: build
         release: v1.1
@@ -392,6 +395,9 @@ files:
         id: T002
         title: Extend the v1.1 shared baseline with a dependent follow-up
         objective: O001
+        planned_by:
+            role: planner
+            session: migration
         status: planned
         depends_on:
             - task: T001

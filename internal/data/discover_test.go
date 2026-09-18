@@ -145,7 +145,7 @@ func writeV2ObjectiveFixture(t *testing.T, root, dirName, id, title string, depe
 
 func writeV2TaskFixture(t *testing.T, root, objDirName, fileName, id, title, objective string) {
 	t.Helper()
-	content := "---\nid: " + id + "\ntitle: \"" + title + "\"\nobjective: " + objective + "\nstatus: planned\n---\n\n# " + title + "\n"
+	content := "---\nid: " + id + "\ntitle: \"" + title + "\"\nobjective: " + objective + "\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# " + title + "\n"
 	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, objDirName, v2TasksDirName, fileName), content)
 }
 
@@ -322,7 +322,7 @@ func TestDiscoverV2Records_rejectsCaseCollision(t *testing.T) {
 
 func writeV2CheckFixture(t *testing.T, root, fileName, id, scopeKind, scopeID string) {
 	t.Helper()
-	content := "---\nid: " + id + "\nscope: {kind: " + scopeKind + ", id: " + scopeID + "}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n"
+	content := "---\nid: " + id + "\nscope: {kind: " + scopeKind + ", id: " + scopeID + "}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n"
 	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, fileName), content)
 }
 
@@ -387,7 +387,7 @@ func TestDiscoverV2Checks_rejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
 	outsideFile := filepath.Join(outside, "C001-alpha.md")
-	testutil.WriteFile(t, outsideFile, "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
+	testutil.WriteFile(t, outsideFile, "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
 
 	testutil.MkdirAll(t, filepath.Join(root, v2ChecksDirName))
 	link := filepath.Join(root, v2ChecksDirName, "C001-alpha.md")
