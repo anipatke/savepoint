@@ -8,13 +8,20 @@
 // Scope: Plan decides *identity and destination* — which V1 source becomes
 // which V2 Objective/Task/Issue, or an archive entry, and the legacy
 // reference map behind it. Rendering the converted file content (T004-T006)
-// and applying the plan to disk (T008-T009) are later tasks. Plan therefore
-// does not yet assign a fate to config.yml, router.md, PRD.md, Design.md,
-// Health-Check.md, the managed guide, or skill files: those require content
-// decisions this task does not make. Immutable, byte-preserve-only history
-// (epic audits, the audit prompt/register/runs, resolved/verified/waived
-// dispositions, and genuinely unclassified files) is archived here because
-// archiving never requires a content decision.
+// and applying the plan to disk (T008-T009) are later tasks. Plan also
+// assigns a fate to the small, fixed set of top-level project documents
+// (T006): PRD.md relocates to Idea.md (Documents) with the original
+// archived, router.md rewrites its state anchor in place (Documents), and
+// Health-Check.md is archived with its candidate commands recorded for a
+// future preview. config.yml, Design.md, Guardrails.md, and
+// visual-identity.md are deliberately never archived or targeted — staying
+// out of both plan.Archives and plan.Documents *is* their "preserved in
+// place, untouched" outcome, for apply to rely on. The managed guide and
+// skill files stay out of scope for E45 entirely (E46/E47 own the V2
+// routing block and the public skills). Immutable, byte-preserve-only
+// history (epic audits, the audit prompt/register/runs,
+// resolved/verified/waived dispositions, and genuinely unclassified files)
+// is archived here because archiving never requires a content decision.
 package migrate
 
 import (
@@ -80,6 +87,40 @@ type ArchiveEntry struct {
 	ArchivePath string
 	Role        Role
 	Legacy      *LegacyKey // nil when the source carries no legacy identity (e.g. an unclassified file)
+	// CandidateCommands lists command-looking lines convert_docs.go found in
+	// an archived Health-Check.md body, for a future preview to report as an
+	// owner decision. It is nil for every other role: nothing ever writes
+	// this list into config.yml, so no quality_gates entry is ever inferred
+	// from prose.
+	CandidateCommands []string
+}
+
+// DocumentKind names one of the small, fixed set of top-level project
+// documents migration relocates or rewrites in place, distinct from the
+// Objective/Task/Issue record families TargetKind names.
+type DocumentKind string
+
+const (
+	// DocumentIdea is .savepoint/PRD.md becoming .savepoint/Idea.md: a
+	// byte-preserving relocation, never a re-render. The original PRD.md is
+	// also archived (see ArchiveEntry for the same source path), so the V1
+	// authorship survives twice: once live, once as history.
+	DocumentIdea DocumentKind = "idea"
+	// DocumentRouter is .savepoint/router.md rewritten in place: only the
+	// "## Current state" YAML anchor's vocabulary changes; every other byte
+	// of authored prose is preserved.
+	DocumentRouter DocumentKind = "router"
+)
+
+// PlannedDocument is one top-level project document migration relocates or
+// rewrites, as opposed to converting into a new Objective/Task/Issue record.
+// SourcePath is project-relative, matching LegacyKey.Path and
+// ArchiveEntry.SourcePath. TargetPath is .savepoint-root-relative, matching
+// PlannedTarget.TargetPath.
+type PlannedDocument struct {
+	Kind       DocumentKind
+	SourcePath string
+	TargetPath string
 }
 
 // LegacyPrerequisite records a dependency from a newly allocated active Task
@@ -171,6 +212,7 @@ type ConversionPlan struct {
 	OperationID string
 
 	Targets     []PlannedTarget
+	Documents   []PlannedDocument
 	Archives    []ArchiveEntry
 	Prereqs     []LegacyPrerequisite
 	WaivedRefs  []WaivedReference
@@ -189,7 +231,23 @@ const (
 	v2ObjectiveFile  = "Objective.md"
 	v2TasksDir       = "tasks"
 	v2IssuesDir      = "issues"
+
+	ideaTargetPath   = "Idea.md"
+	routerTargetPath = "router.md"
 )
+
+// preservedInPlaceDocs names project documents V2 keeps at their V1 path and
+// bytes, untouched by migration, even though the frozen Role vocabulary (see
+// TestClassify_roleVocabularyIsComplete) has no dedicated role for them, so
+// Classify reports RoleUnclassified for them. Adding a new Role would widen
+// that frozen vocabulary just to say "don't touch this," so the exemption
+// from archiveRemainingRoles's unclassified sweep is by exact path instead.
+// Design.md needs no entry here: RoleArchitecture already isn't in that
+// sweep's role switch.
+var preservedInPlaceDocs = map[string]bool{
+	".savepoint/Guardrails.md":      true,
+	".savepoint/visual-identity.md": true,
+}
 
 func manifestRelPath() string {
 	return migrationsDirRel + "/" + manifestFileName
@@ -258,6 +316,7 @@ func Plan(projectRoot string, decisions Decisions, now Clock, newOperationID Ope
 		GeneratedAt: now(),
 		OperationID: newOperationID(),
 		Targets:     b.targets,
+		Documents:   b.documents,
 		Archives:    b.archives,
 		Prereqs:     b.prereqs,
 		WaivedRefs:  b.waivedRefs,
@@ -303,6 +362,7 @@ type planBuilder struct {
 	ids *idAllocator
 
 	targets     []PlannedTarget
+	documents   []PlannedDocument
 	archives    []ArchiveEntry
 	prereqs     []LegacyPrerequisite
 	waivedRefs  []WaivedReference
@@ -377,7 +437,12 @@ func (b *planBuilder) build() error {
 		return err
 	}
 
-	// Pass 4: immutable audit history (runs, prompt, register) and epic
+	// Pass 4: top-level project documents (PRD/Idea, router, Health-Check).
+	if err := b.planDocuments(); err != nil {
+		return err
+	}
+
+	// Pass 5: immutable audit history (runs, prompt, register) and epic
 	// audits, plus anything genuinely unclassified. These never affect
 	// identity allocation, so they run last and independently of the passes
 	// above.
@@ -880,6 +945,58 @@ func dispositionArchivesOutright(status data.FindingStatus) bool {
 	}
 }
 
+// planDocuments plans the small, fixed set of top-level project documents:
+// PRD.md relocates to Idea.md (byte-preserving; the original is also
+// archived), router.md rewrites its state anchor in place, and
+// Health-Check.md is archived with its candidate commands recorded for a
+// future preview to report. config.yml, Design.md, Guardrails.md, and
+// visual-identity.md are never archived or targeted by this method: their
+// absence from plan.Archives and plan.Documents is itself the "preserved in
+// place, untouched" outcome apply later relies on.
+func (b *planBuilder) planDocuments() error {
+	var paths []string
+	for path := range b.byPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		switch Classify(path) {
+		case RoleProductPRD:
+			b.archives = append(b.archives, ArchiveEntry{
+				SourcePath:  path,
+				ArchivePath: archivePathFor(path),
+				Role:        RoleProductPRD,
+			})
+			b.documents = append(b.documents, PlannedDocument{
+				Kind:       DocumentIdea,
+				SourcePath: path,
+				TargetPath: ideaTargetPath,
+			})
+
+		case RoleRouter:
+			b.documents = append(b.documents, PlannedDocument{
+				Kind:       DocumentRouter,
+				SourcePath: path,
+				TargetPath: routerTargetPath,
+			})
+
+		case RoleHealthCheck:
+			content, err := b.readSource(path)
+			if err != nil {
+				return err
+			}
+			b.archives = append(b.archives, ArchiveEntry{
+				SourcePath:        path,
+				ArchivePath:       archivePathFor(path),
+				Role:              RoleHealthCheck,
+				CandidateCommands: CandidateHealthCheckCommands(content),
+			})
+		}
+	}
+	return nil
+}
+
 // archiveRemainingRoles archives every inventoried file whose role is
 // immutable byte-preserved history (epic audits, the audit prompt/register,
 // audit runs) or genuinely unclassified, skipping anything already archived
@@ -901,7 +1018,7 @@ func (b *planBuilder) archiveRemainingRoles() {
 	sort.Strings(paths)
 
 	for _, path := range paths {
-		if handled[path] || isPreservedMigrationsContent(path) {
+		if handled[path] || isPreservedMigrationsContent(path) || preservedInPlaceDocs[path] {
 			continue
 		}
 		role := Classify(path)
