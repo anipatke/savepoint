@@ -8,8 +8,145 @@ import (
 	"time"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
+
+// newPendingMigrationRoot creates a project directory with an incomplete
+// migration operation and returns its .savepoint directory — the "root" every
+// write command in this file expects, matching Model.Root in production.
+func newPendingMigrationRoot(t *testing.T, opID string) string {
+	t.Helper()
+	projectDir := t.TempDir()
+	root := filepath.Join(projectDir, ".savepoint")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	entries := []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}
+	if _, err := migrate.CreateOperation(projectDir, opID, nil, entries, time.Now()); err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+	return root
+}
+
+func requireRefusalNaming(t *testing.T, msg errorMsg, opID string) {
+	t.Helper()
+	if !strings.Contains(msg.message, opID) {
+		t.Errorf("message = %q, want it to name operation %q", msg.message, opID)
+	}
+}
+
+func TestWriteEpicStatusCmd_RefusesWhilePendingMigrationOperation(t *testing.T) {
+	root := newPendingMigrationRoot(t, "op-1")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "E31-Detail.md")
+	testutil.WriteFile(t, path, "---\ntype: epic-design\nstatus: done\n---\n\n# Epic\n")
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg := writeEpicStatusCmd(root, "E31-epic-audited-shortcut", path, string(data.EpicStatusAudited), fi.ModTime())()
+
+	errMsg, ok := msg.(errorMsg)
+	if !ok {
+		t.Fatalf("msg type = %T, want errorMsg", msg)
+	}
+	requireRefusalNaming(t, errMsg, "op-1")
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "status: done") {
+		t.Fatalf("file should be untouched while migration is pending:\n%s", raw)
+	}
+}
+
+func TestWriteDefectStatusCmd_RefusesWhilePendingMigrationOperation(t *testing.T) {
+	root := newPendingMigrationRoot(t, "op-2")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "D001-example.md")
+	testutil.WriteFile(t, path, "---\nid: D001\nseverity: high\nstatus: open\n---\n\n# Defect\n")
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := data.Defect{Path: path, ID: "D001", Status: data.DefectResolved}
+
+	msg := writeDefectStatusCmd(root, next, fi.ModTime())()
+
+	errMsg, ok := msg.(errorMsg)
+	if !ok {
+		t.Fatalf("msg type = %T, want errorMsg", msg)
+	}
+	requireRefusalNaming(t, errMsg, "op-2")
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "status: open") {
+		t.Fatalf("file should be untouched while migration is pending:\n%s", raw)
+	}
+}
+
+func TestWriteTaskStatusCmd_RefusesWhilePendingMigrationOperation(t *testing.T) {
+	root := newPendingMigrationRoot(t, "op-3")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T001-example.md")
+	testutil.WriteFile(t, path, "---\nid: E01/T001-example\nstatus: planned\n---\n\n# Task\n")
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := data.Task{Path: path, ID: "E01/T001-example"}
+	next := orig
+	next.Column = data.ColumnInProgress
+
+	msg := writeTaskStatusCmd(root, orig, next, fi.ModTime(), "Moved")()
+
+	errMsg, ok := msg.(errorMsg)
+	if !ok {
+		t.Fatalf("msg type = %T, want errorMsg", msg)
+	}
+	requireRefusalNaming(t, errMsg, "op-3")
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "status: planned") {
+		t.Fatalf("file should be untouched while migration is pending:\n%s", raw)
+	}
+}
+
+func TestWriteRouterTaskCmd_RefusesWhilePendingMigrationOperation(t *testing.T) {
+	root := newPendingMigrationRoot(t, "op-4")
+	// No router.md is written: the guard must refuse before router.md is
+	// ever read, so its absence never surfaces as the error instead.
+	task := data.Task{ID: "E01/T001-example", Release: "v1", Epic: "E01-example"}
+
+	msg := writeRouterTaskCmd(root, task, data.NewRouterReader())()
+
+	errMsg, ok := msg.(errorMsg)
+	if !ok {
+		t.Fatalf("msg type = %T, want errorMsg", msg)
+	}
+	requireRefusalNaming(t, errMsg, "op-4")
+}
+
+func TestWriteRouterReleaseEpicCmd_RefusesWhilePendingMigrationOperation(t *testing.T) {
+	root := newPendingMigrationRoot(t, "op-5")
+
+	msg := writeRouterReleaseEpicCmd(root, "E01-example", "v1", data.NewRouterReader())()
+
+	errMsg, ok := msg.(errorMsg)
+	if !ok {
+		t.Fatalf("msg type = %T, want errorMsg", msg)
+	}
+	requireRefusalNaming(t, errMsg, "op-5")
+}
 
 func TestWriteEpicStatusCmd_WritesAuditedToFile(t *testing.T) {
 	dir := t.TempDir()
@@ -20,7 +157,7 @@ func TestWriteEpicStatusCmd_WritesAuditedToFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := writeEpicStatusCmd("E31-epic-audited-shortcut", path, string(data.EpicStatusAudited), fi.ModTime())()
+	msg := writeEpicStatusCmd(dir, "E31-epic-audited-shortcut", path, string(data.EpicStatusAudited), fi.ModTime())()
 
 	written, ok := msg.(epicStatusWrittenMsg)
 	if !ok {
@@ -51,7 +188,7 @@ func TestWriteEpicStatusCmd_ReportsConflictAndLeavesFileUntouched(t *testing.T) 
 	}
 
 	stale := fi.ModTime().Add(-time.Hour)
-	msg := writeEpicStatusCmd("E31-epic-audited-shortcut", path, string(data.EpicStatusAudited), stale)()
+	msg := writeEpicStatusCmd(dir, "E31-epic-audited-shortcut", path, string(data.EpicStatusAudited), stale)()
 
 	errMsg, ok := msg.(errorMsg)
 	if !ok {

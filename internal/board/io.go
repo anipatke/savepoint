@@ -8,10 +8,31 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/migrate"
 )
+
+// pendingMigrationMsg reports the incomplete migration operation guarding
+// root's project directory, or nil when none is pending. root is the
+// project's .savepoint directory, as every Model.Root is; the project
+// directory PendingOperation expects is one level up. It is the same
+// read-only detector upgrade-assets and doctor consult, so the board's write
+// commands refuse at the same boundary rather than growing a second policy.
+func pendingMigrationMsg(root string) tea.Msg {
+	report, err := migrate.PendingOperation(filepath.Dir(root))
+	if err != nil {
+		return errorMsg{message: err.Error()}
+	}
+	if report == nil {
+		return nil
+	}
+	return errorMsg{message: report.RecoveryGuidance()}
+}
 
 func writeRouterTaskCmd(root string, task data.Task, reader routerReader) tea.Cmd {
 	return func() tea.Msg {
+		if msg := pendingMigrationMsg(root); msg != nil {
+			return msg
+		}
 		routerPath := filepath.Join(root, "router.md")
 		fi, err := os.Stat(routerPath)
 		if err != nil {
@@ -40,6 +61,9 @@ func writeRouterTaskCmd(root string, task data.Task, reader routerReader) tea.Cm
 
 func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string, reader routerReader) tea.Cmd {
 	return func() tea.Msg {
+		if msg := pendingMigrationMsg(root); msg != nil {
+			return msg
+		}
 		routerPath := filepath.Join(root, "router.md")
 		fi, err := os.Stat(routerPath)
 		if err != nil {
@@ -62,8 +86,11 @@ func writeRouterReleaseEpicCmd(root, selectedEpic, selectedRelease string, reade
 	}
 }
 
-func writeTaskStatusCmd(orig, next data.Task, expectedMtime time.Time, prefix string) tea.Cmd {
+func writeTaskStatusCmd(root string, orig, next data.Task, expectedMtime time.Time, prefix string) tea.Cmd {
 	return func() tea.Msg {
+		if msg := pendingMigrationMsg(root); msg != nil {
+			return msg
+		}
 		if err := data.WriteTaskStatus(next.Path, &next, expectedMtime); err != nil {
 			if errors.Is(err, data.ErrMtimeConflict) {
 				return retryTaskStatusAfterConflict(orig, next, prefix)
@@ -79,8 +106,11 @@ func writeTaskStatusCmd(orig, next data.Task, expectedMtime time.Time, prefix st
 	}
 }
 
-func writeDefectStatusCmd(next data.Defect, expectedMtime time.Time) tea.Cmd {
+func writeDefectStatusCmd(root string, next data.Defect, expectedMtime time.Time) tea.Cmd {
 	return func() tea.Msg {
+		if msg := pendingMigrationMsg(root); msg != nil {
+			return msg
+		}
 		if err := data.WriteDefectStatus(next.Path, &next, expectedMtime); err != nil {
 			if errors.Is(err, data.ErrMtimeConflict) {
 				return errorMsg{message: "defect changed on disk: refresh before retrying"}
@@ -99,8 +129,11 @@ func writeDefectStatusCmd(next data.Defect, expectedMtime time.Time) tea.Cmd {
 // writeEpicStatusCmd persists status to the epic's E##-Detail.md via
 // data.UpdateEpicStatus, guarded by expectedMtime so a file changed since it was
 // read does not get a partial overwrite. It mirrors writeDefectStatusCmd.
-func writeEpicStatusCmd(epicID, path, status string, expectedMtime time.Time) tea.Cmd {
+func writeEpicStatusCmd(root, epicID, path, status string, expectedMtime time.Time) tea.Cmd {
 	return func() tea.Msg {
+		if msg := pendingMigrationMsg(root); msg != nil {
+			return msg
+		}
 		fi, err := os.Stat(path)
 		if err != nil {
 			return errorMsg{message: err.Error()}

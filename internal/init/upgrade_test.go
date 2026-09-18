@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
+	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -492,6 +494,95 @@ func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
 	count := strings.Count(got, managedBegin)
 	if count != 1 {
 		t.Errorf("AGENTS.md has %d managed begin markers, want 1: %q", count, got)
+	}
+}
+
+func TestUpgradeProjectAssets_refusesWhilePendingMigrationOperation(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := migrate.CreateOperation(target, "op-1", nil, []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}, time.Now()); err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	oldContent := "# Old Content"
+	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), oldContent)
+
+	templates := fstest.MapFS{
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
+	}
+
+	_, err := UpgradeProjectAssets(templates, target, false, false)
+	if err == nil {
+		t.Fatal("UpgradeProjectAssets() error = nil, want refusal while migration operation is incomplete")
+	}
+	if !strings.Contains(err.Error(), "op-1") {
+		t.Errorf("error = %q, want it to name the operation op-1", err.Error())
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != oldContent {
+		t.Fatalf("refused upgrade should not write: got %q, want %q", string(data), oldContent)
+	}
+}
+
+func TestUpgradeProjectAssets_dryRunReportsNormallyWithPendingMigrationOperation(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := migrate.CreateOperation(target, "op-1", nil, []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}, time.Now()); err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	oldContent := "# Old Content"
+	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), oldContent)
+
+	templates := fstest.MapFS{
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
+	}
+
+	// A dry run never reaches a real write, so the pending-migration guard
+	// (which only runs before the first write) never fires: the preview
+	// reports exactly as it would with no operation pending, and nothing on
+	// disk changes either way.
+	report, err := UpgradeProjectAssets(templates, target, true, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() dry-run error = %v, want no error while nothing is written", err)
+	}
+	found := false
+	for _, e := range report.Actions {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
+			found = true
+			if e.Action != ActionUpdated {
+				t.Errorf("dry-run action = %v, want updated", e.Action)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("skill path not in dry-run report")
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != oldContent {
+		t.Fatalf("dry-run should not write: got %q, want %q", string(data), oldContent)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/migrate"
 	"gopkg.in/yaml.v3"
 )
 
@@ -78,6 +79,39 @@ func CheckRouter(root, epicFilter string, overrides ...DoctorDependencies) error
 	}
 
 	return nil
+}
+
+// migrationOperationRepair is the suggestion for an incomplete migration
+// operation: doctor names the recovery command but never runs it, because an
+// incomplete migration is finished by the migration command, not by a doctor
+// repair.
+const migrationOperationRepair = "Run `savepoint migrate --recover` to resume the named operation"
+
+// CheckMigration reports an incomplete migration operation under root's
+// project directory as a named diagnostic, naming the operation, the paths
+// not yet verified, and the recovery command — the same read-only detector
+// upgrade-assets and the board's write commands consult at their write
+// boundary. root is the project's .savepoint directory, as every other check
+// in this file expects; the project directory PendingOperation expects is one
+// level up. A project with no operation directory, or one whose operation
+// already completed and removed itself, reports no problem.
+func CheckMigration(root string) []Problem {
+	report, err := migrate.PendingOperation(filepath.Dir(root))
+	if err != nil {
+		return []Problem{{
+			File:    root,
+			Message: fmt.Sprintf("[migrate-multiple-operations] %v", err),
+			Repair:  "Resolve or remove the extra directories under .savepoint/.migration/ so only one operation remains, then run `savepoint migrate --recover`",
+		}}
+	}
+	if report == nil {
+		return nil
+	}
+	return []Problem{{
+		File:    root,
+		Message: fmt.Sprintf("[migrate-operation-incomplete] %s", report.RecoveryGuidance()),
+		Repair:  migrationOperationRepair,
+	}}
 }
 
 // Problem describes a single issue found during a structure check. Repair, when

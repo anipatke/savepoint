@@ -274,7 +274,7 @@ func (m Model) handleAdvanceTask() (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if next.Path != "" {
-					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved")
+					return m, writeTaskStatusCmd(m.Root, t, next, task.Mtime, "Moved")
 				}
 				m.AllTasks[i] = next
 				m.StatusMessage = taskTransitionMessage("Moved", next)
@@ -314,7 +314,7 @@ func (m Model) handleRetreatTask() (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if next.Path != "" {
-					return m, writeTaskStatusCmd(t, next, task.Mtime, "Moved back")
+					return m, writeTaskStatusCmd(m.Root, t, next, task.Mtime, "Moved back")
 				}
 				m.AllTasks[i] = next
 				m.StatusMessage = taskTransitionMessage("Moved back", next)
@@ -731,7 +731,7 @@ func (m Model) markEpicAudited() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	path := epicDetailFilePath(m.Root, m.SelectedRelease, epicSlug)
-	return m, writeEpicStatusCmd(epicSlug, path, string(data.EpicStatusAudited), m.EpicDetailMtime)
+	return m, writeEpicStatusCmd(m.Root, epicSlug, path, string(data.EpicStatusAudited), m.EpicDetailMtime)
 }
 
 // epicDetailFilePath resolves the E##-Detail.md path for an epic slug, matching
@@ -1011,7 +1011,7 @@ func (m Model) handleDefectOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			next := defect
 			next.Status = data.DefectResolved
 			next.Stage = ""
-			return m, writeDefectStatusCmd(next, defect.Mtime)
+			return m, writeDefectStatusCmd(m.Root, next, defect.Mtime)
 		case data.DefectResolved:
 			m.StatusMessage = "Defect already resolved"
 		default:

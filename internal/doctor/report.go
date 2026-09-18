@@ -16,6 +16,7 @@ type QualityGateReport struct {
 type DiagnosticReport struct {
 	ConfigCheck   error
 	RouterCheck   error
+	Migration     []Problem
 	Project       []Problem
 	Structure     []Problem
 	Dependencies  []Problem
@@ -36,6 +37,7 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 
 	report.ConfigCheck = CheckConfig(root)
 	report.RouterCheck = CheckRouter(root, epicFilter)
+	report.Migration = CheckMigration(root)
 	report.Project = CheckProject(root)
 	report.Structure = CheckStructure(root, epicFilter)
 	report.Dependencies = CheckDependencies(root, epicFilter)
@@ -55,6 +57,9 @@ func (r *DiagnosticReport) HasProblems() bool {
 		return true
 	}
 	if r.RouterCheck != nil {
+		return true
+	}
+	if len(r.Migration) > 0 {
 		return true
 	}
 	if len(r.Project) > 0 {
@@ -101,6 +106,9 @@ func (r *DiagnosticReport) Format() string {
 
 	sectionHeader(&b, "Router Check")
 	printSingleCheck(&b, "router", r.RouterCheck)
+
+	sectionHeader(&b, "Migration Check")
+	printProblems(&b, "migration", r.Migration)
 
 	sectionHeader(&b, "Project Check")
 	printProblems(&b, "project", r.Project)
