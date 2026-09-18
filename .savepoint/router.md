@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E45-safe-migration
-task: E45-safe-migration/T003-plan-the-conversion-before-touching-anything
-next_action: Build E45-safe-migration/T003-plan-the-conversion-before-touching-anything.
+task: E45-safe-migration/T004-carry-active-work-across
+next_action: Build E45-safe-migration/T004-carry-active-work-across.
 ```
 
 ## State → action
