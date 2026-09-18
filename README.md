@@ -204,6 +204,24 @@ Real tools measuring real files—not AI opinion.
 
 ---
 
+## Migrating a V1 Project (`savepoint migrate`)
+
+`savepoint migrate [dir]` converts a V1 project to the V2 schema. **Preview is the default: nothing is written unless you pass `--apply`.**
+
+```bash
+savepoint migrate            # preview: reports the plan, writes nothing
+savepoint migrate --apply    # applies the plan
+```
+
+* `--dry-run` is an explicit, equivalent way to say the default out loud; passing it together with `--apply` still previews.
+* `--decisions FILE` supplies answers for ambiguities the plan can't resolve on its own (for example, an unrecognized legacy status); a plan with unresolved blocking ambiguities exits nonzero and names every unresolved ID.
+* `--recover` reports an interrupted migration operation and its recovery guidance, and resumes it when combined with `--apply`.
+* A missing target directory, an unwritable one, or one that isn't a Savepoint project each fail with a distinct, named error and no partial write.
+
+The preview enumerates every planned record, archive, identity mapping, conflict, and required decision, so you know exactly what a real run would do before you commit to it.
+
+---
+
 ## Defects & Issues
 
 Savepoint distinguishes between planned tasks and discovered problems:
