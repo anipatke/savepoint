@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E45-safe-migration
-task: E45-safe-migration/T004-carry-active-work-across
-next_action: Build E45-safe-migration/T004-carry-active-work-across.
+task: E45-safe-migration/T005-carry-unfinished-follow-up-across
+next_action: Build E45-safe-migration/T005-carry-unfinished-follow-up-across.
 ```
 
 ## State → action
