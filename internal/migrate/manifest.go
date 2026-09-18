@@ -117,7 +117,7 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 			Epic:       t.Legacy.Epic,
 			Path:       t.Legacy.Path,
 			OriginalID: t.Legacy.OriginalID,
-			TargetPath: t.TargetPath,
+			TargetPath: t.InstallPath(),
 		})
 	}
 	sort.Slice(m.Identities, func(i, j int) bool { return m.Identities[i].GlobalID < m.Identities[j].GlobalID })

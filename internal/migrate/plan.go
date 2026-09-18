@@ -77,6 +77,21 @@ type PlannedTarget struct {
 	DuplicateOfGlobalID string
 }
 
+// InstallPath returns t's actual filename relative to the .savepoint root,
+// including the ".md" extension every V2 record family's discovery layout
+// requires. TargetPath itself omits it for TargetTask — task identity
+// allocation only needs the directory-qualified destination, not a filename
+// — so apply and the manifest's recorded identity map resolve the real
+// on-disk path through here rather than each re-deriving the same suffix
+// rule. Objective and Issue TargetPath values are already complete
+// filenames and pass through unchanged.
+func (t PlannedTarget) InstallPath() string {
+	if t.Kind == TargetTask && !strings.HasSuffix(t.TargetPath, ".md") {
+		return t.TargetPath + ".md"
+	}
+	return t.TargetPath
+}
+
 // ArchiveEntry is one V1 source preserved byte-for-byte under archive/v1/
 // instead of being converted, because it is settled history (a done Task, a
 // closed epic, a resolved defect, a verified or waived finding, a duplicate
