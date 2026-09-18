@@ -1,8 +1,7 @@
 ---
 id: E45-safe-migration/T003-plan-the-conversion-before-touching-anything
 title: Plan the conversion before touching anything
-status: in_progress
-stage: build
+status: done
 objective: Produce a deterministic write-free conversion plan with global identity allocation and the source-qualified reference map.
 depends_on:
     - E45-safe-migration/T002-take-stock-of-what-exists

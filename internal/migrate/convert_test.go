@@ -360,7 +360,7 @@ func TestConvertTask_legacyPrerequisiteLine(t *testing.T) {
 		t.Fatalf("ConvertTask error = %v", err)
 	}
 
-	wantArchive := "archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md"
+	wantArchive := ".savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md"
 	if !strings.Contains(content, wantArchive) {
 		t.Errorf("rendered content does not name the archive path %q:\n%s", wantArchive, content)
 	}

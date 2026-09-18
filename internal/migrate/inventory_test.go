@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,6 +101,34 @@ func TestInventory_excludesMigrationState(t *testing.T) {
 		}
 		if filepath.Dir(f.Path) == filepath.ToSlash(filepath.Join(".savepoint", migrationStateDir)) {
 			t.Errorf("Inventory() reported %s under .savepoint/%s, want it excluded", f.Path, migrationStateDir)
+		}
+	}
+	if len(files) != 1 {
+		t.Errorf("Inventory() = %v, want exactly [.savepoint/router.md]", files)
+	}
+}
+
+// TestInventory_excludesArchiveDir is regression coverage for an audit
+// finding: once the byte-preserved archive moved to .savepoint/archive/v1/
+// (see archivePathFor in plan.go), a resumed migration's second Plan call
+// would otherwise re-inventory a prior partial apply's already-written
+// archive content as a brand-new, unclassified V1 source. Inventory must
+// exclude .savepoint/archive/ exactly as it already excludes
+// .savepoint/.migration/.
+func TestInventory_excludesArchiveDir(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), "# Router\n")
+	writeFile(t, filepath.Join(root, ".savepoint", archiveDirName, "v1", ".savepoint", "PRD.md"), "archived content\n")
+
+	files, err := Inventory(root)
+	if err != nil {
+		t.Fatalf("Inventory() error = %v", err)
+	}
+
+	archivePrefix := filepath.ToSlash(filepath.Join(".savepoint", archiveDirName)) + "/"
+	for _, f := range files {
+		if strings.HasPrefix(f.Path, archivePrefix) {
+			t.Errorf("Inventory() reported %s under .savepoint/%s, want it excluded", f.Path, archiveDirName)
 		}
 	}
 	if len(files) != 1 {

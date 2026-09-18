@@ -21,7 +21,7 @@ import (
 // bytes, unchanged. This is a relocation, not a re-render — no section is
 // added, reordered, reworded, or dropped. plan.go's separate ArchiveEntry
 // for the same source path preserves the identical bytes a second time,
-// under archive/v1/, so V1 authorship survives both live and as history.
+// under .savepoint/archive/v1/, so V1 authorship survives both live and as history.
 func ConvertIdea(root string, doc PlannedDocument) (string, error) {
 	if doc.Kind != DocumentIdea {
 		return "", fmt.Errorf("convert idea: doc %q is not an idea document", doc.SourcePath)

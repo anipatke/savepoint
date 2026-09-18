@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -160,7 +161,7 @@ func TestApply_v1Basic_endToEnd(t *testing.T) {
 	if len(project.V2.Tasks) != 1 {
 		t.Errorf("Tasks = %d, want 1 (T001-original is archived, not converted)", len(project.V2.Tasks))
 	}
-	mustNotExist(t, filepath.Join(root, "archive", "v1", "archive"))
+	mustNotExist(t, filepath.Join(root, ".savepoint", "archive", "v1", "archive"))
 }
 
 func TestApply_v1History_distinctGlobalIDsAcrossReleases(t *testing.T) {
@@ -196,12 +197,12 @@ func TestApply_v1History_distinctGlobalIDsAcrossReleases(t *testing.T) {
 	// v1's whole (done) epic is archived and its tasks' originals removed.
 	// v1.1's active epic detail is archived and removed too (every epic
 	// detail is, regardless of status), but its active tasks' V1 sources
-	// are left in place — only settled work moves to archive/v1/.
+	// are left in place — only settled work moves to .savepoint/archive/v1/.
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-shared.md"))
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1.1", "epics", "E01-example", "E01-Detail.md"))
 	mustExist(t, filepath.Join(root, ".savepoint", "releases", "v1.1", "epics", "E01-example", "tasks", "T001-shared.md"))
-	mustExist(t, filepath.Join(root, "archive", "v1", ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-shared.md"))
-	mustExist(t, filepath.Join(root, "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E01-example", "E01-Detail.md"))
+	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-shared.md"))
+	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E01-example", "E01-Detail.md"))
 }
 
 // --- refusals write nothing ---------------------------------------------
@@ -251,6 +252,35 @@ func TestApply_planConflict_writesNothing(t *testing.T) {
 		t.Fatal("Apply() error = nil, want ErrPlanConflict")
 	}
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+// TestApply_preExistingCreateDestination_refusesCleanly is regression
+// coverage for an audit finding: a file already sitting exactly where a plan
+// intends to create one used to reach Apply undetected and crash with an
+// internal invariant error ("... has action create, which has no backup
+// step"), leaving an unresumable operation directory behind with no way out.
+// Plan now catches this as a named ConflictDestinationExists, so Apply
+// refuses before creating any operation at all.
+func TestApply_preExistingCreateDestination_refusesCleanly(t *testing.T) {
+	root := copyFixtureProject(t, "v1-basic")
+	// v1-basic's PRD.md relocates to Idea.md; a user who started early
+	// occupies that destination before migrating.
+	if err := os.WriteFile(filepath.Join(root, ".savepoint", "Idea.md"), []byte("my early idea\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := mustPlan(t, root)
+	if len(plan.Conflicts) == 0 {
+		t.Fatal("plan.Conflicts is empty, want a ConflictDestinationExists naming .savepoint/Idea.md")
+	}
+
+	before := snapshotTree(t, root)
+	_, err := Apply(root, plan)
+	if !errors.Is(err, ErrPlanConflict) {
+		t.Fatalf("Apply() error = %v, want ErrPlanConflict", err)
+	}
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+	assertNoPendingOperation(t, root)
 }
 
 func TestApply_sourceChangedSincePreview_conflictNamesPath(t *testing.T) {

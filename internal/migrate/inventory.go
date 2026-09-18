@@ -25,6 +25,14 @@ var (
 // project source; Inventory never walks into it.
 const migrationStateDir = ".migration"
 
+// archiveDirName is the byte-preserved archive migration itself creates
+// under .savepoint/ (see archivePathFor in plan.go, the single source of
+// truth this name is shared with). Inventory never walks into it either: a
+// resumed apply calls Plan again, and without this exclusion a prior partial
+// apply's already-written archive content would be re-inventoried as a
+// brand-new, unclassified V1 source on every resume.
+const archiveDirName = "archive"
+
 // SourceFile is one project-owned source file, recorded from its exact bytes
 // rather than from any parsed and re-marshalled model: a hash taken from a
 // loader's healed re-encoding would record what the loader wished the user
@@ -107,7 +115,10 @@ func walkTree(rootAbs, relRoot string, addFile func(absPath, relPath string) err
 		return err
 	}
 
-	skipRel := filepath.Join(".savepoint", migrationStateDir)
+	skipDirs := map[string]bool{
+		filepath.Join(".savepoint", migrationStateDir): true,
+		filepath.Join(".savepoint", archiveDirName):    true,
+	}
 
 	return filepath.WalkDir(absRoot, func(absPath string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -118,7 +129,7 @@ func walkTree(rootAbs, relRoot string, addFile func(absPath, relPath string) err
 			return err
 		}
 		if entry.IsDir() {
-			if relPath == skipRel {
+			if skipDirs[relPath] {
 				return filepath.SkipDir
 			}
 			return nil

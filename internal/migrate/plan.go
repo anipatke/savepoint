@@ -92,7 +92,7 @@ func (t PlannedTarget) InstallPath() string {
 	return t.TargetPath
 }
 
-// ArchiveEntry is one V1 source preserved byte-for-byte under archive/v1/
+// ArchiveEntry is one V1 source preserved byte-for-byte under .savepoint/archive/v1/
 // instead of being converted, because it is settled history (a done Task, a
 // closed epic, a resolved defect, a verified or waived finding, a duplicate
 // finding whose canonical is itself archived) or because it matched no known
@@ -168,6 +168,15 @@ const (
 	// already exists on a project whose schema is still V1 — distinct from
 	// SchemaAlreadyV2, which is a clean already-migrated project.
 	ConflictExistingManifest ConflictKind = "existing_manifest_conflict"
+	// ConflictDestinationExists means a path this plan intends to create (a
+	// converted record, Idea.md, or an archive entry) already exists on
+	// disk. A single path cannot carry two fates — a live file plus a
+	// planned create — so Apply refuses via this named Conflict at plan
+	// time rather than fail later with an internal invariant error and no
+	// way out (WriteStaged has no "overwrite an existing create" mode by
+	// design: ActionCreate destinations are supposed to be freshly
+	// allocated paths nothing else could legitimately occupy).
+	ConflictDestinationExists ConflictKind = "destination_exists_conflict"
 )
 
 // Conflict is one named reason Plan (or a later apply) must not proceed
@@ -326,11 +335,52 @@ func Plan(projectRoot string, decisions Decisions, now Clock, newOperationID Ope
 		Archives:              b.archives,
 		Prereqs:               b.prereqs,
 		WaivedRefs:            b.waivedRefs,
+		Conflicts:             checkDestinationCollisions(rootAbs, b.targets, b.documents, b.archives),
 		Ambiguities:           b.ambiguities,
 		Appliable:             len(unresolvedBlocking) == 0,
 		UnresolvedBlockingIDs: unresolvedBlocking,
 		Sources:               sources,
 	}, nil
+}
+
+// checkDestinationCollisions reports a named Conflict for every path this
+// plan intends to *create* that already exists on disk: a converted record,
+// a created document (Idea.md), or an archive entry. A replaced document
+// (router.md) is deliberately excluded — its destination is expected to
+// already exist. This is a read-only check (os.Lstat only), so it costs Plan
+// nothing of its write-free guarantee, and it is what turns "a stray file
+// happens to sit where migration wants to create one" from an apply-time
+// internal invariant crash with no way out into a named, reviewable plan-time
+// refusal the owner can act on before anything is touched.
+func checkDestinationCollisions(root string, targets []PlannedTarget, documents []PlannedDocument, archives []ArchiveEntry) []Conflict {
+	var conflicts []Conflict
+	check := func(relPath string) {
+		abs := filepath.Join(root, filepath.FromSlash(relPath))
+		if _, err := os.Lstat(abs); err == nil {
+			conflicts = append(conflicts, Conflict{
+				Kind: ConflictDestinationExists,
+				Path: relPath,
+				Detail: fmt.Sprintf("migration plans to create %s, but a file already exists there; "+
+					"move or remove it before migrating rather than let it be silently overwritten or leave the operation with no way to finish", relPath),
+			})
+		}
+	}
+
+	for _, t := range targets {
+		check(filepath.ToSlash(filepath.Join(".savepoint", t.InstallPath())))
+	}
+	for _, d := range documents {
+		if d.Kind == DocumentRouter {
+			continue
+		}
+		check(filepath.ToSlash(filepath.Join(".savepoint", d.TargetPath)))
+	}
+	for _, a := range archives {
+		check(a.ArchivePath)
+	}
+
+	sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })
+	return conflicts
 }
 
 func indexSourcesByPath(sources []SourceFile) map[string]SourceFile {
@@ -1079,11 +1129,18 @@ func (b *planBuilder) readSource(rel string) (string, error) {
 	return string(content), nil
 }
 
-// archivePathFor is the deterministic archive/v1/ destination for a
-// project-relative V1 source path: the same relative layout, moved under
-// archive/v1/, so an archived path is always recoverable by inspection alone.
+// archivePathFor is the deterministic .savepoint/archive/v1/ destination for
+// a project-relative V1 source path: the same relative layout, moved under
+// .savepoint/archive/v1/, so an archived path is always recoverable by
+// inspection alone. It lives inside .savepoint/ — as v2-Design.md specifies —
+// so the destination is inventoried, path-confined, and collision-checked
+// like every other path the operation writes; a location outside .savepoint/
+// would be invisible to the inventory and therefore to every conflict and
+// backup guarantee this operation makes. archiveDirName (inventory.go) is
+// the shared name Inventory also excludes from its own walk, so this
+// directory's own content is never re-inventoried as a new source on resume.
 func archivePathFor(sourcePath string) string {
-	return filepath.ToSlash(filepath.Join("archive", "v1", sourcePath))
+	return filepath.ToSlash(filepath.Join(".savepoint", archiveDirName, "v1", sourcePath))
 }
 
 // slugOf derives a deterministic destination slug from an already-authored

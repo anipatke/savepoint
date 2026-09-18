@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,8 +117,8 @@ func TestPlan_v1Basic_archivesCompletedTaskAndReservesNoID(t *testing.T) {
 	if archived.Role != RoleTask {
 		t.Errorf("archived %s Role = %v, want RoleTask", t1Path, archived.Role)
 	}
-	if archived.ArchivePath != "archive/v1/"+t1Path {
-		t.Errorf("archived %s ArchivePath = %q, want archive/v1/%s", t1Path, archived.ArchivePath, t1Path)
+	if archived.ArchivePath != ".savepoint/archive/v1/"+t1Path {
+		t.Errorf("archived %s ArchivePath = %q, want .savepoint/archive/v1/%s", t1Path, archived.ArchivePath, t1Path)
 	}
 
 	active, ok := targetByPath(p, t2Path)
@@ -345,6 +346,100 @@ func TestPlan_existingManifest_isRefusedAsConflictNotOverwritten(t *testing.T) {
 	}
 
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+// --- destination collision conflict -----------------------------------------
+//
+// Regression coverage for an audit finding against E45: a path this plan
+// intends to create (a converted record, Idea.md, or an archive entry) that
+// already exists on disk used to reach Apply undetected and crash with an
+// internal invariant error and no way out. Plan must catch it first, as a
+// named, reviewable ConflictDestinationExists, exactly like an existing
+// manifest.
+
+func TestPlan_archivePathLivesInsideSavepoint(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalV1Project(t, root)
+	writeFile(t, filepath.Join(root, ".savepoint", "PRD.md"), "# Idea\n")
+
+	p := mustPlan(t, root)
+
+	if len(p.Archives) == 0 {
+		t.Fatal("no archives planned, want at least the PRD.md archive entry")
+	}
+	for _, a := range p.Archives {
+		if !strings.HasPrefix(a.ArchivePath, ".savepoint/archive/v1/") {
+			t.Errorf("archive %s ArchivePath = %q, want it to live under .savepoint/archive/v1/ so it is inventoried, path-confined, and collision-checked like every other write",
+				a.SourcePath, a.ArchivePath)
+		}
+	}
+}
+
+func TestPlan_preExistingIdeaDestination_isNamedConflict(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalV1Project(t, root)
+	writeFile(t, filepath.Join(root, ".savepoint", "PRD.md"), "# Idea\n")
+	// A user who read the V2 docs and started early: Idea.md already exists
+	// exactly where PRD.md's DocumentIdea relocation plans to create it.
+	writeFile(t, filepath.Join(root, ".savepoint", "Idea.md"), "my early idea\n")
+
+	before := snapshotTree(t, root)
+
+	p := mustPlan(t, root)
+
+	want := ".savepoint/Idea.md"
+	found := false
+	for _, c := range p.Conflicts {
+		if c.Kind == ConflictDestinationExists && c.Path == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Conflicts = %+v, want a ConflictDestinationExists naming %s", p.Conflicts, want)
+	}
+
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+func TestPlan_preExistingArchiveDestination_isNamedConflict(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalV1Project(t, root)
+	writeFile(t, filepath.Join(root, ".savepoint", "PRD.md"), "# Idea\n")
+	// Something already occupies PRD.md's own archive destination.
+	collision := filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "PRD.md")
+	writeFile(t, collision, "not what migration expects here\n")
+
+	before := snapshotTree(t, root)
+
+	p := mustPlan(t, root)
+
+	want := ".savepoint/archive/v1/.savepoint/PRD.md"
+	found := false
+	for _, c := range p.Conflicts {
+		if c.Kind == ConflictDestinationExists && c.Path == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Conflicts = %+v, want a ConflictDestinationExists naming %s", p.Conflicts, want)
+	}
+
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+func TestPlan_replacedRouterDocument_isNeverACollision(t *testing.T) {
+	// router.md is rewritten in place (ActionReplace): its destination is
+	// expected to already exist, and must never be reported as a collision.
+	root := t.TempDir()
+	writeMinimalV1Project(t, root)
+
+	p := mustPlan(t, root)
+
+	for _, c := range p.Conflicts {
+		if c.Kind == ConflictDestinationExists && c.Path == ".savepoint/router.md" {
+			t.Fatalf("router.md's own replace target was reported as a destination collision: %+v", c)
+		}
+	}
 }
 
 // --- preserved migrations-dir coexistence ----------------------------------

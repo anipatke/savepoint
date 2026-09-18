@@ -90,7 +90,7 @@ const (
 	// ReplaceFile, and is backed up first.
 	ActionReplace EntryAction = "replace"
 	// ActionRemove deletes an existing live file (its content having been
-	// preserved elsewhere, such as archive/v1/), and is backed up first.
+	// preserved elsewhere, such as .savepoint/archive/v1/), and is backed up first.
 	ActionRemove EntryAction = "remove"
 )
 

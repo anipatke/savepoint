@@ -184,7 +184,7 @@ func (w stagedWrite) journalEntry() JournalEntry {
 // activateSchema.
 type applyBatch struct {
 	creates        []stagedWrite // V2 Objective/Task/Issue records, plus Idea.md
-	archiveCreates []stagedWrite // archive/v1/* byte-preserved copies
+	archiveCreates []stagedWrite // .savepoint/archive/v1/* byte-preserved copies
 	manifest       stagedWrite   // migrations/v1-to-v2.yml
 	replaces       []stagedWrite // router.md, rewritten in place
 	removes        []stagedWrite // archived sources, removed after their archive copy verifies

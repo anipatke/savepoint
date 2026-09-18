@@ -282,53 +282,53 @@ files:
               target_path: objectives/O001-example/tasks/T002-follow-up.md
         archives:
             - source_path: .savepoint/Health-Check.md
-              archive_path: archive/v1/.savepoint/Health-Check.md
+              archive_path: .savepoint/archive/v1/.savepoint/Health-Check.md
               role: health-check
             - source_path: .savepoint/PRD.md
-              archive_path: archive/v1/.savepoint/PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/PRD.md
               role: product-prd
             - source_path: .savepoint/audit/findings/F002-owner-waiver.md
-              archive_path: archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
               role: finding
               original_id: F002
             - source_path: .savepoint/audit/prompt.md
-              archive_path: archive/v1/.savepoint/audit/prompt.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/prompt.md
               role: audit-prompt
             - source_path: .savepoint/audit/register.md
-              archive_path: archive/v1/.savepoint/audit/register.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/register.md
               role: audit-register
             - source_path: .savepoint/audit/runs/2026-07-01-example.md
-              archive_path: archive/v1/.savepoint/audit/runs/2026-07-01-example.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/runs/2026-07-01-example.md
               role: audit-run
             - source_path: .savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
-              archive_path: archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
               role: epic-audit
             - source_path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
-              archive_path: archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
               role: epic-detail
               release: v1.1
               epic: E01-example
               original_id: E01-example
             - source_path: .savepoint/releases/v1/defects/D001-shared.md
-              archive_path: archive/v1/.savepoint/releases/v1/defects/D001-shared.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/defects/D001-shared.md
               role: defect
               release: v1
               original_id: v1/D001-shared
             - source_path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
-              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
               role: epic-detail
               release: v1
               epic: E01-example
               original_id: E01-example
             - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
-              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-shared.md
               role: task
               release: v1
               epic: E01-example
               original_id: E01-example/T001-shared
         waived_references:
             - task: T001
-              archive_path: archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
               reason: Owner decided Deep mode is unnecessary for this example project; only Quick is ever exercised here, and this frozen fixture will never reach production launch.
     - path: .savepoint/objectives/O001-example/Objective.md
       content: |

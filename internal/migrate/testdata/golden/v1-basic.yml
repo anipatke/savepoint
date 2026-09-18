@@ -57,23 +57,23 @@ files:
               target_path: objectives/O001-example/tasks/T001-follow-up.md
         archives:
             - source_path: .savepoint/PRD.md
-              archive_path: archive/v1/.savepoint/PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/PRD.md
               role: product-prd
             - source_path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
-              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
               role: epic-detail
               release: v1
               epic: E01-example
               original_id: E01-example
             - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
-              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
               role: task
               release: v1
               epic: E01-example
               original_id: E01-example/T001-original
         legacy_prerequisites:
             - task: T001
-              archive_path: archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
               evidence: 'recorded done; acceptance criteria: Baseline output exists'
     - path: .savepoint/objectives/O001-example/Objective.md
       content: |
@@ -107,7 +107,7 @@ files:
 
         None; this is a documentation-only example epic.
     - path: .savepoint/objectives/O001-example/tasks/T001-follow-up.md
-      content: "---\r\nid: T001\r\ntitle: Extend the baseline with a dependent follow-up\r\nobjective: O001\r\nstatus: in_progress\r\nstage: build\r\nrelease: v1\r\nlegacy_fields:\r\n    legacy_note: kept from v1 authoring; not part of the current schema\r\n    metadata:\r\n        origin: hand-authored\r\n        reviewer:\r\n            name: sam\r\n            role: peer\r\n---\r\n## Migrated from V1\r\n\r\nRelocated verbatim from the V1 task body at `.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md` (release `v1`).\r\n\r\n## V1 Body (verbatim)\r\n\r\n<!-- Author note: this task intentionally keeps v1-era authoring shape,\r\n     including the phase field and this comment, as migration source\r\n     evidence. Do not \"fix\" it to match current templates. -->\r\n\r\n# T002: Follow-up\r\n\r\n## Acceptance Criteria\r\n\r\n- [x] Baseline extended\r\n- [ ] Follow-up documented across more than\r\n      one line, describing the exact expected\r\n      behavior for the dependent step\r\n\r\n## Implementation Plan\r\n\r\n- [x] Read the baseline output\r\n- [ ] Extend it with the following steps: first\r\n      gather inputs, then apply the follow-up\r\n      transform, then record results\r\n\r\n## Evidence\r\n\r\nRecorded across more than one authored line so the raw\r\nbody preserves its original v1 formatting, including this\r\ntrailing note about scope and intent.\r\n\r\n\r\n## Legacy Prerequisite\r\n\r\nThis Task's V1 source depended on completed V1 work that received no V2 identity, archived at `archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md`. Recorded completion evidence: recorded done; acceptance criteria: Baseline output exists\r\n"
+      content: "---\r\nid: T001\r\ntitle: Extend the baseline with a dependent follow-up\r\nobjective: O001\r\nstatus: in_progress\r\nstage: build\r\nrelease: v1\r\nlegacy_fields:\r\n    legacy_note: kept from v1 authoring; not part of the current schema\r\n    metadata:\r\n        origin: hand-authored\r\n        reviewer:\r\n            name: sam\r\n            role: peer\r\n---\r\n## Migrated from V1\r\n\r\nRelocated verbatim from the V1 task body at `.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md` (release `v1`).\r\n\r\n## V1 Body (verbatim)\r\n\r\n<!-- Author note: this task intentionally keeps v1-era authoring shape,\r\n     including the phase field and this comment, as migration source\r\n     evidence. Do not \"fix\" it to match current templates. -->\r\n\r\n# T002: Follow-up\r\n\r\n## Acceptance Criteria\r\n\r\n- [x] Baseline extended\r\n- [ ] Follow-up documented across more than\r\n      one line, describing the exact expected\r\n      behavior for the dependent step\r\n\r\n## Implementation Plan\r\n\r\n- [x] Read the baseline output\r\n- [ ] Extend it with the following steps: first\r\n      gather inputs, then apply the follow-up\r\n      transform, then record results\r\n\r\n## Evidence\r\n\r\nRecorded across more than one authored line so the raw\r\nbody preserves its original v1 formatting, including this\r\ntrailing note about scope and intent.\r\n\r\n\r\n## Legacy Prerequisite\r\n\r\nThis Task's V1 source depended on completed V1 work that received no V2 identity, archived at `.savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md`. Recorded completion evidence: recorded done; acceptance criteria: Baseline output exists\r\n"
     - path: .savepoint/router.md
       content: |
         # Agent State Machine

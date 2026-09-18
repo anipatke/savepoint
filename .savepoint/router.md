@@ -12,11 +12,10 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: task-building
+state: epic-task-breakdown
 release: v2
-epic: E45-safe-migration
-task: E45-safe-migration/T012-migrate-a-whole-project-end-to-end
-next_action: Build E45-safe-migration/T012-migrate-a-whole-project-end-to-end.
+epic: E46-agent-workflow-assets
+next_action: Re-read E46-Detail.md, then create task files at tasks/TNNN-slug.md with status: planned, objective, depends_on, and Implementation Plan checkboxes.
 ```
 
 ## State → action

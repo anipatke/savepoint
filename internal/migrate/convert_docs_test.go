@@ -49,8 +49,8 @@ func TestConvertIdea_relocatesPRDByteForByte(t *testing.T) {
 			if archived.Role != RoleProductPRD {
 				t.Errorf("archived Role = %v, want RoleProductPRD", archived.Role)
 			}
-			if archived.ArchivePath != "archive/v1/"+prdPath {
-				t.Errorf("archived ArchivePath = %q, want archive/v1/%s", archived.ArchivePath, prdPath)
+			if archived.ArchivePath != ".savepoint/archive/v1/"+prdPath {
+				t.Errorf("archived ArchivePath = %q, want .savepoint/archive/v1/%s", archived.ArchivePath, prdPath)
 			}
 
 			sourceBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(prdPath)))
@@ -373,8 +373,8 @@ func TestPlan_healthCheckArchivedWithCandidateCommandsGatesUnaffected(t *testing
 	if archived.Role != RoleHealthCheck {
 		t.Errorf("archived Role = %v, want RoleHealthCheck", archived.Role)
 	}
-	if archived.ArchivePath != "archive/v1/"+healthCheckPath {
-		t.Errorf("archived ArchivePath = %q, want archive/v1/%s", archived.ArchivePath, healthCheckPath)
+	if archived.ArchivePath != ".savepoint/archive/v1/"+healthCheckPath {
+		t.Errorf("archived ArchivePath = %q, want .savepoint/archive/v1/%s", archived.ArchivePath, healthCheckPath)
 	}
 	wantCommands := []string{"make build", "make test", "npm run lint"}
 	if len(archived.CandidateCommands) != len(wantCommands) {

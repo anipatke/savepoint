@@ -270,7 +270,7 @@ type destination string
 const (
 	destConverted destination = "converted to a V2 record"
 	destRelocated destination = "relocated or rewritten as a project document"
-	destArchived  destination = "archived byte-for-byte under archive/v1/"
+	destArchived  destination = "archived byte-for-byte under .savepoint/archive/v1/"
 	destPreserved destination = "preserved in place, byte-identical"
 	destActivated destination = "preserved in place with schema_version activated"
 	destNone      destination = ""
