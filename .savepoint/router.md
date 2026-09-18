@@ -12,10 +12,12 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: epic-task-breakdown
+state: defect-building
 release: v2
 epic: E46-agent-workflow-assets
-next_action: Re-read E46-Detail.md, then create task files at tasks/TNNN-slug.md with status: planned, objective, depends_on, and Implementation Plan checkboxes.
+task: E46-agent-workflow-assets/T009-route-to-the-new-skills-without-breaking-todays-workflow
+defect: D003-ci-workflow-missing-token-permissions
+next_action: Repair D003-ci-workflow-missing-token-permissions.
 ```
 
 ## State → action
