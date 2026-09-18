@@ -29,6 +29,7 @@ type ManifestV1ToV2 struct {
 	Identities          []ManifestIdentity           `yaml:"identities"`
 	Archives            []ManifestArchive            `yaml:"archives"`
 	LegacyPrerequisites []ManifestLegacyPrerequisite `yaml:"legacy_prerequisites,omitempty"`
+	WaivedReferences    []ManifestWaivedReference    `yaml:"waived_references,omitempty"`
 	Decisions           []ManifestDecision           `yaml:"decisions,omitempty"`
 }
 
@@ -71,6 +72,16 @@ type ManifestLegacyPrerequisite struct {
 	Task        string `yaml:"task"`
 	ArchivePath string `yaml:"archive_path"`
 	Evidence    string `yaml:"evidence"`
+}
+
+// ManifestWaivedReference is one typed record of an active converted Task
+// whose V1 source named a waived audit finding. A waiver is a closed owner
+// decision, never a fabricated Issue; this is what keeps the fact resolvable
+// instead of silently dropped.
+type ManifestWaivedReference struct {
+	Task        string `yaml:"task"`
+	ArchivePath string `yaml:"archive_path"`
+	Reason      string `yaml:"reason"`
 }
 
 // ManifestDecision is one owner-supplied resolution recorded against a named
@@ -128,6 +139,17 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 	}
 	sort.Slice(m.LegacyPrerequisites, func(i, j int) bool {
 		return m.LegacyPrerequisites[i].Task < m.LegacyPrerequisites[j].Task
+	})
+
+	for _, w := range plan.WaivedRefs {
+		m.WaivedReferences = append(m.WaivedReferences, ManifestWaivedReference{
+			Task:        w.Task,
+			ArchivePath: w.ArchivePath,
+			Reason:      w.Reason,
+		})
+	}
+	sort.Slice(m.WaivedReferences, func(i, j int) bool {
+		return m.WaivedReferences[i].Task < m.WaivedReferences[j].Task
 	})
 
 	for _, amb := range plan.Ambiguities {

@@ -62,6 +62,12 @@ type PlannedTarget struct {
 	// this target's converted depends_on will name. A dependency on
 	// archived, completed work never appears here; see LegacyPrerequisite.
 	DependsOn []string
+	// DuplicateOfGlobalID is set only for a TargetIssue planned from a
+	// `duplicate` finding whose canonical finding also converts: the
+	// allocated I### of that canonical Issue. Empty for every other target,
+	// including a duplicate finding whose canonical is archive-only (that
+	// duplicate is archived too; see planFinding).
+	DuplicateOfGlobalID string
 }
 
 // ArchiveEntry is one V1 source preserved byte-for-byte under archive/v1/
@@ -85,6 +91,17 @@ type LegacyPrerequisite struct {
 	Task        string // the new T### that named the archived work as a dependency
 	ArchivePath string
 	Evidence    string // the original recorded completion (or waiver) evidence, best-effort from the source
+}
+
+// WaivedReference records that an active converted Task's V1 source (via its
+// work_item or tasks reference) named a waived audit finding. A waiver is a
+// closed owner decision, not follow-up, so it never becomes an Issue — but
+// the fact that active work is aware of it must stay resolvable rather than
+// silently vanish. This is the waiver counterpart to LegacyPrerequisite.
+type WaivedReference struct {
+	Task        string // the global Task ID whose V1 source referenced the waived finding
+	ArchivePath string
+	Reason      string // the original recorded waiver reason, best-effort from the source
 }
 
 // ConflictKind names a reason Plan refuses to proceed with normal planning.
@@ -156,6 +173,7 @@ type ConversionPlan struct {
 	Targets     []PlannedTarget
 	Archives    []ArchiveEntry
 	Prereqs     []LegacyPrerequisite
+	WaivedRefs  []WaivedReference
 	Conflicts   []Conflict
 	Ambiguities []Ambiguity
 
@@ -242,6 +260,7 @@ func Plan(projectRoot string, decisions Decisions, now Clock, newOperationID Ope
 		Targets:     b.targets,
 		Archives:    b.archives,
 		Prereqs:     b.prereqs,
+		WaivedRefs:  b.waivedRefs,
 		Ambiguities: b.ambiguities,
 		Sources:     sources,
 	}, nil
@@ -286,6 +305,7 @@ type planBuilder struct {
 	targets     []PlannedTarget
 	archives    []ArchiveEntry
 	prereqs     []LegacyPrerequisite
+	waivedRefs  []WaivedReference
 	ambiguities []Ambiguity
 
 	// taskByLegacyPath tracks the outcome of every task this build has
@@ -364,6 +384,12 @@ func (b *planBuilder) build() error {
 	b.archiveRemainingRoles()
 
 	sort.SliceStable(b.ambiguities, func(i, j int) bool { return b.ambiguities[i].ID < b.ambiguities[j].ID })
+	sort.SliceStable(b.waivedRefs, func(i, j int) bool {
+		if b.waivedRefs[i].Task != b.waivedRefs[j].Task {
+			return b.waivedRefs[i].Task < b.waivedRefs[j].Task
+		}
+		return b.waivedRefs[i].ArchivePath < b.waivedRefs[j].ArchivePath
+	})
 
 	return nil
 }
@@ -700,7 +726,7 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 		})
 		return nil
 
-	case data.FindingVerified, data.FindingWaived:
+	case data.FindingVerified:
 		b.archives = append(b.archives, ArchiveEntry{
 			SourcePath:  path,
 			ArchivePath: archivePathFor(path),
@@ -709,29 +735,45 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 		})
 		return nil
 
+	case data.FindingWaived:
+		archivePath := archivePathFor(path)
+		b.archives = append(b.archives, ArchiveEntry{
+			SourcePath:  path,
+			ArchivePath: archivePath,
+			Role:        RoleFinding,
+			Legacy:      &legacy,
+		})
+		b.recordWaivedReferences(finding, archivePath)
+		return nil
+
 	case data.FindingDuplicate:
-		canonicalID, canonicalConverts := b.issueByFindingID[finding.DuplicateOf]
-		if !canonicalConverts {
-			if canonical, ok := all[finding.DuplicateOf]; ok && !dispositionArchivesOutright(canonical.Status) {
-				// The canonical finding sorts after this duplicate but will
-				// still convert; resolve forward.
-				id, err := b.planFindingForward(canonical)
-				if err != nil {
-					return err
-				}
-				canonicalID, canonicalConverts = id, id != ""
+		canonical, exists := all[finding.DuplicateOf]
+		if !exists {
+			b.addAmbiguity(AmbiguityUnresolvedNarrativeFind, path,
+				fmt.Sprintf("finding %s is marked duplicate of %q, which names no known finding in this project", finding.ID, finding.DuplicateOf))
+			return nil
+		}
+
+		canonicalID, canonicalConverts := b.issueByFindingID[canonical.ID]
+		if !canonicalConverts && !dispositionArchivesOutright(canonical.Status) {
+			// The canonical finding sorts after this duplicate but will
+			// still convert; resolve forward.
+			id, err := b.planFindingForward(canonical)
+			if err != nil {
+				return err
 			}
+			canonicalID, canonicalConverts = id, id != ""
 		}
 		if canonicalConverts {
 			issueID := b.ids.allocate("I")
 			b.issueByFindingID[finding.ID] = issueID
 			b.targets = append(b.targets, PlannedTarget{
-				Kind:       TargetIssue,
-				GlobalID:   issueID,
-				Legacy:     legacy,
-				TargetPath: filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
+				Kind:                TargetIssue,
+				GlobalID:            issueID,
+				Legacy:              legacy,
+				TargetPath:          filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
+				DuplicateOfGlobalID: canonicalID,
 			})
-			_ = canonicalID
 			return nil
 		}
 		b.archives = append(b.archives, ArchiveEntry{
@@ -769,6 +811,64 @@ func (b *planBuilder) planFindingForward(canonical *data.AuditFinding) (string, 
 		TargetPath: filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(canonical.ID)+".md")),
 	})
 	return issueID, nil
+}
+
+// recordWaivedReferences checks whether a waived finding's own work_item or
+// tasks reference names an active, already-planned Task, and records a
+// WaivedReference when it does — the mechanism behind AC7: a waiver never
+// becomes an Issue, but active work's awareness of it stays resolvable
+// rather than silently dropped.
+func (b *planBuilder) recordWaivedReferences(finding *data.AuditFinding, archivePath string) {
+	refs := append([]string{}, finding.Tasks...)
+	if finding.WorkItem != "" {
+		refs = append(refs, finding.WorkItem)
+	}
+
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		id, ok := resolveTaskReference(b.targets, finding.Releases, ref)
+		if !ok || seen[id] {
+			continue
+		}
+		seen[id] = true
+		b.waivedRefs = append(b.waivedRefs, WaivedReference{
+			Task:        id,
+			ArchivePath: archivePath,
+			Reason:      finding.WaiverReason,
+		})
+	}
+}
+
+// resolveTaskReference resolves a V1 defect/finding task reference (an
+// epic-qualified task id, e.g. "E01-example/T001-shared" — exactly the shape
+// task.ID and therefore LegacyKey.OriginalID already carry) to the global
+// Task ID of the matching *active* Task target, scoped to one of releases
+// when releases is non-empty. Only active targets are ever searched, so an
+// archived task of the same short id in another release can never be
+// mistaken for the one referenced — no release filter is even required for
+// that case, since an archived task never becomes a TargetTask at all; the
+// filter guards the rarer case of the same id being active in two releases
+// at once. A reference that resolves to nothing is not an error: the epic
+// requires no link be invented, only that a named one is not dropped.
+func resolveTaskReference(targets []PlannedTarget, releases []string, ref string) (string, bool) {
+	for _, t := range targets {
+		if t.Kind != TargetTask || t.Legacy.OriginalID != ref {
+			continue
+		}
+		if len(releases) == 0 || containsString(releases, t.Legacy.Release) {
+			return t.GlobalID, true
+		}
+	}
+	return "", false
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func dispositionArchivesOutright(status data.FindingStatus) bool {

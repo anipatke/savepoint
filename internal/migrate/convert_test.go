@@ -53,7 +53,17 @@ func TestConvert_roundTripDecodesAllActiveTargets(t *testing.T) {
 						t.Errorf("task %s: Evidence = %+v, want nil (no fabrication)", target.GlobalID, task.Evidence)
 					}
 				case TargetIssue:
-					// Issue rendering belongs to a later task; not exercised here.
+					content, err := ConvertIssue(root, p, target)
+					if err != nil {
+						t.Fatalf("ConvertIssue(%s) error = %v", target.GlobalID, err)
+					}
+					issue, err := data.DecodeIssueV2(target.TargetPath, content)
+					if err != nil {
+						t.Fatalf("DecodeIssueV2(%s) error = %v", target.GlobalID, err)
+					}
+					if issue.Origin.Check != "" {
+						t.Errorf("issue %s: Origin.Check = %q, want empty (no fabrication)", target.GlobalID, issue.Origin.Check)
+					}
 				}
 			}
 		})
@@ -81,6 +91,11 @@ func TestConvert_deterministicAcrossRepeatedRuns(t *testing.T) {
 					first, err = ConvertTask(root, p, target)
 					if err == nil {
 						second, err = ConvertTask(root, p, target)
+					}
+				case TargetIssue:
+					first, err = ConvertIssue(root, p, target)
+					if err == nil {
+						second, err = ConvertIssue(root, p, target)
 					}
 				default:
 					continue
