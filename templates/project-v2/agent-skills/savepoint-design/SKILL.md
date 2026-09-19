@@ -39,6 +39,18 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 9. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
 10. When the next Objective's Tasks are detailed and approved, set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`.
 
+## Optional Release Boundary
+
+When the owner chose a Release boundary in Idea, define it as a delivery promise that can be navigated across its member Objectives. A Release is still optional: when no Release is useful, create no Release record and continue through Idea → Design → Task → Check with no missing-record error or extra phase.
+
+For an opted-in Release:
+
+1. Allocate a stable global `R###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
+2. Author the Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes what the delivery promises, not whether it has been published or deployed.
+3. Link each member Objective with one optional `release: R###` field. Derive membership from those Objective records; do not maintain a second membership list.
+4. Keep Objectives and Tasks in their normal locations and ownership: a Release does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
+5. Treat Release `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
+
 ## Objective Artifact Template
 
 Write the Objective file with this structure:
@@ -49,7 +61,7 @@ id: O###
 title: Objective Title
 status: planned|in_progress|done
 depends_on: [O###]
-release: optional-release-name
+release: R###
 last_check: optional-check-id
 freshness:
   state: current|stale|unknown
@@ -85,6 +97,8 @@ Interfaces, data ownership, and constraints this Objective must respect.
 **Out of scope:**
 - Excluded work
 ```
+
+Omit `release` when an Objective is intentionally unassigned; it is a reference to a first-class Release identity, not free-form release text.
 
 Task membership is derived from which Tasks name this Objective as their owner. Do not also maintain a second, manually kept list of member Tasks in the Objective body — that list drifts from the Tasks themselves and becomes a second source of truth.
 
@@ -198,6 +212,7 @@ When any of these is not yet true, that gap is the thing to resolve next — eit
 - Write only `Design.md`, `Guardrails.md`, the current Objective, the next Objective's detailed Tasks, and the routing handoff. Do not write production code, and do not detail backlog beyond the next Objective.
 - An unknown implementation approach becomes a bounded research Task with a named decision deliverable, not a speculative plan.
 - Split a Task that carries multiple unrelated outcomes or an unresolved architectural decision.
+- Do not create a Release merely to fill the template, and do not add a Release-owned Task list or a separate release helper document.
 - `title` must never be the Outcome text, a truncation of it, or a restatement of the technical objective; it is a short, plain-English phrase for the task's owner.
 - Route product choices to the owner; do not settle them by inference. Technical readiness does not require the owner to review code.
 - Reference `agent-skills/references/check-method.md` for verification method; do not restate it here.

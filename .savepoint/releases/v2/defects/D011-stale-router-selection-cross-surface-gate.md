@@ -43,10 +43,10 @@ or leaving operators unaware that the router is stale.
 
 ## Fix Plan
 
-Promote the same-disk stale-router fixture to an explicit cross-surface
-regression gate covering `resume`, board startup, and board reload. Assert the
-diagnostic, the independent next action, and the absence of a substitute
-selection.
+Confirmed approach: promote the same-disk stale-router fixture to an explicit
+cross-surface regression gate covering `resume`, board startup, and board
+reload. Assert the diagnostic, the independent next action, and the absence of
+a substitute selection.
 
 ## Acceptance Criteria
 

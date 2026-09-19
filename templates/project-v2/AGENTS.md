@@ -25,6 +25,12 @@ Three shared references back these four skills and are never triggered directly:
 
 Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only for architecture readiness.
 
+## Optional Releases
+
+A Release is an optional delivery boundary, not another public state. Ask for one during Idea only when the owner needs a navigable delivery/package promise across multiple Objectives. Without one, the normal Idea → Design → Task → Check path remains complete and must not report a missing Release record.
+
+When an owner opts in, Design gives the Release a stable `R###` identity and an outcome, success conditions, and Objective links. Objectives carry the single optional `release: R###` reference; Releases do not nest files, own Tasks, or maintain a second membership list. Release `done` means current CLEAR integration evidence plus the owner's acceptance of that exact Check, not published or deployed.
+
 ## Terminology
 
 - Router `state` is the current state: `idea`, `design`, `task`, or `check`.
@@ -69,7 +75,7 @@ What exists goes to `.savepoint/Design.md`: concrete structure to Components/Cod
 
 Adoption does not rewrite user-authored files. `savepoint init` may add or refresh the Savepoint-managed block in an existing agent guide, preserving every byte outside that block; all other Savepoint files are added under `.savepoint/`.
 
-This guidance degrades when optional files are absent: a V2 project ships no Concept, no Health-Check, no procedures file, and no release document, and none of those are required before adoption can proceed. Their absence is normal, not a finding.
+This guidance degrades when optional files are absent: a V2 project ships no Concept, no Health-Check, no procedures file, and no Release record, and none of those are required before adoption can proceed. Their absence is normal, not a finding.
 
 ## Code Style
 

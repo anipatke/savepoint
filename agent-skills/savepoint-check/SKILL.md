@@ -29,7 +29,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 ## Workflow
 
 1. Confirm the session is fresh. If this session built the work under review, state that limitation; do not proceed as an independent Check unless the user explicitly asks to continue anyway.
-2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence; an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design.
+2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence; an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design; a Release Check uses `scope.kind: release` to evaluate integration across all member Objectives.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a Task Check, Full for an Objective Check.
 4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C###` and names the run it replaces in `supersedes`.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. The executor resumes at `stage: build` inside the same Task.
@@ -39,7 +39,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 
 ## Write Boundary
 
-This skill may write: the Check record, Issues, evaluation metadata, and authorized closure (`status: done`, removing `stage`) when the closure rules below allow it.
+This skill may write: the Check record, Issues, evaluation metadata, and authorized closure (`status: done`, removing `stage`) when the closure rules below allow it. It may record whether the owner has accepted a Release Check, but it never records owner acceptance on the owner's behalf.
 
 It must never: repair implementation, edit acceptance criteria to match a result, or update Design as a form of remediation. A correction is always routed back to the planner or executor, and a later Check — a new record, never an edit to this one — verifies that the repair actually landed.
 
@@ -49,7 +49,7 @@ Write each Check record with this structure:
 
 ```yaml
 id: C###
-scope: {kind: task|objective, id: T### or O###}
+scope: {kind: task|objective|release, id: T###, O###, or R###}
 result: CLEAR|NEEDS WORK
 checked_by: {role: checker, session: review-001}
 executed_session: build-001
@@ -72,6 +72,7 @@ Each run writes a new record with a new `C###`. A recheck never edits the supers
 - A checker may complete a technical Task — one with no `owner_validation.required` — once its clearance is current and no unexcepted material blocker remains.
 - A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count.
 - An Objective closes only after every Task it owns is done and the Objective's own integration Check is current, with the same conditional owner-acceptance rule applied at the Objective level. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
+- A Release Check reviews cross-Objective integration for `R###`, reuses ordinary Issues for material findings, and does not invent a parallel release audit. Release `done` requires at least one member Objective, every member Objective complete, current CLEAR integration evidence, resolved or explicitly excepted material Issues, and the owner's acceptance of that exact current Check. The checker never supplies that acceptance, and Release `done` does not mean published or deployed.
 - A record lacking sufficient scope or evidence cannot support completion. Stale or unknown freshness blocks normal completion; it is never waived through by re-asserting "current" without a fresh assessment.
 - A recorded owner exception can grant completion despite an unmet requirement, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance, and it applies only to the Check it names.
 
@@ -80,7 +81,8 @@ Each run writes a new record with a new `C###`. A recheck never edits the supers
 Enter Issue capture as an entry from this workflow when a Check finds
 something that blocks the verdict. A `NEEDS WORK` Check records the Issues it
 finds; see `agent-skills/references/issue-capture.md` for the artifact
-template and rules. This skill is the one role that may close an Issue, after
+template and rules. A failed Release Check creates or reuses ordinary Issues;
+it does not create release-only findings. This skill is the one role that may close an Issue, after
 verifying its proof.
 
 ## Rules
@@ -90,6 +92,7 @@ verifying its proof.
 - Write only the Check record, Issues, evaluation metadata, and authorized closure. Never repair implementation, edit acceptance criteria, or update Design as remediation — route corrections back to the planner or executor.
 - Every Check run is a new immutable `C###` record; a recheck sets `supersedes` and never edits a prior run.
 - Apply Quick evidence for a Task Check and Full evidence for an Objective Check; an Objective Check additionally covers cross-Task integration and Design reconciliation, and a Task-only Check never substitutes for it.
+- Apply the Release Check scope when `scope.kind: release`: inspect all member Objectives and their cross-Objective integration, then reuse ordinary Issues and hand owner acceptance back to the owner.
 - A `NEEDS WORK` result records Issues and hands remediation to the executor or planner; the executor resumes at `stage: build` inside the same Task.
 - Apply the closure rules above exactly; do not close a Task or Objective on a stale, unknown, or missing clearance, and do not treat an exception as a `CLEAR` result.
 - Treat advisory observations, including `STYLE` guardrail rules, as non-blocking; record them, but never let them change the result on their own.

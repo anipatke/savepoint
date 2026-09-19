@@ -37,8 +37,11 @@ safety invariant.
 
 ## Fix Plan
 
-Normalize absolute paths and apply the same root-containment check used for
-relative paths, including the platform separator boundary. Add tests for an
+Confirmed approach: normalize absolute paths and apply the same
+root-containment check used for relative paths, including the platform
+separator boundary, so an absolute path outside the root is rejected with
+`ErrV2UnsafePath`. Keep the current pass-through for an absolute path with an
+empty `ProjectRoot` (there is no root to contain against). Add tests for an
 absolute path inside the root, an absolute path outside it, and equivalent
 relative escape attempts.
 

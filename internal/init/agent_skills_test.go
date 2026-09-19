@@ -853,7 +853,7 @@ func TestSavepointCheckSkillWriteBoundaryAndForbiddenActions(t *testing.T) {
 	}
 }
 
-var checkTemplateFields = []string{"id: C###", "scope: {kind: task|objective, id:", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
+var checkTemplateFields = []string{"id: C###", "scope: {kind: task|objective|release, id:", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
 
 func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
@@ -879,7 +879,7 @@ func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 	}
 }
 
-func TestSavepointCheckSkillTwoScopes(t *testing.T) {
+func TestSavepointCheckSkillScopes(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		path := filepath.Join(root, "savepoint-check", "SKILL.md")
 		data, err := os.ReadFile(path)
@@ -894,6 +894,9 @@ func TestSavepointCheckSkillTwoScopes(t *testing.T) {
 		}
 		if !strings.Contains(content, "integration across the Objective's owned Tasks and reconciliation against Design") {
 			t.Errorf("%s: %s does not scope an Objective Check to integration and Design reconciliation", tree, path)
+		}
+		if !strings.Contains(content, "a Release Check uses `scope.kind: release` to evaluate integration across all member Objectives") {
+			t.Errorf("%s: %s does not scope a Release Check to cross-Objective integration", tree, path)
 		}
 	}
 }
@@ -912,6 +915,8 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 			"complete a technical Task",
 			"no unexcepted material blocker",
 			"owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check",
+			"Release `done` requires at least one member Objective",
+			"The checker never supplies that acceptance",
 			"cannot support completion",
 			"Stale or unknown freshness blocks normal completion",
 			"never waived through by re-asserting",
@@ -921,6 +926,64 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
+	for tree, root := range v2SkillRoots() {
+		idea := string(readSkillFile(t, root, "savepoint-idea"))
+		for _, phrase := range []string{
+			"Release is optional planning context",
+			"navigable delivery/package promise",
+			"Ask whether the owner needs a navigable delivery/package promise across multiple Objectives",
+			"otherwise continue with Objective → Task",
+		} {
+			if !strings.Contains(idea, phrase) {
+				t.Errorf("%s: savepoint-idea missing optional-Release phrase %q", tree, phrase)
+			}
+		}
+
+		design := string(readSkillFile(t, root, "savepoint-design"))
+		for _, phrase := range []string{
+			"## Optional Release Boundary",
+			"stable global `R###` identity from the first unused number",
+			"Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
+			"one optional `release: R###` field",
+			"do not maintain a second membership list",
+			"continue through Idea → Design → Task → Check with no missing-record error or extra phase",
+			"current CLEAR integration evidence exists",
+			"not whether it has been published or deployed",
+		} {
+			if !strings.Contains(design, phrase) {
+				t.Errorf("%s: savepoint-design missing Release design phrase %q", tree, phrase)
+			}
+		}
+		if strings.Contains(design, "release: optional-release-name") {
+			t.Errorf("%s: savepoint-design retains the pre-E51 optional release-string placeholder", tree)
+		}
+
+		check := string(readSkillFile(t, root, "savepoint-check"))
+		for _, phrase := range []string{
+			"scope: {kind: task|objective|release, id: T###, O###, or R###}",
+			"cross-Objective integration",
+			"creates or reuses ordinary Issues",
+			"never records owner acceptance on the owner's behalf",
+			"Release `done` does not mean published or deployed",
+		} {
+			if !strings.Contains(check, phrase) {
+				t.Errorf("%s: savepoint-check missing Release Check phrase %q", tree, phrase)
+			}
+		}
+	}
+}
+
+func readSkillFile(t *testing.T, root, skill string) []byte {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(root, skill, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read %s/%s/SKILL.md: %v", root, skill, err)
+	}
+	return data
 }
 
 func TestSavepointCheckSkillNeedsWorkPath(t *testing.T) {

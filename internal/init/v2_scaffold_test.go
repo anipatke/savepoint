@@ -14,8 +14,8 @@ import (
 var v2ScaffoldSavepointFiles = []string{"Idea.md", "Design.md", "Guardrails.md", "config.yml", "router.md"}
 
 // v2ScaffoldForbiddenFiles are V1-lifecycle files that must never reach the
-// V2 scaffold: a project on the V2 lifecycle has no epics, no release PRD,
-// no Concept, no Health-Check, and no audit register.
+// V2 scaffold: a fresh project has no epics, no release helper document, no
+// Concept, no Health-Check, and no audit register.
 var v2ScaffoldForbiddenFiles = []string{"PRD.md", "Concept.md", "Health-Check.md"}
 var v2ScaffoldForbiddenDirs = []string{"releases", "audit"}
 
@@ -43,6 +43,31 @@ func TestV2ScaffoldSavepointFileSet(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
 			t.Errorf("templates/project-v2/.savepoint/%s must not exist on the V2 scaffold", name)
 		}
+	}
+}
+
+func TestV2ScaffoldDoesNotCreateReleaseRecordOrPromise(t *testing.T) {
+	target := t.TempDir()
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() from templates/project-v2 error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, ".savepoint", "releases")); !os.IsNotExist(err) {
+		t.Fatalf("fresh V2 scaffold has a releases directory, stat err = %v", err)
+	}
+
+	err := filepath.WalkDir(target, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Name() == "Release.md" {
+			t.Errorf("fresh V2 scaffold contains a Release record at %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk fresh V2 scaffold: %v", err)
 	}
 }
 
@@ -159,7 +184,7 @@ func TestV2AgentsGuideCarriesExistingCodebaseAdoptionSection(t *testing.T) {
 	}
 
 	// Optional files degrade gracefully; absence is normal, not a finding.
-	for _, optional := range []string{"Concept", "Health-Check", "procedures file", "release document"} {
+	for _, optional := range []string{"Concept", "Health-Check", "procedures file", "Release record"} {
 		if !strings.Contains(body, optional) {
 			t.Errorf("adoption section does not name optional file %q as never required", optional)
 		}

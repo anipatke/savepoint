@@ -40,11 +40,12 @@ incorrect result through dependency decisions, gates, and the project-wide
 
 ## Fix Plan
 
-Choose one contract and enforce it consistently: derive `LatestCheck` from the
-authoritative supersession chain, or reject any project whose Check ordering
-does not agree with the numeric allocation invariant. Add coverage for
-multiple chain heads and for the downstream `ResolveClearance`/gate/`Next`
-outcome.
+Confirmed contract: fail closed at load. A scope's Checks must form one
+ID-ordered supersession chain; a multi-head or stray high-ID Check that makes
+numeric order and supersession order disagree is rejected with a named load
+error. `LatestCheck` keeps its current semantics, so no downstream consumer
+changes. Add coverage for multiple chain heads and for the downstream
+`ResolveClearance`/gate/`Next` outcome.
 
 ## Acceptance Criteria
 

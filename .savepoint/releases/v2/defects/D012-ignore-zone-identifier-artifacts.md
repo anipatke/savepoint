@@ -33,9 +33,9 @@ future changes unless the ignore rule is present.
 
 ## Fix Plan
 
-Remove the committed `Zone.Identifier` artifact and add `*:Zone.Identifier` to
-`.gitignore`. Verify the tracked-file list is clean and unrelated ignore rules
-are unchanged.
+Confirmed approach: remove the committed `Zone.Identifier` artifact from the
+index (`git rm --cached`) and add `*:Zone.Identifier` to `.gitignore`. Verify
+the tracked-file list is clean and unrelated ignore rules are unchanged.
 
 ## Acceptance Criteria
 

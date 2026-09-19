@@ -37,10 +37,12 @@ be updated.
 
 ## Fix Plan
 
-Replace the plausible dependency fallback with an explicit unknown-blocker
-diagnostic or an error-bearing resolution path. Add an adversarial test that
-injects an unhandled blocker and verifies the fail-closed result at each
-rendering surface.
+Confirmed approach: add a typed `NextKind` (for example `next_invalid_state`)
+for an unrecognized blocker instead of the `NextDependency` fallback. Its
+action phrasing names the unhandled blocker kind and tells the caller to report
+it. Board badge mapping and resume wording handle the new kind; `ResolveNext`
+stays error-free. Add an adversarial test that injects an unhandled blocker and
+verifies the fail-closed result at each rendering surface.
 
 ## Acceptance Criteria
 

@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E51-first-class-releases
-task: E51-first-class-releases/T005-diagnose-release-structure-and-readiness
-next_action: Build E51-first-class-releases/T005-diagnose-release-structure-and-readiness.
+task: E51-first-class-releases/T006-teach-the-workflow-when-a-release-is-worth-using
+next_action: Build E51-first-class-releases/T006-teach-the-workflow-when-a-release-is-worth-using.
 ```
 
 ## State → action

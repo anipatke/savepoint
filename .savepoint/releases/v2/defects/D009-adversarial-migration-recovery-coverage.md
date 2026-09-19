@@ -46,11 +46,13 @@ operator path during the release cutover.
 
 ## Fix Plan
 
-Add fault injection at every publish boundary, invoke recovery through a fresh
-process or command call, assert byte preservation and journal convergence,
-and add platform jobs or documented harness evidence for Windows/NTFS and WSL.
-Keep the existing focused lifecycle tests as unit evidence and add the missing
-end-to-end matrix around them.
+Confirmed approach, phased. Phase 1 (Linux): add fault injection at every
+publish boundary, invoke recovery through a fresh process or command call, and
+assert byte preservation and journal convergence across source edits, installed
+output edits, partial deletion, repeated runs, and malformed V1 projects. Keep
+the existing focused lifecycle tests as unit evidence and add the missing
+end-to-end matrix around them. Phase 2: exercise Windows/NTFS and WSL through
+platform jobs, or document the supported boundary with harness evidence.
 
 ## Acceptance Criteria
 

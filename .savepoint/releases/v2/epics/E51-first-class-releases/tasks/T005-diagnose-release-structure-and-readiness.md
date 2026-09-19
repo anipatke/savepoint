@@ -1,10 +1,9 @@
 ---
 id: E51-first-class-releases/T005-diagnose-release-structure-and-readiness
-status: in_progress
-stage: test
+status: done
 objective: Report actionable Release integrity and readiness diagnostics from the same indexed records and gate decisions.
 depends_on:
-  - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
+    - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
 complexity_tier: medium
 complexity_reason: Adds one consumer of canonical Release diagnostics and gates across doctor checks, reports, and repair guidance.
 ---

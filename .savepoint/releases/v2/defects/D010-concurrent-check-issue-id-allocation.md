@@ -39,9 +39,11 @@ though the underlying record allocation is safely create-only.
 
 ## Fix Plan
 
-Define the collision error and reload/retry behavior for both record types,
-then add concurrent tests that assert exactly one file wins, no bytes are
-overwritten, and the losing caller can reload and succeed with the next ID.
+Confirmed approach: define a typed collision error for `CreateCheckV2` and
+`CreateIssueV2` that tells the caller to reload the index and retry allocation,
+preserving the existing create-only no-overwrite guarantee. Then add concurrent
+tests that assert exactly one file wins, no bytes are overwritten, and the
+losing caller can reload and succeed with the next ID.
 
 ## Acceptance Criteria
 

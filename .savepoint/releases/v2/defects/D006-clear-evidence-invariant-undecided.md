@@ -40,9 +40,12 @@ that was actually verified.
 
 ## Fix Plan
 
-Decide the CLEAR evidence invariant, encode it in the Check decoder and
-clearance semantics, update the documentation and wording, and retain or
-replace the empty-evidence regression test to lock the decision.
+Confirmed contract: empty or absent `reviewed` evidence is legitimate for a
+CLEAR Check. CLEAR is established by independent checker provenance and current
+freshness, not by reviewed content. Document the contract across the Check
+decoder, `ResolveClearance`, the V2 record and workflow guidance, and the
+user-facing wording; keep the empty-evidence regression test and extend it to
+cover absent, empty, and substantive reviewed evidence.
 
 ## Acceptance Criteria
 

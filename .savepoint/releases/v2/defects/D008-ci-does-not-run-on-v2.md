@@ -36,9 +36,12 @@ the branch where the rewrite is being developed.
 
 ## Fix Plan
 
-Add `v2` to the appropriate CI push and pull-request branch filters, then
-verify the workflow triggers and passes on the active branch without weakening
-the existing permissions or `make ci` steps.
+Confirmed approach: add `v2` to the CI push and pull-request branch filters,
+then verify the workflow triggers and passes on the active branch without
+weakening the existing permissions or `make ci` steps. Sequencing: the
+repository's `make test` is currently red from the in-flight E46 provenance
+repair, so land that repair before or with this change; otherwise `v2` CI
+arrives red.
 
 ## Acceptance Criteria
 
