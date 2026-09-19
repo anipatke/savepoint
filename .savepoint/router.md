@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E51-first-class-releases
-task: E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
-next_action: Build E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance.
+task: E51-first-class-releases/T004-migrate-every-release-and-its-source-promise
+next_action: Build E51-first-class-releases/T004-migrate-every-release-and-its-source-promise.
 ```
 
 ## State → action

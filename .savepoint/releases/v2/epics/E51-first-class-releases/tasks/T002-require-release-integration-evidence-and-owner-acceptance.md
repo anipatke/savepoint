@@ -1,10 +1,9 @@
 ---
 id: E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
-status: in_progress
-stage: build
+status: done
 objective: Decide Release completion from member Objectives, independent Release evidence, material Issues, and acceptance by the owner.
 depends_on:
-  - E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy
+    - E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy
 complexity_tier: high
 complexity_reason: Extends immutable Check scope and composes evidence, issue, objective, exception, and owner-authority rules.
 ---

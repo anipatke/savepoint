@@ -22,8 +22,20 @@ func TestReadStateV2_decodesSelectedTask(t *testing.T) {
 	}
 }
 
+func TestReadStateV2_decodesSelectedRelease(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\nrelease: R001\nobjective: O001\ntask: T001\nnext_action: \"Build T001\"\n```\n"
+
+	state, err := NewRouterReader().ReadStateV2(content)
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Release != "R001" || state.Objective != "O001" || state.Task != "T001" {
+		t.Fatalf("ReadStateV2() selections = release %q objective %q task %q, want R001/O001/T001", state.Release, state.Objective, state.Task)
+	}
+}
+
 func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: idea\nobjective: none\ntask: none\nnext_action: \"\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: idea\nrelease: none\nobjective: none\ntask: none\nnext_action: \"\"\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
@@ -31,6 +43,9 @@ func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
 	}
 	if state.Objective != "" {
 		t.Errorf("Objective = %q, want empty for the none sentinel", state.Objective)
+	}
+	if state.Release != "" {
+		t.Errorf("Release = %q, want empty for the none sentinel", state.Release)
 	}
 	if state.Task != "" {
 		t.Errorf("Task = %q, want empty for the none sentinel", state.Task)
@@ -90,6 +105,15 @@ func TestReadStateV2_emptyStateIsNamedDiagnostic(t *testing.T) {
 
 func TestReadStateV2_malformedObjectiveID(t *testing.T) {
 	content := "## Current state\n\n```yaml\nstate: design\nobjective: abc\ntask: none\nnext_action: \"\"\n```\n"
+
+	_, err := NewRouterReader().ReadStateV2(content)
+	if !errors.Is(err, ErrV2InvalidID) {
+		t.Fatalf("ReadStateV2() error = %v, want ErrV2InvalidID", err)
+	}
+}
+
+func TestReadStateV2_malformedReleaseID(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: design\nrelease: release-1\nobjective: none\ntask: none\nnext_action: \"\"\n```\n"
 
 	_, err := NewRouterReader().ReadStateV2(content)
 	if !errors.Is(err, ErrV2InvalidID) {

@@ -137,6 +137,99 @@ func TestResolveSelection_objectiveOnly(t *testing.T) {
 	}
 }
 
+func TestResolveSelection_releaseContextDiagnostics(t *testing.T) {
+	tests := []struct {
+		name        string
+		configure   func(*V2Index)
+		router      RouterStateV2
+		wantKind    SelectionDiagnosticKind
+		wantRelease bool
+	}{
+		{
+			name: "valid release",
+			configure: func(index *V2Index) {
+				index.Releases["R001"] = &ReleaseV2{ID: "R001", Title: "First"}
+			},
+			router:      RouterStateV2{Release: "R001"},
+			wantRelease: true,
+		},
+		{
+			name:     "missing release",
+			router:   RouterStateV2{Release: "R999"},
+			wantKind: SelectionReleaseNotFound,
+		},
+		{
+			name: "archived release",
+			configure: func(index *V2Index) {
+				index.Releases["R001"] = &ReleaseV2{ID: "R001", LegacyCompletion: &LegacyCompletionReference{SourcePath: "legacy.md"}}
+			},
+			router:      RouterStateV2{Release: "R001"},
+			wantKind:    SelectionReleaseArchived,
+			wantRelease: true,
+		},
+		{
+			name: "unassigned objective",
+			configure: func(index *V2Index) {
+				index.Releases["R001"] = &ReleaseV2{ID: "R001"}
+				index.Objectives["O001"] = &ObjectiveV2{ID: "O001"}
+			},
+			router:      RouterStateV2{Release: "R001", Objective: "O001"},
+			wantKind:    SelectionObjectiveUnassigned,
+			wantRelease: true,
+		},
+		{
+			name: "objective belongs to another release",
+			configure: func(index *V2Index) {
+				index.Releases["R001"] = &ReleaseV2{ID: "R001"}
+				index.Releases["R002"] = &ReleaseV2{ID: "R002"}
+				index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R002"}
+			},
+			router:      RouterStateV2{Release: "R001", Objective: "O001"},
+			wantKind:    SelectionReleaseMismatch,
+			wantRelease: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			index.Releases = map[string]*ReleaseV2{}
+			if tt.configure != nil {
+				tt.configure(index)
+			}
+
+			selection, diagnostic := ResolveSelection(index, &tt.router)
+			if tt.wantKind == "" {
+				if diagnostic != nil {
+					t.Fatalf("diagnostic = %+v, want nil", diagnostic)
+				}
+			} else if diagnostic == nil || diagnostic.Kind != tt.wantKind {
+				t.Fatalf("diagnostic = %+v, want %q", diagnostic, tt.wantKind)
+			}
+			if (selection.Release != nil) != tt.wantRelease {
+				t.Fatalf("selection.Release = %+v, want present=%t", selection.Release, tt.wantRelease)
+			}
+		})
+	}
+}
+
+func TestResolveSelection_releaseMismatchNeverSubstitutesObjective(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{
+		"R001": {ID: "R001", Title: "Selected release"},
+		"R002": {ID: "R002", Title: "Other release"},
+	}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Same title", Release: "R002"}
+
+	selection, diagnostic := ResolveSelection(index, &RouterStateV2{Release: "R001", Objective: "O001"})
+	if diagnostic == nil || diagnostic.Kind != SelectionReleaseMismatch {
+		t.Fatalf("diagnostic = %+v, want release mismatch", diagnostic)
+	}
+	if selection.Objective != nil || selection.Release == nil || selection.Release.ID != "R001" {
+		t.Fatalf("selection = %+v, want only the exact selected Release and no substituted Objective", selection)
+	}
+}
+
 // TestResolveSelection_noSelection proves a router in idea or design with no
 // Objective and no Task resolves cleanly to no selection, not a diagnostic.
 func TestResolveSelection_noSelection(t *testing.T) {
@@ -210,6 +303,136 @@ func TestResolveNext_replanOutranksExecution(t *testing.T) {
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
 		t.Fatalf("Kind = %q, want replan", next.Kind)
+	}
+}
+
+func TestResolveNext_pendingMigrationOutranksSelectedRelease(t *testing.T) {
+	index := releaseGateIndex()
+	index.Releases["R001"].Evidence.OwnerValidation = &OwnerValidation{
+		AcceptedCheck: "C002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
+	}
+
+	next := ResolveNext(NextInput{
+		Index: index, Router: &RouterStateV2{Release: "R001"},
+		Migration: MigrationState{Pending: true, OperationID: "op-release"},
+	})
+	if next.Kind != NextPendingMigration || next.Migration.OperationID != "op-release" {
+		t.Fatalf("next = %+v, want pending migration before Release work", next)
+	}
+}
+
+func TestResolveNext_selectedReleaseReplanOutranksReleaseExecution(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001"}
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild,
+		Evidence: &Evidence{Replan: &Replan{Reason: "scope changed", RecordedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}},
+	}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.ReleaseObjectives = map[string][]string{"R001": {"O001"}}
+
+	next := ResolveNext(NextInput{
+		Index: index, Router: &RouterStateV2{Release: "R001", Objective: "O001", Task: "T001"},
+	})
+	if next.Kind != NextReplan || next.Task == nil || next.Task.ID != "T001" {
+		t.Fatalf("next = %+v, want selected Release task replan", next)
+	}
+}
+
+func TestResolveNext_selectedReleaseScopesReadyWorkToItsMembers(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{
+		"R001": {ID: "R001", Title: "Selected"},
+		"R002": {ID: "R002", Title: "Unrelated"},
+	}
+	index.ReleaseObjectives = map[string][]string{}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnPlanned}
+	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Release: "R002", Status: ColumnPlanned}
+	index.Objectives["O003"] = &ObjectiveV2{ID: "O003", Status: ColumnPlanned}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
+	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O002", Status: ColumnPlanned}
+	index.Tasks["T003"] = &TaskV2{ID: "T003", Objective: "O003", Status: ColumnPlanned}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.ObjectiveTasks["O002"] = []string{"T002"}
+	index.ObjectiveTasks["O003"] = []string{"T003"}
+	index.ReleaseObjectives["R001"] = []string{"O001"}
+	index.ReleaseObjectives["R002"] = []string{"O002"}
+
+	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
+	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T001" {
+		t.Fatalf("next = %+v, want selected Release's T001 ready", next)
+	}
+	if next.Release == nil || next.Release.ID != "R001" {
+		t.Fatalf("next.Release = %+v, want R001", next.Release)
+	}
+}
+
+func TestResolveNext_selectedReleaseKeepsActiveMemberTaskActionable(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnInProgress}
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.ReleaseObjectives = map[string][]string{"R001": {"O001"}}
+
+	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
+	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T001" {
+		t.Fatalf("next = %+v, want active member T001 execution", next)
+	}
+}
+
+func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*V2Index)
+		wantKind  NextKind
+	}{
+		{
+			name: "release Check needed",
+			configure: func(index *V2Index) {
+				index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
+				index.ReleaseObjectives = map[string][]string{}
+				index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnDone, Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "objective-checker"}, Basis: "done"}}}
+				index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
+				index.ObjectiveTasks["O001"] = []string{"T001"}
+				index.ReleaseObjectives["R001"] = []string{"O001"}
+				mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
+			},
+			wantKind: NextReleaseCheckNeeded,
+		},
+		{
+			name: "owner acceptance needed",
+			configure: func(index *V2Index) {
+				// releaseGateIndex has done member work and current Release clearance.
+				configured := releaseGateIndex()
+				*index = *configured
+			},
+			wantKind: NextReleaseOwnerValidationRequired,
+		},
+		{
+			name: "release ready",
+			configure: func(index *V2Index) {
+				configured := releaseGateIndex()
+				configured.Releases["R001"].Evidence.OwnerValidation = &OwnerValidation{AcceptedCheck: "C002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}
+				*index = *configured
+			},
+			wantKind: NextReleaseReady,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			tt.configure(index)
+			next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
+			if next.Kind != tt.wantKind {
+				t.Fatalf("next.Kind = %q, want %q; next = %+v", next.Kind, tt.wantKind, next)
+			}
+			if next.Release == nil || next.Release.ID != "R001" || next.GateDecision == nil || next.Clearance == nil {
+				t.Fatalf("next = %+v, want typed Release, gate decision, and clearance", next)
+			}
+		})
 	}
 }
 

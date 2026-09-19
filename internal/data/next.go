@@ -5,18 +5,21 @@ import (
 	"slices"
 )
 
-// SelectionRecordKind names which record family a SelectionNotFound
-// diagnostic is about: the router's objective, or its task.
+// SelectionRecordKind names which record family a selection diagnostic is
+// about: the router's Release, Objective, or Task.
 type SelectionRecordKind string
 
 const (
+	SelectionRecordRelease   SelectionRecordKind = "release"
 	SelectionRecordObjective SelectionRecordKind = "objective"
 	SelectionRecordTask      SelectionRecordKind = "task"
 )
 
-// SelectionDiagnosticKind names the two honest ways selection resolution can
-// fail to produce a value: a named ID absent from the live index, or a
-// resolvable Task whose own objective disagrees with the router's.
+// SelectionDiagnosticKind names why the router's contextual selection could
+// not be honored. Release diagnostics are separate from the older Task /
+// Objective diagnostics so a renderer can explain an archived Release,
+// unassigned Objective, and cross-Release mismatch without inspecting the
+// index again.
 type SelectionDiagnosticKind string
 
 const (
@@ -29,6 +32,23 @@ const (
 	// Objective. Ownership always comes from the Task record, never the
 	// router, so this is reported rather than silently reconciled.
 	SelectionMismatch SelectionDiagnosticKind = "mismatch"
+	// SelectionReleaseNotFound means the router names a Release absent from
+	// the live index. No similarly named Release is substituted.
+	SelectionReleaseNotFound SelectionDiagnosticKind = "release_not_found"
+	// SelectionReleaseArchived means the selected Release is a historical
+	// migrated record and is not an actionable live delivery context.
+	SelectionReleaseArchived SelectionDiagnosticKind = "release_archived"
+	// SelectionObjectiveUnassigned means the selected Objective has no
+	// Release reference, so it cannot be interpreted inside a Release.
+	SelectionObjectiveUnassigned SelectionDiagnosticKind = "objective_unassigned"
+	// SelectionReleaseMismatch means the selected Objective names a different
+	// Release than the router context.
+	SelectionReleaseMismatch SelectionDiagnosticKind = "release_mismatch"
+
+	// Short aliases keep the diagnostic vocabulary easy to discover for
+	// callers that reason about selection state rather than record family.
+	SelectionArchived   = SelectionReleaseArchived
+	SelectionUnassigned = SelectionObjectiveUnassigned
 )
 
 // SelectionDiagnostic is the typed, branchable result of a selection that
@@ -43,6 +63,13 @@ type SelectionDiagnostic struct {
 	RecordKind SelectionRecordKind
 	ID         string
 
+	// Release, Objective, and ObjectiveRelease are populated for Release
+	// context diagnostics. ObjectiveRelease is empty for an unassigned
+	// Objective.
+	Release          string
+	Objective        string
+	ObjectiveRelease string
+
 	// RouterObjective, Task, and TaskObjective are populated when Kind is
 	// SelectionMismatch: the Objective the router named, the Task that
 	// otherwise resolved, and the Objective that Task's own record declares
@@ -52,12 +79,13 @@ type SelectionDiagnostic struct {
 	TaskObjective   string
 }
 
-// Selection is one honest resolved outcome: no record selected, an
-// Objective with no Task selected under it, or a matched Objective/Task
-// pair. It is the zero value both when nothing was selected and when
-// resolution produced a SelectionDiagnostic instead; callers distinguish the
-// two by whether ResolveSelection returned a non-nil diagnostic.
+// Selection is one honest resolved outcome: no context selected, a Release
+// with no Objective selected, an Objective with no Task selected under it, or
+// a matched Release/Objective/Task context. When a Release diagnostic names a
+// live Release, the Release is retained for rendering while Objective/Task
+// action remains unresolved.
 type Selection struct {
+	Release   *ReleaseV2
 	Objective *ObjectiveV2
 	Task      *TaskV2
 }
@@ -76,37 +104,86 @@ type Selection struct {
 // live index is the only thing consulted, so a migrated-away ID reports as
 // not found rather than as a guess at where it went.
 func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *SelectionDiagnostic) {
+	if index == nil {
+		index = &V2Index{}
+	}
+	if router == nil {
+		return Selection{}, nil
+	}
+
+	var release *ReleaseV2
+	if router.Release != "" {
+		candidate, ok := index.Releases[router.Release]
+		if !ok {
+			return Selection{}, &SelectionDiagnostic{
+				Kind: SelectionReleaseNotFound, RecordKind: SelectionRecordRelease,
+				ID: router.Release, Release: router.Release,
+			}
+		}
+		release = candidate
+		if release.LegacyCompletion != nil {
+			return Selection{Release: release}, &SelectionDiagnostic{
+				Kind: SelectionReleaseArchived, RecordKind: SelectionRecordRelease,
+				ID: router.Release, Release: router.Release,
+			}
+		}
+	}
+
 	if router.Objective == "" {
 		// ReadStateV2 already refuses a Task selected with no Objective
 		// (ErrV2InvalidOwnership), so an empty Objective here means no
 		// selection at all, regardless of router phase.
-		return Selection{}, nil
+		return Selection{Release: release}, nil
 	}
 
 	objective, ok := index.Objectives[router.Objective]
 	if !ok {
-		return Selection{}, &SelectionDiagnostic{Kind: SelectionNotFound, RecordKind: SelectionRecordObjective, ID: router.Objective}
+		return Selection{Release: release}, &SelectionDiagnostic{
+			Kind: SelectionNotFound, RecordKind: SelectionRecordObjective,
+			ID: router.Objective, Release: router.Release, Objective: router.Objective,
+		}
+	}
+
+	if release != nil {
+		switch {
+		case objective.Release == "":
+			return Selection{Release: release}, &SelectionDiagnostic{
+				Kind: SelectionObjectiveUnassigned, RecordKind: SelectionRecordObjective,
+				ID: objective.ID, Release: release.ID, Objective: objective.ID,
+			}
+		case objective.Release != release.ID:
+			return Selection{Release: release}, &SelectionDiagnostic{
+				Kind: SelectionReleaseMismatch, RecordKind: SelectionRecordObjective,
+				ID: objective.ID, Release: release.ID, Objective: objective.ID,
+				ObjectiveRelease: string(objective.Release),
+			}
+		}
 	}
 
 	if router.Task == "" {
-		return Selection{Objective: objective}, nil
+		return Selection{Release: release, Objective: objective}, nil
 	}
 
 	task, ok := index.Tasks[router.Task]
 	if !ok {
-		return Selection{}, &SelectionDiagnostic{Kind: SelectionNotFound, RecordKind: SelectionRecordTask, ID: router.Task}
+		return Selection{Release: release}, &SelectionDiagnostic{
+			Kind: SelectionNotFound, RecordKind: SelectionRecordTask,
+			ID: router.Task, Release: router.Release, Objective: router.Objective,
+		}
 	}
 
 	if task.Objective != router.Objective {
-		return Selection{}, &SelectionDiagnostic{
+		return Selection{Release: release}, &SelectionDiagnostic{
 			Kind:            SelectionMismatch,
+			Release:         router.Release,
+			Objective:       router.Objective,
 			RouterObjective: router.Objective,
 			Task:            router.Task,
 			TaskObjective:   task.Objective,
 		}
 	}
 
-	return Selection{Objective: objective, Task: task}, nil
+	return Selection{Release: release, Objective: objective, Task: task}, nil
 }
 
 // MigrationState is the smallest injected fact ResolveNext needs about an
@@ -122,7 +199,9 @@ type MigrationState struct {
 }
 
 // NextKind names the rung of the precedence ladder a Next value landed on.
-// The nine values are the whole ladder, evaluated in this order by
+// The global values are evaluated in their existing order; Release-specific
+// values are reached only after a valid Release context has narrowed the
+// candidate records.
 // ResolveNext: pending migration outranks everything, because a project
 // midway through conversion holds records whose meaning is not yet settled;
 // owner validation sits below check-needed because asking the owner to
@@ -156,6 +235,18 @@ const (
 	// but the Objective's own integration clearance is not current (or is
 	// current without owner acceptance where required).
 	NextObjectiveIntegration NextKind = "objective_integration"
+	// NextReleaseIntegration means the selected Release still has member
+	// Objective work or a material Release-level integration blocker.
+	NextReleaseIntegration NextKind = "release_integration"
+	// NextReleaseCheckNeeded means member Objective work is complete but the
+	// selected Release lacks usable current technical clearance.
+	NextReleaseCheckNeeded NextKind = "release_check_needed"
+	// NextReleaseOwnerValidationRequired means the Release Check is current
+	// and the owner must accept that exact Check.
+	NextReleaseOwnerValidationRequired NextKind = "release_owner_validation_required"
+	// NextReleaseReady means the Release completion decision is allowed and
+	// the next action is to record the Release as done.
+	NextReleaseReady NextKind = "release_ready"
 	// NextReady means no record is under active work, but a specific Task
 	// or Objective elsewhere in the project is ready to pick up.
 	NextReady NextKind = "ready"
@@ -178,24 +269,25 @@ const (
 // and carried forward whole (STYLE-07, DATA-02).
 type Next struct {
 	Kind      NextKind
+	Release   *ReleaseV2
 	Objective *ObjectiveV2
 	Task      *TaskV2
 
-	// GateDecision is the Task- or Objective-level decision the rung was
-	// derived from: ResolveTaskStart/Advance/Completion for a Task rung,
-	// ResolveObjectiveCompletion for NextObjectiveIntegration.
+	// GateDecision is the decision the rung was derived from. For a Release
+	// rung it is ResolveReleaseCompletion; for older rungs it remains the
+	// Task- or Objective-level decision described below.
 	GateDecision *GateDecision
 	// Clearance is the resolved clearance the rung reports on, for
-	// NextCheckNeeded, NextOwnerValidationRequired, and
-	// NextObjectiveIntegration.
+	// NextCheckNeeded, NextOwnerValidationRequired, NextObjectiveIntegration,
+	// and the Release-specific evidence rungs.
 	Clearance *Clearance
 	// Migration is set only when Kind is NextPendingMigration.
 	Migration MigrationState
 
-	// SelectionDiagnostic is set whenever the router's Objective/Task hint
-	// did not resolve, regardless of which rung was ultimately reached: an
-	// unresolved selection still yields whatever next action the project's
-	// records themselves support.
+	// SelectionDiagnostic is set whenever the router's contextual hint did not
+	// resolve, regardless of which rung was ultimately reached: an unresolved
+	// selection still yields whatever next action the project's records
+	// themselves support.
 	SelectionDiagnostic *SelectionDiagnostic
 
 	// Issues are the Issues relevant to Task (when set) or otherwise
@@ -243,14 +335,14 @@ func ResolveNext(input NextInput) Next {
 
 	selection, diagnostic := ResolveSelection(index, router)
 
-	next := resolveLadder(index, selection)
+	next := resolveLadder(index, selection, diagnostic)
 	next.SelectionDiagnostic = diagnostic
 	next.Issues = relevantIssues(index, next)
 	return next
 }
 
-// relevantIssues collects the Issues linked to next's selected Task or
-// Objective, walking only the link maps LoadV2Index already built rather
+// relevantIssues collects the Issues linked to next's selected Task,
+// Objective, or Release, walking only the link maps LoadV2Index already built rather
 // than re-deriving any relationship. A Task's Issues are read straight from
 // TaskIssues. An Objective with no Task selected has no such direct map,
 // because IssueV2 carries no Objective reference of its own, so its
@@ -276,6 +368,14 @@ func relevantIssues(index *V2Index, next Next) []*IssueV2 {
 			}
 		}
 		ids = slices.Sorted(maps.Keys(seen))
+	case next.Release != nil:
+		seen := make(map[string]bool)
+		for _, checkID := range index.ScopeChecks[next.Release.ID] {
+			for _, issueID := range index.CheckIssues[checkID] {
+				seen[issueID] = true
+			}
+		}
+		ids = slices.Sorted(maps.Keys(seen))
 	default:
 		return nil
 	}
@@ -292,11 +392,15 @@ func relevantIssues(index *V2Index, next Next) []*IssueV2 {
 	return issues
 }
 
-// resolveLadder runs rungs two through nine over selection. An unresolved
-// selection arrives here as a zero Selection, which falls straight through
-// to the project-wide search the same way a project with no selection at
-// all does — the diagnostic naming why is attached by the caller.
-func resolveLadder(index *V2Index, selection Selection) Next {
+// resolveLadder keeps the pre-E51 ladder intact when no valid Release context
+// is selected. A Release diagnostic deliberately falls through to the same
+// global search as any other unresolved router hint, so a bad context never
+// hides unrelated work.
+func resolveLadder(index *V2Index, selection Selection, diagnostic *SelectionDiagnostic) Next {
+	if selection.Release != nil && diagnostic == nil {
+		return resolveReleaseLadder(index, selection)
+	}
+
 	if task := selection.Task; task != nil && task.Status != ColumnDone {
 		return resolveTaskRung(index, task)
 	}
@@ -316,6 +420,156 @@ func resolveLadder(index *V2Index, selection Selection) Next {
 	}
 
 	return Next{Kind: NextPlanObjective}
+}
+
+// resolveReleaseLadder applies the existing Task and Objective resolvers to
+// only the selected Release's derived members. Once those records have no
+// actionable work left, the Release completion resolver supplies the Check,
+// owner-acceptance, or ready outcome. No Release membership is inferred from
+// paths, titles, or Task IDs.
+func resolveReleaseLadder(index *V2Index, selection Selection) Next {
+	release := selection.Release
+	if task := selection.Task; task != nil && task.Status != ColumnDone {
+		return withRelease(resolveTaskRung(index, task), release)
+	}
+
+	if next, ok := resolveReleaseActiveTaskRung(index, release.ID); ok {
+		return withRelease(next, release)
+	}
+
+	if objectiveID := objectiveInView(selection); objectiveID != "" {
+		if next, ok := resolveObjectiveIntegrationRung(index, objectiveID); ok {
+			return withRelease(next, release)
+		}
+	}
+
+	if next, ok := resolveReleaseProjectWideIntegrationRung(index, release.ID); ok {
+		return withRelease(next, release)
+	}
+
+	if next, ok := resolveReleaseReadyRung(index, release.ID); ok {
+		return withRelease(next, release)
+	}
+
+	return resolveReleaseCompletionRung(index, release)
+}
+
+// resolveReleaseActiveTaskRung keeps an in-progress Task actionable after a
+// Release switch clears an Objective/Task hint. The global no-Release path
+// intentionally retains its pre-E51 behavior; this search is only the
+// contextual Release projection and is deterministic by Task ID.
+func resolveReleaseActiveTaskRung(index *V2Index, releaseID string) (Next, bool) {
+	members := make(map[string]struct{}, len(index.ReleaseObjectives[releaseID]))
+	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
+		members[objectiveID] = struct{}{}
+	}
+
+	for _, id := range slices.Sorted(maps.Keys(index.Tasks)) {
+		task := index.Tasks[id]
+		if task.Status != ColumnInProgress {
+			continue
+		}
+		if _, ok := members[task.Objective]; !ok {
+			continue
+		}
+		return resolveTaskRung(index, task), true
+	}
+	return Next{}, false
+}
+
+func withRelease(next Next, release *ReleaseV2) Next {
+	next.Release = release
+	return next
+}
+
+func sortedReleaseObjectiveIDs(index *V2Index, releaseID string) []string {
+	ids := slices.Clone(index.ReleaseObjectives[releaseID])
+	slices.Sort(ids)
+	return ids
+}
+
+// resolveReleaseProjectWideIntegrationRung mirrors the existing project-wide
+// Objective integration search, restricted to the selected Release's reverse
+// membership map and kept in deterministic Objective ID order.
+func resolveReleaseProjectWideIntegrationRung(index *V2Index, releaseID string) (Next, bool) {
+	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
+		objective := index.Objectives[objectiveID]
+		if objective == nil || objective.Status == ColumnDone || len(index.ObjectiveTasks[objectiveID]) == 0 {
+			continue
+		}
+		if next, ok := resolveObjectiveIntegrationRung(index, objectiveID); ok {
+			return next, true
+		}
+	}
+	return Next{}, false
+}
+
+// resolveReleaseReadyRung is the release-scoped version of the global ready
+// search. It only admits Tasks whose owning Objective names the selected
+// Release, then Objectives in that same derived member set.
+func resolveReleaseReadyRung(index *V2Index, releaseID string) (Next, bool) {
+	members := make(map[string]struct{}, len(index.ReleaseObjectives[releaseID]))
+	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
+		members[objectiveID] = struct{}{}
+	}
+
+	for _, id := range slices.Sorted(maps.Keys(index.Tasks)) {
+		task := index.Tasks[id]
+		if task.Status != ColumnPlanned {
+			continue
+		}
+		if _, ok := members[task.Objective]; !ok {
+			continue
+		}
+		decision := ResolveTaskStart(index, id)
+		if decision.Allowed {
+			return Next{Kind: NextReady, Task: task, GateDecision: &decision}, true
+		}
+	}
+
+	for _, objectiveID := range slices.Sorted(maps.Keys(members)) {
+		objective := index.Objectives[objectiveID]
+		if objective == nil || objective.Status == ColumnDone || len(index.ObjectiveTasks[objectiveID]) > 0 {
+			continue
+		}
+		if objectiveDependenciesSatisfied(index, objective) {
+			return Next{Kind: NextReady, Objective: objective}, true
+		}
+	}
+
+	return Next{}, false
+}
+
+// resolveReleaseCompletionRung projects the one Release gate decision only
+// after member Task/Objective work has had its chance to win. Clearance and
+// owner acceptance remain the same typed evidence values used by the gate
+// resolver; this function only maps them to contextual action rungs.
+func resolveReleaseCompletionRung(index *V2Index, release *ReleaseV2) Next {
+	decision := ResolveReleaseCompletion(index, release.ID)
+	clearance := ResolveClearance(index, release.ID)
+	next := Next{Release: release, GateDecision: &decision, Clearance: &clearance}
+
+	if decision.Allowed {
+		next.Kind = NextReleaseReady
+		return next
+	}
+
+	if len(decision.Blockers) == 1 && decision.Blockers[0].Kind == GateBlockOwnerAcceptance {
+		next.Kind = NextReleaseOwnerValidationRequired
+		return next
+	}
+
+	for _, blocker := range decision.Blockers {
+		switch blocker.Kind {
+		case GateBlockClearanceMissing, GateBlockClearanceNeedsWork,
+			GateBlockClearanceStale, GateBlockClearanceUnknown, GateBlockCheckerAuthority:
+			next.Kind = NextReleaseCheckNeeded
+			return next
+		}
+	}
+
+	next.Kind = NextReleaseIntegration
+	return next
 }
 
 // resolveProjectWideIntegrationRung answers rung seven for an Objective the

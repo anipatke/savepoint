@@ -3433,6 +3433,55 @@ func TestWriteRouterStateV2_setsSelectionAndPreservesEveryOtherByte(t *testing.T
 	}
 }
 
+func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *testing.T) {
+	content := routerV2FixtureContent()
+	root, path, mtime := writeRouterV2Fixture(t, content)
+	before, err := NewRouterReader().ReadStateV2(content)
+	if err != nil {
+		t.Fatalf("ReadStateV2() before release write error = %v", err)
+	}
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R001", Objective: "O001", Task: "T005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	state, err := NewRouterReader().ReadStateV2(readFileString(t, path))
+	if err != nil {
+		t.Fatalf("ReadStateV2() after release write error = %v", err)
+	}
+	if state.Release != "R001" || state.Objective != "O001" || state.Task != "T005" {
+		t.Fatalf("selections = release %q objective %q task %q, want R001/O001/T005", state.Release, state.Objective, state.Task)
+	}
+	if state.State != before.State || state.NextAction != before.NextAction {
+		t.Fatalf("router lifecycle/prose changed: before state %q next_action %q, after state %q next_action %q", before.State, before.NextAction, state.State, state.NextAction)
+	}
+	got := readFileString(t, path)
+	if !strings.Contains(got, "project_note: a second fenced block the writer must not touch") || !strings.Contains(got, "This file routes the agent.") {
+		t.Error("release selection write did not preserve surrounding document bytes")
+	}
+}
+
+func TestWriteRouterStateV2_repeatingReleaseSelectionLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	content := strings.NewReplacer(
+		"objective: none", "objective: O001",
+		"task: none", "task: T005",
+	).Replace(routerV2FixtureContent())
+	content = strings.Replace(content, "state: design", "state: task\nrelease: R001", 1)
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	time.Sleep(10 * time.Millisecond)
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R001", Objective: "O001", Task: "T005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(mtime) || readFileString(t, path) != content {
+		t.Fatal("repeating unchanged Release selection changed bytes or mtime")
+	}
+}
+
 func TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel(t *testing.T) {
 	content := strings.NewReplacer(
 		"objective: none", "objective: O001",
@@ -3498,6 +3547,8 @@ func TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched(t *t
 		wantErr   error
 	}{
 		{"objective wrong family", RouterSelectionV2{Objective: "T001"}, ErrV2InvalidID},
+		{"release wrong family", RouterSelectionV2{Release: "O001"}, ErrV2InvalidID},
+		{"release too few digits", RouterSelectionV2{Release: "R01"}, ErrV2InvalidID},
 		{"objective too few digits", RouterSelectionV2{Objective: "O1"}, ErrV2InvalidID},
 		{"objective with trailing slug", RouterSelectionV2{Objective: "O001-recovery"}, ErrV2InvalidID},
 		{"two objectives", RouterSelectionV2{Objective: "O001 O002"}, ErrV2InvalidID},

@@ -776,13 +776,14 @@ func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
 }
 
 // RouterSelectionV2 is the whole of what WriteRouterStateV2 is able to
-// change: which Objective and Task a V2 router points at. It is a type of
+// change: which Release, Objective, and Task a V2 router points at. It is a type of
 // its own rather than a *RouterStateV2 parameter so that the writer's
 // signature cannot express a state or next_action write at all. A consumer
 // records which record is selected; the phase names which skill owns the
 // conversation, and next_action is prose those skills author, so neither is
 // a selection writer's to touch.
 type RouterSelectionV2 struct {
+	Release   string // R### selection, or empty to clear the Release context
 	Objective string // O### selection, or empty to clear the selection
 	Task      string // T### selection, or empty to clear the selection
 }
@@ -798,6 +799,9 @@ const routerSelectionNoneV2 = "none"
 // three rules ReadStateV2 enforces on the way in: O###/T### shape, and a
 // Task never selected without the Objective that owns it.
 func (s RouterSelectionV2) validate() error {
+	if s.Release != "" && !releaseIDPatternV2.MatchString(s.Release) {
+		return fmt.Errorf("%w: router release %q must be a single R### selection", ErrV2InvalidID, s.Release)
+	}
 	if s.Objective != "" && !objectiveIDPattern.MatchString(s.Objective) {
 		return fmt.Errorf("%w: router objective %q must be a single O### selection", ErrV2InvalidID, s.Objective)
 	}
@@ -811,7 +815,8 @@ func (s RouterSelectionV2) validate() error {
 }
 
 // WriteRouterStateV2 records selection in root's router.md, changing the
-// objective and task keys of the "## Current state" anchor and nothing else.
+// release, objective, and task keys of the "## Current state" anchor and
+// nothing else.
 // state, next_action, every other key the anchor carries, and the whole
 // surrounding document survive byte-identical (DATA-01), because the anchor
 // is edited as a YAML node tree and only those two keys are touched.
@@ -906,7 +911,7 @@ func WriteRouterStateV2(root string, selection RouterSelectionV2, expectedMtime 
 	})
 }
 
-// patchRouterSelectionV2 sets objective and task on mapping and reports
+// patchRouterSelectionV2 sets release, objective, and task on mapping and reports
 // whether either key's written value actually changed. It reaches no other
 // key, which is how state, next_action, and any field a project added itself
 // pass through a selection write untouched. A key the document does not have
@@ -919,6 +924,7 @@ func patchRouterSelectionV2(mapping *yaml.Node, selection RouterSelectionV2) boo
 		key   string
 		value string
 	}{
+		{key: "release", value: routerSelectionValueV2(selection.Release)},
 		{key: "objective", value: routerSelectionValueV2(selection.Objective)},
 		{key: "task", value: routerSelectionValueV2(selection.Task)},
 	} {

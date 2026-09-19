@@ -20,11 +20,13 @@ const (
 )
 
 // RouterStateV2 is the decoded "## Current state" anchor for a V2 project:
-// a phase, the selected Objective, an optional selected Task, and prose for
-// a human. It is a hint only — nothing in this package resolves Objective or
-// Task against the project's own records; that is T002's job.
+// a phase, an optional Release context, the selected Objective, an optional
+// selected Task, and prose for a human. It is a hint only — record identity
+// and cross-selection ownership are resolved against the project index by
+// ResolveSelection.
 type RouterStateV2 struct {
 	State      RouterPhaseV2
+	Release    string // R### selection, or empty when no Release is selected
 	Objective  string // O### selection, or empty when none is selected
 	Task       string // T### selection, or empty when none is selected
 	NextAction string
@@ -37,6 +39,7 @@ type RouterStateV2 struct {
 // fields already use (see internal/doctor/checks.go).
 type routerV2Frontmatter struct {
 	State      string `yaml:"state"`
+	Release    string `yaml:"release"`
 	Objective  string `yaml:"objective"`
 	Task       string `yaml:"task"`
 	NextAction string `yaml:"next_action"`
@@ -45,7 +48,7 @@ type routerV2Frontmatter struct {
 // ReadStateV2 decodes the "## Current state" anchor into a V2 RouterStateV2.
 // It reuses extractStateBlock's anchor-finding — the same heading and fenced
 // ```yaml block the V1 reader locates — and then decodes strictly (DATA-03):
-// an unrecognized or empty state, a malformed O###/T### selection, a task
+// an unrecognized or empty state, a malformed R###/O###/T### selection, a task
 // selected without an objective, and an unknown key each return a named
 // diagnostic instead of a healed default. Decoding performs no filesystem
 // write and no repair of content.
@@ -70,6 +73,11 @@ func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 		return nil, fmt.Errorf("%w: router state %q; use idea, design, task, or check", ErrV2InvalidLifecycle, fields.State)
 	}
 
+	release := normalizeRouterSelectionV2(fields.Release)
+	if release != "" && !releaseIDPatternV2.MatchString(release) {
+		return nil, fmt.Errorf("%w: router release %q must be a single R### selection", ErrV2InvalidID, fields.Release)
+	}
+
 	objective := normalizeRouterSelectionV2(fields.Objective)
 	if objective != "" && !objectiveIDPattern.MatchString(objective) {
 		return nil, fmt.Errorf("%w: router objective %q must be a single O### selection", ErrV2InvalidID, fields.Objective)
@@ -86,6 +94,7 @@ func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 
 	return &RouterStateV2{
 		State:      phase,
+		Release:    release,
 		Objective:  objective,
 		Task:       task,
 		NextAction: fields.NextAction,
