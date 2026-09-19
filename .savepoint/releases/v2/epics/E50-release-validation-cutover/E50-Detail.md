@@ -36,6 +36,7 @@ Reference: `.savepoint/releases/v2/v2-Design.md`.
 ## Dependencies
 
 - E49-objective-board
+- E51-first-class-releases
 
 ## Quality gates
 
@@ -45,5 +46,5 @@ Implementation handoff requires `make build && make test` and named outcome evid
 
 ## Open decisions
 
-Do not migrate this repository until core workflow and recovery pass; task completion and publishing remain owner-controlled actions.
-
+Do not migrate this repository until core workflow, release semantics, and
+recovery pass; task completion and publishing remain owner-controlled actions.

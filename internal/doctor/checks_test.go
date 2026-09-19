@@ -2341,6 +2341,53 @@ func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 	}
 }
 
+// TestCheckProject_MissingCheckVersusStaleVersusUnknownEvidence proves a done
+// Task with no recorded Check, one whose Check carries no freshness
+// assessment, and one whose freshness assessment names a superseded Check
+// all land under the missing-evidence health category rather than malformed
+// data, and that their messages distinguish which of the three it is (E48
+// T006 AC: "A target with no recorded Check and a target with a stale or
+// unknown freshness assessment report under missing evidence, distinguished
+// from one another in the output").
+func TestCheckProject_MissingCheckVersusStaleVersusUnknownEvidence(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+
+	// T001: done, no Check ever recorded — clearance missing.
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
+
+	// T002: done, latest Check is CLEAR but carries no freshness assessment — clearance unknown.
+	writeV2Check(t, root, "C001", "{kind: task, id: T002}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Beta\n")
+
+	// T003: done, latest Check is CLEAR but the freshness assessment names an
+	// earlier, superseded Check — clearance stale.
+	writeV2Check(t, root, "C002", "{kind: task, id: T003}", "CLEAR", "")
+	writeV2Check(t, root, "C003", "{kind: task, id: T003}", "CLEAR", "C002")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T003-gamma.md"),
+		"---\nid: T003\ntitle: \"Gamma\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n"+
+			"freshness: {state: current, check: C002, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
+			"---\n\n# Gamma\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 3 {
+		t.Fatalf("CheckProject() = %+v, want 3 problems (T001 missing, T002 unknown, T003 stale)", problems)
+	}
+
+	wantDetail := []string{"clearance is missing", "clearance is unknown", "clearance is stale"}
+	for i, want := range wantDetail {
+		if !strings.Contains(problems[i].Message, want) {
+			t.Errorf("problems[%d].Message = %q, want it to name %q", i, problems[i].Message, want)
+		}
+		if problems[i].Category != HealthMissingEvidence {
+			t.Errorf("problems[%d].Category = %q, want %q: nothing is broken, evidence just isn't current", i, problems[i].Category, HealthMissingEvidence)
+		}
+	}
+}
+
 // TestCheckProject_ConsistencyReadOnly proves CheckProject never writes to a
 // V2 project carrying Check and evidence records that trip a consistency
 // diagnostic: every file's bytes and modification time stay unchanged.

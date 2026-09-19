@@ -249,6 +249,145 @@ func TestDiagnosticReport_IssuePostureCountsInPlainOutput(t *testing.T) {
 	}
 }
 
+// writeCompleteV2Project writes a valid, complete V2 project: config.yml
+// with the required fields, a V2-shaped router.md, one Objective, one Task,
+// and no releases directory — the real shape of a V2 project, distinct from
+// the V1 layout writeReportProject builds.
+func writeCompleteV2Project(t *testing.T, root string) {
+	t.Helper()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\nquality_gates:\n  lint: null\n  typecheck: null\n  build: null\n  test: null\ntheme: {}\n")
+	testutil.WriteFile(t, filepath.Join(root, "router.md"),
+		"## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nnext_action: \"build it\"\n```\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+}
+
+// TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound proves a
+// complete V2 project whose only finding is an open Issue is reported ALL
+// CLEAN: the Issue is advisory, listed by name, type, and status under
+// Pending Semantic Review, and never makes the project structurally unsound
+// (E48 T006).
+func TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound(t *testing.T) {
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+
+	report := RunAllChecks(root, "")
+	if report.HasProblems() {
+		t.Fatalf("RunAllChecks() on a complete V2 project with only an open Issue should have no problems, got: config=%v router=%v project=%v structure=%v deps=%v gates=%v",
+			report.ConfigCheck, report.RouterCheck, report.Project, report.Structure, report.Dependencies, report.Gates.Results)
+	}
+
+	output := report.Format()
+	if !strings.Contains(output, "ALL CLEAN") {
+		t.Errorf("report.Format() should say ALL CLEAN for an advisory-only backlog, got:\n%s", output)
+	}
+	wants := []string{"Pending Semantic Review", "I001", "defect issue, status open"}
+	for _, want := range wants {
+		if !strings.Contains(output, want) {
+			t.Errorf("report.Format() missing %q, got:\n%s", want, output)
+		}
+	}
+}
+
+// TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue
+// proves the four health categories stay independent even when a single
+// project carries all three non-review kinds of finding at once: a
+// malformed record (a Task's own owner-acceptance evidence disagrees with
+// itself), a missing-evidence target (a done Task with no Check ever
+// recorded), and an advisory open Issue. The first two must make the
+// project structurally unsound; the Issue must not (E48 T007).
+func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+
+	// T001: done, no Check ever recorded — missing evidence.
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
+		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
+
+	// T002: owner accepted C002, but C003 has since superseded it as the
+	// latest Check — the record's own fields disagree, so this is malformed
+	// data, not missing evidence.
+	writeV2Check(t, root, "C002", "{kind: task, id: T002}", "CLEAR", "")
+	writeV2Check(t, root, "C003", "{kind: task, id: T002}", "CLEAR", "C002")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
+		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: audit\n"+
+			"freshness: {state: current, check: C003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: rechecked}\n"+
+			"owner_validation: {required: true, accepted_check: C002, accepted_by: {role: owner, session: owner-1}}\n"+
+			"---\n\n# Beta\n")
+
+	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+
+	report := RunAllChecks(root, "")
+	findings := report.HealthFindings()
+
+	var sawMalformed, sawMissingEvidence, sawPendingReview bool
+	for _, f := range findings {
+		switch f.Category {
+		case HealthMalformedData:
+			if strings.Contains(f.Message, "v2-acceptance-superseded") {
+				sawMalformed = true
+			}
+		case HealthMissingEvidence:
+			if strings.Contains(f.Message, "clearance is missing") {
+				sawMissingEvidence = true
+			}
+		case HealthPendingReview:
+			if f.File == "I001" {
+				sawPendingReview = true
+			}
+		}
+	}
+	if !sawMalformed {
+		t.Errorf("HealthFindings() = %+v, want a HealthMalformedData finding naming v2-acceptance-superseded", findings)
+	}
+	if !sawMissingEvidence {
+		t.Errorf("HealthFindings() = %+v, want a HealthMissingEvidence finding naming the missing clearance", findings)
+	}
+	if !sawPendingReview {
+		t.Errorf("HealthFindings() = %+v, want a HealthPendingReview finding for Issue I001", findings)
+	}
+
+	if !report.HasProblems() {
+		t.Fatal("HasProblems() = false, want true: malformed data and missing evidence both make the project structurally unsound")
+	}
+
+	var nonReview int
+	for _, f := range findings {
+		if f.Category != HealthPendingReview {
+			nonReview++
+		}
+	}
+	if nonReview == 0 {
+		t.Fatal("expected findings outside Pending Semantic Review; HasProblems() must not depend on the advisory Issue")
+	}
+}
+
+// TestDiagnosticReport_FullRunWritesNothing proves a full RunAllChecks and
+// Format() over a complete V2 project with an open Issue leaves every file
+// byte-identical, satisfying FS-03 for the health-category report path.
+func TestDiagnosticReport_FullRunWritesNothing(t *testing.T) {
+	projectDir := t.TempDir()
+	root := filepath.Join(projectDir, ".savepoint")
+	writeCompleteV2Project(t, root)
+	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+
+	before := listFiles(t, projectDir)
+	report := RunAllChecks(root, "")
+	_ = report.Format()
+	after := listFiles(t, projectDir)
+
+	if len(before) != len(after) {
+		t.Fatalf("RunAllChecks()+Format() changed the file set: before=%v after=%v", before, after)
+	}
+	for i := range before {
+		if before[i] != after[i] {
+			t.Fatalf("RunAllChecks()+Format() changed the file set: before=%v after=%v", before, after)
+		}
+	}
+}
+
 func writeReportProject(t *testing.T, root string) {
 	t.Helper()
 	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")

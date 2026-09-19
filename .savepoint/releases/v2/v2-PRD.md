@@ -56,9 +56,10 @@ Automatic evidence capture and freshness detection, hooks, push enforcement, man
 | E47 / O007 — Onboarding and upgrades | Fresh and existing projects receive a coherent V2 workflow without silent overwrites. | E45, E46 |
 | E48 / O008 — Next and resume | Users recover current work, evidence, and next action from one shared interpretation. | E44 |
 | E49 / O009 — Objective board | The TUI presents Objectives, Tasks, Checks, and Issues clearly with enforced actions. | E47, E48 |
-| E50 / O010 — Release validation and cutover | Evaluated, packaged V2 replaces transitional V1 runtime support safely. | E49 |
+| E51 / O011 — First-class releases | Release remains a navigable delivery boundary through V2 migration, board, resume, and cutover. | E49, E45 |
+| E50 / O010 — Release validation and cutover | Evaluated, packaged V2 replaces transitional V1 runtime support safely. | E49, E51 |
 
-Default execution order is E41 through E50. Dependencies permit independent design work, but the current V1 audit handoff still applies between build epics. Each epic has an independently scoped integration/audit outcome. Only E41 has detailed Task plans; design and task breakdown for later epics happen as earlier implementation settles.
+Default execution order is E41 through E51, with E51 completing before the E50 cutover. Dependencies permit independent design work, but the current V1 audit handoff still applies between build epics. Each epic has an independently scoped integration/audit outcome. Only E41 has detailed Task plans; design and task breakdown for later epics happen as earlier implementation settles.
 
 ## Current readiness
 

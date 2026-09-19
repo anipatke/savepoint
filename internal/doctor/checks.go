@@ -3,8 +3,10 @@ package doctor
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -116,12 +118,16 @@ func CheckMigration(root string) []Problem {
 
 // Problem describes a single issue found during a structure check. Repair, when
 // set, is the typed repair suggestion for the problem; report formatting falls
-// back to SuggestRepair message matching when it is empty.
+// back to SuggestRepair message matching when it is empty. Category assigns the
+// problem to one of the report's four health categories; a zero value defaults
+// to HealthMalformedData, the category every structural check below already
+// belongs to.
 type Problem struct {
-	File    string
-	Line    int
-	Message string
-	Repair  string
+	File     string
+	Line     int
+	Message  string
+	Repair   string
+	Category HealthCategory
 }
 
 // CheckProject validates schema, record, identity, path, and reference-graph
@@ -165,30 +171,66 @@ func v2ConsistencyProblems(index *data.V2Index) []Problem {
 		name := v2ConsistencyDiagnosticName(diagnostic.Kind)
 		file := v2TaskSourcePath(index, diagnostic.Task)
 		problems = append(problems, Problem{
-			File:    file,
-			Message: fmt.Sprintf("[%s] task %s: %s", name, diagnostic.Task, diagnostic.Detail),
-			Repair:  V2ConsistencyRepair(name),
+			File:     file,
+			Message:  fmt.Sprintf("[%s] task %s: %s", name, diagnostic.Task, diagnostic.Detail),
+			Repair:   V2ConsistencyRepair(name),
+			Category: v2ConsistencyCategory(diagnostic.Kind),
 		})
 	}
 	for _, diagnostic := range data.InspectObjectiveConsistency(index) {
 		name := v2ObjectiveConsistencyDiagnosticName(diagnostic.Kind)
 		file := v2ObjectiveSourcePath(index, diagnostic.Objective)
 		problems = append(problems, Problem{
-			File:    file,
-			Message: fmt.Sprintf("[%s] objective %s: %s", name, diagnostic.Objective, diagnostic.Detail),
-			Repair:  V2ConsistencyRepair(name),
+			File:     file,
+			Message:  fmt.Sprintf("[%s] objective %s: %s", name, diagnostic.Objective, diagnostic.Detail),
+			Repair:   V2ConsistencyRepair(name),
+			Category: v2ObjectiveConsistencyCategory(diagnostic.Kind),
 		})
 	}
 	for _, diagnostic := range data.InspectIssueConsistency(index) {
 		name := v2IssueConsistencyDiagnosticName(diagnostic.Kind)
 		file := v2IssueSourcePath(index, diagnostic.Issue)
 		problems = append(problems, Problem{
-			File:    file,
-			Message: fmt.Sprintf("[%s] issue %s: %s", name, diagnostic.Issue, diagnostic.Detail),
-			Repair:  V2ConsistencyRepair(name),
+			File:     file,
+			Message:  fmt.Sprintf("[%s] issue %s: %s", name, diagnostic.Issue, diagnostic.Detail),
+			Repair:   V2ConsistencyRepair(name),
+			Category: v2IssueConsistencyCategory(diagnostic.Kind),
 		})
 	}
 	return problems
+}
+
+// v2ConsistencyCategory maps a data.ConsistencyDiagnosticKind to the health
+// category doctor reports it under. A done Task without current clearance
+// means work is claimed complete but its evidence has not caught up yet —
+// nothing is broken, so it is missing evidence, not malformed data. The
+// other kinds mean the record's own fields disagree with each other after a
+// hand edit, which is malformed data.
+func v2ConsistencyCategory(kind data.ConsistencyDiagnosticKind) HealthCategory {
+	if kind == data.ConsistencyDoneWithoutClearance {
+		return HealthMissingEvidence
+	}
+	return HealthMalformedData
+}
+
+// v2ObjectiveConsistencyCategory mirrors v2ConsistencyCategory for Objective
+// diagnostics: a done Objective without current clearance is missing
+// evidence, not malformed data.
+func v2ObjectiveConsistencyCategory(kind data.ObjectiveConsistencyDiagnosticKind) HealthCategory {
+	if kind == data.ObjectiveConsistencyDoneWithoutClearance {
+		return HealthMissingEvidence
+	}
+	return HealthMalformedData
+}
+
+// v2IssueConsistencyCategory mirrors v2ConsistencyCategory for Issue
+// diagnostics: a verified Issue whose proof Check has been superseded is
+// missing evidence — its proof is no longer current — not malformed data.
+func v2IssueConsistencyCategory(kind data.IssueConsistencyDiagnosticKind) HealthCategory {
+	if kind == data.IssueConsistencyProofSuperseded {
+		return HealthMissingEvidence
+	}
+	return HealthMalformedData
 }
 
 // v2TaskSourcePath looks up taskID's source record path in index, falling
@@ -366,6 +408,18 @@ func (p Problem) Error() string {
 type IssuePosture struct {
 	StatusCounts map[data.IssueStatus]int
 	TypeCounts   map[data.IssueType]int
+	// Pending lists every open or in_progress Issue, in sorted ID order, so
+	// the pending-review health category can name each one rather than only
+	// its aggregate counts.
+	Pending []IssueEntry
+}
+
+// IssueEntry names one Issue in the pending-review health category: its
+// identity, type, and status.
+type IssueEntry struct {
+	ID     string
+	Type   data.IssueType
+	Status data.IssueStatus
 }
 
 // IssuePostureReport computes a V2 project's Issue backlog counts directly
@@ -378,10 +432,18 @@ func IssuePostureReport(root string) *IssuePosture {
 	if err != nil || project.SchemaVersion != data.SchemaVersionV2 {
 		return nil
 	}
-	return &IssuePosture{
+	posture := &IssuePosture{
 		StatusCounts: project.V2.IssueStatusCounts(),
 		TypeCounts:   project.V2.IssueTypeCounts(),
 	}
+	for _, id := range slices.Sorted(maps.Keys(project.V2.Issues)) {
+		issue := project.V2.Issues[id]
+		if issue.Status != data.IssueStatusOpen && issue.Status != data.IssueStatusInProgress {
+			continue
+		}
+		posture.Pending = append(posture.Pending, IssueEntry{ID: issue.ID, Type: issue.Type, Status: issue.Status})
+	}
+	return posture
 }
 
 // CheckStructure validates release/epic/task structure and YAML across the project.

@@ -1,7 +1,7 @@
 ---
 id: E48-next-resume/T004-say-what-the-evidence-actually-shows
 title: Say what the evidence actually shows
-status: in_progress
+status: done
 objective: Render one resolved projection as readable narrative that distinguishes missing, unknown, and stale evidence and claims no verification it did not perform.
 depends_on:
     - E48-next-resume/T003-decide-the-one-next-action

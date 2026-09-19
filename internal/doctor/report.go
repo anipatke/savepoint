@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
@@ -29,7 +30,12 @@ type DiagnosticReport struct {
 	EpicFilter    string
 }
 
-// RunAllChecks runs every doctor check and returns a full report.
+// RunAllChecks runs every doctor check and returns a full report. The
+// releases/epics/tasks structural checks below are V1's own directory shape;
+// a V2 project has no releases directory by design and CheckProject already
+// reports its single structural diagnostic (see CheckProject), so those
+// checks run only when the project is not V2 — never for a schema this
+// project's own config declares it isn't using.
 func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report := &DiagnosticReport{
 		EpicFilter: epicFilter,
@@ -39,11 +45,16 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report.RouterCheck = CheckRouter(root, epicFilter)
 	report.Migration = CheckMigration(root)
 	report.Project = CheckProject(root)
-	report.Structure = CheckStructure(root, epicFilter)
-	report.Dependencies = CheckDependencies(root, epicFilter)
-	report.AuditState = CheckAuditState(root)
-	report.Orphans = CheckOrphans(root)
-	report.Defects = CheckDefects(root)
+
+	version, _ := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
+	if version != data.SchemaVersionV2 {
+		report.Structure = CheckStructure(root, epicFilter)
+		report.Dependencies = CheckDependencies(root, epicFilter)
+		report.AuditState = CheckAuditState(root)
+		report.Orphans = CheckOrphans(root)
+		report.Defects = CheckDefects(root)
+	}
+
 	report.AuditRegister = CheckAuditRegister(root)
 	report.Issues = IssuePostureReport(root)
 	report.Gates.Results = RunQualityGates(root)
@@ -51,40 +62,123 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	return report
 }
 
-// HasProblems returns true if any check found issues.
-func (r *DiagnosticReport) HasProblems() bool {
+// HealthCategory is one of the four ways doctor reports a finding: a record
+// that cannot be interpreted correctly, evidence that has not been produced
+// yet, a configured quality gate that failed, or work still waiting on a
+// human or checker to look at it. Only the first three bear on structural
+// soundness; HealthPendingReview never does — an open Issue backlog is a V2
+// project's normal working state, not a fault (E48).
+type HealthCategory string
+
+const (
+	HealthMalformedData   HealthCategory = "Malformed Data"
+	HealthMissingEvidence HealthCategory = "Missing Evidence"
+	HealthFailingGates    HealthCategory = "Failing Gates"
+	HealthPendingReview   HealthCategory = "Pending Semantic Review"
+)
+
+// healthCategoryOrder is the fixed, reported order of the four categories.
+var healthCategoryOrder = []HealthCategory{
+	HealthMalformedData,
+	HealthMissingEvidence,
+	HealthFailingGates,
+	HealthPendingReview,
+}
+
+// HealthFinding names one doctor finding assigned to exactly one health
+// category. File is empty for a finding with no single record to point at.
+type HealthFinding struct {
+	Category HealthCategory
+	File     string
+	Message  string
+	Repair   string
+}
+
+// HealthFindings assigns every finding r's checks already produced to
+// exactly one of the four health categories. It invents no new detection: it
+// only routes the same Problems, GateResults, and pending Issues the rest of
+// this report already carries.
+func (r *DiagnosticReport) HealthFindings() []HealthFinding {
+	var findings []HealthFinding
+
 	if r.ConfigCheck != nil {
-		return true
+		findings = append(findings, HealthFinding{
+			Category: HealthMalformedData,
+			Message:  fmt.Sprintf("config: %s", r.ConfigCheck),
+			Repair:   SuggestRepair(r.ConfigCheck),
+		})
 	}
 	if r.RouterCheck != nil {
-		return true
+		findings = append(findings, HealthFinding{
+			Category: HealthMalformedData,
+			Message:  fmt.Sprintf("router: %s", r.RouterCheck),
+			Repair:   SuggestRepair(r.RouterCheck),
+		})
 	}
-	if len(r.Migration) > 0 {
-		return true
-	}
-	if len(r.Project) > 0 {
-		return true
-	}
-	if len(r.Structure) > 0 {
-		return true
-	}
-	if len(r.Dependencies) > 0 {
-		return true
-	}
-	if len(r.AuditState) > 0 {
-		return true
-	}
-	if len(r.Orphans) > 0 {
-		return true
-	}
-	if len(r.Defects) > 0 {
-		return true
-	}
-	if len(r.AuditRegister) > 0 {
-		return true
-	}
+	findings = append(findings, problemFindings(r.Migration)...)
+	findings = append(findings, problemFindings(r.Project)...)
+	findings = append(findings, problemFindings(r.Structure)...)
+	findings = append(findings, problemFindings(r.Dependencies)...)
+	findings = append(findings, problemFindings(r.AuditState)...)
+	findings = append(findings, problemFindings(r.Orphans)...)
+	findings = append(findings, problemFindings(r.Defects)...)
+	findings = append(findings, problemFindings(r.AuditRegister)...)
+
 	for _, g := range r.Gates.Results {
-		if !g.Passed {
+		if g.Passed {
+			continue
+		}
+		message := g.Name
+		if g.Command != "" {
+			message = fmt.Sprintf("%s (%s)", g.Name, g.Command)
+		}
+		findings = append(findings, HealthFinding{
+			Category: HealthFailingGates,
+			Message:  message,
+			Repair:   GateSuggestion(g.Name),
+		})
+	}
+
+	if r.Issues != nil {
+		for _, entry := range r.Issues.Pending {
+			findings = append(findings, HealthFinding{
+				Category: HealthPendingReview,
+				File:     entry.ID,
+				Message:  fmt.Sprintf("%s issue, status %s", entry.Type, entry.Status),
+			})
+		}
+	}
+
+	return findings
+}
+
+// problemFindings converts one check's Problems into HealthFindings,
+// defaulting an unset Category to malformed data — the category every
+// structural check that predates the health split already belongs to.
+func problemFindings(problems []Problem) []HealthFinding {
+	var findings []HealthFinding
+	for _, p := range problems {
+		category := p.Category
+		if category == "" {
+			category = HealthMalformedData
+		}
+		findings = append(findings, HealthFinding{
+			Category: category,
+			File:     p.File,
+			Message:  p.Message,
+			Repair:   problemRepair(p),
+		})
+	}
+	return findings
+}
+
+// HasProblems returns true if the report is structurally unsound: it carries
+// a malformed-data, missing-evidence, or failing-gate finding. Pending
+// semantic review — an advisory Issue backlog — never contributes; it is the
+// normal state of a project being worked on, not a fault.
+func (r *DiagnosticReport) HasProblems() bool {
+	for _, f := range r.HealthFindings() {
+		if f.Category != HealthPendingReview {
 			return true
 		}
 	}
@@ -157,6 +251,10 @@ func (r *DiagnosticReport) Format() string {
 			}
 		}
 	}
+	b.WriteString("\n")
+
+	sectionHeader(&b, "Health Summary")
+	printHealthSummary(&b, r.HealthFindings())
 
 	b.WriteString("\n")
 	if r.HasProblems() {
@@ -166,6 +264,39 @@ func (r *DiagnosticReport) Format() string {
 	}
 
 	return b.String()
+}
+
+// printHealthSummary labels each of the four health categories that has at
+// least one finding, in fixed order, and omits a category with none rather
+// than printing an empty heading.
+func printHealthSummary(b *strings.Builder, findings []HealthFinding) {
+	if len(findings) == 0 {
+		fmt.Fprintf(b, "  ✓ no findings\n\n")
+		return
+	}
+	for _, category := range healthCategoryOrder {
+		var matched []HealthFinding
+		for _, f := range findings {
+			if f.Category == category {
+				matched = append(matched, f)
+			}
+		}
+		if len(matched) == 0 {
+			continue
+		}
+		fmt.Fprintf(b, "  %s:\n", category)
+		for _, f := range matched {
+			if f.File != "" {
+				fmt.Fprintf(b, "    ✗ %s: %s\n", f.File, f.Message)
+			} else {
+				fmt.Fprintf(b, "    ✗ %s\n", f.Message)
+			}
+			if f.Repair != "" {
+				fmt.Fprintf(b, "      repair: %s\n", f.Repair)
+			}
+		}
+	}
+	b.WriteString("\n")
 }
 
 func sectionHeader(b *strings.Builder, title string) {
