@@ -179,7 +179,7 @@ func TestUpgradeProjectAssets_recordsSkillHashes(t *testing.T) {
 		"agent-skills/savepoint-build-task/SKILL.md": &fstest.MapFile{Data: []byte("# Build Task")},
 	}
 
-	if _, err := UpgradeProjectAssets(templates, dir, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -207,7 +207,7 @@ func TestUpgradeProjectAssets_dryRunLeavesManifestUntouched(t *testing.T) {
 		"agent-skills/savepoint-build-task/SKILL.md": &fstest.MapFile{Data: []byte("# Build Task")},
 	}
 
-	if _, err := UpgradeProjectAssets(templates, dir, true, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, true, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -230,7 +230,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotCreateManifest(t *testing.T) {
 		"agent-skills/savepoint-build-task/SKILL.md": &fstest.MapFile{Data: []byte("# Build Task")},
 	}
 
-	if _, err := UpgradeProjectAssets(templates, dir, true, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, true, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 

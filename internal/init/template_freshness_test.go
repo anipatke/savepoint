@@ -3,6 +3,7 @@ package init
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -47,55 +48,79 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 		assertContains(t, templateAgents, canonical)
 	}
 
-	liveSkillRoot := filepath.Join(root, "agent-skills")
-	templateSkillRoot := filepath.Join(root, "templates", "project", "agent-skills")
-	entries, err := os.ReadDir(liveSkillRoot)
-	if err != nil {
-		t.Fatalf("read live skill root: %v", err)
-	}
+	// The canonical-to-shipped pairing is no longer derivable from one
+	// directory listing now that V1 and V2 assets ship from separate trees
+	// (see .savepoint/Guardrails.md TPL-01): it is this explicit table
+	// instead. Byte parity and set-completeness are asserted in both
+	// directions per tree, so a skill added to the live tree and forgotten in
+	// its shipped tree still fails, and so does a skill shipped to the wrong
+	// tree.
+	assertSkillTreeParity(t, root, "agent-skills", "templates/project/agent-skills", v1SkillNames, []string{"audit-method.md"})
+	assertSkillTreeParity(t, root, "agent-skills", "templates/project-v2/agent-skills", v2Skills, v2References)
 
-	var skillNames []string
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "savepoint-") {
-			skillNames = append(skillNames, entry.Name())
-		}
+	// Every live skill belongs to exactly one declared tree above; a skill
+	// added live and forgotten in both tables would otherwise pass silently.
+	liveSkills := savepointSkillDirs(t, filepath.Join(root, "agent-skills"))
+	declared := append(append([]string(nil), v1SkillNames...), v2Skills...)
+	sort.Strings(declared)
+	if !slices.Equal(liveSkills, declared) {
+		t.Errorf("live agent-skills/ = %v, want exactly the union of v1SkillNames and v2Skills = %v", liveSkills, declared)
 	}
-	sort.Strings(skillNames)
+}
 
-	if len(skillNames) == 0 {
-		t.Fatal("no live skills found")
-	}
+// assertSkillTreeParity asserts, for one shipped tree, that every named
+// canonical skill and reference is byte-identical in that tree, and that the
+// tree carries exactly that set — no fewer, and nothing belonging to another
+// tree.
+func assertSkillTreeParity(t *testing.T, root, liveRel, shippedRel string, skillNames, referenceNames []string) {
+	t.Helper()
 
 	for _, name := range skillNames {
 		assertFileMatches(t, root,
-			filepath.Join("agent-skills", name, "SKILL.md"),
-			filepath.Join("templates", "project", "agent-skills", name, "SKILL.md"),
+			filepath.Join(liveRel, name, "SKILL.md"),
+			filepath.Join(shippedRel, name, "SKILL.md"),
 		)
-		if _, err := os.Stat(filepath.Join(templateSkillRoot, name, "SKILL.md")); err != nil {
-			t.Fatalf("missing scaffolded skill %s: %v", name, err)
-		}
+	}
+	for _, name := range referenceNames {
+		assertFileMatches(t, root,
+			filepath.Join(liveRel, "references", name),
+			filepath.Join(shippedRel, "references", name),
+		)
 	}
 
-	templateEntries, err := os.ReadDir(templateSkillRoot)
+	gotSkills := savepointSkillDirs(t, filepath.Join(root, filepath.FromSlash(shippedRel)))
+	wantSkills := append([]string(nil), skillNames...)
+	sort.Strings(wantSkills)
+	if !slices.Equal(gotSkills, wantSkills) {
+		t.Errorf("%s skill set = %v, want %v", shippedRel, gotSkills, wantSkills)
+	}
+
+	gotReferences := referenceFileNames(t, filepath.Join(root, filepath.FromSlash(shippedRel)))
+	wantReferences := append([]string(nil), referenceNames...)
+	sort.Strings(wantReferences)
+	if !slices.Equal(gotReferences, wantReferences) {
+		t.Errorf("%s reference set = %v, want %v", shippedRel, gotReferences, wantReferences)
+	}
+}
+
+// referenceFileNames lists the non-triggerable reference files shipped
+// alongside a skill root's savepoint-* directories.
+func referenceFileNames(t *testing.T, skillRoot string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Join(skillRoot, "references"))
 	if err != nil {
-		t.Fatalf("read scaffold skill root: %v", err)
-	}
-	var templateSkillCount int
-	for _, entry := range templateEntries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "savepoint-") {
-			templateSkillCount++
-		}
-	}
-	if templateSkillCount != len(skillNames) {
-		t.Fatalf("scaffolded skill count = %d, want %d", templateSkillCount, len(skillNames))
+		t.Fatalf("read references dir under %s: %v", skillRoot, err)
 	}
 
-	// The shared audit method is a non-triggerable reference, so it is mirrored
-	// outside the savepoint-* skill folders.
-	assertFileMatches(t, root,
-		filepath.Join("agent-skills", "references", "audit-method.md"),
-		filepath.Join("templates", "project", "agent-skills", "references", "audit-method.md"),
-	)
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
@@ -204,7 +229,7 @@ func TestUpgradeMigratesLegacyAuditSkillFromRealTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -329,7 +354,7 @@ func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
 		".savepoint/audit/runs/README.md",
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -344,7 +369,7 @@ func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
 	}
 
 	// A second upgrade must leave the now-present audit assets untouched.
-	rerun, err := UpgradeProjectAssets(templates, target, false, false)
+	rerun, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() rerun error = %v", err)
 	}
@@ -364,7 +389,7 @@ func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}

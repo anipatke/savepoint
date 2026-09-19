@@ -53,7 +53,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 
 | ID | Severity | Rule |
 |---|---|---|
-| TPL-01 | Blocker | Canonical `agent-skills/{skill}/SKILL.md` and the scaffolded `templates/project/agent-skills/{skill}/SKILL.md` copy must stay byte-identical. |
+| TPL-01 | Blocker | Canonical `agent-skills/{skill}/SKILL.md` must stay byte-identical to its scaffolded copy in whichever shipped tree carries it — the nine V1 skills and `references/audit-method.md` in `templates/project/agent-skills/`, and the four V2 skills plus their three shared references in `templates/project-v2/agent-skills/`. |
 | TPL-02 | Required | Shipped guidance must describe behavior that the current code actually has. |
 | TPL-03 | Required | A template that references another `.savepoint/` file must degrade gracefully when that file is absent; absence is not a finding. |
 | TPL-04 | Required | New scaffold files must reach existing projects through a declared upgrade path, or the epic must state why they are fresh-init only. |

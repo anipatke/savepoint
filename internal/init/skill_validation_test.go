@@ -7,12 +7,55 @@ import (
 	"testing"
 )
 
-// skillRoots are the two trees that must stay in agreement: the skills this
-// repository runs on, and the copies scaffolded into generated projects.
+// liveSkillRoot is the canonical skill source this repository runs on. Both
+// shipped trees below must stay byte-identical to whichever of its skills
+// and references they carry.
+func liveSkillRoot() string {
+	return filepath.Join("..", "..", "agent-skills")
+}
+
+// v1TemplateSkillRoot is the shipped tree for a V1 project: the nine V1
+// skills plus the audit-method reference.
+func v1TemplateSkillRoot() string {
+	return filepath.Join("..", "..", "templates", "project", "agent-skills")
+}
+
+// v2TemplateSkillRoot is the shipped tree for a V2 project: the four V2
+// skills plus their three shared references.
+func v2TemplateSkillRoot() string {
+	return filepath.Join("..", "..", "templates", "project-v2", "agent-skills")
+}
+
+// skillRoots pairs the live source with the V1 shipped tree. Use it for
+// tests scoped to V1-only skills and references; V2-only content has moved
+// out of this tree and belongs in v2SkillRoots.
 func skillRoots() map[string]string {
 	return map[string]string{
-		"live":     filepath.Join("..", "..", "agent-skills"),
-		"template": filepath.Join("..", "..", "templates", "project", "agent-skills"),
+		"live":     liveSkillRoot(),
+		"template": v1TemplateSkillRoot(),
+	}
+}
+
+// v2SkillRoots pairs the live source with the V2 shipped tree. Use it for
+// tests scoped to the four V2 skills and their three shared references.
+func v2SkillRoots() map[string]string {
+	return map[string]string{
+		"live":     liveSkillRoot(),
+		"template": v2TemplateSkillRoot(),
+	}
+}
+
+// allSkillRoots covers every shipped tree at once. Use it only for
+// discovery-based checks that validate whatever skills a root happens to
+// carry (frontmatter shape, non-empty sections) rather than asserting a
+// specific skill or reference is present in every root — a mixed-content
+// assertion over this map would wrongly expect V1 skills in the V2 tree or
+// V2 skills in the V1 tree.
+func allSkillRoots() map[string]string {
+	return map[string]string{
+		"live":        liveSkillRoot(),
+		"template":    v1TemplateSkillRoot(),
+		"template-v2": v2TemplateSkillRoot(),
 	}
 }
 
@@ -78,7 +121,7 @@ func sectionBody(content, heading string) (string, bool) {
 }
 
 func TestSavepointSkillsHaveValidFrontmatter(t *testing.T) {
-	for tree, root := range skillRoots() {
+	for tree, root := range allSkillRoots() {
 		for _, name := range savepointSkillDirs(t, root) {
 			path := filepath.Join(root, name, "SKILL.md")
 			data, err := os.ReadFile(path)
@@ -99,7 +142,7 @@ func TestSavepointSkillsHaveValidFrontmatter(t *testing.T) {
 }
 
 func TestSavepointSkillsHaveNonEmptyTriggerAndWorkflow(t *testing.T) {
-	for tree, root := range skillRoots() {
+	for tree, root := range allSkillRoots() {
 		for _, name := range savepointSkillDirs(t, root) {
 			path := filepath.Join(root, name, "SKILL.md")
 			data, err := os.ReadFile(path)

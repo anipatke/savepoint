@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencode/savepoint/internal/data"
+	savepointinit "github.com/opencode/savepoint/internal/init"
 	"github.com/opencode/savepoint/internal/migrate"
 )
 
@@ -79,6 +81,155 @@ func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
 	}
 	if !strings.Contains(result.stdout, "agent-skills/references/audit-method.md") {
 		t.Errorf("stdout = %q, want the already-applied work named", result.stdout)
+	}
+}
+
+// v1OnlyPaths are paths a V1 project can carry that must never appear on a
+// fresh V2 scaffold: releases/epics, the release PRD, the optional Concept
+// and Health-Check documents, and the audit register.
+var v1OnlyPaths = []string{
+	filepath.Join(".savepoint", "releases"),
+	filepath.Join(".savepoint", "epics"),
+	filepath.Join(".savepoint", "PRD.md"),
+	filepath.Join(".savepoint", "Concept.md"),
+	filepath.Join(".savepoint", "Health-Check.md"),
+	filepath.Join(".savepoint", "audit"),
+}
+
+// v1OnlySkills are the nine V1 skills that must never reach a fresh V2
+// project; savepoint init writes only the four V2 skills.
+var v1OnlySkills = []string{
+	"savepoint-draft-prd", "savepoint-system-design", "savepoint-create-task",
+	"savepoint-build-task", "savepoint-audit-epic", "savepoint-audit-task",
+	"savepoint-audit-register", "savepoint-create-defect", "savepoint-create-plan",
+}
+
+func TestMainInitScaffoldsV2ProjectWithEmptyValidIndex(t *testing.T) {
+	dir := t.TempDir()
+
+	result := runMainForTest(t, []string{"init", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	configPath := filepath.Join(dir, ".savepoint", "config.yml")
+	version, err := data.ReadSchemaVersion(configPath)
+	if err != nil {
+		t.Fatalf("ReadSchemaVersion() error = %v", err)
+	}
+	if version != data.SchemaVersionV2 {
+		t.Fatalf("SchemaVersion = %v, want SchemaVersionV2", version)
+	}
+
+	project, err := data.LoadProject(filepath.Join(dir, ".savepoint"))
+	if err != nil {
+		t.Fatalf("LoadProject() on fresh init error = %v", err)
+	}
+	if project.SchemaVersion != data.SchemaVersionV2 {
+		t.Errorf("Project.SchemaVersion = %v, want SchemaVersionV2", project.SchemaVersion)
+	}
+	if project.V2 == nil {
+		t.Fatal("Project.V2 index is nil")
+	}
+	if len(project.V2.Objectives) != 0 || len(project.V2.Tasks) != 0 || len(project.V2.Checks) != 0 || len(project.V2.Issues) != 0 {
+		t.Errorf("fresh init V2 index not empty: %+v", project.V2)
+	}
+}
+
+func TestMainInitWritesNoV1OnlyPathOrSkill(t *testing.T) {
+	dir := t.TempDir()
+
+	result := runMainForTest(t, []string{"init", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	for _, rel := range v1OnlyPaths {
+		if _, err := os.Stat(filepath.Join(dir, rel)); !os.IsNotExist(err) {
+			t.Errorf("fresh V2 init has V1-only path %s (stat err = %v)", rel, err)
+		}
+	}
+	for _, skill := range v1OnlySkills {
+		path := filepath.Join(dir, "agent-skills", skill)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("fresh V2 init has V1 skill %s (stat err = %v)", skill, err)
+		}
+	}
+}
+
+func TestMainInitManifestRecordsExactlyTheFourV2Skills(t *testing.T) {
+	dir := t.TempDir()
+
+	result := runMainForTest(t, []string{"init", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	manifest, err := savepointinit.LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+
+	want := []string{
+		"agent-skills/savepoint-idea/SKILL.md",
+		"agent-skills/savepoint-design/SKILL.md",
+		"agent-skills/savepoint-task/SKILL.md",
+		"agent-skills/savepoint-check/SKILL.md",
+	}
+	if len(manifest.Skills) != len(want) {
+		t.Fatalf("manifest.Skills = %v, want exactly %v", manifest.Skills, want)
+	}
+	for _, key := range want {
+		if _, ok := manifest.Hash(key); !ok {
+			t.Errorf("manifest missing provenance entry for %s", key)
+		}
+	}
+}
+
+// fileHash returns the hex SHA-256 of path's content, for tests that must
+// prove a file's bytes did not change rather than merely that it still
+// exists.
+func fileHash(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
+func TestMainInitOnExistingCodebasePreservesEveryFileByteIdentical(t *testing.T) {
+	dir := t.TempDir()
+
+	seed := map[string]string{
+		"package.json": `{"name":"demo"}` + "\n",
+		"README.md":    "# Demo\n",
+		"src/index.js": "console.log('hi')\n",
+		".gitignore":   "node_modules\n",
+	}
+	for rel, content := range seed {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		mkdirAll(t, filepath.Dir(path))
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := map[string]string{}
+	for rel := range seed {
+		before[rel] = fileHash(t, filepath.Join(dir, filepath.FromSlash(rel)))
+	}
+
+	result := runMainForTest(t, []string{"init", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	for rel, want := range before {
+		got := fileHash(t, filepath.Join(dir, filepath.FromSlash(rel)))
+		if got != want {
+			t.Errorf("%s content changed by init", rel)
+		}
 	}
 }
 
@@ -467,6 +618,78 @@ func TestMainUpgradeAssetsStillWorksAfterMigrateAdded(t *testing.T) {
 	}
 	if !strings.Contains(result.stdout, "Upgrade Report:") {
 		t.Fatalf("stdout = %q, want the upgrade report", result.stdout)
+	}
+}
+
+func TestMainUpgradeAssetsV1ProjectInstallsV1SkillsAndNamesMigrateRoute(t *testing.T) {
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+
+	result := runMainForTest(t, []string{"upgrade-assets", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint upgrade-assets failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-draft-prd", "SKILL.md")); err != nil {
+		t.Errorf("V1 skill not installed on a project with no schema_version: %v", err)
+	}
+	for _, skill := range v1OnlySkills {
+		if skill == "savepoint-draft-prd" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill, "SKILL.md")); err != nil {
+			t.Errorf("V1 skill %s not installed: %v", skill, err)
+		}
+	}
+	for _, skill := range []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"} {
+		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill)); !os.IsNotExist(err) {
+			t.Errorf("V2 skill %s installed on a V1 project, stat err = %v", skill, err)
+		}
+	}
+
+	if !strings.Contains(result.stdout, "savepoint migrate") {
+		t.Errorf("stdout = %q, want the migrate-route note", result.stdout)
+	}
+}
+
+func TestMainUpgradeAssetsV2ProjectInstallsOnlyV2Skills(t *testing.T) {
+	dir := t.TempDir()
+	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+	if err := os.WriteFile(filepath.Join(dir, ".savepoint", "config.yml"), []byte("schema_version: 2\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runMainForTest(t, []string{"upgrade-assets", dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint upgrade-assets failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	for _, skill := range []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"} {
+		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill, "SKILL.md")); err != nil {
+			t.Errorf("V2 skill %s not installed: %v", skill, err)
+		}
+	}
+	for _, reference := range []string{"check-method.md", "commands-and-procedures.md", "issue-capture.md"} {
+		if _, err := os.Stat(filepath.Join(dir, "agent-skills", "references", reference)); err != nil {
+			t.Errorf("V2 shared reference %s not installed: %v", reference, err)
+		}
+	}
+	for _, skill := range v1OnlySkills {
+		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill)); !os.IsNotExist(err) {
+			t.Errorf("V1 skill %s installed on a V2 project, stat err = %v", skill, err)
+		}
+	}
+
+	if strings.Contains(result.stdout, "savepoint migrate") {
+		t.Errorf("stdout = %q, a V2 project should carry no migrate-route note", result.stdout)
+	}
+
+	config, err := os.ReadFile(filepath.Join(dir, ".savepoint", "config.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(config) != "schema_version: 2\n" {
+		t.Errorf("config.yml = %q, want it untouched by the upgrade", string(config))
 	}
 }
 

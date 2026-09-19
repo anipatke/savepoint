@@ -14,7 +14,7 @@ import (
 // by the typed readers that own those schemas. A text-presence assertion alone
 // would allow a template and decoder to drift while both tests still passed.
 func TestV2ArtifactTemplatesDecodeThroughTypedContracts(t *testing.T) {
-	for tree, root := range skillRoots() {
+	for tree, root := range v2SkillRoots() {
 		designPath := filepath.Join(root, "savepoint-design", "SKILL.md")
 		design := readProvenanceContractSource(t, designPath)
 		taskContent := provenanceArtifactFence(t, design, "planned_by: {role: planner, session: planning-example}")

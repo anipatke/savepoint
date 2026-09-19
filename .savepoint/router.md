@@ -12,12 +12,11 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ## Current state
 
 ```yaml
-state: defect-building
+state: task-building
 release: v2
-epic: E46-agent-workflow-assets
-task: E46-agent-workflow-assets/T009-route-to-the-new-skills-without-breaking-todays-workflow
-defect: D003-ci-workflow-missing-token-permissions
-next_action: Repair D003-ci-workflow-missing-token-permissions.
+epic: E47-onboarding-upgrades
+task: E47-onboarding-upgrades/T006-retire-the-old-instructions-without-losing-edits
+next_action: E47-onboarding-upgrades/T006-retire-the-old-instructions-without-losing-edits is built and awaiting user review; only the user may mark it done. Next planned task after that is E47-onboarding-upgrades/T007-prove-the-whole-onboarding-loop-protects-user-files.
 ```
 
 ## State → action

@@ -179,12 +179,12 @@ func TestLifecycle_unchangedUpgradeTouchesNothing(t *testing.T) {
 
 	// The first upgrade settles any difference between scaffolding and upgrade
 	// output; the second has genuinely nothing to do.
-	if _, err := UpgradeProjectAssets(templates, dir, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 	before := treeSnapshot(t, dir)
 
-	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -225,7 +225,7 @@ func TestLifecycle_upgradeHonoursOwnership(t *testing.T) {
 			dir := scaffoldProject(t, templates)
 			edited := editEveryFile(t, dir, paths)
 
-			report, err := UpgradeProjectAssets(templates, dir, false, force)
+			report, err := upgradeAssetsFromTree(templates, dir, false, force)
 			if err != nil {
 				t.Fatalf("UpgradeProjectAssets() error = %v", err)
 			}
@@ -281,7 +281,7 @@ func TestLifecycle_upgradeRefreshesPackageOwnedAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := UpgradeProjectAssets(templates, dir, false, true)
+	report, err := upgradeAssetsFromTree(templates, dir, false, true)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -349,7 +349,7 @@ func TestLifecycle_upgradeConflictsOnCustomizedSkills(t *testing.T) {
 	dir := scaffoldProject(t, templates)
 	edited := editEveryFile(t, dir, paths)
 
-	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -396,7 +396,7 @@ func TestLifecycle_upgradeReinstallsMissingInstallIfMissingAssets(t *testing.T) 
 		t.Fatal("no install-if-missing assets found")
 	}
 
-	if _, err := UpgradeProjectAssets(templates, dir, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 

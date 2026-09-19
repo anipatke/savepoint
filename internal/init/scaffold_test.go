@@ -260,57 +260,6 @@ func TestScaffold_overwritesExistingAfterValidation(t *testing.T) {
 	}
 }
 
-func TestScaffold_createsReleaseSkeleton(t *testing.T) {
-	target := t.TempDir()
-	templates := fstest.MapFS{
-		".savepoint/releases/v1/epics":     &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/releases/v1/v1-PRD.md": &fstest.MapFile{Data: []byte("# v{{RELEASE_NUMBER}} PRD for {{PROJECT_NAME}}")},
-	}
-
-	if err := Scaffold(templates, target, "myapp", false); err != nil {
-		t.Fatalf("Scaffold() error = %v", err)
-	}
-
-	epicsPath := filepath.Join(target, ".savepoint", "releases", "v1", "epics")
-	if info, err := os.Stat(epicsPath); err != nil || !info.IsDir() {
-		t.Errorf(".savepoint/releases/v1/epics not created as directory: %v", err)
-	}
-
-	prdPath := filepath.Join(target, ".savepoint", "releases", "v1", "v1-PRD.md")
-	data, err := os.ReadFile(prdPath)
-	if err != nil {
-		t.Errorf(".savepoint/releases/v1/v1-PRD.md not created: %v", err)
-	}
-	if got := string(data); !strings.Contains(got, "v1 PRD for myapp") {
-		t.Errorf("v1-PRD.md = %q, want interpolated content", got)
-	}
-}
-
-func TestScaffold_createsAuditRegisterAssets(t *testing.T) {
-	target := t.TempDir()
-	templates := fstest.MapFS{
-		".savepoint/audit/prompt.md":          &fstest.MapFile{Data: []byte("# Audit Prompt")},
-		".savepoint/audit/register.md":        &fstest.MapFile{Data: []byte("# Audit Register")},
-		".savepoint/audit/findings/README.md": &fstest.MapFile{Data: []byte("# Audit Findings")},
-		".savepoint/audit/runs/README.md":     &fstest.MapFile{Data: []byte("# Audit Runs")},
-	}
-
-	if err := Scaffold(templates, target, "myapp", false); err != nil {
-		t.Fatalf("Scaffold() error = %v", err)
-	}
-
-	for _, path := range []string{
-		filepath.Join(".savepoint", "audit", "prompt.md"),
-		filepath.Join(".savepoint", "audit", "register.md"),
-		filepath.Join(".savepoint", "audit", "findings", "README.md"),
-		filepath.Join(".savepoint", "audit", "runs", "README.md"),
-	} {
-		if _, err := os.Stat(filepath.Join(target, path)); err != nil {
-			t.Errorf("audit asset %s not created: %v", path, err)
-		}
-	}
-}
-
 // scaffoldFromRealTemplates runs a fresh init against the templates that ship in
 // the binary, so scaffold assertions test what a user actually gets rather than
 // a synthetic fixture.

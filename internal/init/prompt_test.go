@@ -105,7 +105,7 @@ func TestPromptTemplates_magicPromptIsBootstrapOnly(t *testing.T) {
 	}
 
 	content := string(data)
-	for _, want := range []string{"{{PROJECT_NAME}}", "AGENTS.md", "AGENT"} {
+	for _, want := range []string{"{{PROJECT_NAME}}", "AGENTS.md", "AGENT", "rough sentence", "savepoint-idea"} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("magic prompt missing %q", want)
 		}
@@ -124,6 +124,13 @@ func TestPromptTemplates_magicPromptIsBootstrapOnly(t *testing.T) {
 	for _, stale := range stalePhaseInstructions {
 		if strings.Contains(content, stale) {
 			t.Fatalf("magic prompt contains stale phase instruction %q", stale)
+		}
+	}
+
+	staleV1Vocabulary := []string{"epic", "PRD", "savepoint-draft-prd"}
+	for _, stale := range staleV1Vocabulary {
+		if strings.Contains(content, stale) {
+			t.Fatalf("magic prompt contains V1 vocabulary %q", stale)
 		}
 	}
 }

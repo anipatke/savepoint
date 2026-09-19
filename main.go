@@ -21,6 +21,10 @@ import (
 //go:embed templates/prompts
 var projectTemplates embed.FS
 
+//go:embed templates/project-v2
+//go:embed all:templates/project-v2/.savepoint
+var projectTemplatesV2 embed.FS
+
 var version = "dev"
 
 func main() {
@@ -106,12 +110,17 @@ func runDoctorChecks(opts cmd.DoctorOptions) (int, error) {
 }
 
 func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) error {
-	sub, err := fs.Sub(projectTemplates, "templates/project")
+	subV1, err := fs.Sub(projectTemplates, "templates/project")
 	if err != nil {
 		return fmt.Errorf("cannot load templates: %w", err)
 	}
 
-	report, err := savepointinit.UpgradeProjectAssets(sub, opts.Dir, opts.DryRun, opts.Force)
+	subV2, err := fs.Sub(projectTemplatesV2, "templates/project-v2")
+	if err != nil {
+		return fmt.Errorf("cannot load templates: %w", err)
+	}
+
+	report, err := savepointinit.UpgradeProjectAssets(subV1, subV2, opts.Dir, opts.DryRun, opts.Force)
 	if err != nil {
 		// A failure part-way through still applied whatever came before it.
 		// Print that work before the error so the user knows what changed.
@@ -146,7 +155,7 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 		return err
 	}
 
-	sub, err := fs.Sub(projectTemplates, "templates/project")
+	sub, err := fs.Sub(projectTemplatesV2, "templates/project-v2")
 	if err != nil {
 		return fmt.Errorf("cannot load templates: %w", err)
 	}

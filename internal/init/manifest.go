@@ -76,6 +76,13 @@ func (m *Manifest) Record(path string, content []byte) {
 	m.Skills[key] = hashContent(content)
 }
 
+// Forget drops the recorded hash for path, if any. Retirement calls this after
+// a file is actually removed, so the manifest never outlives the file it
+// records provenance for.
+func (m *Manifest) Forget(path string) {
+	delete(m.Skills, filepath.ToSlash(path))
+}
+
 // Hash returns the recorded hash for path and whether the path is recorded.
 func (m *Manifest) Hash(path string) (string, bool) {
 	hash, ok := m.Skills[filepath.ToSlash(path)]

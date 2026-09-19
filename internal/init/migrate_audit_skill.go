@@ -32,6 +32,17 @@ nothing in this directory is loaded by an agent or triggerable as a skill.
   edits are recoverable. A numbered suffix means a differing copy was archived by
   a later upgrade.
 
+- The nine V1 skills and the shared audit method reference, retired when a
+  project upgrades on the V2 workflow: ` + "`savepoint-draft-prd`" + `,
+  ` + "`savepoint-create-plan`" + `, ` + "`savepoint-system-design`" + `,
+  ` + "`savepoint-create-task`" + `, ` + "`savepoint-build-task`" + `,
+  ` + "`savepoint-audit-task`" + `, ` + "`savepoint-audit-epic`" + `,
+  ` + "`savepoint-audit-register`" + `, ` + "`savepoint-create-defect`" + `, and
+  ` + "`references/audit-method.md`" + `. Every one is archived, edited or not,
+  because deciding which local edits were worth keeping is not this command's
+  call to make. A numbered suffix means a differing copy was archived by a later
+  upgrade.
+
 Delete anything here once you have salvaged what you need.
 `
 
@@ -39,7 +50,7 @@ Delete anything here once you have salvaged what you need.
 // content under .savepoint/migrations/ and deleting the triggerable copy. It
 // returns nil when the project never had the legacy skill, so projects that are
 // already on the split skills gain no archive.
-func migrateLegacyAuditSkill(absTarget string, dryRun bool) (*UpgradeEntry, error) {
+func migrateLegacyAuditSkill(absTarget string, dryRun bool, write assetWriter) (*UpgradeEntry, error) {
 	legacyPath := filepath.Join(absTarget, filepath.FromSlash(legacyAuditSkillFile))
 
 	content, err := os.ReadFile(legacyPath)
@@ -50,7 +61,7 @@ func migrateLegacyAuditSkill(absTarget string, dryRun bool) (*UpgradeEntry, erro
 		return nil, fmt.Errorf("read legacy audit skill: %w", err)
 	}
 
-	archivePath, err := resolveArchivePath(absTarget, content)
+	archivePath, err := resolveArchivePath(absTarget, legacyAuditArchiveStem, content)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +74,7 @@ func migrateLegacyAuditSkill(absTarget string, dryRun bool) (*UpgradeEntry, erro
 	// Preserve first, delete second: the triggerable copy is removed only after
 	// its content is safely on disk somewhere else.
 	if archivePath != "" {
-		if err := writeArchive(absTarget, archivePath, content); err != nil {
+		if err := writeArchive(absTarget, archivePath, content, write); err != nil {
 			return nil, err
 		}
 	}
@@ -77,16 +88,16 @@ func migrateLegacyAuditSkill(absTarget string, dryRun bool) (*UpgradeEntry, erro
 }
 
 // resolveArchivePath applies the archive conflict policy: reuse nothing, never
-// overwrite. It returns an empty path when an identical archive already exists,
-// which makes repeated upgrades idempotent, and a numbered sibling path when a
-// differing archive is already present.
-func resolveArchivePath(absTarget string, content []byte) (string, error) {
+// overwrite. It returns an empty path when an identical archive already exists
+// under stem, which makes repeated upgrades idempotent, and a numbered sibling
+// path when a differing archive is already present.
+func resolveArchivePath(absTarget, stem string, content []byte) (string, error) {
 	dir := filepath.Join(absTarget, filepath.FromSlash(migrationsDir))
 
 	for i := 0; i < maxArchiveConflictTries; i++ {
-		name := legacyAuditArchiveStem + ".md"
+		name := stem + ".md"
 		if i > 0 {
-			name = fmt.Sprintf("%s.%d.md", legacyAuditArchiveStem, i)
+			name = fmt.Sprintf("%s.%d.md", stem, i)
 		}
 		candidate := filepath.Join(dir, name)
 
@@ -102,10 +113,10 @@ func resolveArchivePath(absTarget string, content []byte) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("cannot archive legacy audit skill: %s already holds %d differing copies", migrationsDir, maxArchiveConflictTries)
+	return "", fmt.Errorf("cannot archive %s: %s already holds %d differing copies", stem, migrationsDir, maxArchiveConflictTries)
 }
 
-func writeArchive(absTarget, archivePath string, content []byte) error {
+func writeArchive(absTarget, archivePath string, content []byte, write assetWriter) error {
 	dir := filepath.Join(absTarget, filepath.FromSlash(migrationsDir))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("create %s: %w", migrationsDir, err)
@@ -113,14 +124,14 @@ func writeArchive(absTarget, archivePath string, content []byte) error {
 
 	readmePath := filepath.Join(dir, migrationsReadmeName)
 	if _, err := os.Stat(readmePath); os.IsNotExist(err) {
-		if err := AtomicWrite(readmePath, []byte(migrationsReadme)); err != nil {
+		if err := write(readmePath, []byte(migrationsReadme)); err != nil {
 			return fmt.Errorf("write %s/%s: %w", migrationsDir, migrationsReadmeName, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("stat %s/%s: %w", migrationsDir, migrationsReadmeName, err)
 	}
 
-	if err := AtomicWrite(archivePath, content); err != nil {
+	if err := write(archivePath, content); err != nil {
 		return fmt.Errorf("write migration archive: %w", err)
 	}
 	return nil

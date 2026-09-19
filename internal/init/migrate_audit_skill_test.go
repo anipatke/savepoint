@@ -50,7 +50,7 @@ func TestUpgrade_installsSplitSkillsAndSharedReference(t *testing.T) {
 	target := newLegacyProject(t, "")
 	templates := splitAuditTemplates()
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -82,7 +82,7 @@ func TestUpgrade_sharedReferenceRefreshesLikeASkill(t *testing.T) {
 	}
 	testutil.WriteFile(t, filepath.Join(refDir, "audit-method.md"), "# Old Method")
 
-	report, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false)
+	report, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -108,7 +108,7 @@ func TestUpgrade_migratesStockLegacyAuditSkill(t *testing.T) {
 	legacy := "# Old Generic Audit Skill"
 	target := newLegacyProject(t, legacy)
 
-	report, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false)
+	report, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -149,7 +149,7 @@ func TestUpgrade_preservesUserModifiedLegacySkill(t *testing.T) {
 	legacy := "# My Locally Edited Audit Skill\n\nCustom project rules."
 	target := newLegacyProject(t, legacy)
 
-	if _, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestUpgrade_preservesUserModifiedLegacySkill(t *testing.T) {
 func TestUpgrade_withoutLegacySkillCreatesNoArchive(t *testing.T) {
 	target := newLegacyProject(t, "")
 
-	report, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false)
+	report, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -182,10 +182,10 @@ func TestUpgrade_migrationIsIdempotent(t *testing.T) {
 	legacy := "# Old Generic Audit Skill"
 	target := newLegacyProject(t, legacy)
 
-	if _, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
-	report, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false)
+	report, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -208,7 +208,7 @@ func TestUpgrade_reArchivesDifferingLegacyContentWithoutOverwriting(t *testing.T
 	first := "# First Legacy Copy"
 	target := newLegacyProject(t, first)
 
-	if _, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -220,7 +220,7 @@ func TestUpgrade_reArchivesDifferingLegacyContentWithoutOverwriting(t *testing.T
 	}
 	testutil.WriteFile(t, filepath.Join(dir, "SKILL.md"), second)
 
-	if _, err := UpgradeProjectAssets(splitAuditTemplates(), target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(splitAuditTemplates(), target, false, false); err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestUpgrade_dryRunReportsMigrationWithoutWriting(t *testing.T) {
 	legacy := "# Old Generic Audit Skill"
 	target := newLegacyProject(t, legacy)
 
-	report, err := UpgradeProjectAssets(splitAuditTemplates(), target, true, false)
+	report, err := upgradeAssetsFromTree(splitAuditTemplates(), target, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
