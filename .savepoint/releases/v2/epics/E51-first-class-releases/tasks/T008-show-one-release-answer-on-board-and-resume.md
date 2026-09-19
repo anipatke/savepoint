@@ -1,10 +1,9 @@
 ---
 id: E51-first-class-releases/T008-show-one-release-answer-on-board-and-resume
-status: in_progress
-stage: build
+status: done
 objective: Present the same Release promise, evidence, readiness, and next action across board, plain output, and resume.
 depends_on:
-  - E51-first-class-releases/T007-switch-releases-with-the-existing-r-key
+    - E51-first-class-releases/T007-switch-releases-with-the-existing-r-key
 complexity_tier: high
 complexity_reason: Coordinates interactive detail, deterministic output, shared wording, width safety, and cross-command parity.
 ---

@@ -483,6 +483,125 @@ func TestApply_resumesAfterInterruption_convergesToSameFinalState(t *testing.T) 
 	}
 }
 
+func TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits(t *testing.T) {
+	baselineRoot := copyFixtureProject(t, "v1-history")
+	baselinePlan := mustPlan(t, baselineRoot)
+	if _, err := Apply(baselineRoot, baselinePlan); err != nil {
+		t.Fatalf("baseline Apply() error = %v", err)
+	}
+	baseline := snapshotTree(t, baselineRoot)
+
+	probeRoot := copyFixtureProject(t, "v1-history")
+	probePlan := mustPlan(t, probeRoot)
+	probeBatch, err := buildApplyBatch(probeRoot, probePlan)
+	if err != nil {
+		t.Fatalf("buildApplyBatch() error = %v", err)
+	}
+	boundaries := probeBatch.orderedWrites()
+	if len(boundaries) == 0 {
+		t.Fatal("migration produced no publish boundaries")
+	}
+
+	for _, boundary := range boundaries {
+		boundary := boundary
+		t.Run(string(boundary.Action)+" "+boundary.Path, func(t *testing.T) {
+			root := copyFixtureProject(t, "v1-history")
+			plan := mustPlan(t, root)
+			failed := false
+			oldWriteHook := afterPublishWriteHook
+			oldRemovalHook := afterPublishRemovalHook
+			t.Cleanup(func() {
+				afterPublishWriteHook = oldWriteHook
+				afterPublishRemovalHook = oldRemovalHook
+			})
+			if boundary.Action == ActionRemove {
+				afterPublishRemovalHook = func(path string) error {
+					if path == boundary.Path && !failed {
+						failed = true
+						return errors.New("synthetic publish interruption")
+					}
+					return nil
+				}
+			} else {
+				afterPublishWriteHook = func(path string) error {
+					if path == boundary.Path && !failed {
+						failed = true
+						return errors.New("synthetic publish interruption")
+					}
+					return nil
+				}
+			}
+
+			if _, err := Apply(root, plan); err == nil {
+				t.Fatalf("Apply() at %s completed; want synthetic interruption", boundary.Path)
+			}
+			if !failed {
+				t.Fatalf("boundary hook for %s was never reached", boundary.Path)
+			}
+
+			// Clearing the fault injection proves the durable operation resumes
+			// at every boundary and reaches the same bytes as a clean apply.
+			afterPublishWriteHook = nil
+			afterPublishRemovalHook = nil
+			result, err := Apply(root, plan)
+			if err != nil {
+				t.Fatalf("resuming Apply() at %s: %v", boundary.Path, err)
+			}
+			if !result.Resumed {
+				t.Fatalf("resume result at %s = %+v, want Resumed", boundary.Path, result)
+			}
+			assertSnapshotContentsEqual(t, baseline, snapshotTree(t, root))
+		})
+	}
+
+	// A user edit after an interrupted install must be refused rather than
+	// overwritten. This separate probe keeps the every-boundary recovery loop
+	// above able to prove successful convergence as well.
+	var editedBoundary stagedWrite
+	for _, boundary := range boundaries {
+		if boundary.Action != ActionRemove {
+			editedBoundary = boundary
+			break
+		}
+	}
+	if editedBoundary.Path == "" {
+		t.Fatal("migration produced no install boundary for the user-edit probe")
+	}
+	t.Run("user edit after interruption", func(t *testing.T) {
+		root := copyFixtureProject(t, "v1-history")
+		plan := mustPlan(t, root)
+		oldWriteHook := afterPublishWriteHook
+		oldRemovalHook := afterPublishRemovalHook
+		t.Cleanup(func() {
+			afterPublishWriteHook = oldWriteHook
+			afterPublishRemovalHook = oldRemovalHook
+		})
+		afterPublishWriteHook = func(path string) error {
+			if path == editedBoundary.Path {
+				return errors.New("synthetic publish interruption")
+			}
+			return nil
+		}
+		if _, err := Apply(root, plan); err == nil {
+			t.Fatalf("Apply() at %s completed; want synthetic interruption", editedBoundary.Path)
+		}
+		path := filepath.Join(root, filepath.FromSlash(editedBoundary.Path))
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read interrupted output %s: %v", editedBoundary.Path, err)
+		}
+		if err := os.WriteFile(path, append(content, []byte("\nuser edit after interruption\n")...), 0644); err != nil {
+			t.Fatalf("edit interrupted output %s: %v", editedBoundary.Path, err)
+		}
+		afterPublishWriteHook = nil
+		if _, err := Apply(root, plan); err == nil {
+			t.Fatalf("resume after user edit at %s succeeded; want conflict", editedBoundary.Path)
+		} else if !errors.Is(err, ErrVerificationFailed) {
+			t.Fatalf("resume after user edit at %s error = %v, want ErrVerificationFailed", editedBoundary.Path, err)
+		}
+	})
+}
+
 func TestApply_resumeAfterUserEditedInstalledFile_reportsConflict(t *testing.T) {
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
@@ -590,4 +709,21 @@ func replaceOnce(t *testing.T, content, old, new string) string {
 		t.Fatalf("content does not contain %q", old)
 	}
 	return strings.Replace(content, old, new, 1)
+}
+
+func assertSnapshotContentsEqual(t *testing.T, before, after treeSnapshot) {
+	t.Helper()
+	if len(before) != len(after) {
+		t.Fatalf("file count changed: before %d, after %d", len(before), len(after))
+	}
+	for path, want := range before {
+		got, ok := after[path]
+		if !ok {
+			t.Errorf("%s was present before and missing after", path)
+			continue
+		}
+		if string(want.content) != string(got.content) {
+			t.Errorf("%s content changed", path)
+		}
+	}
 }

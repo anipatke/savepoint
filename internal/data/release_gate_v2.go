@@ -25,6 +25,19 @@ func ResolveReleaseCompletion(index *V2Index, releaseID string) GateDecision {
 
 func resolveReleaseCompletionForRecord(index *V2Index, release *ReleaseV2) GateDecision {
 	objectiveIDs := index.ReleaseObjectives[release.ID]
+	// A migrated settled Release may have no live Objective members because
+	// its completed V1 work was archived. Its typed legacy completion is an
+	// explicit historical outcome, not a current CLEAR Check, and is therefore
+	// enough to preserve that settled disposition. If live members do exist,
+	// they still have to be historically done below.
+	if release.Status == ColumnDone && release.LegacyCompletion != nil && len(objectiveIDs) == 0 {
+		return GateDecision{
+			Allowed:                   true,
+			Actor:                     ActorRoleOwner,
+			AllowedByLegacyCompletion: true,
+			LegacyCompletion:          release.LegacyCompletion,
+		}
+	}
 	if len(objectiveIDs) == 0 {
 		return GateDecision{Blockers: []GateBlocker{{
 			Kind:   GateBlockReleaseNoObjectives,

@@ -1,12 +1,11 @@
 ---
 id: E51-first-class-releases/T007-switch-releases-with-the-existing-r-key
-status: in_progress
+status: done
 objective: Preserve the existing r-key Release selector while filtering V2 Objectives and Tasks through canonical Release links.
 depends_on:
     - E51-first-class-releases/T003-select-one-release-and-project-its-next-action
 complexity_tier: high
 complexity_reason: Adds a stateful overlay, filtered navigation, persistence, reload behavior, and compatibility coverage to the V2 board.
-stage: build
 ---
 
 # T007: Switch Releases with the existing r key

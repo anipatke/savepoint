@@ -1,6 +1,6 @@
 package migrate_test
 
-// end_to_end_test.go is E45's integration proof. Every other test in this
+// end_to_end_test.go is E51 T009's integration proof. Every other test in this
 // package proves one piece; these run both frozen E41 fixtures through the
 // real command path into temporary directories and assert the whole-project
 // properties that only show up once everything runs together: a clean V2
@@ -31,6 +31,7 @@ import (
 
 	"github.com/opencode/savepoint/cmd"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/doctor"
 	"github.com/opencode/savepoint/internal/migrate"
 	"gopkg.in/yaml.v3"
 )
@@ -154,6 +155,214 @@ func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
 				t.Errorf("migrated %s has no Tasks; the fixture's active work should have converted", fixture)
 			}
 		})
+	}
+}
+
+func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
+	for _, fixture := range e2eFixtures {
+		t.Run(fixture, func(t *testing.T) {
+			root := copyFixture(t, fixture)
+			plan := planFor(t, root)
+			preview := migrate.FormatPreview(plan)
+			releaseTargets := make([]migrate.PlannedTarget, 0)
+			sourceHashes := make(map[string]string)
+			for _, source := range plan.Sources {
+				sourceHashes[source.Path] = source.SHA256
+			}
+			for _, target := range plan.Targets {
+				if target.Kind != migrate.TargetRelease {
+					continue
+				}
+				releaseTargets = append(releaseTargets, target)
+				if !strings.Contains(preview, "- release "+target.GlobalID) {
+					t.Errorf("preview omitted first-class Release %s:\n%s", target.GlobalID, preview)
+				}
+			}
+			if len(releaseTargets) == 0 {
+				t.Fatal("migration plan produced no first-class Release targets")
+			}
+
+			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+				t.Fatalf("migrate --apply: %v\n%s", err, out)
+			}
+			manifest := readWrittenManifest(t, root)
+			index := mustIndex(t, root)
+			if len(index.Releases) != len(releaseTargets) {
+				t.Fatalf("loaded Releases = %d, want %d planned Releases", len(index.Releases), len(releaseTargets))
+			}
+
+			for _, target := range releaseTargets {
+				var identity *migrate.ManifestIdentity
+				for i := range manifest.Identities {
+					candidate := &manifest.Identities[i]
+					if candidate.Kind == string(migrate.TargetRelease) && candidate.Path == target.Legacy.Path {
+						identity = candidate
+						break
+					}
+				}
+				if identity == nil || identity.GlobalID != target.GlobalID || identity.TargetPath != target.InstallPath() {
+					t.Errorf("Release identity for %s = %+v, want source-qualified live mapping", target.Legacy.Path, identity)
+				}
+
+				var archive *migrate.ManifestArchive
+				for i := range manifest.Archives {
+					candidate := &manifest.Archives[i]
+					if candidate.SourcePath == target.Legacy.Path {
+						archive = candidate
+						break
+					}
+				}
+				if archive == nil {
+					t.Errorf("Release source %s has no accountable archive mapping", target.Legacy.Path)
+					continue
+				}
+				if archive.SHA256 != sourceHashes[target.Legacy.Path] {
+					t.Errorf("archive hash for %s = %q, want inventory hash %q", target.Legacy.Path, archive.SHA256, sourceHashes[target.Legacy.Path])
+				}
+				mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+				mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
+			}
+
+			cutover := data.ResolveReleaseCutover(index)
+			for releaseID := range index.Releases {
+				canonical := data.ResolveReleaseCompletion(index, releaseID)
+				if canonical.Allowed {
+					continue
+				}
+				found := false
+				for _, blocker := range cutover.Blockers {
+					if blocker.ReleaseID == releaseID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("project cutover gate omitted canonical blocker for Release %s: %+v", releaseID, canonical)
+				}
+			}
+
+			problems := doctor.CheckReleaseReadiness(filepath.Join(root, ".savepoint"))
+			for _, blocker := range cutover.Blockers {
+				matched := false
+				for _, problem := range problems {
+					if strings.Contains(problem.Message, "release "+blocker.ReleaseID) && strings.Contains(problem.Message, string(blocker.Gate.Kind)) {
+						matched = true
+						break
+					}
+				}
+				// Doctor uses stable diagnostic names rather than the raw gate
+				// kind; the Release identity must still be present in every
+				// canonical refusal.
+				if !matched {
+					for _, problem := range problems {
+						if strings.Contains(problem.Message, "release "+blocker.ReleaseID) {
+							matched = true
+							break
+						}
+					}
+				}
+				if !matched {
+					t.Errorf("doctor omitted cutover blocker for Release %s: %+v; problems = %+v", blocker.ReleaseID, blocker.Gate, problems)
+				}
+			}
+
+			if fixture == "v1-history" {
+				historical := index.Releases["R001"]
+				if historical == nil || historical.LegacyCompletion == nil {
+					t.Fatalf("R001 historical Release = %+v, want typed legacy completion", historical)
+				}
+				if historicalDecision := data.ResolveReleaseCompletion(index, "R001"); !historicalDecision.AllowedByLegacyCompletion {
+					t.Fatalf("R001 historical decision = %+v, want allowed by archived history", historicalDecision)
+				}
+				if cutover.Allowed {
+					t.Fatalf("v1-history cutover = %+v, want blocked by its active Release", cutover)
+				}
+			}
+		})
+	}
+}
+
+func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *testing.T) {
+	root := copyRepositoryWorkingTree(t)
+	beforePreview := snapshot(t, root)
+	code, preview, err := runMigrate(t, root)
+	if err != nil || code != 0 {
+		t.Fatalf("repository-copy preview: code = %d, err = %v\n%s", code, err, preview)
+	}
+	assertUnchanged(t, beforePreview, snapshot(t, root), "repository-copy preview")
+
+	plan := planFor(t, root)
+	if !plan.Appliable {
+		t.Fatalf("repository-copy plan is not appliable: ambiguities = %+v", plan.Ambiguities)
+	}
+	var plannedReleases []migrate.PlannedTarget
+	for _, target := range plan.Targets {
+		if target.Kind == migrate.TargetRelease {
+			plannedReleases = append(plannedReleases, target)
+		}
+	}
+	if len(plannedReleases) == 0 {
+		t.Fatal("repository-copy plan produced no first-class Release")
+	}
+
+	code, output, err := runMigrate(t, root, "--apply")
+	if err != nil || code != 0 {
+		t.Fatalf("repository-copy apply: code = %d, err = %v\n%s", code, err, output)
+	}
+	index := mustIndex(t, root)
+	if len(index.Releases) != len(plannedReleases) {
+		t.Fatalf("repository-copy Releases = %d, want %d planned Releases", len(index.Releases), len(plannedReleases))
+	}
+	manifest := readWrittenManifest(t, root)
+	for _, target := range plannedReleases {
+		foundLive := false
+		for _, identity := range manifest.Identities {
+			if identity.Kind == string(migrate.TargetRelease) && identity.Path == target.Legacy.Path && identity.GlobalID == target.GlobalID {
+				foundLive = true
+				mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(identity.TargetPath)))
+				break
+			}
+		}
+		if !foundLive {
+			t.Errorf("repository-copy Release %s has no manifest/live identity for %s", target.GlobalID, target.Legacy.Path)
+		}
+
+		foundArchive := false
+		for _, archive := range manifest.Archives {
+			if archive.SourcePath == target.Legacy.Path {
+				foundArchive = true
+				mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
+				break
+			}
+		}
+		if !foundArchive {
+			t.Errorf("repository-copy Release %s has no archived source mapping for %s", target.GlobalID, target.Legacy.Path)
+		}
+	}
+
+	// A second unchanged migration is the real command's no-op path: it must
+	// not rewrite the index, router selection, evidence, archive, or mtimes.
+	beforeSecond := snapshot(t, root)
+	idsBefore := recordIDs(t, root)
+	manifestPath := filepath.Join(root, ".savepoint", "migrations", "v1-to-v2.yml")
+	manifestBeforeBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read repository-copy migration manifest: %v", err)
+	}
+	code, output, err = runMigrate(t, root, "--apply")
+	if err != nil || code != 0 {
+		t.Fatalf("repository-copy second apply: code = %d, err = %v\n%s", code, err, output)
+	}
+	assertUnchanged(t, beforeSecond, snapshot(t, root), "repository-copy second apply")
+	if got := recordIDs(t, root); !equalStrings(got, idsBefore) {
+		t.Fatalf("repository-copy IDs changed on second apply: before %v, after %v", idsBefore, got)
+	}
+	manifestAfterBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read repository-copy migration manifest after second apply: %v", err)
+	}
+	if string(manifestAfterBytes) != string(manifestBeforeBytes) {
+		t.Fatal("repository-copy migration manifest changed on second apply")
 	}
 }
 
@@ -392,7 +601,7 @@ const sharedTaskID = "E01-example/T001-shared"
 // TestEndToEnd_recurringSharedTaskIsRecordedPerRelease covers the half of AC7
 // the frozen fixture can prove directly. v1-history declares
 // E01-example/T001-shared in both release v1 and release v1.1. v1's copy is
-// done under a done epic, so per E45's "completed work is archived, not
+// done under a done epic, so per the migration contract's "completed work is archived, not
 // converted" rule it receives no V2 identity — the two recurrences therefore
 // appear as one converted identity and one archive entry, each recording the
 // release it came from, and never collapse onto a single record.
@@ -502,7 +711,7 @@ func TestEndToEnd_legacyFactsAreResolvableThroughTheManifest(t *testing.T) {
 				}
 			}
 
-			// The specific legacy facts E45 names: completed Tasks, and
+			// The specific legacy facts the migration contract names: completed Tasks, and
 			// verified or waived findings. Each is settled history that gets no
 			// V2 identity, so each must resolve to an archive entry.
 			for _, file := range loadFixtureFiles(t, fixture) {
@@ -523,7 +732,7 @@ func TestEndToEnd_legacyFactsAreResolvableThroughTheManifest(t *testing.T) {
 	}
 }
 
-// TestEndToEnd_legacyPrerequisiteIsTyped covers the specific legacy fact E45
+// TestEndToEnd_legacyPrerequisiteIsTyped covers the specific legacy fact the migration contract
 // calls out: an active Task that depended on completed, archived work keeps
 // that dependency as a typed legacy prerequisite rather than a fabricated
 // depends_on or a fabricated Check.
@@ -908,6 +1117,9 @@ func recordIDs(t *testing.T, root string) []string {
 	t.Helper()
 	index := mustIndex(t, root)
 	var ids []string
+	for id := range index.Releases {
+		ids = append(ids, "R:"+id)
+	}
 	for id := range index.Objectives {
 		ids = append(ids, "O:"+id)
 	}
@@ -1112,6 +1324,43 @@ func copyFixture(t *testing.T, fixture string) string {
 	})
 	if err != nil {
 		t.Fatalf("copy fixture %s: %v", fixture, err)
+	}
+	return dst
+}
+
+// copyRepositoryWorkingTree copies the repository's working tree, excluding
+// only .git metadata. Migration is exercised against this temporary copy so
+// no test can ever activate schema_version or archive sources in the live
+// repository.
+func copyRepositoryWorkingTree(t *testing.T) string {
+	t.Helper()
+	src, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
+	}
+	dst := t.TempDir()
+	err = filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if rel == ".git" {
+				return filepath.SkipDir
+			}
+			return os.MkdirAll(filepath.Join(dst, rel), 0755)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dst, rel), content, 0644)
+	})
+	if err != nil {
+		t.Fatalf("copy repository working tree: %v", err)
 	}
 	return dst
 }

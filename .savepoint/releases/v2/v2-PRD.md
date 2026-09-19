@@ -23,6 +23,7 @@ This release is managed as V1 `Release → Epic → Task`. Each delivery epic be
 - Idea, Design, mandatory Objectives, detailed Tasks, independent Checks, and one Issues collection with Defect as a type.
 - Detailed planning one Objective at a time; verifiable technical and research outcomes; targeted supporting reads; explicit replanning preserving partial work.
 - Conditional owner acceptance, dependency approval prerequisites, current technical clearance, Objective integration gates, and recorded owner exceptions.
+- Optional first-class Releases with stable `R###` identities, derived Objective membership, Release-scoped Checks, historical completion references, and an owner-accepted completion gate. A Release is a delivery boundary, not a publishing or deployment workflow.
 - Globally stable Task and Issue IDs; reviewed-scope/revision evidence with agent-assessed freshness.
 - Safe conversion of active work and unresolved Issues, intact historical archives, reference mappings, and recoverable migration.
 - Four public skills, concise shared checking method, config-based verification commands, optional project-specific procedures.
@@ -40,8 +41,9 @@ Automatic evidence capture and freshness detection, hooks, push enforcement, man
 3. No Savepoint completion control treats executor completion, missing/unknown/stale clearance, or pending required owner acceptance as clean completion.
 4. Task dependencies default to technical clearance; explicit approval prerequisites wait for the owner. Dependent Objectives wait for integration clearance; unrelated Objectives do not.
 5. Fresh checker sessions verify meaningful failures, preserve Issue identity across rechecks, and require proof before closure.
-6. Migration preview is write-free, interruption is recoverable, a second unchanged run is a no-op, and all user-authored content and references have an accountable destination.
-7. Software regression evidence and the three agent scenarios in the design are recorded before release. No live user project is used as a mutable test fixture.
+6. Migration preview is write-free, interruption at every publish boundary is recoverable, a second unchanged run is a no-op, and every Release PRD, user-authored source, and reference has an accountable live or archive destination.
+7. E50 cutover is refused until migration is unambiguous and recoverable and the canonical Release completion decision permits every declared Release; technical uncertainty, material Release Issues, and missing owner acceptance remain explicit blockers.
+8. Software regression evidence and the three agent scenarios in the design are recorded before release. No live user project is used as a mutable test fixture.
 
 ## Ordered delivery
 
@@ -63,4 +65,4 @@ Default execution order is E41 through E51, with E51 completing before the E50 c
 
 ## Current readiness
 
-Product choices are confirmed. The release design is a concrete proposal ready for review, not a claim of implementation or independent audit. E41's two planned Tasks are bounded characterization work and have exact context paths and evidence requirements. Later epics explicitly defer detailed plans until their design gate. The Windows replacement/recovery behavior is a required migration experiment in E45 before any live migration.
+Product choices are confirmed. E51's first-class Release model, migration mapping, recovery proof, board/resume parity, and project-level cutover composition are implemented and tested on temporary fixture and repository copies. `data.ResolveReleaseCompletion` remains the canonical per-Release decision and `data.ResolveReleaseCutover` only composes those decisions for E50; neither claims publication, deployment, tagging, or changelog behavior. The live repository is still V1 and has not been migrated. E50 remains responsible for the independent audit, packaging evidence, final V1-reader retirement, and explicit maintainer cutover.

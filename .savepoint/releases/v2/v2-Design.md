@@ -4,7 +4,7 @@ status: planned
 release: v2
 ---
 
-# V2 design proposal
+# V2 design and implemented Release boundary
 
 ## 1. Scope and evidence
 
@@ -36,7 +36,9 @@ project/
     ├── Design.md                     # current architecture, planner/executor reconciliation
     ├── Guardrails.md                 # durable project policy
     ├── config.yml                    # schema_version: 2, theme, quality_gates
-    ├── router.md                     # phase and selected Objective/Task, not completion truth
+    ├── router.md                     # phase and selected Release/Objective/Task, not completion truth
+    ├── releases/                     # optional first-class R### delivery records
+    │   └── R001-project/Release.md
     ├── objectives/
     │   └── O001-project-recovery/
     │       ├── Objective.md
@@ -48,7 +50,7 @@ project/
     └── .upgrade-manifest.yml         # installed asset provenance, separate from schema version
 ```
 
-`archive/` and `migrations/` appear only after migration. Optional `visual-identity.md` and project verification procedures remain ordinary referenced project files. No default Concept, Health-Check, release PRD, audit register, or findings folder is needed in new V2 projects. Empty new projects may have no Objective yet; a Task can never exist without one.
+`archive/` and `migrations/` appear only after migration. `releases/` is optional: when present, each `R###` record is a first-class delivery boundary and its member Objectives are derived from `Objective.release`; it does not imply publishing, deployment, tagging, or changelog behavior. Optional `visual-identity.md` and project verification procedures remain ordinary referenced project files. No default Concept, Health-Check, release PRD, audit register, or findings folder is needed in new V2 projects. Empty new projects may have no Objective yet; a Task can never exist without one.
 
 Project records are authoritative markdown/YAML; directory indexes, issue counts, board columns, and Next are derived. Unknown fields and bodies survive managed edits; migration additionally archives original exact bytes. Filesystem paths are project-relative, normalized for storage and joined with `filepath` at I/O boundaries. Reject traversal, duplicate identity, and symlink escapes rather than following untrusted paths outside the project.
 
@@ -57,7 +59,8 @@ Project records are authoritative markdown/YAML; directory indexes, issue counts
 - `config.yml` owns `schema_version: 2`. Absence indicates legacy input only during transition/migration; unknown explicit versions fail with a named diagnostic. Never confuse npm/package versions, release metadata, or upgrade-manifest version with project schema.
 - Global IDs use `O`, `T`, `I`, or `C` plus at least three digits. A title/path/Objective change does not change an ID. Discovery indexes explicit IDs; path mismatch is diagnostic, never silent reassignment.
 - Allocate the next unused ID from active records and migration reservations; never reuse archived or deleted identities. Single-user planning records the reservation in the created record; concurrent duplicate creation is diagnosed, not silently merged.
-- Task `objective` is an `O###` reference; `title` and Outcome supply display language. Every task belongs to exactly one Objective. Optional `release` is filtering/packaging metadata.
+- Task `objective` is an `O###` reference; `title` and Outcome supply display language. Every Task belongs to exactly one Objective. An Objective may optionally name a first-class `release: R###`; Release membership is derived from those references, never maintained as a second list.
+- A Release record uses stable `R###` identity, title, lifecycle, outcome, success conditions, optional Release-scoped Check evidence, material Issue links through the Check index, and owner acceptance of the exact current Check. Completion is a canonical integration decision, not a publishing decision.
 - Dependencies are records `{task: T###, requires: clear|accepted}`; `clear` is the default. Objective dependencies are `O###` IDs and require integration clearance. Detect missing targets, cycles, and self-dependencies.
 - Legacy mapping keys include source path/release/epic and original ID. `T001` alone is not a migration key. Historical prerequisites use typed archive references, resolved through the migration manifest with preserved original completion/waiver evidence. Display them as legacy prerequisites, never new CLEAR results.
 
@@ -152,7 +155,8 @@ Use explicit `migrate [dir] --dry-run` and apply operation; asset upgrade never 
 | V1 record | V2 destination / interpretation |
 |---|---|
 | Project PRD | Idea with authored content preserved; technical material remains available for planner reconciliation. |
-| Active release PRDs / epic details | Objective scope and optional release metadata; original bytes archived. |
+| Release PRD | First-class `R###` Release record with the source promise preserved in the body; the original PRD is archived byte-for-byte and mapped in the migration manifest. |
+| Active or historical epic details | Objective scope with an optional `release: R###`; original bytes archived. |
 | Planned/in-progress Task | New global ID; preserve plan/AC/evidence, map Objective/dependencies, no fabricated clearance. |
 | Done Task / completed audit | Archive intact; dependency lookup through source-qualified mapping. |
 | Completed Tasks but unaudited epic | Keep an active Objective needing integration Check, referencing archived task evidence; do not declare it complete. |
@@ -175,14 +179,14 @@ Migration protocol:
 5. Publish through a tested platform-specific replace protocol. Do not reuse truncating-copy fallback for protected replacements. Multi-file changes are recoverable, not claimed atomic. Board/doctor/upgrade refuse normal writes while an operation is incomplete and provide recovery guidance.
 6. Rerun recognizes the operation and either resumes validated identical work or reports a conflict if the user changed source/installed files. Recovery never overwrites those edits automatically. Successful second run changes no files, mtimes, or IDs. Validate board/doctor/resume against the result before recommending live use.
 
-The exact Windows rename/recovery primitive and interruption schedule are an E45 design experiment before implementation. The required outcome is fixed: recoverable bytes and truthful failure reports, never silent loss. This uncertainty does not block E41's read-only fixture work.
+The replacement primitive and interruption schedule are implemented as a recoverable migration operation and exercised at every publish boundary by E51 T009. The required outcome remains fixed: recoverable bytes and truthful failure reports, never silent loss. E50 must consume that evidence before live cutover rather than treating this design document as proof by itself.
 
 ## 10. Component boundaries and transition
 
 | Component | Responsibility / proposed changes |
 |---|---|
-| internal/data | Canonical V2 records, schema/version detection, raw preservation, project index, dependency/evidence evaluation, named diagnostics, state writers. Temporary V1 input remains isolated and is retained only for migration after cutover. |
-| internal/migrate (new) | One-time conversion planning, reference mapping, backups, operation recovery, schema activation. No board rendering or policy rules. Adds a justified Codebase Map row when implemented. |
+| internal/data | Canonical V2 records, schema/version detection, raw preservation, project index, dependency/evidence evaluation, named diagnostics, state writers, Release completion, and the project-level `ResolveReleaseCutover` composition that adds no second readiness rule. Temporary V1 input remains isolated and is retained only for migration after cutover. |
+| internal/migrate (new) | One-time conversion planning, Release/Objective/source mapping, backups, operation recovery, schema activation, and the tested preview/apply/retry/no-op proof. No board rendering or Release policy rules. Adds a justified Codebase Map row when implemented. |
 | internal/init | V2 scaffolding and provenance-aware asset refresh; managed guide safety. Migration calls share low-level ownership helpers only where their contracts fit. |
 | internal/doctor | Structural diagnosis and configured technical checks over the shared V2 data interpretation. Does not create Issues automatically or repair files. |
 | internal/board | TUI and plain presentation, explicit asynchronous I/O, actions using canonical gate decisions. |
@@ -194,7 +198,7 @@ No new database, service, or mandatory dependency is proposed. Any filesystem he
 
 ## 11. Board, Next, resume, and health
 
-Keep the three-column board: Planned, In Progress, Done. Show implementation/check/owner-wait/replan distinctions as badges and the prominent Next area, not new columns. Done-by-exception is visibly distinct; stale completion needs attention. Use Objective sidebar/selector, Task Outcome and User Check details, Check history, and one Issues overlay filtered by type. Preserve Defect labeling, related links, narrow widths, scrolling, stable focus geometry, monochrome and non-TTY output.
+Keep the three-column board: Planned, In Progress, Done. Show implementation/check/owner-wait/replan distinctions as badges and the prominent Next area, not new columns. Done-by-exception is visibly distinct; stale completion needs attention. Use the optional `r` Release selector, Objective sidebar/selector, Task Outcome and User Check details, Release/Objective Check history, and one Issues overlay filtered by type. Preserve Defect labeling, related links, narrow widths, scrolling, stable focus geometry, monochrome and non-TTY output.
 
 Shared Next projection gives deterministic precedence: incomplete migration/invalid target → replan → unsatisfied dependency/owner prerequisite → execute/verify → fresh Check → required owner validation → Objective integration Check → next ready Task/Objective → plan next Objective. Explicit router selection is retained; never silently select a similarly numbered Task. Archived/missing selection yields a named diagnostic and available next action. Fresh init with no Tasks yields Idea/Design planning rather than an error.
 
@@ -204,7 +208,7 @@ Health reports actionable structural/gate evidence rather than declaring every p
 
 ## 12. Verification and delivery readiness
 
-Software coverage: frozen V1 source fixtures; strict/raw parsing and byte preservation; global IDs and scoped legacy mappings; lifecycle authority and exception gates; dependency cycles/approval requirements; stale/unknown evidence; fresh vs repeated Checks; Issue proof/duplicate history; Objective integration; crash/retry/conflict/backup migration paths; init/upgrade ownership; shared Next; board/narrow/non-TTY; resume no-write behavior; six target packages/checksums.
+Software coverage: frozen V1 source fixtures; strict/raw parsing and byte preservation; stable Release IDs and scoped Release/Objective mappings; lifecycle authority and exception gates; dependency cycles/approval requirements; stale/unknown Release evidence; fresh vs repeated Checks; material Release Issues and owner acceptance; Objective integration; crash/retry/conflict/backup migration paths at every publish boundary; temporary repository-copy accountability; init/upgrade ownership; shared Next; Release selector; board/narrow/non-TTY; resume no-write behavior; six target packages/checksums.
 
 Run required `make build && make test` at implementation handoffs, focused package tests for changed behavior, and the existing CI/distribution checks at release scope. Tests use temporary projects. Agent evaluations are separate evidence:
 
@@ -214,7 +218,7 @@ Run required `make build && make test` at implementation handoffs, focused packa
 | Encounter a materially invalid plan | REPLAN REQUIRED, preserved partial work, clear planner decision, revised plan before resuming. |
 | Fresh checker reviews seeded defect | Detect material seeded failure with reproduction; avoid advisory false blockers; record Issue and verify repair through a subsequent Check. |
 
-Record session/model where supplied, task scope, context usage, replanning count, findings, and limitations. Do not claim all-model reliability from three scenarios. Use one tiny and one existing-codebase trial, including migration of copies. No live maintainer project mutation until recovery and the full core loop pass. Package release and publishing remain separate actions from planning and build validation.
+Record session/model where supplied, task scope, context usage, replanning count, findings, and limitations. Do not claim all-model reliability from three scenarios. Use one tiny and one existing-codebase trial, including migration of copies. E51 T009's repository-copy proof is still a temporary-copy test; the live maintainer project remains V1 until E50's explicit, independently audited cutover. Package release and publishing remain separate actions from planning and build validation.
 
 ## 13. Complete Task example
 

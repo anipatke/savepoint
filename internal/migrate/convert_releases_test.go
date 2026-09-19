@@ -118,6 +118,26 @@ func TestPlan_duplicateReleasePRDIsBlockingAndWriteFree(t *testing.T) {
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
 }
 
+func TestPlan_ambiguousReleaseDispositionBlocksCutover(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+	releasePath := filepath.Join(root, ".savepoint", "releases", "v9", "v9-PRD.md")
+	writeFile(t, releasePath, "---\nname: Ambiguous\nstatus: audited\n---\n\n# Ambiguous\n")
+	before := snapshotTree(t, root)
+
+	plan := mustPlan(t, root)
+	if plan.Appliable {
+		t.Fatal("Plan.Appliable = true, want false for an ambiguous Release disposition")
+	}
+	if len(plan.UnresolvedBlockingIDs) != 1 || !strings.Contains(plan.UnresolvedBlockingIDs[0], string(AmbiguityReleaseCompletion)) {
+		t.Fatalf("UnresolvedBlockingIDs = %v, want Release completion ambiguity", plan.UnresolvedBlockingIDs)
+	}
+	if _, err := Apply(root, plan); err == nil {
+		t.Fatal("Apply() error = nil, want cutover refusal while Release disposition is ambiguous")
+	}
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
 func TestSourceReleaseIdentity_reservesRNumbers(t *testing.T) {
 	cases := map[string]string{
 		"v1":       "",

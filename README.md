@@ -37,6 +37,11 @@ Savepoint makes those boundaries explicit:
   simple `CLEAR` or `NEEDS WORK` verdict.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
+- **Use Releases when they help.** A V2 project may add stable `R###` Release
+  records to group Objectives, show one delivery context on the board, and
+  require an independent Release Check plus owner acceptance before marking
+  that delivery promise done. Releases are optional and do not publish,
+  deploy, tag, or generate changelogs.
 
 Savepoint does not replace Git, your test runner, or human judgment. It gives
 those things a shared workflow.
@@ -132,6 +137,8 @@ project:
   current build/test/audit stage.
 - **Detail views** expose acceptance criteria, dependencies, evidence, and
   issues without leaving the terminal.
+- **Release context** is optional: press `r` to switch the visible Release;
+  membership comes from each Objective's `release: R###` field.
 - **Router priority** lets you focus the next task without rewriting the
   history of the project.
 
@@ -153,6 +160,8 @@ Savepoint uses Markdown and YAML as its source of truth:
 │   └── O001-example/
 │       ├── Objective.md
 │       └── tasks/
+├── releases/               # Optional V2 delivery promises (R###)
+│   └── R001-example/Release.md
 ├── checks/                # Independent verification evidence
 └── issues/                # Durable follow-up and discovered problems
 
@@ -175,8 +184,12 @@ npx savepoint migrate --apply
 
 The preview reports planned records, identity mappings, archived source,
 conflicts, and decisions that still need an owner. Nothing is written unless
-`--apply` is used. If a migration is interrupted, `--recover` reports the
-pending operation and can resume it.
+`--apply` is used. Release PRDs become accountable `R###` records plus exact
+archive mappings; historical completion is displayed as historical evidence,
+never as a fabricated current Check. If a migration is interrupted,
+`--recover` reports the pending operation and can resume it without
+overwriting user edits. E50's live cutover remains a separate maintainer
+decision after the migrated copy's Release readiness is clear.
 
 For existing projects, refresh only the shipped Savepoint assets with:
 

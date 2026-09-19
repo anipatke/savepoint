@@ -5,11 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	xansi "github.com/charmbracelet/x/ansi"
 	boardv2 "github.com/opencode/savepoint/internal/board/v2"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/doctor"
+	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
 )
 
@@ -73,6 +76,80 @@ func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 			assertSameLines(t, "selected records against the projection", projectionIdentity(want), fromBoard.identity)
 		})
 	}
+}
+
+func TestMigratedReleaseFlowsThroughDoctorBoardSelectorPlainAndResume(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	plan, err := migrate.Plan(dir, nil,
+		func() time.Time { return time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC) },
+		func() string { return "op-main-release-proof" })
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if _, err := migrate.Apply(dir, plan); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	savepointRoot := filepath.Join(dir, ".savepoint")
+	index, err := data.LoadV2Index(savepointRoot)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	if len(index.Releases) != 1 {
+		t.Fatalf("migrated Releases = %d, want one first-class Release", len(index.Releases))
+	}
+	cutover := data.ResolveReleaseCutover(index)
+	if cutover.Allowed || len(cutover.Blockers) == 0 {
+		t.Fatalf("migrated cutover decision = %+v, want the incomplete fixture Release blocked", cutover)
+	}
+	problems := doctor.CheckReleaseReadiness(savepointRoot)
+	if len(problems) == 0 {
+		t.Fatal("doctor reported no Release readiness diagnostic for the migrated incomplete fixture")
+	}
+
+	// Plain board, TUI board, and resume must name the same projection and
+	// action after migration, not merely agree on a hand-built V2 fixture.
+	want := resolveNextFromDisk(t, dir)
+	fromResume := resumeNextFacts(t, dir)
+	fromBoard := boardNextFacts(t, dir)
+	fromTUI := boardTUINextFacts(t, dir)
+	assertSameLines(t, "migrated selected records", fromResume.identity, fromBoard.identity)
+	assertSameLines(t, "migrated rung evidence", fromResume.evidence, fromBoard.evidence)
+	if fromResume.action != fromBoard.action {
+		t.Fatalf("migrated next action differs: resume %q, board %q", fromResume.action, fromBoard.action)
+	}
+	assertSameLines(t, "migrated TUI selected records", fromResume.identity, fromTUI.identity)
+	assertSameLines(t, "migrated TUI rung evidence", fromResume.evidence, fromTUI.evidence)
+	if fromResume.action != fromTUI.action {
+		t.Fatalf("migrated TUI next action differs: resume %q, TUI %q", fromResume.action, fromTUI.action)
+	}
+	assertSameLines(t, "migrated projection evidence", resume.EvidenceLines(want), fromBoard.evidence)
+	if action := resume.ActionPhrase(want); action != fromBoard.action {
+		t.Fatalf("migrated board action = %q, want projection action %q", fromBoard.action, action)
+	}
+
+	beforeSelector := snapshotDir(t, dir)
+	model := boardv2.NewModel(boardv2.Options{Root: savepointRoot})
+	sized, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 48})
+	loaded, _ := sized.(boardv2.Model).Update(sized.(boardv2.Model).Init()())
+	board := loaded.(boardv2.Model)
+	opened, cmd := board.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd != nil {
+		t.Fatal("opening migrated Release selector returned a command")
+	}
+	selector := opened.(boardv2.Model)
+	if !selector.ReleaseOverlay || selector.SelectedRelease == "" || len(selector.Releases) != len(index.Releases) {
+		t.Fatalf("migrated Release selector = overlay %t, selected %q, releases %v", selector.ReleaseOverlay, selector.SelectedRelease, selector.Releases)
+	}
+	view := xansi.Strip(selector.View())
+	if !strings.Contains(view, selector.SelectedRelease) {
+		t.Fatalf("migrated Release selector view omitted selected Release %s:\n%s", selector.SelectedRelease, view)
+	}
+	detailed, cmd := selector.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if cmd != nil || detailed.(boardv2.Model).Detail == nil || detailed.(boardv2.Model).Detail.Kind != boardv2.DetailRelease {
+		t.Fatalf("migrated Release detail = %T, command %t, want read-only Release detail", detailed, cmd != nil)
+	}
+	assertSameSnapshot(t, beforeSelector, snapshotDir(t, dir))
 }
 
 // boardTUINextFacts drives the actual Bubble Tea model through its load

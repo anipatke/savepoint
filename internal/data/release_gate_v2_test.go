@@ -241,6 +241,104 @@ func TestResolveReleaseCompletion_historicalReferenceIsSeparateFromClearance(t *
 	}
 }
 
+func TestResolveReleaseCompletion_allowsArchivedHistoricalReleaseWithoutLiveObjectives(t *testing.T) {
+	index := releaseGateIndex()
+	index.Releases["R001"].Status = ColumnDone
+	index.Releases["R001"].Evidence = nil
+	index.ReleaseObjectives["R001"] = nil
+	index.LatestCheck["R001"] = ""
+	index.Checks = map[string]*CheckV2{}
+	index.ScopeChecks = map[string][]string{}
+	index.Releases["R001"].LegacyCompletion = &LegacyCompletionReference{
+		SourcePath: "releases/v1/PRD.md", ArchivePath: ".savepoint/archive/v1/releases/v1/PRD.md",
+		SHA256: strings.Repeat("a", 64),
+	}
+
+	decision := ResolveReleaseCompletion(index, "R001")
+	if !decision.Allowed || !decision.AllowedByLegacyCompletion {
+		t.Fatalf("historical no-member decision = %+v, want allowed historical completion", decision)
+	}
+}
+
+func TestResolveReleaseCutoverComposesCanonicalReleaseDecisions(t *testing.T) {
+	index := releaseGateIndex()
+
+	blocked := ResolveReleaseCutover(index)
+	if blocked.Allowed || len(blocked.Blockers) != 1 {
+		t.Fatalf("blocked cutover decision = %+v, want one canonical blocker", blocked)
+	}
+	if blocked.Blockers[0].ReleaseID != "R001" || blocked.Blockers[0].Gate.Kind != GateBlockOwnerAcceptance {
+		t.Fatalf("blocked cutover blocker = %+v, want R001 owner acceptance", blocked.Blockers[0])
+	}
+
+	index.Releases["R001"].Evidence.OwnerValidation = &OwnerValidation{
+		AcceptedCheck: "C002",
+		AcceptedBy:    Actor{Role: ActorRoleOwner, Session: "owner-1"},
+	}
+	allowed := ResolveReleaseCutover(index)
+	if !allowed.Allowed || len(allowed.Blockers) != 0 {
+		t.Fatalf("accepted cutover decision = %+v, want allowed", allowed)
+	}
+}
+
+func TestResolveReleaseCutover_refusesTechnicalIssueAndOwnerStates(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*V2Index)
+		wantKind  GateBlockKind
+	}{
+		{
+			name: "technically unclear",
+			configure: func(index *V2Index) {
+				index.Releases["R001"].Evidence = nil
+			},
+			wantKind: GateBlockClearanceUnknown,
+		},
+		{
+			name: "material Issue",
+			configure: func(index *V2Index) {
+				index.Checks["C002"].Issues = []string{"I001"}
+				index.CheckIssues["C002"] = []string{"I001"}
+				index.Issues["I001"] = &IssueV2{ID: "I001", Status: IssueStatusOpen}
+			},
+			wantKind: GateBlockReleaseIssueUnresolved,
+		},
+		{
+			name:      "owner acceptance",
+			configure: func(*V2Index) {},
+			wantKind:  GateBlockOwnerAcceptance,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			index := releaseGateIndex()
+			tt.configure(index)
+			decision := ResolveReleaseCutover(index)
+			if decision.Allowed || len(decision.Blockers) == 0 {
+				t.Fatalf("cutover decision = %+v, want refusal", decision)
+			}
+			found := false
+			for _, blocker := range decision.Blockers {
+				if blocker.ReleaseID == "R001" && blocker.Gate.Kind == tt.wantKind {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("cutover blockers = %+v, want R001/%s", decision.Blockers, tt.wantKind)
+			}
+		})
+	}
+}
+
+func TestResolveReleaseCutover_allowsOptionalReleaseModel(t *testing.T) {
+	decision := ResolveReleaseCutover(&V2Index{Releases: map[string]*ReleaseV2{}})
+	if !decision.Allowed || len(decision.Blockers) != 0 {
+		t.Fatalf("no-Release cutover decision = %+v, want allowed optional model", decision)
+	}
+}
+
 func TestDecodeReleaseV2_legacyCompletionIsTypedAndDoneOnly(t *testing.T) {
 	content := `---
 id: R001

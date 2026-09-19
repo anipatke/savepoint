@@ -312,6 +312,12 @@ type applyBatch struct {
 // recover it. Production callers leave it nil.
 var afterPublishWriteHook func(string) error
 
+// afterPublishRemovalHook is test-only fault injection for the final publish
+// boundary: removing an archived V1 source. It is separate from
+// afterPublishWriteHook because removals have no staged live bytes to install.
+// Production callers leave it nil.
+var afterPublishRemovalHook func(string) error
+
 func (b *applyBatch) journalEntries() []JournalEntry {
 	var entries []JournalEntry
 	for _, w := range b.orderedWrites() {
@@ -497,6 +503,11 @@ func publish(op *Operation, root string, b *applyBatch) error {
 		}
 		if err := publishRemoval(op, root, w.Path); err != nil {
 			return err
+		}
+		if afterPublishRemovalHook != nil {
+			if err := afterPublishRemovalHook(w.Path); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
