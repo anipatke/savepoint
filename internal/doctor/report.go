@@ -19,6 +19,8 @@ type DiagnosticReport struct {
 	RouterCheck   error
 	Migration     []Problem
 	Project       []Problem
+	Releases      []Problem
+	ReleaseNotes  []string
 	Structure     []Problem
 	Dependencies  []Problem
 	AuditState    []Problem
@@ -36,7 +38,8 @@ type DiagnosticReport struct {
 // reports its single structural diagnostic (see CheckProject), so those
 // checks run only when the project is not V2 — never for a schema this
 // project's own config declares it isn't using.
-func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
+func RunAllChecks(root string, epicFilter string, overrides ...DoctorDependencies) *DiagnosticReport {
+	deps := doctorDependencies(overrides)
 	report := &DiagnosticReport{
 		EpicFilter: epicFilter,
 	}
@@ -44,7 +47,11 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 	report.ConfigCheck = CheckConfig(root)
 	report.RouterCheck = CheckRouter(root, epicFilter)
 	report.Migration = CheckMigration(root)
-	report.Project = CheckProject(root)
+	project, projectProblems := loadProjectChecks(root, deps)
+	report.Project = projectProblems
+	releaseDiagnostics := releaseDiagnosticsForProject(project)
+	report.Releases = releaseDiagnostics.Problems
+	report.ReleaseNotes = releaseDiagnostics.Notes
 
 	version, _ := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
 	if version != data.SchemaVersionV2 {
@@ -57,7 +64,7 @@ func RunAllChecks(root string, epicFilter string) *DiagnosticReport {
 
 	report.AuditRegister = CheckAuditRegister(root)
 	report.Issues = IssuePostureReport(root)
-	report.Gates.Results = RunQualityGates(root)
+	report.Gates.Results = RunQualityGates(root, deps)
 
 	return report
 }
@@ -117,6 +124,7 @@ func (r *DiagnosticReport) HealthFindings() []HealthFinding {
 	}
 	findings = append(findings, problemFindings(r.Migration)...)
 	findings = append(findings, problemFindings(r.Project)...)
+	findings = append(findings, problemFindings(r.Releases)...)
 	findings = append(findings, problemFindings(r.Structure)...)
 	findings = append(findings, problemFindings(r.Dependencies)...)
 	findings = append(findings, problemFindings(r.AuditState)...)
@@ -206,6 +214,17 @@ func (r *DiagnosticReport) Format() string {
 
 	sectionHeader(&b, "Project Check")
 	printProblems(&b, "project", r.Project)
+
+	if len(r.Releases) > 0 || len(r.ReleaseNotes) > 0 {
+		sectionHeader(&b, "Release Check")
+		printProblems(&b, "release", r.Releases)
+		for _, note := range r.ReleaseNotes {
+			fmt.Fprintf(&b, "  note: %s\n", note)
+		}
+		if len(r.ReleaseNotes) > 0 {
+			b.WriteString("\n")
+		}
+	}
 
 	sectionHeader(&b, "Structure Check")
 	printProblems(&b, "structure", r.Structure)

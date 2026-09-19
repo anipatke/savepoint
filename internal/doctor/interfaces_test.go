@@ -55,6 +55,17 @@ type countingDoctorParser struct {
 	calls  int
 }
 
+type stubDoctorProjectLoader struct {
+	project *data.Project
+	err     error
+	calls   int
+}
+
+func (l *stubDoctorProjectLoader) Load(root string) (*data.Project, error) {
+	l.calls++
+	return l.project, l.err
+}
+
 func (p *countingDoctorParser) ParseFrontmatter(content string) (map[string]any, error) {
 	p.calls++
 	return p.parser.ParseFrontmatter(content)
@@ -86,6 +97,16 @@ func TestCheckRouterUsesInjectedRouterReader(t *testing.T) {
 	}
 	if reader.calls != 1 {
 		t.Fatalf("ReadState calls = %d, want 1", reader.calls)
+	}
+}
+
+func TestCheckProjectUsesInjectedProjectLoader(t *testing.T) {
+	loader := &stubDoctorProjectLoader{project: &data.Project{SchemaVersion: data.SchemaVersionV1}}
+	if problems := CheckProject(t.TempDir(), DoctorDependencies{ProjectLoader: loader}); len(problems) != 0 {
+		t.Fatalf("CheckProject() with injected loader = %v, want no V1 problems", problems)
+	}
+	if loader.calls != 1 {
+		t.Fatalf("ProjectLoader calls = %d, want 1", loader.calls)
 	}
 }
 

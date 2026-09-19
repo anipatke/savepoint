@@ -1,7 +1,6 @@
 ---
 id: E51-first-class-releases/T004-migrate-every-release-and-its-source-promise
-status: in_progress
-stage: build
+status: done
 objective: Convert every V1 release into a deterministic V2 Release with live source intent, archived bytes, and accountable references.
 depends_on:
   - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance

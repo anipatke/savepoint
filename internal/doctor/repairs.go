@@ -168,12 +168,16 @@ func V2ProblemRepair(name string) string {
 		return "Add the missing required field named in the diagnostic to the record's frontmatter"
 	case "v2-invalid-id":
 		return "Set the record's id or reference to a valid family identity: O### (Objective), T### (Task), C### (Check), or I### (Issue reference), each with at least three digits"
+	case "v2-release-invalid-id":
+		return "Set the Release's id to a valid R### identity with at least three digits"
 	case "v2-invalid-ownership":
 		return "Set the Task's objective field to exactly one existing O### Objective id"
 	case "v2-invalid-lifecycle":
 		return "Set status (and stage while status is in_progress) to a supported V2 lifecycle value"
 	case "v2-invalid-dependency":
 		return "Fix the depends_on entry: task must be a T### id and requires must be clear or accepted"
+	case "v2-invalid-release-reference":
+		return "Set the Objective's release field to an existing R### Release, or remove it for an unassigned Objective"
 	case "v2-duplicate-id":
 		return "Rename one of the two records reporting the same id so each global id is declared once"
 	case "v2-path-mismatch":
@@ -182,6 +186,12 @@ func V2ProblemRepair(name string) string {
 		return "Remove the symlink or case-aliasing path reported in the diagnostic; V2 records must resolve inside the project root"
 	case "v2-missing-owner":
 		return "Create the referenced O### Objective, or fix the Task's objective field to reference one that exists"
+	case "v2-missing-release":
+		return "Create the referenced R### Release, or remove or correct the Objective's release field"
+	case "v2-release-missing-section":
+		return "Add the missing required Release body section: Outcome, Why, Success Conditions, or Boundaries"
+	case "v2-release-legacy-malformed":
+		return "Fix legacy_completion.source_path, archive_path, and sha256 on the named historical Release"
 	case "v2-missing-dependency-target":
 		return "Create the referenced dependency record, or remove it from depends_on"
 	case "v2-self-dependency":
@@ -194,6 +204,8 @@ func V2ProblemRepair(name string) string {
 		return "Fix the named Check field in the record's frontmatter — result must be CLEAR or NEEDS WORK, checked_by.role a supported actor role, and checked_at a parseable RFC 3339 timestamp"
 	case "v2-check-missing-scope-target":
 		return "Create the Task or Objective the Check's scope names, or fix scope.id to reference one that exists"
+	case "v2-check-missing-release-scope-target":
+		return "Create the Release the Check's scope names, or fix scope.id to reference one that exists"
 	case "v2-check-missing-reference":
 		return "Create the Check named in supersedes, or remove the supersedes field"
 	case "v2-check-supersedes-conflict":

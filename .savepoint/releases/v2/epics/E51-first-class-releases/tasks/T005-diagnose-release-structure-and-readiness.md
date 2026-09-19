@@ -1,6 +1,7 @@
 ---
 id: E51-first-class-releases/T005-diagnose-release-structure-and-readiness
-status: planned
+status: in_progress
+stage: test
 objective: Report actionable Release integrity and readiness diagnostics from the same indexed records and gate decisions.
 depends_on:
   - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
@@ -33,26 +34,34 @@ Direct file edits can leave Release identity, membership, evidence, acceptance, 
 
 ## Acceptance Criteria
 
-- [ ] Doctor reports malformed or duplicate Release identity, unsafe/mismatched paths, and dangling Objective Release references with file and ID.
-- [ ] Doctor distinguishes unassigned Objectives, which are valid, from an Objective that explicitly names a missing Release.
-- [ ] Doctor reports empty `in_progress`/`done` Releases, incomplete member Objectives, missing/stale/unknown/NEEDS WORK evidence, unresolved blockers, and missing/stale owner acceptance.
-- [ ] A valid historical-completion reference is described as historical evidence, not current CLEAR; malformed or dangling legacy references are diagnosed.
-- [ ] Doctor consumes canonical Release/index/gate results and does not reparse Release frontmatter or recalculate completion in its reporting layer.
-- [ ] Open advisory Issues do not make an otherwise actionable project generically unhealthy; material blockers are named from the gate result.
-- [ ] Diagnostics include manual, non-destructive repair guidance and never create a Release, Issue, Check, or acceptance record.
-- [ ] Projects with no Releases produce no Release warning and retain byte-identical existing doctor output where Release context is irrelevant.
-- [ ] Human and structured test assertions cover ordering and stable wording for multiple simultaneous Release findings.
+- [x] Doctor reports malformed or duplicate Release identity, unsafe/mismatched paths, and dangling Objective Release references with file and ID.
+- [x] Doctor distinguishes unassigned Objectives, which are valid, from an Objective that explicitly names a missing Release.
+- [x] Doctor reports empty `in_progress`/`done` Releases, incomplete member Objectives, missing/stale/unknown/NEEDS WORK evidence, unresolved blockers, and missing/stale owner acceptance.
+- [x] A valid historical-completion reference is described as historical evidence, not current CLEAR; malformed or dangling legacy references are diagnosed.
+- [x] Doctor consumes canonical Release/index/gate results and does not reparse Release frontmatter or recalculate completion in its reporting layer.
+- [x] Open advisory Issues do not make an otherwise actionable project generically unhealthy; material blockers are named from the gate result.
+- [x] Diagnostics include manual, non-destructive repair guidance and never create a Release, Issue, Check, or acceptance record.
+- [x] Projects with no Releases produce no Release warning and retain byte-identical existing doctor output where Release context is irrelevant.
+- [x] Human and structured test assertions cover ordering and stable wording for multiple simultaneous Release findings.
 
 ## Implementation Plan
 
-- [ ] Expose the indexed Release and canonical readiness information through doctor's consumer interface.
-- [ ] Add structural diagnostics for Release records and Objective references.
-- [ ] Add gate/evidence/acceptance diagnostics by formatting canonical blocker kinds.
-- [ ] Add historical-completion diagnostics without treating archives as current evidence.
-- [ ] Add targeted repair suggestions that point to the authoritative record and requirement.
-- [ ] Freeze no-Release output and multi-finding order in report tests.
-- [ ] Verify all doctor paths remain read-only on success and failure.
+- [x] Expose the indexed Release and canonical readiness information through doctor's consumer interface.
+- [x] Add structural diagnostics for Release records and Objective references.
+- [x] Add gate/evidence/acceptance diagnostics by formatting canonical blocker kinds.
+- [x] Add historical-completion diagnostics without treating archives as current evidence.
+- [x] Add targeted repair suggestions that point to the authoritative record and requirement.
+- [x] Freeze no-Release output and multi-finding order in report tests.
+- [x] Verify all doctor paths remain read-only on success and failure.
 
 ## Context Log
 
-Pending.
+**Files read:** `.savepoint/router.md`, `E51-Detail.md`, this task, `.savepoint/Guardrails.md`, the listed V2 project/release/gate sources and doctor interfaces/checks/gates/report/repairs sources and tests, plus targeted canonical gate type and Objective-completion reads. `.savepoint/Health-Check.md` is absent, so the Quick health check is skipped.
+
+**Files edited:** `internal/doctor/interfaces.go`, `interfaces_test.go`, `checks.go`, `checks_test.go`, `report.go`, `report_test.go`, `repairs.go`, `repairs_test.go`, and this task file.
+
+**Evidence:** Doctor now consumes the schema-dispatched V2 project/index and `ResolveReleaseCompletion`/`ResolveClearance`; structural Release sentinels retain file/ID context, readiness blockers are ordered by Release ID and canonical blocker order, historical archives are informational rather than CLEAR evidence, and no-Release output has no Release section. Tests cover unassigned Objectives, missing references, all non-current Release evidence states, unresolved material Issues, stale acceptance, historical/dangling archives, stable ordering, repair guidance, injected loading, and no-Release output. The checks only read records and archive metadata.
+
+**Quality gates:** `go test ./internal/doctor` passed; `make build` passed; `make test` passed across all packages; `git diff --check` passed.
+
+**No Drift Notes:** changes remain within the documented `internal/doctor` module and its existing diagnostic/report interfaces; no architecture or Codebase Map change was required.

@@ -147,6 +147,12 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 	}{
 		{"v2-check-malformed", "result must be CLEAR or NEEDS WORK"},
 		{"v2-check-missing-scope-target", "Create the Task or Objective"},
+		{"v2-check-missing-release-scope-target", "Create the Release"},
+		{"v2-release-invalid-id", "valid R### identity"},
+		{"v2-invalid-release-reference", "existing R### Release"},
+		{"v2-missing-release", "referenced R### Release"},
+		{"v2-release-missing-section", "required Release body section"},
+		{"v2-release-legacy-malformed", "legacy_completion"},
 		{"v2-check-missing-reference", "Create the Check named in supersedes"},
 		{"v2-check-supersedes-conflict", "supersedes chain"},
 		{"v2-evidence-malformed", "evidence field"},

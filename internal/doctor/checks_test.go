@@ -1717,6 +1717,25 @@ func writeV2Task(t *testing.T, root, objDirName, fileName, id, title, objective 
 	return path
 }
 
+func writeV2Release(t *testing.T, root, dirName, id, status, extraFrontmatter string) string {
+	t.Helper()
+	path := filepath.Join(root, "releases", dirName, "Release.md")
+	content := "---\nid: " + id + "\ntitle: \"Release " + id + "\"\nstatus: " + status + "\n" + extraFrontmatter + "---\n\n" +
+		"## Outcome\n\nDeliver the recorded promise.\n\n" +
+		"## Why\n\nThe delivery boundary needs a stable identity.\n\n" +
+		"## Success Conditions\n\n- All member Objectives are complete.\n\n" +
+		"## Boundaries\n\nMembership is derived from Objective records.\n"
+	testutil.WriteFile(t, path, content)
+	return path
+}
+
+func writeV2ObjectiveWithRelease(t *testing.T, root, dirName, id, title, release string) string {
+	t.Helper()
+	path := filepath.Join(root, "objectives", dirName, "Objective.md")
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: planned\nrelease: "+release+"\n---\n\n# "+title+"\n")
+	return path
+}
+
 func TestCheckProject_v1ProjectNoProblems(t *testing.T) {
 	root := t.TempDir()
 	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
@@ -1734,6 +1753,151 @@ func TestCheckProject_v2ValidNoProblems(t *testing.T) {
 
 	if problems := CheckProject(root); len(problems) != 0 {
 		t.Fatalf("CheckProject() = %v, want no problems for a valid V2 project", problems)
+	}
+}
+
+func TestCheckProject_missingReleaseNamesFileAndIDs(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Release(t, root, "R001-first", "R001", "planned", "")
+	path := filepath.Join(root, "objectives", "O001-ship", "Objective.md")
+	testutil.WriteFile(t, path, "---\nid: O001\ntitle: \"Ship it\"\nstatus: planned\nrelease: R999\n---\n\n# Ship it\n")
+
+	problems := CheckProject(root)
+	if len(problems) != 1 {
+		t.Fatalf("CheckProject() = %v, want one missing Release problem", problems)
+	}
+	for _, want := range []string{"[v2-missing-release]", "objectives/O001-ship/Objective.md", "O001", "R999"} {
+		if !strings.Contains(problems[0].Message, want) {
+			t.Errorf("problem message = %q, want %q", problems[0].Message, want)
+		}
+	}
+	if !strings.Contains(problems[0].Repair, "referenced R### Release") {
+		t.Errorf("problem repair = %q, want manual Release-reference guidance", problems[0].Repair)
+	}
+}
+
+func TestCheckReleaseReadiness_ordersCanonicalFindingsAndAllowsUnassignedObjectives(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Release(t, root, "R001-empty", "R001", "in_progress", "")
+	writeV2Release(t, root, "R002-active", "R002", "in_progress", "")
+	writeV2Release(t, root, "R003-done-empty", "R003", "done", "")
+	writeV2ObjectiveWithRelease(t, root, "O002-member", "O002", "Member", "R002")
+	writeV2Objective(t, root, "O003-unassigned", "O003", "Independent")
+
+	problems := CheckReleaseReadiness(root)
+	if len(problems) != 3 {
+		t.Fatalf("CheckReleaseReadiness() = %v, want one finding per active or done Release", problems)
+	}
+	wants := []string{"[v2-release-no-objectives] release R001", "[v2-release-objective-incomplete] release R002", "[v2-release-no-objectives] release R003"}
+	for i, want := range wants {
+		if !strings.Contains(problems[i].Message, want) {
+			t.Errorf("problems[%d].Message = %q, want %q", i, problems[i].Message, want)
+		}
+		if problems[i].File != filepath.Join("releases", map[int]string{0: "R001-empty", 1: "R002-active", 2: "R003-done-empty"}[i], "Release.md") {
+			t.Errorf("problems[%d].File = %q, want the Release source path", i, problems[i].File)
+		}
+		if problems[i].Repair == "" || !strings.Contains(problems[i].Repair, "doctor") {
+			t.Errorf("problems[%d].Repair = %q, want non-destructive guidance", i, problems[i].Repair)
+		}
+	}
+}
+
+func TestCheckReleaseReadiness_reportsMissingUnknownStaleNeedsWorkAndAcceptance(t *testing.T) {
+	tests := []struct {
+		name       string
+		releaseID  string
+		checkBlock string
+		releaseFM  string
+		want       string
+	}{
+		{name: "missing", releaseID: "R001", want: "[v2-release-clearance-missing]"},
+		{
+			name:       "needs work",
+			releaseID:  "R002",
+			checkBlock: "needs-work",
+			want:       "[v2-release-clearance-needs-work]",
+		},
+		{
+			name:       "unknown",
+			releaseID:  "R003",
+			checkBlock: "unknown",
+			want:       "[v2-release-clearance-unknown]",
+		},
+		{
+			name:       "stale",
+			releaseID:  "R004",
+			checkBlock: "stale",
+			releaseFM:  "freshness: {state: current, check: C040, assessed_by: {role: checker, session: freshness-4}, assessed_at: '2026-09-14T00:00:00Z', basis: old}\n",
+			want:       "[v2-release-clearance-stale]",
+		},
+		{
+			name:       "owner acceptance",
+			releaseID:  "R005",
+			checkBlock: "owner",
+			releaseFM:  "freshness: {state: current, check: C050, assessed_by: {role: checker, session: freshness-5}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n",
+			want:       "[v2-release-owner-acceptance-missing]",
+		},
+		{
+			name:       "stale owner acceptance",
+			releaseID:  "R006",
+			checkBlock: "owner-stale",
+			releaseFM:  "freshness: {state: current, check: C061, assessed_by: {role: checker, session: freshness-6}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\nowner_validation: {required: true, accepted_check: C060, accepted_by: {role: owner, session: owner-6}}\n",
+			want:       "[v2-release-owner-acceptance-stale]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+			writeV2Release(t, root, tt.releaseID+"-active", tt.releaseID, "in_progress", tt.releaseFM)
+			objectiveID := "O" + strings.TrimPrefix(tt.releaseID, "R")
+			objectiveDir := objectiveID + "-member"
+			testutil.WriteFile(t, filepath.Join(root, "objectives", objectiveDir, "Objective.md"),
+				"---\nid: "+objectiveID+"\ntitle: \"Member\"\nstatus: done\nrelease: "+tt.releaseID+"\nfreshness: {state: current, check: C"+strings.TrimPrefix(tt.releaseID, "R")+"0, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+			objectiveCheck := "C" + strings.TrimPrefix(tt.releaseID, "R") + "0"
+			writeV2Check(t, root, objectiveCheck, "{kind: objective, id: "+objectiveID+"}", "CLEAR", "")
+
+			switch tt.checkBlock {
+			case "needs-work":
+				writeV2Check(t, root, "C020", "{kind: release, id: R002}", "NEEDS WORK", "")
+			case "unknown":
+				writeV2Check(t, root, "C030", "{kind: release, id: R003}", "CLEAR", "")
+			case "stale":
+				writeV2Check(t, root, "C040", "{kind: release, id: R004}", "CLEAR", "")
+				writeV2Check(t, root, "C041", "{kind: release, id: R004}", "CLEAR", "C040")
+			case "owner":
+				writeV2Check(t, root, "C050", "{kind: release, id: R005}", "CLEAR", "")
+			case "owner-stale":
+				writeV2Check(t, root, "C060", "{kind: release, id: R006}", "CLEAR", "")
+				writeV2Check(t, root, "C061", "{kind: release, id: R006}", "CLEAR", "C060")
+			}
+
+			problems := CheckReleaseReadiness(root)
+			if len(problems) != 1 || !strings.Contains(problems[0].Message, tt.want) {
+				t.Fatalf("CheckReleaseReadiness() = %v, want %s", problems, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckReleaseReadiness_reportsMaterialUnresolvedIssueFromCanonicalGate(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Release(t, root, "R007-active", "R007", "in_progress",
+		"freshness: {state: current, check: C070, assessed_by: {role: checker, session: freshness-7}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\nowner_validation: {required: true, accepted_check: C070, accepted_by: {role: owner, session: owner-7}}\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O007-member", "Objective.md"),
+		"---\nid: O007\ntitle: \"Member\"\nstatus: done\nrelease: R007\nfreshness: {state: current, check: C0070, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+	writeV2Check(t, root, "C0070", "{kind: objective, id: O007}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "checks", "C070.md"),
+		"---\nid: C070\nscope: {kind: release, id: R007}\nresult: CLEAR\nchecked_by: {role: checker, session: release-checker}\nexecuted_session: build-7\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I001]\n---\n\n# Check\n")
+	writeV2Issue(t, root, "I001-blocker.md", "I001", "open", "defect", "checks: [C070]\n")
+
+	problems := CheckReleaseReadiness(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-release-issue-unresolved]") || !strings.Contains(problems[0].Message, "I001") {
+		t.Fatalf("CheckReleaseReadiness() = %v, want one named material Issue blocker", problems)
 	}
 }
 
@@ -2142,6 +2306,10 @@ func TestCheckProject_IssueResolutionFieldMismatch(t *testing.T) {
 // named diagnostic.
 func TestV2DiagnosticName_noNewIssueSentinelFallsThrough(t *testing.T) {
 	sentinels := []error{
+		data.ErrV2InvalidReleaseReference,
+		data.ErrV2MissingRelease,
+		data.ErrV2ReleaseMissingSection,
+		data.ErrV2ReleaseLegacyMalformed,
 		data.ErrV2IssueMalformed,
 		data.ErrV2IssueMissingDuplicateTarget,
 		data.ErrV2IssueSelfDuplicate,

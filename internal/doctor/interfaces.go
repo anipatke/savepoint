@@ -28,20 +28,35 @@ type routerReader interface {
 	ReadState(content string) (*data.RouterState, error)
 }
 
+// projectLoader is the doctor's read-only consumer boundary for the
+// schema-dispatched V2 index. It keeps doctor from re-parsing Release records
+// or reimplementing the project's structural validation rules.
+type projectLoader interface {
+	Load(root string) (*data.Project, error)
+}
+
+type defaultProjectLoader struct{}
+
+func (defaultProjectLoader) Load(root string) (*data.Project, error) {
+	return data.LoadProject(root)
+}
+
 // DoctorDependencies contains doctor data-access dependencies.
 type DoctorDependencies struct {
-	Discoverer   taskDiscoverer
-	Parser       taskParser
-	ConfigReader configReader
-	RouterReader routerReader
+	Discoverer    taskDiscoverer
+	Parser        taskParser
+	ConfigReader  configReader
+	RouterReader  routerReader
+	ProjectLoader projectLoader
 }
 
 func defaultDoctorDependencies() DoctorDependencies {
 	return DoctorDependencies{
-		Discoverer:   data.NewDiscover(),
-		Parser:       data.NewParser(),
-		ConfigReader: data.NewConfigReader(),
-		RouterReader: data.NewRouterReader(),
+		Discoverer:    data.NewDiscover(),
+		Parser:        data.NewParser(),
+		ConfigReader:  data.NewConfigReader(),
+		RouterReader:  data.NewRouterReader(),
+		ProjectLoader: defaultProjectLoader{},
 	}
 }
 
@@ -62,6 +77,9 @@ func doctorDependencies(overrides []DoctorDependencies) DoctorDependencies {
 	}
 	if override.RouterReader != nil {
 		deps.RouterReader = override.RouterReader
+	}
+	if override.ProjectLoader != nil {
+		deps.ProjectLoader = override.ProjectLoader
 	}
 	return deps
 }

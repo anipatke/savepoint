@@ -132,30 +132,186 @@ type Problem struct {
 
 // CheckProject validates schema, record, identity, path, and reference-graph
 // diagnostics by loading root through the shared data-layer project loader
-// (data.LoadProject) rather than re-deriving V2 schema, record, or graph
-// rules here. A V1 project (no explicit schema_version, or an absent
-// config.yml) reports no problems from this check; V1 structural diagnostics
-// remain CheckStructure's job. A V2 project's single structural diagnostic —
-// a malformed/unsupported schema_version, an invalid or duplicate record ID,
-// a path/record mismatch, an unsafe path, missing ownership, a missing
-// dependency target, a self-dependency, or a reference cycle — is reported
-// with a stable diagnostic name plus the record path and identity context
-// data.LoadProject's error already carries. Doctor only reads: LoadProject
-// never writes to the project.
-func CheckProject(root string) []Problem {
-	project, err := data.LoadProject(root)
+// rather than re-deriving V2 schema, record, or graph rules here. A V1
+// project (no explicit schema_version, or an absent config.yml) reports no
+// problems from this check; V1 structural diagnostics remain CheckStructure's
+// job. A V2 project's structural diagnostic is reported with a stable name
+// plus the record path and identity context the loader already carries.
+// Doctor only reads: the project loader never writes to the project.
+func CheckProject(root string, overrides ...DoctorDependencies) []Problem {
+	_, problems := loadProjectChecks(root, doctorDependencies(overrides))
+	return problems
+}
+
+func loadProjectChecks(root string, deps DoctorDependencies) (*data.Project, []Problem) {
+	project, err := deps.ProjectLoader.Load(root)
 	if err != nil {
 		name := v2DiagnosticName(err)
-		return []Problem{{
+		return nil, []Problem{{
 			File:    root,
 			Message: fmt.Sprintf("[%s] %v", name, err),
 			Repair:  V2ProblemRepair(name),
 		}}
 	}
+	if project == nil {
+		return nil, []Problem{{
+			File:    root,
+			Message: "[v2-project-error] project loader returned no project",
+			Repair:  "Review the V2 project diagnostic and fix the reported record",
+		}}
+	}
 	if project.SchemaVersion == data.SchemaVersionV2 {
-		return v2ConsistencyProblems(project.V2)
+		return project, v2ConsistencyProblems(project.V2)
+	}
+	return project, nil
+}
+
+// CheckReleaseReadiness reports Release-level readiness findings from the
+// same indexed records and canonical gate resolver used by other V2
+// consumers. Structural load errors remain CheckProject's responsibility, so
+// this check returns no duplicate finding when the index cannot be built.
+func CheckReleaseReadiness(root string, overrides ...DoctorDependencies) []Problem {
+	project, _ := loadProjectChecks(root, doctorDependencies(overrides))
+	return releaseDiagnosticsForProject(project).Problems
+}
+
+type releaseDiagnostics struct {
+	Problems []Problem
+	Notes    []string
+}
+
+func releaseDiagnosticsForProject(project *data.Project) releaseDiagnostics {
+	if project == nil || project.SchemaVersion != data.SchemaVersionV2 || project.V2 == nil || len(project.V2.Releases) == 0 {
+		return releaseDiagnostics{}
+	}
+
+	var diagnostics releaseDiagnostics
+	for _, releaseID := range slices.Sorted(maps.Keys(project.V2.Releases)) {
+		release := project.V2.Releases[releaseID]
+		if release.LegacyCompletion != nil {
+			if problem := legacyCompletionProblem(project.Root, release); problem != nil {
+				diagnostics.Problems = append(diagnostics.Problems, *problem)
+			} else if release.Status == data.ColumnDone {
+				diagnostics.Notes = append(diagnostics.Notes, fmt.Sprintf(
+					"release %s: historical completion is preserved in the legacy archive; it is historical evidence, not a current CLEAR Check",
+					releaseID,
+				))
+			}
+		}
+
+		if release.Status != data.ColumnInProgress && release.Status != data.ColumnDone {
+			continue
+		}
+
+		decision := data.ResolveReleaseCompletion(project.V2, releaseID)
+		if decision.Allowed {
+			continue
+		}
+		clearance := data.ResolveClearance(project.V2, releaseID)
+		for _, blocker := range decision.Blockers {
+			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker, clearance.Check))
+		}
+	}
+
+	return diagnostics
+}
+
+func legacyCompletionProblem(root string, release *data.ReleaseV2) *Problem {
+	archivePath, ok := resolveLegacyArchivePath(root, release.LegacyCompletion.ArchivePath)
+	if !ok {
+		problem := Problem{
+			File:     release.Source.Path,
+			Message:  fmt.Sprintf("[v2-release-legacy-dangling] release %s legacy completion archive path %q is not confined to the project", release.ID, release.LegacyCompletion.ArchivePath),
+			Repair:   "Restore or correct the legacy_completion archive_path in the Release record; doctor does not rewrite historical evidence",
+			Category: HealthMalformedData,
+		}
+		return &problem
+	}
+	info, err := os.Stat(archivePath)
+	if err != nil || info.IsDir() {
+		problem := Problem{
+			File:     release.Source.Path,
+			Message:  fmt.Sprintf("[v2-release-legacy-dangling] release %s legacy completion archive %q is missing", release.ID, release.LegacyCompletion.ArchivePath),
+			Repair:   "Restore the archived legacy source or correct the legacy_completion archive_path in the Release record; doctor does not create evidence",
+			Category: HealthMalformedData,
+		}
+		return &problem
 	}
 	return nil
+}
+
+func resolveLegacyArchivePath(root, reference string) (string, bool) {
+	clean := filepath.Clean(filepath.FromSlash(reference))
+	if reference == "" || filepath.IsAbs(reference) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	base := root
+	rootName := filepath.Base(filepath.Clean(root))
+	if clean == rootName || strings.HasPrefix(clean, rootName+string(filepath.Separator)) {
+		base = filepath.Dir(root)
+	}
+	return filepath.Join(base, clean), true
+}
+
+func releaseBlockerProblem(release *data.ReleaseV2, blocker data.GateBlocker, latestCheck string) Problem {
+	name := "v2-release-readiness"
+	detail := blocker.Detail
+	repair := "Review the Release's recorded readiness requirement and make the authoritative change manually; doctor never creates Release evidence"
+	category := HealthMissingEvidence
+
+	switch blocker.Kind {
+	case data.GateBlockReleaseNoObjectives:
+		name = "v2-release-no-objectives"
+		detail = fmt.Sprintf("release %s has no member Objectives", release.ID)
+		repair = fmt.Sprintf("Assign at least one Objective by adding release: %s to that Objective; doctor does not create membership", release.ID)
+	case data.GateBlockReleaseObjectiveIncomplete:
+		name = "v2-release-objective-incomplete"
+		if blocker.Objective != "" {
+			detail = fmt.Sprintf("member Objective %s is incomplete: %s", blocker.Objective, blocker.Detail)
+		}
+		repair = "Complete the named member Objective through its existing completion gate before treating the Release as ready; doctor does not change Objective records"
+	case data.GateBlockClearanceMissing:
+		name = "v2-release-clearance-missing"
+		detail = fmt.Sprintf("Release evidence is missing: %s", blocker.Detail)
+		repair = fmt.Sprintf("Record a Release-scoped Check and current freshness evidence for %s; doctor does not create evidence", release.ID)
+	case data.GateBlockClearanceNeedsWork:
+		name = "v2-release-clearance-needs-work"
+		detail = fmt.Sprintf("Release evidence needs work: %s", blocker.Detail)
+		repair = fmt.Sprintf("Resolve the findings from the Release Check for %s, then record a fresh CLEAR Check and freshness assessment", release.ID)
+	case data.GateBlockClearanceStale:
+		name = "v2-release-clearance-stale"
+		detail = fmt.Sprintf("Release evidence is stale: %s", blocker.Detail)
+		repair = fmt.Sprintf("Record a current freshness assessment for the latest Release Check on %s", release.ID)
+	case data.GateBlockClearanceUnknown:
+		name = "v2-release-clearance-unknown"
+		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)
+		repair = fmt.Sprintf("Record freshness evidence assessed by an independent checker for the latest Release Check on %s", release.ID)
+	case data.GateBlockCheckerAuthority:
+		name = "v2-release-checker-authority"
+		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)
+		repair = fmt.Sprintf("Record the latest Release Check and freshness assessment with independent checker provenance for %s", release.ID)
+	case data.GateBlockReleaseIssueUnresolved:
+		name = "v2-release-issue-unresolved"
+		detail = fmt.Sprintf("material blocker remains unresolved: %s", blocker.Detail)
+		repair = "Resolve or explicitly except the named material Issue, then re-check the Release"
+	case data.GateBlockOwnerAcceptance:
+		if release.Evidence != nil && release.Evidence.OwnerValidation != nil && release.Evidence.OwnerValidation.AcceptedCheck != "" && release.Evidence.OwnerValidation.AcceptedCheck != latestCheck {
+			name = "v2-release-owner-acceptance-stale"
+			detail = fmt.Sprintf("owner acceptance is stale: it names %s, but the latest Release Check is %s", release.Evidence.OwnerValidation.AcceptedCheck, latestCheck)
+		} else {
+			name = "v2-release-owner-acceptance-missing"
+			detail = fmt.Sprintf("owner acceptance is missing for current Release Check %s", latestCheck)
+		}
+		repair = fmt.Sprintf("Record owner acceptance for current Release Check %s in the Release record; doctor does not create acceptance", latestCheck)
+	}
+
+	return Problem{
+		File:     release.Source.Path,
+		Message:  fmt.Sprintf("[%s] release %s: %s", name, release.ID, detail),
+		Repair:   repair,
+		Category: category,
+	}
 }
 
 // v2ConsistencyProblems reports every evaluation-level inconsistency
@@ -323,6 +479,9 @@ func v2DiagnosticName(err error) string {
 	case errors.Is(err, data.ErrV2MissingField):
 		return "v2-missing-field"
 	case errors.Is(err, data.ErrV2InvalidID):
+		if strings.Contains(err.Error(), "release id") {
+			return "v2-release-invalid-id"
+		}
 		return "v2-invalid-id"
 	case errors.Is(err, data.ErrV2InvalidOwnership):
 		return "v2-invalid-ownership"
@@ -330,6 +489,8 @@ func v2DiagnosticName(err error) string {
 		return "v2-invalid-lifecycle"
 	case errors.Is(err, data.ErrV2InvalidDependency):
 		return "v2-invalid-dependency"
+	case errors.Is(err, data.ErrV2InvalidReleaseReference):
+		return "v2-invalid-release-reference"
 	case errors.Is(err, data.ErrV2DuplicateID):
 		return "v2-duplicate-id"
 	case errors.Is(err, data.ErrV2PathMismatch):
@@ -338,6 +499,12 @@ func v2DiagnosticName(err error) string {
 		return "v2-unsafe-path"
 	case errors.Is(err, data.ErrV2MissingOwner):
 		return "v2-missing-owner"
+	case errors.Is(err, data.ErrV2MissingRelease):
+		return "v2-missing-release"
+	case errors.Is(err, data.ErrV2ReleaseMissingSection):
+		return "v2-release-missing-section"
+	case errors.Is(err, data.ErrV2ReleaseLegacyMalformed):
+		return "v2-release-legacy-malformed"
 	case errors.Is(err, data.ErrV2MissingDependencyTarget):
 		return "v2-missing-dependency-target"
 	case errors.Is(err, data.ErrV2SelfDependency):
@@ -349,6 +516,9 @@ func v2DiagnosticName(err error) string {
 	case errors.Is(err, data.ErrV2CheckMalformed):
 		return "v2-check-malformed"
 	case errors.Is(err, data.ErrV2CheckMissingScopeTarget):
+		if strings.Contains(err.Error(), "scope names missing release") {
+			return "v2-check-missing-release-scope-target"
+		}
 		return "v2-check-missing-scope-target"
 	case errors.Is(err, data.ErrV2CheckMissingReference):
 		return "v2-check-missing-reference"

@@ -1,0 +1,54 @@
+---
+id: v2/D005-unknown-gate-blocker-fails-closed
+release: v2
+status: open
+severity: high
+title: "Unknown gate blockers fall back to NextDependency"
+---
+
+# D005: Unknown gate blockers fall back to NextDependency
+
+## Symptom
+
+`internal/data/next.go:rungForBlockers()` maps known blocker kinds to their
+workflow rungs, but its final fallback returns `NextDependency`. A newly added
+or otherwise unhandled blocker can therefore produce a plausible dependency
+instruction without being a dependency.
+
+## Expected Behavior
+
+Unknown blocker state must fail closed with an explicit diagnostic or typed
+unknown-state outcome. It must never be silently represented as
+`NextDependency`.
+
+## Reproduction
+
+1. Construct a blocked `GateDecision` containing a `GateBlocker` kind that
+   `rungForBlockers()` does not recognize.
+2. Resolve the task's `Next` projection.
+3. Observe that the projection reports the dependency rung and downstream
+   resume/board wording instead of identifying the unhandled blocker.
+
+## Impact
+
+Users and agents can receive an incorrect workflow instruction, and adding a
+new gate blocker can silently change behavior until every consumer happens to
+be updated.
+
+## Fix Plan
+
+Replace the plausible dependency fallback with an explicit unknown-blocker
+diagnostic or an error-bearing resolution path. Add an adversarial test that
+injects an unhandled blocker and verifies the fail-closed result at each
+rendering surface.
+
+## Acceptance Criteria
+
+- [ ] An unknown blocker cannot resolve to `NextDependency`.
+- [ ] The resulting diagnostic names the unhandled blocker and remains
+      actionable for the caller.
+- [ ] Known blocker mappings retain their current precedence and coverage.
+
+## Resolution Notes
+
+Pending.

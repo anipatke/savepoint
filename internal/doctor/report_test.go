@@ -138,6 +138,61 @@ func TestDiagnosticReport_FormatAllClean(t *testing.T) {
 	}
 }
 
+func TestDiagnosticReport_NoReleaseOmitsReleaseSection(t *testing.T) {
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	report := RunAllChecks(root, "")
+	if strings.Contains(report.Format(), "Release Check") {
+		t.Fatal("report.Format() contains Release Check for a project with no Releases")
+	}
+	if len(report.Releases) != 0 || len(report.ReleaseNotes) != 0 {
+		t.Fatalf("Release diagnostics = %v / %v, want none", report.Releases, report.ReleaseNotes)
+	}
+}
+
+func TestDiagnosticReport_HistoricalReleaseIsNotCurrentClear(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	archivePath := filepath.Join(root, "archive", "v1", "R001-PRD.md")
+	testutil.WriteFile(t, archivePath, "historical release bytes\n")
+	writeV2Release(t, root, "R001-history", "R001", "done",
+		"legacy_completion:\n  source_path: .savepoint/releases/v1/v1-PRD.md\n  archive_path: archive/v1/R001-PRD.md\n  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-member", "Objective.md"),
+		"---\nid: O001\ntitle: \"Member\"\nstatus: done\nrelease: R001\nfreshness: {state: current, check: C001, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+	writeV2Check(t, root, "C001", "{kind: objective, id: O001}", "CLEAR", "")
+
+	report := RunAllChecks(root, "")
+	if len(report.Releases) != 0 {
+		t.Fatalf("Release problems = %v, want none for a valid historical archive", report.Releases)
+	}
+	if len(report.ReleaseNotes) != 1 || !strings.Contains(report.ReleaseNotes[0], "historical evidence, not a current CLEAR Check") {
+		t.Fatalf("ReleaseNotes = %v, want historical-not-current-CLEAR note", report.ReleaseNotes)
+	}
+	output := report.Format()
+	for _, want := range []string{"Release Check", "historical completion", "not a current CLEAR Check"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("report.Format() missing %q, got:\n%s", want, output)
+		}
+	}
+}
+
+func TestDiagnosticReport_DanglingHistoricalArchiveIsProblem(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	writeV2Release(t, root, "R001-history", "R001", "done",
+		"legacy_completion:\n  source_path: .savepoint/releases/v1/v1-PRD.md\n  archive_path: archive/v1/missing.md\n  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-member", "Objective.md"),
+		"---\nid: O001\ntitle: \"Member\"\nstatus: done\nrelease: R001\n---\n\n# Member\n")
+
+	problems := CheckReleaseReadiness(root)
+	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-release-legacy-dangling]") {
+		t.Fatalf("CheckReleaseReadiness() = %v, want one dangling historical-archive problem", problems)
+	}
+	if problems[0].Category != HealthMalformedData || problems[0].Repair == "" {
+		t.Fatalf("historical archive problem = %+v, want malformed category and repair", problems[0])
+	}
+}
+
 func TestDiagnosticReport_FormatShowsRepairs(t *testing.T) {
 	root := t.TempDir()
 	report := RunAllChecks(root, "")
