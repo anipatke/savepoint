@@ -191,9 +191,8 @@ func LoadV2Index(root string) (*V2Index, error) {
 }
 
 // indexReleaseObjectives validates typed Objective release references and
-// derives the only reverse membership view. Legacy V2 packaging labels remain
-// loadable only while a project has no Release records, preserving the E45
-// transitional migration boundary; any R### reference must resolve.
+// derives the only reverse membership view. Any present reference must use the
+// R### identity vocabulary and resolve to a discovered Release.
 func indexReleaseObjectives(index *V2Index) error {
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
@@ -203,9 +202,6 @@ func indexReleaseObjectives(index *V2Index) error {
 
 		ref := objective.Release
 		if !releaseIDPatternV2.MatchString(ref) {
-			if len(index.Releases) == 0 {
-				continue
-			}
 			return fmt.Errorf("%w: %s: objective %s release %q must match R###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
 		}
 

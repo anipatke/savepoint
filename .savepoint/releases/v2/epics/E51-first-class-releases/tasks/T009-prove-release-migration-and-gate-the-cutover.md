@@ -78,3 +78,9 @@ The epic is not complete when each package passes in isolation. A migrated proje
 - `git diff --check`: PASS.
 - No `.savepoint/Health-Check.md` is present, so the repository Quick health check was skipped per `AGENTS.md`; independent epic audit remains the next handoff.
 - Migration tests never target the live repository; all preview/apply/interruption/no-op evidence uses fixture or temporary-copy roots.
+- E51 audit repair: Release switching now clears stale cross-Release Objective/Task router selections, validates Release/Objective ownership before writes, and proves board/resume/Next parity after reload in `TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext` plus `TestSelectionWriteRejectsCrossReleaseObjective`.
+- E51 audit repair: `LoadV2Index` now rejects malformed Objective `release` references even in Release-free projects; `TestLoadV2Index_rejectsLegacyPackagingTextWithoutReleases` covers the failure path while `TestLoadV2Index_noReleaseRecordsPreservesLegacyReleaseFreeProject` preserves valid unassigned Objectives.
+- `go test ./internal/board/v2 ./internal/data ./internal/resume . -count=1`: PASS.
+- `make build`: PASS.
+- `make test`: PASS (`go test ./...`; `internal/migrate` 132.065s).
+- `git diff --check`: PASS after audit repairs.

@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/resume"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -282,8 +284,37 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if final.State.Router == nil || final.State.Router.Release != "R002" {
 		t.Fatalf("router Release = %+v, want R002 after the canonical write", final.State.Router)
 	}
+	if final.State.Router.Objective != "" || final.State.Router.Task != "" {
+		t.Fatalf("router selection = %+v, want stale Objective/Task cleared for R002", final.State.Router)
+	}
+	if final.State.Next.SelectionDiagnostic != nil {
+		t.Fatalf("reloaded Release selection diagnostic = %+v, want nil", final.State.Next.SelectionDiagnostic)
+	}
+	if final.State.Next.Release == nil || final.State.Next.Release.ID != "R002" {
+		t.Fatalf("reloaded Next.Release = %+v, want R002-scoped Next", final.State.Next.Release)
+	}
 	if got := cardIDsInView(final); !equalIDs(got, []string{"T002"}) {
 		t.Errorf("reloaded selected Release shows Tasks %v, want T002", got)
+	}
+	if len(final.Objectives) != 1 || final.Objectives[0].ID() != "O002" {
+		t.Errorf("reloaded visible Objectives = %v, want only O002", final.Objectives)
+	}
+	view := xansi.Strip(final.View())
+	var resumeOutput bytes.Buffer
+	if err := resume.Render(&resumeOutput, final.State.Next); err != nil {
+		t.Fatalf("resume.Render() error = %v", err)
+	}
+	for _, want := range []string{
+		"Release: R002 — Second release",
+		"Task: T002 — Second task",
+		"Action: " + resume.ActionPhrase(final.State.Next),
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("board view missing shared Next line %q:\n%s", want, view)
+		}
+		if !strings.Contains(resumeOutput.String(), strings.TrimPrefix(want, "Action: ")) {
+			t.Errorf("resume output missing shared Next fact %q:\n%s", want, resumeOutput.String())
+		}
 	}
 	content, err := os.ReadFile(filepath.Join(root, "router.md"))
 	if err != nil {
@@ -292,11 +323,33 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if !strings.Contains(string(content), "release: R002") || !strings.Contains(string(content), "next_action: \"do the next thing\"") {
 		t.Errorf("router write lost the Release or next_action:\n%s", content)
 	}
-	if strings.Contains(string(content), "objective: none") || strings.Contains(string(content), "task: none") {
-		t.Errorf("Release switch cleared existing router ownership:\n%s", content)
+	if !strings.Contains(string(content), "objective: none") || !strings.Contains(string(content), "task: none") {
+		t.Errorf("Release switch did not clear stale router ownership:\n%s", content)
 	}
 	if string(beforeRouter) == string(content) {
 		t.Error("canonical Release selection did not change router context")
+	}
+}
+
+func TestSelectionWriteRejectsCrossReleaseObjective(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	before, err := os.ReadFile(filepath.Join(root, "router.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message, ok := writeSelectionCmd(root, data.RouterSelectionV2{
+		Release: "R002", Objective: "O001", Task: "T001",
+	})().(actionMsg)
+	if !ok || message.err == nil || !strings.Contains(message.err.Error(), "belongs to Release R001, not R002") {
+		t.Fatalf("cross-Release selection result = %#v, want a named ownership refusal", message)
+	}
+	after, err := os.ReadFile(filepath.Join(root, "router.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Error("cross-Release selection changed router.md")
 	}
 }
 

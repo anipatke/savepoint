@@ -265,6 +265,10 @@ func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) 
 			Objective: router.Objective,
 			Task:      router.Task,
 		}
+		if objective := index.Objectives[selection.Objective]; objective == nil || string(objective.Release) != release {
+			selection.Objective = ""
+			selection.Task = ""
+		}
 		if err := validateSelectionAgainstIndex(index, selection); err != nil {
 			return releaseSelectionFailure(err, "release selection")
 		}
@@ -286,8 +290,16 @@ func validateSelectionAgainstIndex(index *data.V2Index, selection data.RouterSel
 		}
 	}
 	if selection.Objective != "" {
-		if _, ok := index.Objectives[selection.Objective]; !ok {
+		objective, ok := index.Objectives[selection.Objective]
+		if !ok {
 			return fmt.Errorf("selection target %s is no longer present", selection.Objective)
+		}
+		if selection.Release != "" && string(objective.Release) != selection.Release {
+			objectiveRelease := string(objective.Release)
+			if objectiveRelease == "" {
+				objectiveRelease = "(none)"
+			}
+			return fmt.Errorf("selection target %s belongs to Release %s, not %s", selection.Objective, objectiveRelease, selection.Release)
 		}
 	}
 	if selection.Task != "" {

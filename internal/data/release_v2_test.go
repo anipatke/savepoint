@@ -233,6 +233,21 @@ func TestLoadV2Index_rejectsLegacyPackagingTextWhenReleasesExist(t *testing.T) {
 	}
 }
 
+func TestLoadV2Index_rejectsLegacyPackagingTextWithoutReleases(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveWithRelease(t, root, "O001-first", "O001", "First objective", "v2")
+
+	_, err := LoadV2Index(root)
+	if !errors.Is(err, ErrV2InvalidReleaseReference) {
+		t.Fatalf("LoadV2Index() error = %v, want ErrV2InvalidReleaseReference", err)
+	}
+	for _, want := range []string{"objectives/O001-first/Objective.md", "O001", "v2"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
+		}
+	}
+}
+
 func TestLoadV2Index_noReleaseRecordsPreservesLegacyReleaseFreeProject(t *testing.T) {
 	root := t.TempDir()
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
