@@ -26,26 +26,10 @@ func NewRouterReader() *RouterReader {
 }
 
 func (r *RouterReader) ReadState(content string) (*RouterState, error) {
-	normalized := normalizeLineEndings(content)
-	lower := strings.ToLower(normalized)
-
-	startIdx := strings.Index(lower, strings.ToLower(stateBlockStart))
-	if startIdx == -1 {
-		return nil, fmt.Errorf("no Current state block found")
+	yamlContent, err := extractStateBlock(content)
+	if err != nil {
+		return nil, err
 	}
-
-	yamlStart := strings.Index(normalized[startIdx:], "```yaml")
-	if yamlStart == -1 {
-		return nil, fmt.Errorf("no yaml code block found")
-	}
-
-	yamlStart += startIdx + len("```yaml")
-	yamlEnd := strings.Index(normalized[yamlStart:], "```")
-	if yamlEnd == -1 {
-		return nil, fmt.Errorf("no closing code block found")
-	}
-
-	yamlContent := strings.TrimSpace(normalized[yamlStart : yamlStart+yamlEnd])
 
 	var state RouterState
 	if err := yaml.Unmarshal([]byte(yamlContent), &state); err != nil {
@@ -53,6 +37,33 @@ func (r *RouterReader) ReadState(content string) (*RouterState, error) {
 	}
 
 	return &state, nil
+}
+
+// extractStateBlock locates the "## Current state" heading and its fenced
+// ```yaml block, returning the block's trimmed content. Both the V1 reader
+// above and the V2 reader in router_v2.go share this anchor-finding step;
+// only the shape decoded out of the returned text differs between them.
+func extractStateBlock(content string) (string, error) {
+	normalized := normalizeLineEndings(content)
+	lower := strings.ToLower(normalized)
+
+	startIdx := strings.Index(lower, strings.ToLower(stateBlockStart))
+	if startIdx == -1 {
+		return "", fmt.Errorf("no Current state block found")
+	}
+
+	yamlStart := strings.Index(normalized[startIdx:], "```yaml")
+	if yamlStart == -1 {
+		return "", fmt.Errorf("no yaml code block found")
+	}
+
+	yamlStart += startIdx + len("```yaml")
+	yamlEnd := strings.Index(normalized[yamlStart:], "```")
+	if yamlEnd == -1 {
+		return "", fmt.Errorf("no closing code block found")
+	}
+
+	return strings.TrimSpace(normalized[yamlStart : yamlStart+yamlEnd]), nil
 }
 
 // ReplaceStateBlock returns content with the "## Current state" fenced YAML

@@ -16,3 +16,4 @@ here.
 | `AGENTS.marked.md` | An agent guide carrying the marker pair around an older managed block, with user prose on both sides. |
 | `SKILL.customized.md` | A bundled skill a project has locally tailored. |
 | `task-legacy-phase.md` | A task file using the legacy `phase` frontmatter field instead of `stage`. |
+| `migrations-readme-pre-e47.md` | The byte-frozen migration README emitted by the V1 upgrade path before E47. |

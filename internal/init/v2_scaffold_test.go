@@ -112,13 +112,15 @@ func TestV2ScaffoldAgentsGuideIsLiveAndUsesV2Vocabulary(t *testing.T) {
 	}
 }
 
-// v2AdoptionLoadBearingPhrases are the three statements the existing-codebase
+// v2AdoptionLoadBearingPhrases are the statements the existing-codebase
 // adoption section must carry: reconstruction is targeted reads, intent comes
-// from the owner, and adoption never modifies a file the user authored.
+// from the owner, and the managed guide block is the only authored-file
+// exception.
 var v2AdoptionLoadBearingPhrases = []string{
 	"reconstructed from the code through targeted reads",
 	"recorded in `.savepoint/Idea.md` through `savepoint-idea`, never inferred from source",
-	"Adoption never modifies a file the user authored",
+	"may add or refresh the Savepoint-managed block in an existing agent guide",
+	"preserving every byte outside that block",
 }
 
 func TestV2AgentsGuideCarriesExistingCodebaseAdoptionSection(t *testing.T) {

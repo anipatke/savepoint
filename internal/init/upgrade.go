@@ -66,7 +66,7 @@ type UpgradeReport struct {
 type UpgradeEntry struct {
 	Path   string
 	Action UpgradeAction
-	// Note names a sidecar file written alongside the target, empty when the
+	// Note names a recovery artifact written for the target, empty when the
 	// action needed none.
 	Note string
 }
@@ -262,7 +262,7 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 	// Retire the legacy generic audit skill before installing the split skills,
 	// so an interrupted upgrade never leaves the old alias triggerable next to
 	// its replacements.
-	migration, err := migrateLegacyAuditSkill(absTarget, dryRun, write)
+	migration, err := migrateLegacyAuditSkill(absTarget, dryRun, retireV1, write)
 	if err != nil {
 		return nil, err
 	}

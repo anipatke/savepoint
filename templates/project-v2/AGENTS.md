@@ -67,7 +67,7 @@ Design is reconstructed from the code through targeted reads — the same read-o
 
 What exists goes to `.savepoint/Design.md`: concrete structure to Components/Codebase Map, what was actually verified to `Current Technical State`. What the code is for goes to `.savepoint/Idea.md`, through the owner. An area not yet read is recorded as unknown; it is never filled in by inference.
 
-Adoption never modifies a file the user authored. It adds Savepoint's own files under `.savepoint/` and nothing else — the same guarantee `savepoint init` gives an empty directory.
+Adoption does not rewrite user-authored files. `savepoint init` may add or refresh the Savepoint-managed block in an existing agent guide, preserving every byte outside that block; all other Savepoint files are added under `.savepoint/`.
 
 This guidance degrades when optional files are absent: a V2 project ships no Concept, no Health-Check, no procedures file, and no release document, and none of those are required before adoption can proceed. Their absence is normal, not a finding.
 

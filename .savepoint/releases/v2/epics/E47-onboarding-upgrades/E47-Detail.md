@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E47: Start and refresh coherent V2 projects

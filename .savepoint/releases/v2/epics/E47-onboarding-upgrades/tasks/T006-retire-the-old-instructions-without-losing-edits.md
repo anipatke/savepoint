@@ -1,8 +1,7 @@
 ---
 id: E47-onboarding-upgrades/T006-retire-the-old-instructions-without-losing-edits
 title: Retire the old instructions without losing edits
-status: in_progress
-stage: build
+status: done
 objective: Remove the nine V1 skills from a project that has become V2, archiving each one before deletion and reconciling the provenance manifest.
 depends_on:
     - E47-onboarding-upgrades/T005-refresh-assets-that-match-the-projects-own-version
@@ -78,5 +77,7 @@ The manifest is the loose end. It records a hash per shipped skill; a retired sk
 - `internal/init/retire_v1_skills_test.go` (new) — full retirement, edited-vs-unmodified skill preservation, identical/differing archive conflict, V1 project untouched, idempotent second run, dry run (bytes + mtimes), injected archive-write failure, non-empty directory retention, migrations README content, and report-format distinction.
 
 **Quality gates:** `go build ./...`, `go vet ./...`, `gofmt -l` (clean after formatting `upgrade.go`), `go test ./internal/init/...`, `go test ./...`, `make build && make test` — all pass. No `.savepoint/Health-Check.md` in this project, so the Quick check step is skipped per the build-task skill.
+
+**Post-audit remediation:** `retireV1Skills` now forgets manifest provenance after a confirmed missing retired file as well as after removal. Retirement entries carry the exact selected archive path, including numbered conflicts, and `writeArchive` upgrades only the byte-identical pre-E47 stock migration README on the V2 path; edited README content remains untouched. The focused regression cases are in `internal/init/retire_v1_skills_test.go` and the frozen V1 compatibility case is in `internal/init/upgrade_schema_test.go`.
 
 No drift: no new files/modules outside `internal/init/retire_v1_skills.go` (already named in the epic's Components table) and no architecture change beyond what E47-Detail.md already describes.

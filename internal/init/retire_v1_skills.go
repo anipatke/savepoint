@@ -60,7 +60,7 @@ func retireV1Skills(absTarget string, manifest *Manifest, dryRun bool, write ass
 		if err != nil {
 			return entries, err
 		}
-		if entry != nil && !dryRun {
+		if !dryRun {
 			manifest.Forget(path)
 		}
 	}
@@ -82,30 +82,40 @@ func retireV1Asset(absTarget, path string, dryRun bool, write assetWriter) (*Upg
 		return nil, fmt.Errorf("read retired asset %s: %w", path, err)
 	}
 
-	archivePath, err := resolveArchivePath(absTarget, archiveStem(path), content)
+	archivePath, archiveWrite, err := resolveArchivePath(absTarget, archiveStem(path), content)
 	if err != nil {
 		return &UpgradeEntry{Path: path, Action: ActionFailed}, err
 	}
 
-	entry := &UpgradeEntry{Path: path, Action: ActionRetired}
+	entry := &UpgradeEntry{
+		Path:   path,
+		Action: ActionRetired,
+		Note:   archiveRecoveryNote(absTarget, archivePath),
+	}
 	if dryRun {
 		return entry, nil
 	}
 
 	// Preserve first, delete second: the triggerable copy is removed only after
 	// its content is safely on disk somewhere else.
-	if archivePath != "" {
-		if err := writeArchive(absTarget, archivePath, content, write); err != nil {
-			return &UpgradeEntry{Path: path, Action: ActionFailed}, fmt.Errorf("archive retired asset %s: %w", path, err)
-		}
+	if err := writeArchive(absTarget, archivePath, content, migrationsReadme, true, archiveWrite, write); err != nil {
+		return &UpgradeEntry{Path: path, Action: ActionFailed, Note: entry.Note}, fmt.Errorf("archive retired asset %s: %w", path, err)
 	}
 
 	if err := os.Remove(targetPath); err != nil {
-		return &UpgradeEntry{Path: path, Action: ActionFailed}, fmt.Errorf("remove retired asset %s: %w", path, err)
+		return &UpgradeEntry{Path: path, Action: ActionFailed, Note: entry.Note}, fmt.Errorf("remove retired asset %s: %w", path, err)
 	}
 	removeDirIfEmpty(filepath.Dir(targetPath))
 
 	return entry, nil
+}
+
+func archiveRecoveryNote(absTarget, archivePath string) string {
+	rel, err := filepath.Rel(absTarget, archivePath)
+	if err != nil {
+		return "archived copy saved to " + filepath.ToSlash(archivePath)
+	}
+	return "archived copy saved to " + filepath.ToSlash(rel)
 }
 
 // archiveStem derives a migrations-archive file stem from a template-relative

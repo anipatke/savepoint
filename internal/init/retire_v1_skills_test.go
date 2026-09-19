@@ -101,9 +101,13 @@ func TestRetireV1Skills_fullRetirement(t *testing.T) {
 	}
 
 	for _, path := range retiredV1AssetPaths() {
-		action, found := actionFor(report, path)
-		if !found || action != ActionRetired {
-			t.Errorf("%s action = %v (found %v), want retired", path, action, found)
+		entry, found := entryFor(report, path)
+		if !found || entry.Action != ActionRetired {
+			t.Errorf("%s entry = %+v (found %v), want retired", path, entry, found)
+		}
+		wantNote := "archived copy saved to " + filepath.ToSlash(filepath.Join(migrationsDir, archiveStem(path)+".md"))
+		if found && entry.Note != wantNote {
+			t.Errorf("%s note = %q, want %q", path, entry.Note, wantNote)
 		}
 
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(path))); !os.IsNotExist(err) {
@@ -127,6 +131,37 @@ func TestRetireV1Skills_fullRetirement(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill)); !os.IsNotExist(err) {
 			t.Errorf("emptied skill dir %s not removed, stat err = %v", skill, err)
 		}
+	}
+}
+
+func TestRetireV1Skills_missingFileForgetsStaleManifestEntry(t *testing.T) {
+	path := "agent-skills/savepoint-draft-prd/SKILL.md"
+	dir := v2ProjectWithLegacySkills(t, nil)
+	if err := os.Remove(filepath.Join(dir, filepath.FromSlash(path))); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := NewManifest()
+	manifest.Record(path, []byte("# stale provenance"))
+	if err := manifest.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	v1, v2 := retirementTemplates()
+	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if _, found := actionFor(report, path); found {
+		t.Errorf("missing retired path reported an action: %+v", report.Actions)
+	}
+
+	loaded, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, tracked := loaded.Hash(path); tracked {
+		t.Errorf("manifest retained stale entry for missing %s", path)
 	}
 }
 
@@ -172,8 +207,20 @@ func TestRetireV1Skills_reArchivesDifferingContentWithoutOverwriting(t *testing.
 	second := "# Second retirement pass"
 	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(path)), second)
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
+	}
+	entry, found := entryFor(report, path)
+	if !found || entry.Action != ActionRetired {
+		t.Fatalf("second retirement entry = %+v (found %v), want retired", entry, found)
+	}
+	wantNote := "archived copy saved to " + filepath.ToSlash(filepath.Join(migrationsDir, archiveStem(path)+".1.md"))
+	if entry.Note != wantNote {
+		t.Errorf("second retirement note = %q, want %q", entry.Note, wantNote)
+	}
+	if !strings.Contains(report.Format(), wantNote) {
+		t.Errorf("formatted second retirement report omits numbered archive: %q", report.Format())
 	}
 
 	original, err := os.ReadFile(retiredArchivePath(dir, path, 0))
@@ -352,6 +399,46 @@ func TestRetireV1Skills_migrationsReadmeNamesRetiredSkillsAndNonTriggerableStatu
 			t.Errorf("migrations README does not name retired skill %s", skill)
 		}
 	}
+}
+
+func TestRetireV1Skills_upgradesStockLegacyMigrationsReadmeButPreservesEdits(t *testing.T) {
+	t.Run("stock README is upgraded", func(t *testing.T) {
+		dir := v2ProjectWithLegacySkills(t, nil)
+		testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(legacyAuditSkillFile)), "# Old Generic Audit Skill")
+		testutil.WriteFile(t, filepath.Join(dir, migrationsDir, migrationsReadmeName), legacyFixture(t, "migrations-readme-pre-e47.md"))
+
+		v1, v2 := retirementTemplates()
+		if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+			t.Fatalf("UpgradeProjectAssets() error = %v", err)
+		}
+
+		readme, err := os.ReadFile(filepath.Join(dir, migrationsDir, migrationsReadmeName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(readme) != migrationsReadme {
+			t.Error("V2 retirement did not replace the exact stock pre-E47 README")
+		}
+	})
+
+	t.Run("edited README is preserved", func(t *testing.T) {
+		dir := v2ProjectWithLegacySkills(t, nil)
+		custom := "# Local migration notes\n\nKeep this recovery advice.\n"
+		testutil.WriteFile(t, filepath.Join(dir, migrationsDir, migrationsReadmeName), custom)
+
+		v1, v2 := retirementTemplates()
+		if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+			t.Fatalf("UpgradeProjectAssets() error = %v", err)
+		}
+
+		readme, err := os.ReadFile(filepath.Join(dir, migrationsDir, migrationsReadmeName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(readme) != custom {
+			t.Errorf("edited migrations README changed: %q", string(readme))
+		}
+	})
 }
 
 func TestUpgradeReport_formatDistinguishesRetiredFromInstallsAndUpdates(t *testing.T) {

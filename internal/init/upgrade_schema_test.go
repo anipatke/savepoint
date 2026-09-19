@@ -388,45 +388,62 @@ func TestUpgradeProjectAssets_secondRunIsNoOp(t *testing.T) {
 	}
 }
 
-// TestUpgradeProjectAssets_v1DispatchMatchesDirectSingleTreeCall is the
-// no-regression baseline this task's plan calls for: the V1 branch of
-// version dispatch must produce exactly the actions and exactly the bytes a
-// direct single-tree upgrade already produced before this task, plus the one
-// informational entry naming the migrate route.
-func TestUpgradeProjectAssets_v1DispatchMatchesDirectSingleTreeCall(t *testing.T) {
+// TestUpgradeProjectAssets_v1DispatchMatchesFrozenPreE47Fixture keeps the V1
+// compatibility proof independent of today's upgrade implementation. The
+// migration README is a byte-frozen pre-E47 output: expanding it for V2
+// retirement must not change what a legacy V1 project receives.
+func TestUpgradeProjectAssets_v1DispatchMatchesFrozenPreE47Fixture(t *testing.T) {
 	v1, v2 := v1v2Templates()
+	dir := schemaProject(t, "")
+	legacy := "# Old Generic Audit Skill"
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(legacyAuditSkillFile)), legacy)
 
-	viaDispatch := schemaProject(t, "")
-	dispatchReport, err := UpgradeProjectAssets(v1, v2, viaDispatch, false, false)
+	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("dispatch run error = %v", err)
 	}
 
-	viaDirect := schemaProject(t, "")
-	directReport, err := upgradeAssetsFromTree(v1, viaDirect, false, false)
+	wantActions := []UpgradeEntry{
+		{Path: legacyAuditSkillFile, Action: ActionMigrated},
+		{Path: "agent-skills/savepoint-draft-prd/SKILL.md", Action: ActionUpdated},
+	}
+	fileActions := make([]UpgradeEntry, 0, len(report.Actions))
+	for _, entry := range report.Actions {
+		if entry.Action != ActionInfo {
+			fileActions = append(fileActions, UpgradeEntry{Path: entry.Path, Action: entry.Action})
+		}
+	}
+	if len(fileActions) != len(wantActions) {
+		t.Fatalf("file actions = %+v, want %+v", fileActions, wantActions)
+	}
+	for i := range wantActions {
+		if fileActions[i] != wantActions[i] {
+			t.Errorf("action[%d] = %+v, want %+v", i, fileActions[i], wantActions[i])
+		}
+	}
+
+	wantReadme := legacyFixture(t, "migrations-readme-pre-e47.md")
+	readme, err := os.ReadFile(filepath.Join(dir, migrationsDir, migrationsReadmeName))
 	if err != nil {
-		t.Fatalf("direct run error = %v", err)
+		t.Fatalf("V1 migration README missing: %v", err)
+	}
+	if string(readme) != wantReadme {
+		t.Errorf("V1 migration README changed from the frozen pre-E47 fixture")
 	}
 
-	dispatchFileActions := make([]UpgradeEntry, 0, len(dispatchReport.Actions))
-	for _, e := range dispatchReport.Actions {
-		if e.Action == ActionInfo {
-			continue
-		}
-		dispatchFileActions = append(dispatchFileActions, e)
+	archived, err := os.ReadFile(filepath.Join(dir, migrationsDir, legacyAuditArchiveStem+".md"))
+	if err != nil {
+		t.Fatalf("legacy audit archive missing: %v", err)
 	}
-
-	if len(dispatchFileActions) != len(directReport.Actions) {
-		t.Fatalf("dispatch file actions = %d, direct actions = %d", len(dispatchFileActions), len(directReport.Actions))
+	if string(archived) != legacy {
+		t.Errorf("legacy archive = %q, want %q", string(archived), legacy)
 	}
-	for i := range dispatchFileActions {
-		if dispatchFileActions[i] != directReport.Actions[i] {
-			t.Errorf("action[%d] dispatch=%+v direct=%+v", i, dispatchFileActions[i], directReport.Actions[i])
-		}
+	installed, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash("agent-skills/savepoint-draft-prd/SKILL.md")))
+	if err != nil {
+		t.Fatalf("V1 skill missing: %v", err)
 	}
-
-	if diff := dirDiff(t, viaDispatch, viaDirect); diff != "" {
-		t.Errorf("dispatch vs direct produced different files:\n%s", diff)
+	if string(installed) != "# V1 skill" {
+		t.Errorf("V1 skill = %q, want frozen V1 template bytes", string(installed))
 	}
 }
 
