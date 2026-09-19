@@ -29,15 +29,19 @@ import (
 // about it: the board chooses the words for NextCheckNeeded, it does not
 // decide that a Check is needed.
 var nextKindLabels = map[data.NextKind]string{
-	data.NextPendingMigration:        "Finish the pending migration",
-	data.NextReplan:                  "Replan the selected Task",
-	data.NextDependency:              "Waiting on a dependency",
-	data.NextExecute:                 "Work the selected Task",
-	data.NextCheckNeeded:             "A Check is needed",
-	data.NextOwnerValidationRequired: "Accept the recorded Check",
-	data.NextObjectiveIntegration:    "Check the Objective's integration",
-	data.NextReady:                   "Ready to pick up",
-	data.NextPlanObjective:           "Plan an Objective",
+	data.NextPendingMigration:               "Finish the pending migration",
+	data.NextReplan:                         "Replan the selected Task",
+	data.NextDependency:                     "Waiting on a dependency",
+	data.NextExecute:                        "Work the selected Task",
+	data.NextCheckNeeded:                    "A Check is needed",
+	data.NextOwnerValidationRequired:        "Accept the recorded Check",
+	data.NextObjectiveIntegration:           "Check the Objective's integration",
+	data.NextReleaseIntegration:             "Integrate the selected Release",
+	data.NextReleaseCheckNeeded:             "Check the selected Release",
+	data.NextReleaseOwnerValidationRequired: "Accept the Release Check",
+	data.NextReleaseReady:                   "Complete the selected Release",
+	data.NextReady:                          "Ready to pick up",
+	data.NextPlanObjective:                  "Plan an Objective",
 }
 
 // nextLines is the Next area's whole content as plain lines, shared by the
@@ -77,6 +81,9 @@ func nextKindLabel(kind data.NextKind) string {
 // Objective — contributes nothing here rather than an empty label.
 func nextIdentityLines(next data.Next) []string {
 	var lines []string
+	if next.Release != nil {
+		lines = append(lines, fmt.Sprintf("Release: %s — %s", next.Release.ID, next.Release.Title))
+	}
 	if next.Objective != nil {
 		lines = append(lines, fmt.Sprintf("Objective: %s — %s", next.Objective.ID, next.Objective.Title))
 	}

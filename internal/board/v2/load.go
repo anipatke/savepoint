@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
@@ -16,10 +17,11 @@ import (
 // those three. Nothing here is derived by this package — Next is
 // data.ResolveNext's own value, carried whole.
 type ProjectState struct {
-	Index     *data.V2Index
-	Router    *data.RouterStateV2
-	Issues    IssueCatalog
-	Migration data.MigrationState
+	Index       *data.V2Index
+	Router      *data.RouterStateV2
+	RouterMtime time.Time
+	Issues      IssueCatalog
+	Migration   data.MigrationState
 	// MigrationGuidance is migrate.PendingOperation's own explanation of the
 	// incomplete conversion, empty when none is pending.
 	MigrationGuidance string
@@ -99,12 +101,17 @@ func loadProject(root string) projectLoadedMsg {
 	if err != nil {
 		return projectLoadedMsg{Diagnostic: err.Error()}
 	}
+	routerInfo, err := os.Stat(filepath.Join(root, "router.md"))
+	if err != nil {
+		return projectLoadedMsg{Diagnostic: err.Error()}
+	}
 
 	return projectLoadedMsg{State: ProjectState{
-		Index:  project.V2,
-		Router: router,
-		Issues: issueCatalog(project.V2),
-		Next:   data.ResolveNext(data.NextInput{Index: project.V2, Router: router}),
+		Index:       project.V2,
+		Router:      router,
+		RouterMtime: routerInfo.ModTime(),
+		Issues:      issueCatalog(project.V2),
+		Next:        data.ResolveNext(data.NextInput{Index: project.V2, Router: router}),
 	}}
 }
 

@@ -46,6 +46,26 @@ type Model struct {
 	// nothing to router.md.
 	SelectedObjective string
 
+	// SelectedRelease is the optional delivery context in view. Its member
+	// Objectives and their Tasks are derived from the loaded index; changing
+	// this value never changes a lifecycle record.
+	SelectedRelease string
+	// Releases is the stable, ascending list of live R### identities offered
+	// by the selector. Titles remain on the indexed records and are looked up
+	// only when the selector renders.
+	Releases      []string
+	ReleaseCursor int
+	// ReleaseOverlay keeps the board visible behind the selector. Its origin
+	// restores the surface that had focus when r opened it.
+	ReleaseOverlay   bool
+	releaseOrigin    detailOrigin
+	releaseOriginSet bool
+	// releaseRollback is set only while an optimistic Release selection is
+	// waiting for the canonical router writer. A refusal can therefore restore
+	// the prior in-memory view before the truthful reload begins.
+	releaseRollback      *reloadSnapshot
+	preserveReloadStatus bool
+
 	// Objectives are the sidebar's rows in stable O### order, each carrying the
 	// values its badges read. Like Cards they are rebuilt by every load.
 	Objectives []ObjectiveRow
@@ -172,6 +192,21 @@ func objectiveFilterError(index *data.V2Index, filter string) error {
 // index. A router naming an Objective that no longer exists selects nothing —
 // data.ResolveNext reports that as a selection diagnostic.
 func selectedObjective(state ProjectState, filter string) string {
+	return selectedObjectiveForRelease(state, filter, "")
+}
+
+func selectedObjectiveForRelease(state ProjectState, filter, releaseID string) string {
+	selected := selectedObjectiveUnscoped(state, filter)
+	if selected == "" || releaseID == "" {
+		return selected
+	}
+	if objectiveBelongsToRelease(state.Index, selected, releaseID) {
+		return selected
+	}
+	return ""
+}
+
+func selectedObjectiveUnscoped(state ProjectState, filter string) string {
 	if filter != "" {
 		return filter
 	}

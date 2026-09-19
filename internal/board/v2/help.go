@@ -23,6 +23,7 @@ func renderHelp(model Model, width, height int) string {
 		helpRow("↑↓ / j k", "move within the focused surface"),
 		helpRow("←→ / h l", "move between columns"),
 		helpRow("tab", "move between Objectives and Tasks"),
+		helpRow("r", "open the Release selector"),
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
 		helpRow("?", "close this help"),

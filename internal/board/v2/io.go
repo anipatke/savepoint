@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
@@ -14,9 +15,10 @@ import (
 // showing the result and, for a successful write, starting the same load
 // command used at startup. Filesystem access never occurs in the reducer.
 type actionMsg struct {
-	message string
-	err     error
-	reload  bool
+	message         string
+	err             error
+	reload          bool
+	releaseRollback bool
 }
 
 func actionFailure(err error, subject string) tea.Msg {
@@ -159,7 +161,7 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 // the requested selection to data.WriteRouterStateV2. The data writer owns
 // byte preservation and its final freshness check; this command owns the
 // board's pending-migration and target-validity boundary.
-func writeSelectionCmd(root string, selection data.RouterSelectionV2) tea.Cmd {
+func writeSelectionCmd(root string, selection data.RouterSelectionV2, expectedMtime ...time.Time) tea.Cmd {
 	return func() tea.Msg {
 		if message, refused := writeGuard(root); refused {
 			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
@@ -185,7 +187,14 @@ func writeSelectionCmd(root string, selection data.RouterSelectionV2) tea.Cmd {
 		if _, err := data.NewRouterReader().ReadStateV2(string(content)); err != nil {
 			return actionFailure(err, "router selection")
 		}
-		if err := data.WriteRouterStateV2(root, selection, info.ModTime()); err != nil {
+		expected := info.ModTime()
+		if len(expectedMtime) > 0 && !expectedMtime[0].IsZero() {
+			if !info.ModTime().Equal(expectedMtime[0]) {
+				return actionFailure(data.ErrMtimeConflict, "router selection")
+			}
+			expected = expectedMtime[0]
+		}
+		if err := data.WriteRouterStateV2(root, selection, expected); err != nil {
 			return actionFailure(err, "router.md")
 		}
 
@@ -196,7 +205,86 @@ func writeSelectionCmd(root string, selection data.RouterSelectionV2) tea.Cmd {
 	}
 }
 
+func releaseSelectionFailure(err error, subject string) actionMsg {
+	msg, ok := actionFailure(err, subject).(actionMsg)
+	if !ok {
+		msg = actionMsg{err: err}
+	}
+	msg.reload = true
+	msg.releaseRollback = true
+	return msg
+}
+
+// writeReleaseSelectionCmd records only the optional Release context. The
+// current Objective and Task are read from the router immediately before the
+// canonical writer runs, so switching context never invents ownership or
+// rewrites next_action prose.
+func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) tea.Cmd {
+	return func() tea.Msg {
+		if message, refused := writeGuard(root); refused {
+			return actionMsg{
+				err:             fmt.Errorf("write refused: %s", message),
+				reload:          true,
+				releaseRollback: true,
+			}
+		}
+
+		index, err := freshV2Index(root)
+		if err != nil {
+			return releaseSelectionFailure(err, "release selection")
+		}
+		if release == "" {
+			return releaseSelectionFailure(fmt.Errorf("release selection requires a live Release"), "release selection")
+		}
+		if _, ok := index.Releases[release]; !ok {
+			return releaseSelectionFailure(fmt.Errorf("selection target %s is no longer present", release), "release selection")
+		}
+
+		path := filepath.Join(root, "router.md")
+		info, err := os.Stat(path)
+		if err != nil {
+			return releaseSelectionFailure(err, "release selection")
+		}
+		expected := info.ModTime()
+		if len(expectedMtime) > 0 && !expectedMtime[0].IsZero() {
+			if !info.ModTime().Equal(expectedMtime[0]) {
+				return releaseSelectionFailure(data.ErrMtimeConflict, "release selection")
+			}
+			expected = expectedMtime[0]
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return releaseSelectionFailure(err, "release selection")
+		}
+		router, err := data.NewRouterReader().ReadStateV2(string(content))
+		if err != nil {
+			return releaseSelectionFailure(err, "release selection")
+		}
+		selection := data.RouterSelectionV2{
+			Release:   release,
+			Objective: router.Objective,
+			Task:      router.Task,
+		}
+		if err := validateSelectionAgainstIndex(index, selection); err != nil {
+			return releaseSelectionFailure(err, "release selection")
+		}
+		if err := data.WriteRouterStateV2(root, selection, expected); err != nil {
+			return releaseSelectionFailure(err, "router.md")
+		}
+
+		return actionMsg{
+			message: fmt.Sprintf("Release selected: %s.", release),
+			reload:  true,
+		}
+	}
+}
+
 func validateSelectionAgainstIndex(index *data.V2Index, selection data.RouterSelectionV2) error {
+	if selection.Release != "" {
+		if _, ok := index.Releases[selection.Release]; !ok {
+			return fmt.Errorf("selection target %s is no longer present", selection.Release)
+		}
+	}
 	if selection.Objective != "" {
 		if _, ok := index.Objectives[selection.Objective]; !ok {
 			return fmt.Errorf("selection target %s is no longer present", selection.Objective)

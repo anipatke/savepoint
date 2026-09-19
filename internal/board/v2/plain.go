@@ -43,6 +43,9 @@ func renderPlain(state ProjectState, selected string) string {
 		fmt.Fprintf(&b, "Recovery: %s\n", state.MigrationGuidance)
 	}
 	fmt.Fprintf(&b, "Objectives: %d  Tasks: %d\n", state.objectiveCount(), state.taskCount())
+	if release := selectedRelease(state); release != "" {
+		fmt.Fprintf(&b, "Selected release: %s\n", release)
+	}
 	if selected != "" {
 		// "Selected", not "Objective": the Next area's own Objective line names
 		// what the projection chose, which the sidebar's filter never moves.
@@ -50,7 +53,7 @@ func renderPlain(state ProjectState, selected string) string {
 	}
 	fmt.Fprintln(&b)
 
-	cards := groupTaskCardsFor(state.Index, selected)
+	cards := groupTaskCardsForRelease(state.Index, selectedRelease(state), selected)
 	for _, column := range columnLabels {
 		fmt.Fprintf(&b, "%-12s %d\n", column.Label, len(cards[column.Status]))
 		for _, card := range cards[column.Status] {

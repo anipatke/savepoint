@@ -1,10 +1,9 @@
 ---
 id: E51-first-class-releases/T006-teach-the-workflow-when-a-release-is-worth-using
-status: in_progress
-stage: build
+status: done
 objective: Teach planners and checkers to create and verify optional Releases while fresh projects remain free of mandatory ceremony.
 depends_on:
-  - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
+    - E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
 complexity_tier: medium
 complexity_reason: Reconciles three public skills and shipped copies with a new optional planning and checking boundary.
 ---

@@ -1,11 +1,12 @@
 ---
 id: E51-first-class-releases/T007-switch-releases-with-the-existing-r-key
-status: planned
+status: in_progress
 objective: Preserve the existing r-key Release selector while filtering V2 Objectives and Tasks through canonical Release links.
 depends_on:
-  - E51-first-class-releases/T003-select-one-release-and-project-its-next-action
+    - E51-first-class-releases/T003-select-one-release-and-project-its-next-action
 complexity_tier: high
 complexity_reason: Adds a stateful overlay, filtered navigation, persistence, reload behavior, and compatibility coverage to the V2 board.
+stage: build
 ---
 
 # T007: Switch Releases with the existing r key
@@ -50,15 +51,35 @@ The current board lets a user press `r`, see Releases, move from the current sel
 
 ## Implementation Plan
 
-- [ ] Model the Release overlay, ordered Release list, cursor, selected context, and return focus in the V2 board state.
-- [ ] Port the established `r`, navigation, Enter, cancel, and behind-board rendering contract to V2.
-- [ ] Filter Objective membership and Task cards only through indexed Release links.
-- [ ] Persist selection with a Bubble Tea command using the canonical router writer and migration/conflict guards.
-- [ ] Add `releases/` to the watch set and preserve/diagnose selection through canonical reload.
-- [ ] Update V2 help and narrow-width rendering without changing geometry on focus.
-- [ ] Add compatibility tests mirroring the V1 selector cases plus conflict, removal, no-Release, and reload cases.
-- [ ] Run the unchanged V1 Release selector suite as a regression gate.
+- [x] Model the Release overlay, ordered Release list, cursor, selected context, and return focus in the V2 board state.
+- [x] Port the established `r`, navigation, Enter, cancel, and behind-board rendering contract to V2.
+- [x] Filter Objective membership and Task cards only through indexed Release links.
+- [x] Persist selection with a Bubble Tea command using the canonical router writer and migration/conflict guards.
+- [x] Add `releases/` to the watch set and preserve/diagnose selection through canonical reload.
+- [x] Update V2 help and narrow-width rendering without changing geometry on focus.
+- [x] Add compatibility tests mirroring the V1 selector cases plus conflict, removal, no-Release, and reload cases.
+- [x] Run the unchanged V1 Release selector suite as a regression gate.
 
 ## Context Log
 
-Pending.
+Implemented the V2 Release selector and canonical Release-context switching.
+
+Read: the active router, E51 detail, Guardrails, all listed V1/V2 selector,
+load, navigation, rendering, IO, and watch files, plus the targeted V2 data
+index, Release, router, gate, and Next APIs required to consume
+`ReleaseObjectives` and persist `release: R###` safely.
+
+Edited: `internal/board/v2/model.go`, `releases.go`, `releases_test.go`,
+`objectives.go`, `card.go`, `update.go`, `io.go`, `load.go`, `view.go`,
+`watch.go`, `help.go`, `next_panel.go`, `plain.go`, `run.go`, the V2 watch
+and boundary compatibility tests, and this task checklist/log.
+
+Verification:
+
+- `go test ./internal/board/v2` — passed, including selector, filtering,
+  reload, removal, conflict, pending-migration, no-Release, and help cases.
+- `make build && make test` — passed for every package.
+- The unchanged V1 Release selector suite in `internal/board/release_test.go`
+  passed as part of `make test`.
+- Quick Health-Check evidence was skipped because `.savepoint/Health-Check.md`
+  is absent.

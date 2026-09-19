@@ -66,7 +66,7 @@ func newTaskCard(index *data.V2Index, task *data.TaskV2) TaskCard {
 // The three groups are the three columns: no status is promoted to a column of
 // its own, and a Task's group comes from TaskV2.Status alone.
 func groupTaskCards(index *data.V2Index) map[data.ColumnType][]TaskCard {
-	return groupTaskCardsFor(index, "")
+	return groupTaskCardsForRelease(index, "", "")
 }
 
 // groupTaskCardsFor groups the cards for the Tasks in view: the ones the
@@ -74,6 +74,13 @@ func groupTaskCards(index *data.V2Index) map[data.ColumnType][]TaskCard {
 // Tasks those are is taskIDsInView's answer, read from index.ObjectiveTasks;
 // grouping them by status is this function's only other job.
 func groupTaskCardsFor(index *data.V2Index, objectiveID string) map[data.ColumnType][]TaskCard {
+	return groupTaskCardsForRelease(index, "", objectiveID)
+}
+
+// groupTaskCardsForRelease is the card projection for a Release context. The
+// release filter is resolved before cards are built, so rendering still sees
+// only already-resolved TaskCard values and never performs membership work.
+func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string) map[data.ColumnType][]TaskCard {
 	grouped := map[data.ColumnType][]TaskCard{
 		data.ColumnPlanned:    {},
 		data.ColumnInProgress: {},
@@ -83,7 +90,7 @@ func groupTaskCardsFor(index *data.V2Index, objectiveID string) map[data.ColumnT
 		return grouped
 	}
 
-	for _, id := range taskIDsInView(index, objectiveID) {
+	for _, id := range taskIDsInReleaseView(index, releaseID, objectiveID) {
 		task := index.Tasks[id]
 		grouped[task.Status] = append(grouped[task.Status], newTaskCard(index, task))
 	}

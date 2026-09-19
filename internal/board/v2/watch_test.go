@@ -19,6 +19,7 @@ func TestV2WatchSetIncludesLiveFilesAndExcludesHistoricalTrees(t *testing.T) {
 		"objectives/O001-fixture/tasks/T001-fixture.md",
 		"checks/C001.md",
 		"issues/I001.md",
+		"releases/R001-first/Release.md",
 		"router.md",
 		"config.yml",
 		".migration/op/operation.yml",
@@ -30,7 +31,6 @@ func TestV2WatchSetIncludesLiveFilesAndExcludesHistoricalTrees(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"archive/v1/router.md",
-		"releases/v1/epics/E01/tasks/T001.md",
 		"defects/D001.md",
 		"audit/register.md",
 		"migrations/v1-to-v2.yml",
@@ -70,7 +70,7 @@ func TestV2WatcherIgnoresExcludedTrees(t *testing.T) {
 
 	result := make(chan tea.Msg, 1)
 	go func() { result <- watchV2Files(watcher, root)() }()
-	for _, directory := range []string{"archive", "releases", "defects", "audit"} {
+	for _, directory := range []string{"archive", "defects", "audit"} {
 		testutil.WriteFile(t, filepath.Join(root, directory, "changed.md"), "historical\n")
 	}
 	select {

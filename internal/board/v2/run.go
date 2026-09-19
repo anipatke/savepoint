@@ -71,6 +71,7 @@ func runPlain(opts Options) error {
 	if out == nil {
 		out = os.Stdout
 	}
-	_, err := fmt.Fprint(out, renderPlain(loaded.State, selectedObjective(loaded.State, opts.ObjectiveFilter)))
+	release := selectedRelease(loaded.State)
+	_, err := fmt.Fprint(out, renderPlain(loaded.State, selectedObjectiveForRelease(loaded.State, opts.ObjectiveFilter, release)))
 	return err
 }

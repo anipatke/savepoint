@@ -45,10 +45,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(loadCmd(m.Root), watchV2Files(m.Watcher, m.Root))
 	case actionMsg:
 		if msg.err != nil {
+			if msg.releaseRollback {
+				m.restoreReleaseWrite()
+			}
 			m.StatusMessage = msg.err.Error()
+			m.preserveReloadStatus = msg.reload
+			if msg.reload {
+				return m, loadCmd(m.Root)
+			}
 			return m, nil
 		}
 		m.StatusMessage = msg.message
+		m.releaseRollback = nil
+		m.preserveReloadStatus = false
 		if msg.reload {
 			return m, loadCmd(m.Root)
 		}
@@ -72,6 +81,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Help = false
 		}
 		return m, nil
+	}
+	if m.ReleaseOverlay {
+		return m.handleReleaseKey(key)
 	}
 	if key == "?" {
 		m.Help = true
@@ -98,6 +110,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if action, ok := m.actionForKey(key); ok {
 		return m, m.runAction(action)
 	}
+	if key == "r" {
+		m.openReleaseSelector()
+		return m, nil
+	}
 
 	if key == "tab" || key == "shift+tab" {
 		m.toggleSidebarFocus()
@@ -109,6 +125,68 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.handleColumnKey(key)
 	return m, nil
+}
+
+// handleReleaseKey owns the selector while it is open. In particular q is a
+// cancel key here, not the board's quit key, so a user can inspect a context
+// and leave it unchanged with either Esc or q.
+func (m Model) handleReleaseKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "esc", "q":
+		m.closeReleaseSelector()
+		return m, nil
+	case "up", "k":
+		if m.ReleaseCursor > 0 {
+			m.ReleaseCursor--
+		}
+		return m, nil
+	case "down", "j":
+		if len(m.Releases) > 0 && m.ReleaseCursor < len(m.Releases)-1 {
+			m.ReleaseCursor++
+		}
+		return m, nil
+	case "enter":
+		if len(m.Releases) == 0 {
+			return m, nil
+		}
+		release := m.Releases[m.ReleaseCursor]
+		before := m.snapshotReload()
+		before.SelectedRelease = m.SelectedRelease
+		m.applyReleaseSelection(release)
+		m.ReleaseOverlay = false
+		m.releaseOriginSet = false
+		if m.Root == "" {
+			return m, nil
+		}
+		m.releaseRollback = &before
+		return m, writeReleaseSelectionCmd(m.Root, release, m.State.RouterMtime)
+	}
+	return m, nil
+}
+
+func (m *Model) closeReleaseSelector() {
+	m.ReleaseOverlay = false
+	if m.releaseOriginSet {
+		m.SidebarFocused = m.releaseOrigin.SidebarFocused && m.sidebarVisible()
+		m.ObjectiveCursor = m.releaseOrigin.ObjectiveCursor
+		m.FocusedColumn = m.releaseOrigin.FocusedColumn
+		m.FocusedCard = m.releaseOrigin.FocusedCard
+		m.releaseOriginSet = false
+		m.clampObjectiveCursorToRows()
+		m.clampFocus()
+	}
+}
+
+func (m *Model) openReleaseSelector() {
+	m.releaseOrigin = detailOrigin{
+		SidebarFocused:  m.SidebarFocused,
+		ObjectiveCursor: m.ObjectiveCursor,
+		FocusedColumn:   m.FocusedColumn,
+		FocusedCard:     m.FocusedCard,
+	}
+	m.releaseOriginSet = true
+	m.ReleaseOverlay = true
+	m.ReleaseCursor = releaseIndex(m.Releases, m.SelectedRelease)
 }
 
 func (m Model) runAction(action BoardAction) tea.Cmd {
@@ -123,7 +201,11 @@ func (m Model) runAction(action BoardAction) tea.Cmd {
 		if err != nil {
 			return func() tea.Msg { return actionMsg{err: err} }
 		}
-		return writeSelectionCmd(m.Root, selection)
+		selection.Release = m.SelectedRelease
+		if selection.Release == "" && m.State.Router != nil && m.State.Router.Release != "" {
+			selection.Release = m.State.Router.Release
+		}
+		return writeSelectionCmd(m.Root, selection, m.State.RouterMtime)
 	default:
 		return func() tea.Msg { return actionMsg{err: fmt.Errorf("unknown board action %q", action.Kind)} }
 	}
@@ -310,17 +392,53 @@ func (m *Model) selectObjective(objectiveID string) {
 		return
 	}
 	m.SelectedObjective = objectiveID
-	m.Cards = groupTaskCardsFor(m.State.Index, objectiveID)
+	m.Cards = groupTaskCardsForRelease(m.State.Index, m.SelectedRelease, objectiveID)
 	m.FocusedCard = 0
 	m.clampFocus()
 }
 
+// applyReleaseSelection changes only the board's delivery context. Objective
+// and Task ownership stay in the index: the visible rows/cards are rebuilt
+// from its reverse links, and cursors retain their identities where those
+// identities still exist in the new context.
+func (m *Model) applyReleaseSelection(releaseID string) {
+	if m.State.Index == nil {
+		m.SelectedRelease = releaseID
+		return
+	}
+
+	view := m.snapshotReload()
+	view.SelectedRelease = m.SelectedRelease
+	m.SelectedRelease = releaseID
+	if m.SelectedObjective != "" && !objectiveBelongsToRelease(m.State.Index, m.SelectedObjective, releaseID) {
+		m.SelectedObjective = ""
+	}
+	m.Objectives = objectiveRowsForRelease(m.State.Index, releaseID)
+	m.Cards = groupTaskCardsForRelease(m.State.Index, releaseID, m.SelectedObjective)
+	m.restoreObjectiveCursor(view, true)
+	m.restoreFocus(view, true)
+}
+
+func objectiveBelongsToRelease(index *data.V2Index, objectiveID, releaseID string) bool {
+	if index == nil || objectiveID == "" {
+		return false
+	}
+	objective, ok := index.Objectives[objectiveID]
+	if !ok {
+		return false
+	}
+	return releaseID == "" || string(objective.Release) == releaseID
+}
+
 type reloadSnapshot struct {
+	SelectedRelease   string
+	ReleaseCursorID   string
 	SelectedObjective string
 	ObjectiveCursorID string
 	FocusedColumn     data.ColumnType
 	FocusedCard       int
 	FocusedTaskID     string
+	RouterRelease     string
 	RouterObjective   string
 	DetailKind        DetailKind
 	DetailID          string
@@ -332,12 +450,17 @@ type reloadSnapshot struct {
 func (m Model) snapshotReload() reloadSnapshot {
 	snapshot := reloadSnapshot{
 		SelectedObjective: m.SelectedObjective,
+		SelectedRelease:   m.SelectedRelease,
 		FocusedColumn:     m.FocusedColumn,
 		FocusedCard:       m.FocusedCard,
 		FocusedTaskID:     m.focusedTaskID(),
 	}
 	if m.State.Router != nil {
+		snapshot.RouterRelease = m.State.Router.Release
 		snapshot.RouterObjective = m.State.Router.Objective
+	}
+	if m.ReleaseCursor >= 0 && m.ReleaseCursor < len(m.Releases) {
+		snapshot.ReleaseCursorID = m.Releases[m.ReleaseCursor]
 	}
 	if m.ObjectiveCursor >= 0 && m.ObjectiveCursor < len(m.Objectives) {
 		snapshot.ObjectiveCursorID = m.Objectives[m.ObjectiveCursor].ID()
@@ -362,6 +485,8 @@ func (m Model) snapshotReload() reloadSnapshot {
 func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	wasLoaded := m.Loaded
 	snapshot := m.snapshotReload()
+	statusBeforeReload := m.StatusMessage
+	preserveStatus := m.preserveReloadStatus
 	m.Loaded = true
 	if msg.Failed() {
 		if wasLoaded {
@@ -371,6 +496,8 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 		}
 		m.Diagnostic = msg.Diagnostic
 		m.State = ProjectState{}
+		m.SelectedRelease = ""
+		m.Releases = nil
 		m.SelectedObjective = ""
 		m.Objectives = nil
 		m.ObjectiveCursor = 0
@@ -385,20 +512,32 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	m.Diagnostic = ""
 	m.ReloadDiagnostic = ""
 	m.StatusMessage = ""
+	if preserveStatus {
+		m.StatusMessage = statusBeforeReload
+	}
+	m.preserveReloadStatus = false
+	m.releaseRollback = nil
 	m.State = msg.State
 	if err := objectiveFilterError(msg.State.Index, m.ObjectiveFilter); err != nil {
 		m.FatalErr = err
 		return m, tea.Quit
 	}
-	m.SelectedObjective = restoredObjective(m, snapshot, msg.State, wasLoaded)
-	m.Objectives = objectiveRows(msg.State.Index)
-	m.Cards = groupTaskCardsFor(msg.State.Index, m.SelectedObjective)
+	m.Releases = orderedReleaseIDs(msg.State.Index)
+	m.SelectedRelease = restoredRelease(msg.State)
+	m.SelectedObjective = restoredObjectiveForRelease(m, snapshot, msg.State, wasLoaded, m.SelectedRelease)
+	m.Objectives = objectiveRowsForRelease(msg.State.Index, m.SelectedRelease)
+	m.Cards = groupTaskCardsForRelease(msg.State.Index, m.SelectedRelease, m.SelectedObjective)
+	m.restoreReleaseCursor(snapshot, wasLoaded)
 	m.restoreObjectiveCursor(snapshot, wasLoaded)
 	m.restoreFocus(snapshot, wasLoaded)
 	m.restoreOverlayOrigins()
 	if wasLoaded && snapshot.SelectedObjective != "" && snapshot.RouterObjective == routerObjective(msg.State) &&
 		!objectiveExists(msg.State.Index, snapshot.SelectedObjective) {
 		m.noteStatus(fmt.Sprintf("Objective %s no longer exists; selection moved to %s.", snapshot.SelectedObjective, objectiveLabel(m.SelectedObjective)))
+	}
+	if wasLoaded && snapshot.SelectedRelease != "" && snapshot.RouterRelease == routerRelease(msg.State) &&
+		!releaseExists(msg.State.Index, snapshot.SelectedRelease) {
+		m.noteStatus(fmt.Sprintf("Release %s no longer exists; selection cleared.", snapshot.SelectedRelease))
 	}
 	m.refreshDetail()
 	if snapshot.DetailID != "" && m.Detail == nil && recordExists(msg.State.Index, snapshot.DetailKind, snapshot.DetailID) == false {
@@ -421,6 +560,20 @@ func routerObjective(state ProjectState) string {
 		return ""
 	}
 	return state.Router.Objective
+}
+
+func routerRelease(state ProjectState) string {
+	if state.Router == nil {
+		return ""
+	}
+	return state.Router.Release
+}
+
+// restoredRelease treats the router as the persisted source of truth. A
+// failed optimistic write therefore cannot leave its candidate context behind
+// after the board reloads.
+func restoredRelease(state ProjectState) string {
+	return selectedRelease(state)
 }
 
 func objectiveExists(index *data.V2Index, id string) bool {
@@ -476,29 +629,37 @@ func (m *Model) noteStatus(message string) {
 }
 
 func restoredObjective(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool) string {
+	return restoredObjectiveForRelease(m, snapshot, state, wasLoaded, "")
+}
+
+func restoredObjectiveForRelease(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool, releaseID string) string {
 	if m.ObjectiveFilter != "" || !wasLoaded {
-		return selectedObjective(state, m.ObjectiveFilter)
+		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
 	}
 	newRouterObjective := ""
 	if state.Router != nil {
 		newRouterObjective = state.Router.Objective
 	}
 	if newRouterObjective != snapshot.RouterObjective {
-		return selectedObjective(state, m.ObjectiveFilter)
+		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
 	}
 	if snapshot.SelectedObjective == "" {
 		return ""
 	}
 	if state.Index != nil {
-		if _, ok := state.Index.Objectives[snapshot.SelectedObjective]; ok {
+		if objectiveBelongsToRelease(state.Index, snapshot.SelectedObjective, releaseID) {
 			return snapshot.SelectedObjective
 		}
 	}
-	return nearestObjective(state, m.ObjectiveCursor)
+	return nearestObjectiveForRelease(state, m.ObjectiveCursor, releaseID)
 }
 
 func nearestObjective(state ProjectState, previousCursor int) string {
-	rows := objectiveRows(state.Index)
+	return nearestObjectiveForRelease(state, previousCursor, "")
+}
+
+func nearestObjectiveForRelease(state ProjectState, previousCursor int, releaseID string) string {
+	rows := objectiveRowsForRelease(state.Index, releaseID)
 	if len(rows) == 0 {
 		return ""
 	}
@@ -523,6 +684,36 @@ func (m *Model) restoreObjectiveCursor(snapshot reloadSnapshot, wasLoaded bool) 
 		}
 	}
 	m.clampObjectiveCursorToRows()
+}
+
+func (m *Model) restoreReleaseCursor(snapshot reloadSnapshot, wasLoaded bool) {
+	if wasLoaded && snapshot.ReleaseCursorID != "" {
+		for i, id := range m.Releases {
+			if id == snapshot.ReleaseCursorID {
+				m.ReleaseCursor = i
+				return
+			}
+		}
+	}
+	m.ReleaseCursor = releaseIndex(m.Releases, m.SelectedRelease)
+}
+
+// restoreReleaseWrite rolls back only the optimistic selector view. The
+// following load still wins, so an external router edit or a removed Release
+// is never hidden by this local recovery.
+func (m *Model) restoreReleaseWrite() {
+	if m.releaseRollback == nil {
+		return
+	}
+	snapshot := *m.releaseRollback
+	m.releaseRollback = nil
+	m.SelectedRelease = snapshot.SelectedRelease
+	m.SelectedObjective = snapshot.SelectedObjective
+	m.Objectives = objectiveRowsForRelease(m.State.Index, m.SelectedRelease)
+	m.Cards = groupTaskCardsForRelease(m.State.Index, m.SelectedRelease, m.SelectedObjective)
+	m.restoreObjectiveCursor(snapshot, true)
+	m.restoreFocus(snapshot, true)
+	m.ReleaseCursor = releaseIndex(m.Releases, m.SelectedRelease)
 }
 
 // restoreFocus follows a Task identity across a reload. If the identity no

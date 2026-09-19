@@ -69,11 +69,19 @@ func (r ObjectiveRow) ID() string {
 // ascending O### order so a project renders the same way twice. Every value on
 // a row comes from a resolver or from the record itself.
 func objectiveRows(index *data.V2Index) []ObjectiveRow {
+	return objectiveRowsForRelease(index, "")
+}
+
+// objectiveRowsForRelease resolves the Objectives visible in one Release
+// context. When releaseID is empty it keeps the release-free V2 behavior. A
+// non-empty context reads the derived reverse link and never guesses from a
+// title, path, or identifier prefix.
+func objectiveRowsForRelease(index *data.V2Index, releaseID string) []ObjectiveRow {
 	if index == nil {
 		return nil
 	}
 
-	ids := slices.Sorted(maps.Keys(index.Objectives))
+	ids := objectiveIDsForRelease(index, releaseID)
 	rows := make([]ObjectiveRow, 0, len(ids))
 	for _, id := range ids {
 		objective := index.Objectives[id]
@@ -85,6 +93,18 @@ func objectiveRows(index *data.V2Index) []ObjectiveRow {
 		})
 	}
 	return rows
+}
+
+func objectiveIDsForRelease(index *data.V2Index, releaseID string) []string {
+	if index == nil {
+		return nil
+	}
+	if releaseID != "" {
+		ids := slices.Clone(index.ReleaseObjectives[releaseID])
+		slices.Sort(ids)
+		return ids
+	}
+	return slices.Sorted(maps.Keys(index.Objectives))
 }
 
 // ownedTasksComplete reports whether every Task the Objective owns is done.
@@ -122,8 +142,33 @@ func unsatisfiedObjectiveWaits(index *data.V2Index, objective *data.ObjectiveV2)
 // or every Task when nothing is selected. Both orders are ascending by ID, so
 // the columns do not reorder when a selection changes.
 func taskIDsInView(index *data.V2Index, objectiveID string) []string {
+	return taskIDsInReleaseView(index, "", objectiveID)
+}
+
+// taskIDsInReleaseView is the only release-aware Task membership filter. A
+// selected Objective narrows through ObjectiveTasks; otherwise the selected
+// Release expands through ReleaseObjectives and then ObjectiveTasks. Both
+// maps are index links built from authored ownership fields.
+func taskIDsInReleaseView(index *data.V2Index, releaseID, objectiveID string) []string {
+	if index == nil {
+		return nil
+	}
 	if objectiveID == "" {
-		return slices.Sorted(maps.Keys(index.Tasks))
+		if releaseID == "" {
+			return slices.Sorted(maps.Keys(index.Tasks))
+		}
+		var taskIDs []string
+		for _, objectiveID := range objectiveIDsForRelease(index, releaseID) {
+			taskIDs = append(taskIDs, index.ObjectiveTasks[objectiveID]...)
+		}
+		slices.Sort(taskIDs)
+		return taskIDs
+	}
+	if releaseID != "" {
+		objective, ok := index.Objectives[objectiveID]
+		if !ok || string(objective.Release) != releaseID {
+			return nil
+		}
 	}
 	return index.ObjectiveTasks[objectiveID]
 }

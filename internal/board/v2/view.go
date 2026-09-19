@@ -58,7 +58,11 @@ func (m Model) View() string {
 	if w < narrowNoticeBreakpoint {
 		return m.renderNarrowNotice(w)
 	}
-	return m.renderBoard(w, h)
+	base := m.renderBoard(w, h)
+	if m.ReleaseOverlay {
+		return m.renderReleaseOverlay(base, w, h)
+	}
+	return base
 }
 
 // terminalWidth and terminalHeight are the size every surface is laid out
@@ -201,18 +205,33 @@ func (m Model) renderHeader(w int) string {
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
 }
 
-// renderSelection states which Objective the columns are filtered to. It is a
-// statement about the sidebar and nothing else: why no Objective resolved is
-// the Next area's business, which reports the projection's own selection
-// diagnostic in full rather than a second, shorter wording of it. "none
-// selected" on its own is a normal state, not a warning — a fresh project has
-// no Objectives to select.
+// renderSelection states the optional Release context and which Objective the
+// columns are filtered to. Both are navigation state; the Next area's answer
+// remains the load command's shared projection.
 func (m Model) renderSelection(w int) string {
 	text := "Objective: none selected"
+	if m.SelectedRelease != "" {
+		text = "Release: " + m.SelectedRelease
+		if release := m.selectedReleaseRecord(); release != nil {
+			text += " — " + release.Title
+		}
+		text += " · Objective: none selected"
+	}
 	if m.SelectedObjective != "" {
 		text = "Objective: " + m.SelectedObjective
 		if objective := m.selectedObjectiveRecord(); objective != nil {
 			text += " — " + objective.Title
+		}
+		if m.SelectedRelease != "" {
+			text = "Release: " + m.SelectedRelease
+			if release := m.selectedReleaseRecord(); release != nil {
+				text += " — " + release.Title
+			}
+			text += " · "
+			text += "Objective: " + m.SelectedObjective
+			if objective := m.selectedObjectiveRecord(); objective != nil {
+				text += " — " + objective.Title
+			}
 		}
 		// The header counts the whole project, so a filtered board says how
 		// much of it the columns are showing.
@@ -226,6 +245,13 @@ func (m Model) selectedObjectiveRecord() *data.ObjectiveV2 {
 		return nil
 	}
 	return m.State.Index.Objectives[m.SelectedObjective]
+}
+
+func (m Model) selectedReleaseRecord() *data.ReleaseV2 {
+	if m.State.Index == nil || m.SelectedRelease == "" {
+		return nil
+	}
+	return m.State.Index.Releases[m.SelectedRelease]
 }
 
 // renderMigration reports an incomplete conversion with the recovery guidance
@@ -315,6 +341,8 @@ func (m Model) hints() string {
 	switch {
 	case m.Help:
 		return "esc:close help  q:quit"
+	case m.ReleaseOverlay:
+		return "↑↓ / j k:release  enter:select  esc/q:cancel"
 	case m.Issues != nil && m.Issues.Detail != nil:
 		return "↑↓:scroll  enter:canonical  esc:back  q:quit"
 	case m.Issues != nil:
@@ -322,11 +350,11 @@ func (m Model) hints() string {
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():
-		return joinHints("↑↓←→:card  enter:detail", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  r:releases  enter:detail", m.focusedActionText(), "?:help  q:quit")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  enter:select  v:detail  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  r:releases  enter:select  v:detail  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
 	default:
-		return joinHints("↑↓←→:card  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  r:releases  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
 	}
 }
 

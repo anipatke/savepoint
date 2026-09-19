@@ -57,13 +57,11 @@ func TestPackageReferencesNoV1RecordType(t *testing.T) {
 	}
 }
 
-// retiredV1Surfaces are the navigation and overlay surfaces V2 replaces. The
-// Objective sidebar is the whole of V2 navigation — one level, and not a
-// directory — so no identifier here may name a release to pick, an epic to
-// open, or the separate defect and audit-register collections Issues replace.
-// The V1 styles carrying those names are included: reaching for one would put
-// the word back in this package through the back door.
-var retiredV1Surfaces = []string{"Release", "Epic", "Defect", "AuditRegister"}
+// retiredV1Surfaces are the navigation and overlay surfaces V2 replaces. A
+// typed Release selector is first-class V2 context; the old Epic, Defect, and
+// audit-register surfaces remain retired, and Issues are the V2 follow-up
+// surface.
+var retiredV1Surfaces = []string{"Epic", "Defect", "AuditRegister"}
 
 func TestPackageCarriesNoReleaseOrEpicSurface(t *testing.T) {
 	for _, path := range packageSourceFiles(t) {
