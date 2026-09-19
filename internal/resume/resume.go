@@ -24,13 +24,13 @@ func renderText(next data.Next) string {
 	var lines []string
 
 	if next.SelectionDiagnostic != nil {
-		lines = append(lines, "Selection: "+selectionDiagnosticPhrase(next.SelectionDiagnostic), "")
+		lines = append(lines, "Selection: "+SelectionPhrase(next.SelectionDiagnostic), "")
 	}
 
 	lines = append(lines, identityLines(next)...)
 	lines = append(lines, rungLines(next)...)
 	lines = append(lines, issueLines(next.Issues)...)
-	lines = append(lines, "Next action: "+nextActionPhrase(next))
+	lines = append(lines, "Next action: "+ActionPhrase(next))
 
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -56,37 +56,52 @@ func identityLines(next data.Next) []string {
 	return lines
 }
 
-// rungLines renders the rung-specific evidence: the technical clearance,
+// rungLines is EvidenceLines laid out for the narrative: the same lines,
+// followed by the blank line that separates sections here. A rung carrying no
+// evidence contributes nothing rather than a stray blank.
+func rungLines(next data.Next) []string {
+	lines := EvidenceLines(next)
+	if len(lines) == 0 {
+		return nil
+	}
+	return append(lines, "")
+}
+
+// EvidenceLines renders the rung-specific evidence: the technical clearance,
 // owner-wait, exception, dependency, or replan state that explains why this
 // rung — and no other — was reached. Each rung's rendering is distinct, and
-// none of it claims resume verified, ran, checked, or confirmed anything.
-func rungLines(next data.Next) []string {
+// none of it claims anything was verified, run, checked, or confirmed — these
+// lines report what a record already says.
+//
+// It is exported because the V2 board's Next area reports the same facts from
+// the same data.Next in a compact layout of its own. The layouts differ; the
+// wording must not, so both surfaces read it from here rather than keeping a
+// second copy of the evidence vocabulary (STYLE-07, STYLE-09).
+func EvidenceLines(next data.Next) []string {
 	switch next.Kind {
 	case data.NextPendingMigration:
 		return []string{
 			fmt.Sprintf("Migration: an operation is in progress (%s). Every other action is on hold until it resolves.", next.Migration.OperationID),
-			"",
 		}
 	case data.NextReplan:
-		return []string{"Replan: " + replanBlockerPhrase(next.GateDecision), ""}
+		return []string{"Replan: " + replanBlockerPhrase(next.GateDecision)}
 	case data.NextDependency:
-		return append(dependencyBlockerLines(next.GateDecision), "")
+		return dependencyBlockerLines(next.GateDecision)
 	case data.NextExecute:
 		return executeLines(next.GateDecision, next.Task)
 	case data.NextCheckNeeded:
-		return []string{"Technical clearance: " + clearancePhrase(next.Clearance), ""}
+		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
 	case data.NextOwnerValidationRequired:
 		return []string{
-			"Technical clearance: " + clearancePhrase(next.Clearance),
+			"Technical clearance: " + ClearancePhrase(next.Clearance),
 			"Owner wait: " + ownerWaitPhrase(clearanceCheckID(next.Clearance)),
-			"",
 		}
 	case data.NextObjectiveIntegration:
-		lines := []string{"Technical clearance: " + clearancePhrase(next.Clearance)}
+		lines := []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
 		if hasBlockerKind(next.GateDecision, data.GateBlockOwnerAcceptance) {
 			lines = append(lines, "Owner wait: "+ownerWaitPhrase(clearanceCheckID(next.Clearance)))
 		}
-		return append(lines, "")
+		return lines
 	case data.NextReady, data.NextPlanObjective:
 		return nil
 	default:
@@ -101,11 +116,11 @@ func replanBlockerPhrase(decision *data.GateDecision) string {
 	if decision != nil {
 		for _, blocker := range decision.Blockers {
 			if blocker.Kind == data.GateBlockReplan {
-				return replanPhrase(blocker.Detail)
+				return ReplanPhrase(blocker.Detail)
 			}
 		}
 	}
-	return replanPhrase("")
+	return ReplanPhrase("")
 }
 
 // dependencyBlockerLines renders one "Blocked:" line per unmet Task or
@@ -120,9 +135,9 @@ func dependencyBlockerLines(decision *data.GateDecision) []string {
 	for _, blocker := range decision.Blockers {
 		switch blocker.Kind {
 		case data.GateBlockDependency:
-			lines = append(lines, "Blocked: "+taskDependencyPhrase(blocker.Dependency))
+			lines = append(lines, "Blocked: "+DependencyPhrase(blocker.Dependency))
 		case data.GateBlockObjectiveDependency:
-			lines = append(lines, "Blocked: "+objectiveDependencyPhrase(blocker.ObjectiveDependency))
+			lines = append(lines, "Blocked: The owning Objective is waiting: "+ObjectiveDependencyPhrase(blocker.ObjectiveDependency))
 		}
 	}
 	if len(lines) == 0 {
@@ -136,9 +151,9 @@ func dependencyBlockerLines(decision *data.GateDecision) []string {
 // Task that may start or advance is reported by what allows it.
 func executeLines(decision *data.GateDecision, task *data.TaskV2) []string {
 	if decision != nil && decision.AllowedByException {
-		return []string{"Completion: " + exceptionPhrase(decision.Exception), ""}
+		return []string{"Completion: " + ExceptionPhrase(decision.Exception)}
 	}
-	return []string{"Ready: " + executeReadyPhrase(task), ""}
+	return []string{"Ready: " + executeReadyPhrase(task)}
 }
 
 func executeReadyPhrase(task *data.TaskV2) string {
@@ -183,14 +198,17 @@ func issueLines(issues []*data.IssueV2) []string {
 	lines := make([]string, 0, len(issues)+2)
 	lines = append(lines, "Issues:")
 	for _, issue := range issues {
-		lines = append(lines, issueLine(issue))
+		lines = append(lines, IssueLine(issue))
 	}
 	return append(lines, "")
 }
 
-// nextActionPhrase is the one closing instruction every rendering ends with:
-// what a user or agent reading this output should actually do next.
-func nextActionPhrase(next data.Next) string {
+// ActionPhrase is the one closing instruction every rendering ends with:
+// what a user or agent reading this output should actually do next. It is
+// exported for the same reason EvidenceLines is — the board's Next area
+// states the same action, and two surfaces phrasing one answer differently
+// is the divergence the shared projection exists to prevent.
+func ActionPhrase(next data.Next) string {
 	switch next.Kind {
 	case data.NextPendingMigration:
 		return "Wait for the pending migration to finish; nothing else is actionable until it resolves."

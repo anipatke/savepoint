@@ -90,6 +90,19 @@ var (
 			BorderForeground(clrOrange).
 			Padding(0, 1)
 
+	// CardBox and CardBoxFocused are one card frame in two accents. Both carry
+	// the same border and padding, so focus changes color alone and a card
+	// never occupies different cells focused than unfocused.
+	CardBox = lipgloss.NewStyle().
+		BorderStyle(boxBorder).
+		BorderForeground(clrBorder).
+		Padding(0, 1)
+
+	CardBoxFocused = lipgloss.NewStyle().
+			BorderStyle(boxBorder).
+			BorderForeground(clrOrange).
+			Padding(0, 1)
+
 	CardMeta        = lipgloss.NewStyle().Foreground(clrDim)
 	ScrollIndicator = lipgloss.NewStyle().
 			Foreground(clrDim).
@@ -143,4 +156,25 @@ var (
 	// Tag styles for semantic encoding
 	TagDone = lipgloss.NewStyle().Foreground(clrGreen)
 	TagAI   = lipgloss.NewStyle().Foreground(clrPurple)
+
+	// Badge styles are the four semantic accents a state badge can carry, in
+	// the existing palette. They encode a category, never the state itself:
+	// each badge also carries a glyph and a label, so every distinction
+	// survives with color disabled.
+	//
+	// Clear: a requirement that is met. Attention: one that needs the reader.
+	// Waiting: work that belongs to another record. Neutral: a state with
+	// nothing recorded yet.
+	// SidebarSelected marks the sidebar row whose record the board is filtered
+	// to. It is a different accent from the focused-item style so a selection
+	// the cursor has moved off stays visible, and the row carries its own glyph
+	// besides, so the distinction survives with color stripped.
+	SidebarSelected = lipgloss.NewStyle().
+			Foreground(clrPurple).
+			Bold(true)
+
+	BadgeClear     = lipgloss.NewStyle().Foreground(clrGreen)
+	BadgeAttention = lipgloss.NewStyle().Foreground(clrOrange)
+	BadgeWaiting   = lipgloss.NewStyle().Foreground(clrPurple)
+	BadgeNeutral   = lipgloss.NewStyle().Foreground(clrDim)
 )

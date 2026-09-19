@@ -6,11 +6,17 @@ import (
 	"io"
 )
 
-const boardUsage = "Usage: board [--release <release>] [--epic <epic>]"
+const boardUsage = "Usage: board [--release <release>] [--epic <epic>] [--objective <objective>]"
 
+// BoardOptions is the board's whole parsed filter surface. --release and
+// --epic are schema_version 1 filters and --objective is the schema_version 2
+// one; which of them applies is decided behind the injected runner, where the
+// project's schema is known. Parsing accepts all three and judges none
+// (ARCH-01).
 type BoardOptions struct {
-	Release string
-	Epic    string
+	Release   string
+	Epic      string
+	Objective string
 }
 
 type BoardRunner func(BoardOptions) error
@@ -47,6 +53,12 @@ func ParseBoardArgs(args []string) (BoardOptions, bool, error) {
 				return BoardOptions{}, false, fmt.Errorf("--epic requires a value")
 			}
 			options.Epic = args[i]
+		case "--objective":
+			i++
+			if i >= len(args) {
+				return BoardOptions{}, false, fmt.Errorf("--objective requires a value")
+			}
+			options.Objective = args[i]
 		default:
 			if len(arg) > 0 && arg[0] == '-' {
 				return BoardOptions{}, false, fmt.Errorf("unknown board flag %q", arg)

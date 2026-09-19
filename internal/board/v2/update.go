@@ -1,0 +1,675 @@
+package v2
+
+import (
+	"fmt"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/opencode/savepoint/internal/data"
+)
+
+// columnOrder is the left-to-right order of the three columns, and the order
+// horizontal movement walks. It is the recorded status vocabulary and nothing
+// else: there is no fourth column, and no lifecycle flag is promoted to one.
+var columnOrder = []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, data.ColumnDone}
+
+// Update is a reducer over typed messages only: it reads no file, starts no
+// subprocess, and performs no IO (ARCH-02). Every key it handles is
+// idempotent — a repeated press at either end of a column or row changes
+// nothing — and no key here writes to the project.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
+		if !m.sidebarVisible() {
+			// A terminal that shrank past the breakpoint stops drawing the
+			// sidebar, so focus returns to the columns rather than staying on a
+			// surface that is no longer on screen.
+			m.SidebarFocused = false
+		}
+		// A shorter terminal gives an open overlay a shorter window, which can
+		// leave it scrolled past its own end.
+		m.clampDetailScroll()
+		m.clampIssueScroll()
+		return m, nil
+	case projectLoadedMsg:
+		return m.applyLoad(msg)
+	case v2FileChangeMsg:
+		// The watcher command has completed after its debounce window. Start it
+		// again alongside the one load command so edits that arrive while the
+		// index is rebuilding are not lost.
+		if m.Watcher == nil {
+			return m, loadCmd(m.Root)
+		}
+		return m, tea.Batch(loadCmd(m.Root), watchV2Files(m.Watcher, m.Root))
+	case actionMsg:
+		if msg.err != nil {
+			m.StatusMessage = msg.err.Error()
+			return m, nil
+		}
+		m.StatusMessage = msg.message
+		if msg.reload {
+			return m, loadCmd(m.Root)
+		}
+		return m, nil
+	case tea.KeyMsg:
+		return m.handleKey(msg)
+	}
+	return m, nil
+}
+
+// handleKey dispatches one key to the surface that has focus: an open detail
+// overlay first, then the sidebar, then the columns. Tab is the only key that
+// crosses between the two board surfaces, so the columns' own left/right keep
+// clamping at their ends rather than quietly handing focus away — and while an
+// overlay is open it does not cross at all, because the keys belong to what is
+// on top.
+func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if m.Help {
+		if key == "esc" || key == "q" || key == "?" {
+			m.Help = false
+		}
+		return m, nil
+	}
+	if key == "?" {
+		m.Help = true
+		return m, nil
+	}
+	if key == "q" || key == "ctrl+c" {
+		if m.Watcher != nil {
+			_ = m.Watcher.Close()
+		}
+		return m, tea.Quit
+	}
+
+	if m.Detail != nil {
+		if action, ok := m.actionForKey(key); ok {
+			return m, m.runAction(action)
+		}
+		m.handleDetailKey(key)
+		return m, nil
+	}
+	if m.Issues != nil {
+		m.handleIssuesKey(key)
+		return m, nil
+	}
+	if action, ok := m.actionForKey(key); ok {
+		return m, m.runAction(action)
+	}
+
+	if key == "tab" || key == "shift+tab" {
+		m.toggleSidebarFocus()
+		return m, nil
+	}
+	if m.SidebarFocused {
+		m.handleSidebarKey(key)
+		return m, nil
+	}
+	m.handleColumnKey(key)
+	return m, nil
+}
+
+func (m Model) runAction(action BoardAction) tea.Cmd {
+	target := actionTarget{Kind: action.TargetKind, ID: action.TargetID}
+	switch action.Kind {
+	case ActionAcceptCheck:
+		return writeOwnerAcceptanceCmd(m.Root, target)
+	case ActionCompleteByException:
+		return writeExceptionCompletionCmd(m.Root, target)
+	case ActionRecordSelection:
+		selection, err := selectionForTarget(m.State.Index, target)
+		if err != nil {
+			return func() tea.Msg { return actionMsg{err: err} }
+		}
+		return writeSelectionCmd(m.Root, selection)
+	default:
+		return func() tea.Msg { return actionMsg{err: fmt.Errorf("unknown board action %q", action.Kind)} }
+	}
+}
+
+// handleColumnKey moves the card cursor and opens the focused Task's detail.
+// Enter has no other meaning on the columns, so it is the detail key there;
+// v is the same action, and is what the sidebar uses because enter already
+// selects an Objective.
+func (m *Model) handleColumnKey(key string) {
+	switch key {
+	case "left", "h":
+		m.focusColumn(-1)
+	case "right", "l":
+		m.focusColumn(1)
+	case "up", "k":
+		m.focusCard(-1)
+	case "down", "j":
+		m.focusCard(1)
+	case "enter", "v":
+		m.openDetail()
+	case "i":
+		m.openIssues("")
+	case "I":
+		m.openIssues(m.focusedTaskID())
+	}
+}
+
+// handleDetailKey drives the open overlay: it scrolls, clamping at both ends so
+// a repeated press changes nothing, and closes back to the surface it came
+// from. Nothing here writes, and nothing here reaches the filesystem — an
+// overlay is a view of records the last load already resolved.
+func (m *Model) handleDetailKey(key string) {
+	switch key {
+	case "up", "k":
+		m.scrollDetail(-1)
+	case "down", "j":
+		m.scrollDetail(1)
+	case "esc":
+		m.closeDetail()
+	}
+}
+
+// openDetail opens the record under the cursor on whichever surface has focus:
+// the Objective the sidebar cursor is on, or the focused Task card. It records
+// where it was opened from so closing returns the keys there, and it changes no
+// selection — opening a record is not choosing one.
+func (m *Model) openDetail() {
+	detail, ok := m.detailUnderCursor()
+	if !ok {
+		return
+	}
+	m.DetailOrigin = detailOrigin{
+		SidebarFocused:  m.SidebarFocused,
+		ObjectiveCursor: m.ObjectiveCursor,
+		FocusedColumn:   m.FocusedColumn,
+		FocusedCard:     m.FocusedCard,
+	}
+	m.Detail = &detail
+	m.DetailOffset = 0
+}
+
+// detailUnderCursor resolves the record the cursor is on, or reports that there
+// is none — an empty column, an Objective-less project, or a project held back
+// by a pending migration, none of which has a record to open.
+func (m Model) detailUnderCursor() (RecordDetail, bool) {
+	if m.State.Index == nil {
+		return RecordDetail{}, false
+	}
+	if m.SidebarFocused {
+		if m.ObjectiveCursor < 0 || m.ObjectiveCursor >= len(m.Objectives) {
+			return RecordDetail{}, false
+		}
+		return newObjectiveDetail(m.State.Index, m.Objectives[m.ObjectiveCursor].ID())
+	}
+
+	cards := m.Cards[m.FocusedColumn]
+	if m.FocusedCard < 0 || m.FocusedCard >= len(cards) {
+		return RecordDetail{}, false
+	}
+	return newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
+}
+
+// closeDetail returns the keys to the surface the overlay was opened from, with
+// the focus and cursor it had — clamped into the records that exist now, since
+// a reload underneath the overlay may have removed some.
+func (m *Model) closeDetail() {
+	m.Detail = nil
+	m.DetailOffset = 0
+	m.SidebarFocused = m.DetailOrigin.SidebarFocused && m.sidebarVisible()
+	m.ObjectiveCursor = m.DetailOrigin.ObjectiveCursor
+	m.FocusedColumn = m.DetailOrigin.FocusedColumn
+	m.FocusedCard = m.DetailOrigin.FocusedCard
+	m.clampObjectiveCursorToRows()
+	m.clampFocus()
+}
+
+// scrollDetail moves the overlay's window against the same bound the renderer
+// clamps to, so both ends hold and a repeated press is a no-op.
+func (m *Model) scrollDetail(delta int) {
+	width, height := m.detailViewport()
+	next := m.DetailOffset + delta
+	if next < 0 || next > detailScrollLimit(*m.Detail, width, height) {
+		return
+	}
+	m.DetailOffset = next
+}
+
+// clampDetailScroll pulls an open overlay back inside its content after
+// anything that could have shortened the window or the record.
+func (m *Model) clampDetailScroll() {
+	if m.Detail == nil {
+		return
+	}
+	width, height := m.detailViewport()
+	if limit := detailScrollLimit(*m.Detail, width, height); m.DetailOffset > limit {
+		m.DetailOffset = limit
+	}
+}
+
+// refreshDetail re-resolves an open overlay against the load that just
+// completed, so a record edited underneath it shows its new state. A record the
+// load no longer holds closes the overlay: leaving the last copy on screen
+// would show something older than the project.
+func (m *Model) refreshDetail() {
+	if m.Detail == nil {
+		return
+	}
+	detail, ok := reopenDetail(m.State.Index, *m.Detail)
+	if !ok {
+		m.closeDetail()
+		return
+	}
+	m.Detail = &detail
+	m.clampDetailScroll()
+}
+
+// handleSidebarKey moves the Objective cursor and applies a selection. Enter
+// selects the row under the cursor and escape clears the selection; both are
+// idempotent, and neither writes anything — a selection recorded in router.md
+// is a different key, in a later task.
+func (m *Model) handleSidebarKey(key string) {
+	switch key {
+	case "up", "k":
+		m.moveObjectiveCursor(-1)
+	case "down", "j":
+		m.moveObjectiveCursor(1)
+	case "enter":
+		if m.ObjectiveCursor < len(m.Objectives) {
+			m.selectObjective(m.Objectives[m.ObjectiveCursor].ID())
+		}
+	case "v":
+		m.openDetail()
+	case "esc":
+		m.selectObjective("")
+	}
+}
+
+// toggleSidebarFocus moves focus between the two surfaces, and refuses to move
+// it into a sidebar the current terminal is too narrow to draw.
+func (m *Model) toggleSidebarFocus() {
+	if !m.SidebarFocused && !m.sidebarVisible() {
+		return
+	}
+	m.SidebarFocused = !m.SidebarFocused
+}
+
+// moveObjectiveCursor walks the sidebar, clamping at both ends rather than
+// wrapping, so a repeated press at either end changes nothing.
+func (m *Model) moveObjectiveCursor(delta int) {
+	next := m.ObjectiveCursor + delta
+	if next < 0 || next >= len(m.Objectives) {
+		return
+	}
+	m.ObjectiveCursor = next
+}
+
+// selectObjective filters the columns to the Tasks objectiveID owns, or to the
+// whole project when objectiveID is empty. Re-selecting what is already
+// selected changes nothing, and the card cursor returns to the top of the
+// filtered columns rather than to a position the new set may not have.
+func (m *Model) selectObjective(objectiveID string) {
+	if m.SelectedObjective == objectiveID {
+		return
+	}
+	m.SelectedObjective = objectiveID
+	m.Cards = groupTaskCardsFor(m.State.Index, objectiveID)
+	m.FocusedCard = 0
+	m.clampFocus()
+}
+
+type reloadSnapshot struct {
+	SelectedObjective string
+	ObjectiveCursorID string
+	FocusedColumn     data.ColumnType
+	FocusedCard       int
+	FocusedTaskID     string
+	RouterObjective   string
+	DetailKind        DetailKind
+	DetailID          string
+	IssueSelectedID   string
+	IssueDetailID     string
+	IssueScopedTask   string
+}
+
+func (m Model) snapshotReload() reloadSnapshot {
+	snapshot := reloadSnapshot{
+		SelectedObjective: m.SelectedObjective,
+		FocusedColumn:     m.FocusedColumn,
+		FocusedCard:       m.FocusedCard,
+		FocusedTaskID:     m.focusedTaskID(),
+	}
+	if m.State.Router != nil {
+		snapshot.RouterObjective = m.State.Router.Objective
+	}
+	if m.ObjectiveCursor >= 0 && m.ObjectiveCursor < len(m.Objectives) {
+		snapshot.ObjectiveCursorID = m.Objectives[m.ObjectiveCursor].ID()
+	}
+	if m.Detail != nil {
+		snapshot.DetailKind = m.Detail.Kind
+		snapshot.DetailID = m.Detail.ID
+	}
+	if m.Issues != nil {
+		snapshot.IssueSelectedID = m.Issues.SelectedID
+		snapshot.IssueScopedTask = m.Issues.ScopedTask
+		if m.Issues.Detail != nil {
+			snapshot.IssueDetailID = m.Issues.Detail.Issue.ID
+		}
+	}
+	return snapshot
+}
+
+// applyLoad folds one load result into the model. A failed reload keeps the
+// last completed state visible and names the temporary data problem alongside
+// it; only an initial failure has no board to preserve.
+func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
+	wasLoaded := m.Loaded
+	snapshot := m.snapshotReload()
+	m.Loaded = true
+	if msg.Failed() {
+		if wasLoaded {
+			m.ReloadDiagnostic = msg.Diagnostic
+			m.StatusMessage = "Reload failed: " + msg.Diagnostic
+			return m, nil
+		}
+		m.Diagnostic = msg.Diagnostic
+		m.State = ProjectState{}
+		m.SelectedObjective = ""
+		m.Objectives = nil
+		m.ObjectiveCursor = 0
+		m.Cards = groupTaskCards(nil)
+		m.FocusedCard = 0
+		m.Detail = nil
+		m.DetailOffset = 0
+		m.Issues = nil
+		return m, nil
+	}
+
+	m.Diagnostic = ""
+	m.ReloadDiagnostic = ""
+	m.StatusMessage = ""
+	m.State = msg.State
+	if err := objectiveFilterError(msg.State.Index, m.ObjectiveFilter); err != nil {
+		m.FatalErr = err
+		return m, tea.Quit
+	}
+	m.SelectedObjective = restoredObjective(m, snapshot, msg.State, wasLoaded)
+	m.Objectives = objectiveRows(msg.State.Index)
+	m.Cards = groupTaskCardsFor(msg.State.Index, m.SelectedObjective)
+	m.restoreObjectiveCursor(snapshot, wasLoaded)
+	m.restoreFocus(snapshot, wasLoaded)
+	m.restoreOverlayOrigins()
+	if wasLoaded && snapshot.SelectedObjective != "" && snapshot.RouterObjective == routerObjective(msg.State) &&
+		!objectiveExists(msg.State.Index, snapshot.SelectedObjective) {
+		m.noteStatus(fmt.Sprintf("Objective %s no longer exists; selection moved to %s.", snapshot.SelectedObjective, objectiveLabel(m.SelectedObjective)))
+	}
+	m.refreshDetail()
+	if snapshot.DetailID != "" && m.Detail == nil && recordExists(msg.State.Index, snapshot.DetailKind, snapshot.DetailID) == false {
+		m.noteStatus(fmt.Sprintf("%s %s no longer exists; detail closed.", snapshot.DetailKind, snapshot.DetailID))
+	}
+	m.refreshIssues()
+	if snapshot.IssueScopedTask != "" && !taskExists(msg.State.Index, snapshot.IssueScopedTask) {
+		m.closeIssues()
+		m.noteStatus(fmt.Sprintf("Task %s no longer exists; Issues overlay closed.", snapshot.IssueScopedTask))
+	} else if snapshot.IssueDetailID != "" && !issueExists(msg.State.Index, snapshot.IssueDetailID) {
+		m.noteStatus(fmt.Sprintf("Issue %s no longer exists; focus moved to a neighboring issue.", snapshot.IssueDetailID))
+	} else if snapshot.IssueSelectedID != "" && !issueExists(msg.State.Index, snapshot.IssueSelectedID) {
+		m.noteStatus(fmt.Sprintf("Issue %s no longer exists; focus moved to a neighboring issue.", snapshot.IssueSelectedID))
+	}
+	return m, nil
+}
+
+func routerObjective(state ProjectState) string {
+	if state.Router == nil {
+		return ""
+	}
+	return state.Router.Objective
+}
+
+func objectiveExists(index *data.V2Index, id string) bool {
+	if index == nil {
+		return false
+	}
+	_, ok := index.Objectives[id]
+	return ok
+}
+
+func taskExists(index *data.V2Index, id string) bool {
+	if index == nil {
+		return false
+	}
+	_, ok := index.Tasks[id]
+	return ok
+}
+
+func issueExists(index *data.V2Index, id string) bool {
+	if index == nil {
+		return false
+	}
+	_, ok := index.Issues[id]
+	return ok
+}
+
+func recordExists(index *data.V2Index, kind DetailKind, id string) bool {
+	if index == nil {
+		return false
+	}
+	if kind == DetailObjective {
+		return objectiveExists(index, id)
+	}
+	return taskExists(index, id)
+}
+
+func objectiveLabel(id string) string {
+	if id == "" {
+		return "no Objective"
+	}
+	return "Objective " + id
+}
+
+func (m *Model) noteStatus(message string) {
+	if strings.TrimSpace(message) == "" {
+		return
+	}
+	if strings.TrimSpace(m.StatusMessage) == "" {
+		m.StatusMessage = message
+		return
+	}
+	m.StatusMessage += "; " + message
+}
+
+func restoredObjective(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool) string {
+	if m.ObjectiveFilter != "" || !wasLoaded {
+		return selectedObjective(state, m.ObjectiveFilter)
+	}
+	newRouterObjective := ""
+	if state.Router != nil {
+		newRouterObjective = state.Router.Objective
+	}
+	if newRouterObjective != snapshot.RouterObjective {
+		return selectedObjective(state, m.ObjectiveFilter)
+	}
+	if snapshot.SelectedObjective == "" {
+		return ""
+	}
+	if state.Index != nil {
+		if _, ok := state.Index.Objectives[snapshot.SelectedObjective]; ok {
+			return snapshot.SelectedObjective
+		}
+	}
+	return nearestObjective(state, m.ObjectiveCursor)
+}
+
+func nearestObjective(state ProjectState, previousCursor int) string {
+	rows := objectiveRows(state.Index)
+	if len(rows) == 0 {
+		return ""
+	}
+	if previousCursor < 0 {
+		previousCursor = 0
+	}
+	if previousCursor >= len(rows) {
+		previousCursor = len(rows) - 1
+	}
+	return rows[previousCursor].ID()
+}
+
+func (m *Model) restoreObjectiveCursor(snapshot reloadSnapshot, wasLoaded bool) {
+	if !wasLoaded {
+		m.clampObjectiveCursor()
+		return
+	}
+	if snapshot.ObjectiveCursorID != "" {
+		if cursor := m.objectiveIndex(snapshot.ObjectiveCursorID); cursor >= 0 {
+			m.ObjectiveCursor = cursor
+			return
+		}
+	}
+	m.clampObjectiveCursorToRows()
+}
+
+// restoreFocus follows a Task identity across a reload. If the identity no
+// longer exists, the old column and ordinal are the first fallback; when that
+// column is empty the nearest non-empty column wins, preferring the column on
+// the left at equal distance.
+func (m *Model) restoreFocus(snapshot reloadSnapshot, wasLoaded bool) {
+	if !wasLoaded || snapshot.FocusedTaskID == "" {
+		m.FocusedColumn = snapshot.FocusedColumn
+		m.FocusedCard = snapshot.FocusedCard
+		m.clampFocus()
+		return
+	}
+	for _, column := range columnOrder {
+		for card, candidate := range m.Cards[column] {
+			if candidate.Task.ID == snapshot.FocusedTaskID {
+				m.FocusedColumn = column
+				m.FocusedCard = card
+				return
+			}
+		}
+	}
+
+	m.FocusedColumn = snapshot.FocusedColumn
+	m.FocusedCard = snapshot.FocusedCard
+	if len(m.Cards[m.FocusedColumn]) == 0 {
+		m.FocusedColumn = nearestNonEmptyColumn(m.Cards, snapshot.FocusedColumn)
+		m.FocusedCard = 0
+	} else {
+		m.clampFocus()
+	}
+	if m.State.Index == nil {
+		return
+	}
+	if _, stillExists := m.State.Index.Tasks[snapshot.FocusedTaskID]; !stillExists {
+		m.StatusMessage = fmt.Sprintf("Task %s no longer exists; focus moved to %s.", snapshot.FocusedTaskID, m.focusedTaskLabel())
+	}
+}
+
+func nearestNonEmptyColumn(cards map[data.ColumnType][]TaskCard, from data.ColumnType) data.ColumnType {
+	start := columnIndex(from)
+	if start < 0 {
+		start = 0
+	}
+	for distance := 0; distance < len(columnOrder); distance++ {
+		left := start - distance
+		if left >= 0 && len(cards[columnOrder[left]]) > 0 {
+			return columnOrder[left]
+		}
+		right := start + distance
+		if distance > 0 && right < len(columnOrder) && len(cards[columnOrder[right]]) > 0 {
+			return columnOrder[right]
+		}
+	}
+	return columnOrder[start]
+}
+
+func (m Model) focusedTaskLabel() string {
+	if id := m.focusedTaskID(); id != "" {
+		return "Task " + id
+	}
+	return "an empty column"
+}
+
+func (m *Model) restoreOverlayOrigins() {
+	if m.Detail != nil {
+		m.DetailOrigin.SidebarFocused = m.SidebarFocused
+		m.DetailOrigin.ObjectiveCursor = m.ObjectiveCursor
+		m.DetailOrigin.FocusedColumn = m.FocusedColumn
+		m.DetailOrigin.FocusedCard = m.FocusedCard
+	}
+	if m.Issues != nil {
+		m.Issues.Origin.SidebarFocused = m.SidebarFocused
+		m.Issues.Origin.ObjectiveCursor = m.ObjectiveCursor
+		m.Issues.Origin.FocusedColumn = m.FocusedColumn
+		m.Issues.Origin.FocusedCard = m.FocusedCard
+	}
+}
+
+// clampObjectiveCursor puts the sidebar cursor on the selected Objective when
+// there is one, and otherwise keeps it inside the rows that exist — so a load
+// that removed Objectives, or a list shorter than the cursor, leaves a cursor
+// something renders.
+func (m *Model) clampObjectiveCursor() {
+	if selected := m.objectiveIndex(m.SelectedObjective); selected >= 0 {
+		m.ObjectiveCursor = selected
+		return
+	}
+	m.clampObjectiveCursorToRows()
+}
+
+// clampObjectiveCursorToRows keeps the sidebar cursor inside the rows that
+// exist without moving it onto the selection, for the restores that must put
+// the cursor back exactly where the reader left it.
+func (m *Model) clampObjectiveCursorToRows() {
+	if m.ObjectiveCursor >= len(m.Objectives) {
+		m.ObjectiveCursor = len(m.Objectives) - 1
+	}
+	if m.ObjectiveCursor < 0 {
+		m.ObjectiveCursor = 0
+	}
+}
+
+// focusColumn moves focus one column left or right, clamping at both ends
+// rather than wrapping, and re-clamps the card cursor into the column it lands
+// on.
+func (m *Model) focusColumn(delta int) {
+	current := columnIndex(m.FocusedColumn)
+	next := current + delta
+	if next < 0 || next >= len(columnOrder) {
+		return
+	}
+	m.FocusedColumn = columnOrder[next]
+	m.clampFocus()
+}
+
+// focusCard moves the card cursor within the focused column, clamping at both
+// ends.
+func (m *Model) focusCard(delta int) {
+	next := m.FocusedCard + delta
+	if next < 0 || next >= len(m.Cards[m.FocusedColumn]) {
+		return
+	}
+	m.FocusedCard = next
+}
+
+// clampFocus keeps the cursor inside the cards that actually exist, so a reload
+// that removed the focused Task, or a column shorter than the cursor, leaves a
+// valid focus rather than an index nothing renders.
+func (m *Model) clampFocus() {
+	if columnIndex(m.FocusedColumn) < 0 {
+		m.FocusedColumn = data.ColumnPlanned
+	}
+	count := len(m.Cards[m.FocusedColumn])
+	if m.FocusedCard >= count {
+		m.FocusedCard = count - 1
+	}
+	if m.FocusedCard < 0 {
+		m.FocusedCard = 0
+	}
+}
+
+func columnIndex(column data.ColumnType) int {
+	for i, candidate := range columnOrder {
+		if candidate == column {
+			return i
+		}
+	}
+	return -1
+}

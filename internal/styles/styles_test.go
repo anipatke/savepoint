@@ -124,6 +124,47 @@ func TestColor_usesPaletteConstants(t *testing.T) {
 	}
 }
 
+// TestBadgeStyles_usePaletteAccents proves the board's badge accents introduce
+// no color of their own: each is one of the palette's existing accents, in all
+// three color tiers.
+func TestBadgeStyles_usePaletteAccents(t *testing.T) {
+	tests := []struct {
+		name  string
+		style lipgloss.Style
+		want  lipgloss.CompleteColor
+	}{
+		{"BadgeClear", BadgeClear, color(NPPGreen, NPPGreen256, NPPGreen16)},
+		{"BadgeAttention", BadgeAttention, color(AtariOrange, AtariOrange256, AtariOrange16)},
+		{"BadgeWaiting", BadgeWaiting, color(VibePurple, VibePurple256, VibePurple16)},
+		{"BadgeNeutral", BadgeNeutral, color(Dim, Dim256, Dim16)},
+	}
+
+	for _, test := range tests {
+		if got := test.style.GetForeground(); got != test.want {
+			t.Errorf("%s foreground = %+v, want the palette accent %+v", test.name, got, test.want)
+		}
+	}
+}
+
+// TestCardBoxStyles_differOnlyInAccent proves focus cannot move a card: the two
+// card frames carry the same border and the same padding, so only their color
+// differs.
+func TestCardBoxStyles_differOnlyInAccent(t *testing.T) {
+	if CardBox.GetBorderStyle() != CardBoxFocused.GetBorderStyle() {
+		t.Error("CardBox and CardBoxFocused use different borders; focus would change a card's geometry")
+	}
+
+	topA, rightA, bottomA, leftA := CardBox.GetPadding()
+	topB, rightB, bottomB, leftB := CardBoxFocused.GetPadding()
+	if topA != topB || rightA != rightB || bottomA != bottomB || leftA != leftB {
+		t.Errorf("padding differs: unfocused %d/%d/%d/%d, focused %d/%d/%d/%d", topA, rightA, bottomA, leftA, topB, rightB, bottomB, leftB)
+	}
+
+	if CardBox.GetBorderTopForeground() == CardBoxFocused.GetBorderTopForeground() {
+		t.Error("CardBox and CardBoxFocused share a border color; focus must be visible")
+	}
+}
+
 func TestColor_returnsCompleteColor(t *testing.T) {
 	var cc lipgloss.CompleteColor
 	cc = color(Background, Background256, Background16)

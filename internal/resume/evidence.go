@@ -1,8 +1,14 @@
 // Package resume renders a resolved data.Next projection as read-only
-// narrative text. This file holds every piece of evidence, freshness,
-// dependency, owner-wait, exception, and Issue phrasing resume uses, kept
-// out of the layout code in resume.go so each phrase has exactly one source
-// (STYLE-07, STYLE-09).
+// narrative text, and owns the evidence vocabulary every surface reporting
+// that projection speaks. This file holds every piece of evidence,
+// freshness, dependency, owner-wait, exception, and Issue phrasing, kept out
+// of the layout code in resume.go so each phrase has exactly one source
+// (STYLE-07, STYLE-09). EvidenceLines, ActionPhrase, and SelectionPhrase
+// expose it to the V2 board's Next area, which lays the same facts out
+// compactly rather than restating them; ClearancePhrase, DependencyPhrase,
+// ObjectiveDependencyPhrase, ExceptionPhrase, ReplanPhrase, IssueLine, and
+// ActorLabel expose the individual phrases to the board's detail surfaces,
+// which report one record's own evidence rather than a whole projection.
 //
 // Every phrase here reports what a record already says. None of them may
 // claim that resume verified, ran, checked, or confirmed anything — resume
@@ -16,19 +22,25 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
-// actorLabel renders one recorded actor as "<role> session <session>", the
-// same provenance shape Evidence and Check records carry.
-func actorLabel(actor data.Actor) string {
+// ActorLabel renders one recorded actor as "<role> session <session>", the
+// same provenance shape Evidence and Check records carry. It is exported for
+// the same reason the phrases below are: a surface naming who recorded
+// something names them in these words, not in a second set.
+func ActorLabel(actor data.Actor) string {
 	return fmt.Sprintf("%s session %s", actor.Role, actor.Session)
 }
 
-// clearancePhrase reports one resolved data.Clearance in wording distinct
+// ClearancePhrase reports one resolved data.Clearance in wording distinct
 // per state, naming the Check when one exists and the freshness assessor,
 // date, and recorded basis when a freshness assessment exists. A nil
 // clearance reports that no clearance was resolved for this rung, which
 // happens when a Task or Objective is allowed to proceed without one (e.g.
 // a planned Task with no evidence to speak of yet).
-func clearancePhrase(clearance *data.Clearance) string {
+//
+// It is exported so a detail surface reporting one record's clearance says
+// exactly what the Next area and `savepoint resume` say about the same
+// resolved value (STYLE-07, STYLE-09).
+func ClearancePhrase(clearance *data.Clearance) string {
 	if clearance == nil {
 		return "No clearance applies at this step."
 	}
@@ -44,7 +56,17 @@ func clearancePhrase(clearance *data.Clearance) string {
 		}
 		return phrase
 	case data.ClearanceUnknown:
-		return fmt.Sprintf("Check %s is recorded CLEAR, but no freshness assessment has ever been recorded for it — clearance is unknown.", clearance.Check)
+		// ResolveClearance reports two different facts as unknown rather than
+		// growing a sixth state: a CLEAR Check nobody has assessed at all, and
+		// a CLEAR Check whose current assessment lacks independent checker
+		// provenance. The second one carries the assessment it distrusts, which
+		// is how they are told apart here — and they are two different things
+		// to act on, so they get two different sentences.
+		if clearance.Freshness == nil {
+			return fmt.Sprintf("Check %s is recorded CLEAR, but no freshness assessment has ever been recorded for it — clearance is unknown.", clearance.Check)
+		}
+		return fmt.Sprintf("Check %s is recorded CLEAR and its freshness assessment names it current, but that evidence carries no independent checker session — clearance is not independently established. %s",
+			clearance.Check, freshnessBasisPhrase(clearance.Freshness))
 	case data.ClearanceCurrent:
 		phrase := fmt.Sprintf("Check %s is recorded CLEAR and its freshness assessment names it current.", clearance.Check)
 		if clearance.Freshness != nil {
@@ -61,11 +83,11 @@ func clearancePhrase(clearance *data.Clearance) string {
 // that resume itself assessed anything.
 func freshnessBasisPhrase(freshness *data.Freshness) string {
 	return fmt.Sprintf("Assessed %s by %s on %s, basis: %s.",
-		freshness.State, actorLabel(freshness.AssessedBy), freshness.AssessedAt.Format("2006-01-02"), freshness.Basis)
+		freshness.State, ActorLabel(freshness.AssessedBy), freshness.AssessedAt.Format("2006-01-02"), freshness.Basis)
 }
 
 // ownerWaitPhrase reports an outstanding owner-acceptance block. It is kept
-// as its own phrase, distinct from clearancePhrase, because a technical
+// as its own phrase, distinct from ClearancePhrase, because a technical
 // clearance being current and an owner not yet having accepted it are two
 // different things a user has to act on.
 func ownerWaitPhrase(checkID string) string {
@@ -75,27 +97,29 @@ func ownerWaitPhrase(checkID string) string {
 	return fmt.Sprintf("Owner acceptance is required: the owner has not yet accepted Check %s.", checkID)
 }
 
-// exceptionPhrase reports a recorded exception as itself — a reason and an
+// ExceptionPhrase reports a recorded exception as itself — a reason and an
 // owner, never a clearance result, per Exception's own documented contract.
-func exceptionPhrase(exception *data.Exception) string {
+// A detail surface adds the requirement IDs and the time from the record's own
+// fields; the claim about what an exception means is made here alone.
+func ExceptionPhrase(exception *data.Exception) string {
 	if exception == nil {
 		return "Allowed by a recorded exception, but no exception detail was carried on this rung."
 	}
 	return fmt.Sprintf("Allowed by exception, not by clearance: recorded by owner %s for Check %s — %s", exception.Owner, exception.Check, exception.Reason)
 }
 
-// replanPhrase reports a recorded replan flag by its own reason.
-func replanPhrase(reason string) string {
+// ReplanPhrase reports a recorded replan flag by its own reason.
+func ReplanPhrase(reason string) string {
 	if reason == "" {
 		return "A replan has been flagged, with no reason recorded."
 	}
 	return fmt.Sprintf("A replan has been flagged: %s", reason)
 }
 
-// taskDependencyPhrase reports why one Task dependency is unsatisfied, in
+// DependencyPhrase reports why one Task dependency is unsatisfied, in
 // wording naming the target and the specific unmet requirement rather than
 // a bare "blocked".
-func taskDependencyPhrase(block *data.DependencyBlock) string {
+func DependencyPhrase(block *data.DependencyBlock) string {
 	if block == nil {
 		return "A dependency is unsatisfied, with no detail carried on this rung."
 	}
@@ -111,27 +135,31 @@ func taskDependencyPhrase(block *data.DependencyBlock) string {
 	}
 }
 
-// objectiveDependencyPhrase mirrors taskDependencyPhrase for a blocked
-// Objective dependency, naming that the wait is at the Objective level.
-func objectiveDependencyPhrase(block *data.ObjectiveDependencyBlock) string {
+// ObjectiveDependencyPhrase mirrors DependencyPhrase for a blocked Objective
+// dependency. It is stated about the dependency rather than about whoever is
+// waiting on it: a Task rung waits on its owning Objective's dependencies and
+// an Objective's own detail waits on its own, and the reason is the same fact
+// in both. The subject belongs to the caller's line; the reason lives here
+// once (STYLE-07).
+func ObjectiveDependencyPhrase(block *data.ObjectiveDependencyBlock) string {
 	if block == nil {
-		return "The owning Objective has an unsatisfied dependency, with no detail carried on this rung."
+		return "an Objective dependency is unsatisfied, with no detail recorded."
 	}
 	switch block.Kind {
 	case data.ObjectiveDependencyBlockNotDone:
-		return fmt.Sprintf("The owning Objective is waiting on Objective %s, which is not done yet.", block.Target)
+		return fmt.Sprintf("Objective %s is not done yet.", block.Target)
 	case data.ObjectiveDependencyBlockNotCleared:
-		return fmt.Sprintf("The owning Objective is waiting on Objective %s, which is done but its clearance is %s, not current.", block.Target, block.Clearance)
+		return fmt.Sprintf("Objective %s is done but its clearance is %s, not current.", block.Target, block.Clearance)
 	case data.ObjectiveDependencyBlockClearedByException:
-		return fmt.Sprintf("The owning Objective is waiting on Objective %s, which reached done only by exception, not current clearance.", block.Target)
+		return fmt.Sprintf("Objective %s reached done only by exception, not current clearance.", block.Target)
 	default:
-		return fmt.Sprintf("The owning Objective is waiting on Objective %s for an unrecognized reason %q.", block.Target, block.Kind)
+		return fmt.Sprintf("Objective %s is unsatisfied for an unrecognized reason %q.", block.Target, block.Kind)
 	}
 }
 
-// issueLine renders one Issue as its ID, type, status, and title — the four
+// IssueLine renders one Issue as its ID, type, status, and title — the four
 // facts an Issue listing promises and nothing derived beyond them.
-func issueLine(issue *data.IssueV2) string {
+func IssueLine(issue *data.IssueV2) string {
 	return fmt.Sprintf("- %s (%s, %s): %s", issue.ID, issue.Type, issue.Status, issue.Title)
 }
 
@@ -150,10 +178,11 @@ func objectiveStatusPhrase(objective *data.ObjectiveV2) string {
 	return fmt.Sprintf("Status %s.", objective.Status)
 }
 
-// selectionDiagnosticPhrase reports a router selection that did not resolve,
-// naming the ID or the mismatch it read rather than guessing at a
-// replacement record.
-func selectionDiagnosticPhrase(diagnostic *data.SelectionDiagnostic) string {
+// SelectionPhrase reports a router selection that did not resolve, naming the
+// ID or the mismatch it read rather than guessing at a replacement record. It
+// is exported alongside EvidenceLines and ActionPhrase so the board's Next
+// area names an unresolved selection in these same words.
+func SelectionPhrase(diagnostic *data.SelectionDiagnostic) string {
 	switch diagnostic.Kind {
 	case data.SelectionNotFound:
 		return fmt.Sprintf("The router names %s %s, which does not exist among the project's live records.", diagnostic.RecordKind, diagnostic.ID)

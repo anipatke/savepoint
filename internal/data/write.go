@@ -775,6 +775,173 @@ func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
 	return v2FieldPatch{Key: "replan", Node: node}, nil
 }
 
+// RouterSelectionV2 is the whole of what WriteRouterStateV2 is able to
+// change: which Objective and Task a V2 router points at. It is a type of
+// its own rather than a *RouterStateV2 parameter so that the writer's
+// signature cannot express a state or next_action write at all. A consumer
+// records which record is selected; the phase names which skill owns the
+// conversation, and next_action is prose those skills author, so neither is
+// a selection writer's to touch.
+type RouterSelectionV2 struct {
+	Objective string // O### selection, or empty to clear the selection
+	Task      string // T### selection, or empty to clear the selection
+}
+
+// routerSelectionNoneV2 is the router's written spelling of "not selected",
+// the sentinel templates/project-v2/.savepoint/router.md ships and
+// normalizeRouterSelectionV2 reads back as empty. Clearing a selection
+// writes it rather than an empty value, so the field stays legible to a
+// human reading the file.
+const routerSelectionNoneV2 = "none"
+
+// validate rejects a selection before any file is opened, applying the same
+// three rules ReadStateV2 enforces on the way in: O###/T### shape, and a
+// Task never selected without the Objective that owns it.
+func (s RouterSelectionV2) validate() error {
+	if s.Objective != "" && !objectiveIDPattern.MatchString(s.Objective) {
+		return fmt.Errorf("%w: router objective %q must be a single O### selection", ErrV2InvalidID, s.Objective)
+	}
+	if s.Task != "" && !taskIDPatternV2.MatchString(s.Task) {
+		return fmt.Errorf("%w: router task %q must be a single T### selection", ErrV2InvalidID, s.Task)
+	}
+	if s.Task != "" && s.Objective == "" {
+		return fmt.Errorf("%w: router task %q selected with no objective", ErrV2InvalidOwnership, s.Task)
+	}
+	return nil
+}
+
+// WriteRouterStateV2 records selection in root's router.md, changing the
+// objective and task keys of the "## Current state" anchor and nothing else.
+// state, next_action, every other key the anchor carries, and the whole
+// surrounding document survive byte-identical (DATA-01), because the anchor
+// is edited as a YAML node tree and only those two keys are touched.
+//
+// expectedMtime guards the read the caller's selection was based on: a file
+// modified since then is refused with ErrMtimeConflict, before the write and
+// again immediately before the replacement lands. Writing the selection a
+// file already records is a no-op that leaves bytes and modified time alone.
+//
+// The updated content must decode through ReadStateV2 before it replaces
+// anything, so a router this package could not interpret afterwards is
+// refused with that reader's own diagnostic and the file is left untouched.
+// A router whose recorded state is already invalid is therefore refused too:
+// a selection is not worth writing into a document whose meaning cannot be
+// established (DATA-03).
+func WriteRouterStateV2(root string, selection RouterSelectionV2, expectedMtime time.Time) error {
+	if err := selection.validate(); err != nil {
+		return err
+	}
+
+	path := filepath.Join(root, "router.md")
+	info, err := os.Lstat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", path, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %s is a symlink", ErrV2UnsafePath, path)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("write %s: target is a directory", path)
+	}
+	if !info.ModTime().Equal(expectedMtime) {
+		return ErrMtimeConflict
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	original := string(raw)
+
+	block, err := extractStateBlock(original)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(block), &doc); err != nil {
+		return fmt.Errorf("%w: %s: router state: %v", ErrV2Malformed, path, err)
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return fmt.Errorf("%w: %s: router state is not a mapping", ErrV2Malformed, path)
+	}
+
+	if !patchRouterSelectionV2(doc.Content[0], selection) {
+		return nil
+	}
+
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return fmt.Errorf("%s: marshal yaml: %w", path, err)
+	}
+
+	updated, err := ReplaceStateBlock(original, string(out))
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	// ReplaceStateBlock normalizes line endings to find the anchor; a file
+	// that arrived with CRLF keeps it, so "every other byte unchanged" holds
+	// on Windows-authored routers too (CFG-02).
+	if strings.Contains(original, "\r\n") {
+		updated = strings.ReplaceAll(updated, "\n", "\r\n")
+	}
+
+	if _, err := NewRouterReader().ReadStateV2(updated); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+
+	if info.Mode().Perm()&0222 == 0 {
+		return fmt.Errorf("write %s: %w", path, os.ErrPermission)
+	}
+
+	return replaceV2File(path, []byte(updated), info.Mode(), func() error {
+		latest, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
+		if !latest.ModTime().Equal(expectedMtime) {
+			return ErrMtimeConflict
+		}
+		return nil
+	})
+}
+
+// patchRouterSelectionV2 sets objective and task on mapping and reports
+// whether either key's written value actually changed. It reaches no other
+// key, which is how state, next_action, and any field a project added itself
+// pass through a selection write untouched. A key the document does not have
+// is added only to record a real selection: writing the "not selected"
+// sentinel into a router that never carried the field would be a change with
+// nothing behind it.
+func patchRouterSelectionV2(mapping *yaml.Node, selection RouterSelectionV2) bool {
+	changed := false
+	for _, field := range []struct {
+		key   string
+		value string
+	}{
+		{key: "objective", value: routerSelectionValueV2(selection.Objective)},
+		{key: "task", value: routerSelectionValueV2(selection.Task)},
+	} {
+		current, present := mappingFieldValue(mapping, field.key)
+		if present && current == field.value {
+			continue
+		}
+		if !present && field.value == routerSelectionNoneV2 {
+			continue
+		}
+		setMappingField(mapping, field.key, field.value)
+		changed = true
+	}
+	return changed
+}
+
+func routerSelectionValueV2(id string) string {
+	if id == "" {
+		return routerSelectionNoneV2
+	}
+	return id
+}
+
 func WriteRouterState(root string, state *RouterState, expectedMtime time.Time) error {
 	path := filepath.Join(root, "router.md")
 	fi, err := os.Stat(path)

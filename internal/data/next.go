@@ -218,17 +218,34 @@ type NextInput struct {
 // ResolveNext computes the one next action for a V2 project: the precedence
 // ladder documented on NextKind, evaluated top to bottom. It returns a value
 // for every reachable project state, including a fresh project with no
-// Objectives or Tasks, and never returns an error.
+// Objectives or Tasks, and never returns an error. A nil Index or Router is
+// read as an empty project and an empty selection rather than panicking; see
+// the boundary note in the body.
 func ResolveNext(input NextInput) Next {
 	if input.Migration.Pending {
 		return Next{Kind: NextPendingMigration, Migration: input.Migration}
 	}
 
-	selection, diagnostic := ResolveSelection(input.Index, input.Router)
+	index, router := input.Index, input.Router
+	// A nil index or router is a caller whose load has not completed, or did
+	// not succeed. Reading them as an empty project and an empty selection
+	// keeps a half-assembled call from panicking in a long-running consumer
+	// such as the board, which holds this input across reloads rather than
+	// building it once per process the way a command does. It is a boundary
+	// check, not an interpretation: reporting that a project failed to load
+	// stays the caller's job, because only the caller holds the diagnostic.
+	if index == nil {
+		index = &V2Index{}
+	}
+	if router == nil {
+		router = &RouterStateV2{}
+	}
 
-	next := resolveLadder(input.Index, selection)
+	selection, diagnostic := ResolveSelection(index, router)
+
+	next := resolveLadder(index, selection)
 	next.SelectionDiagnostic = diagnostic
-	next.Issues = relevantIssues(input.Index, next)
+	next.Issues = relevantIssues(index, next)
 	return next
 }
 
@@ -290,11 +307,36 @@ func resolveLadder(index *V2Index, selection Selection) Next {
 		}
 	}
 
+	if next, ok := resolveProjectWideIntegrationRung(index); ok {
+		return next
+	}
+
 	if next, ok := resolveReadyRung(index); ok {
 		return next
 	}
 
 	return Next{Kind: NextPlanObjective}
+}
+
+// resolveProjectWideIntegrationRung answers rung seven for an Objective the
+// router does not name: the lowest-ID Objective that is not yet done, owns at
+// least one Task, and whose own integration clearance is what remains unmet.
+// Without it, an outstanding integration Check is reported only while the
+// router happens to select its Objective, so the same project state would
+// answer differently depending on a hint that decides nothing. An Objective
+// already recorded done is skipped: thin evidence behind a closed Objective is
+// doctor's missing-evidence report, not the project's next action.
+func resolveProjectWideIntegrationRung(index *V2Index) (Next, bool) {
+	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
+		objective := index.Objectives[id]
+		if objective.Status == ColumnDone || len(index.ObjectiveTasks[id]) == 0 {
+			continue
+		}
+		if next, ok := resolveObjectiveIntegrationRung(index, id); ok {
+			return next, true
+		}
+	}
+	return Next{}, false
 }
 
 // objectiveInView names the Objective rung seven should evaluate: the
@@ -394,6 +436,14 @@ func rungForBlockers(blockers []GateBlocker) NextKind {
 func resolveObjectiveIntegrationRung(index *V2Index, objectiveID string) (Next, bool) {
 	objective, ok := index.Objectives[objectiveID]
 	if !ok {
+		return Next{}, false
+	}
+
+	// An Objective that owns no Task has not been broken down yet, so
+	// "every owned Task is done" is vacuously true and this rung would
+	// ask for an integration Check over work that does not exist. The
+	// real next action is planning, which rung eight answers.
+	if len(index.ObjectiveTasks[objectiveID]) == 0 {
 		return Next{}, false
 	}
 

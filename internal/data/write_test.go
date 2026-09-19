@@ -3364,3 +3364,305 @@ title: "Bug"
 		t.Error("stage field should be removed when defect status is resolved")
 	}
 }
+
+// routerV2FixtureContent reproduces the shipped V2 router's document shape:
+// prose, headings and a second fenced block around the anchor, and the four
+// anchor keys with a long quoted next_action. The anchor's key set is closed
+// — ReadStateV2 decodes it with KnownFields(true) — so what a selection
+// write must preserve is state, next_action, key order, and every byte of
+// the document outside the anchor.
+func routerV2FixtureContent() string {
+	return `# Agent State Machine
+
+This file routes the agent. The active skill is the canonical workflow source.
+
+## Read order
+
+1. This file
+2. The matching skill for ` + "`state`" + `
+
+## Current state
+
+` + "```" + `yaml
+state: design
+objective: none
+task: none
+next_action: "Turn a rough idea — a single sentence is a valid starting point, no prepared requirements document needed — into .savepoint/Idea.md through a short back-and-forth with the owner."
+` + "```" + `
+
+## State Meanings
+
+- ` + "`idea`" + `: intent and boundary are being defined.
+
+` + "```" + `yaml
+project_note: a second fenced block the writer must not touch
+` + "```" + `
+`
+}
+
+func writeRouterV2Fixture(t *testing.T, content string) (root, path string, mtime time.Time) {
+	t.Helper()
+	root = t.TempDir()
+	path = filepath.Join(root, "router.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root, path, info.ModTime()
+}
+
+func readFileString(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestWriteRouterStateV2_setsSelectionAndPreservesEveryOtherByte(t *testing.T) {
+	content := routerV2FixtureContent()
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001", Task: "T005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	want := strings.Replace(content, "objective: none", "objective: O001", 1)
+	want = strings.Replace(want, "task: none", "task: T005", 1)
+
+	if got := readFileString(t, path); got != want {
+		t.Errorf("file content changed beyond the selection keys.\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel(t *testing.T) {
+	content := strings.NewReplacer(
+		"objective: none", "objective: O001",
+		"task: none", "task: T005",
+	).Replace(routerV2FixtureContent())
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	got := readFileString(t, path)
+	if !strings.Contains(got, "objective: none") || !strings.Contains(got, "task: none") {
+		t.Errorf("cleared selection not written as the none sentinel:\n%s", got)
+	}
+
+	state, err := NewRouterReader().ReadStateV2(got)
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Objective != "" || state.Task != "" {
+		t.Errorf("cleared selection read back as objective %q task %q", state.Objective, state.Task)
+	}
+}
+
+func TestWriteRouterStateV2_doesNotAddSentinelKeysTheDocumentLacks(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: idea\n```\n"
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	if got := readFileString(t, path); got != content {
+		t.Errorf("clearing an absent selection changed the file:\n%s", got)
+	}
+}
+
+func TestWriteRouterStateV2_addsSelectionKeysToRecordARealSelection(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\n```\n"
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O007", Task: "T042"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	state, err := NewRouterReader().ReadStateV2(readFileString(t, path))
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Objective != "O007" || state.Task != "T042" {
+		t.Errorf("selection read back as objective %q task %q, want O007/T042", state.Objective, state.Task)
+	}
+	if state.State != RouterPhaseTask {
+		t.Errorf("state changed to %q", state.State)
+	}
+}
+
+func TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched(t *testing.T) {
+	cases := []struct {
+		name      string
+		selection RouterSelectionV2
+		wantErr   error
+	}{
+		{"objective wrong family", RouterSelectionV2{Objective: "T001"}, ErrV2InvalidID},
+		{"objective too few digits", RouterSelectionV2{Objective: "O1"}, ErrV2InvalidID},
+		{"objective with trailing slug", RouterSelectionV2{Objective: "O001-recovery"}, ErrV2InvalidID},
+		{"two objectives", RouterSelectionV2{Objective: "O001 O002"}, ErrV2InvalidID},
+		{"task wrong family", RouterSelectionV2{Objective: "O001", Task: "C001"}, ErrV2InvalidID},
+		{"task too few digits", RouterSelectionV2{Objective: "O001", Task: "T4"}, ErrV2InvalidID},
+		{"task without objective", RouterSelectionV2{Task: "T005"}, ErrV2InvalidOwnership},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := routerV2FixtureContent()
+			root, path, mtime := writeRouterV2Fixture(t, content)
+
+			err := WriteRouterStateV2(root, tc.selection, mtime)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("WriteRouterStateV2() error = %v, want %v", err, tc.wantErr)
+			}
+			if got := readFileString(t, path); got != content {
+				t.Error("file changed despite a refused selection")
+			}
+		})
+	}
+}
+
+func TestWriteRouterStateV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
+	content := strings.NewReplacer(
+		"objective: none", "objective: O001",
+		"task: none", "task: T005",
+	).Replace(routerV2FixtureContent())
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	time.Sleep(10 * time.Millisecond)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001", Task: "T005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(mtime) {
+		t.Errorf("ModTime changed on no-op write: before %v, after %v", mtime, after.ModTime())
+	}
+	if got := readFileString(t, path); got != content {
+		t.Error("file bytes changed on no-op write")
+	}
+}
+
+func TestWriteRouterStateV2_refusesStaleMtimeAndLeavesFileUntouched(t *testing.T) {
+	content := routerV2FixtureContent()
+	root, path, _ := writeRouterV2Fixture(t, content)
+
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, time.Now().Add(-time.Hour))
+	if !errors.Is(err, ErrMtimeConflict) {
+		t.Fatalf("WriteRouterStateV2() error = %v, want ErrMtimeConflict", err)
+	}
+	if got := readFileString(t, path); got != content {
+		t.Error("file changed despite an mtime conflict")
+	}
+}
+
+func TestWriteRouterStateV2_refusesUnreadableDocuments(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"no anchor", "# Agent State Machine\n\nNo current state here.\n", "no Current state block found"},
+		{"no yaml fence", "## Current state\n\nstate: idea\n", "no yaml code block found"},
+		{"unterminated fence", "## Current state\n\n```yaml\nstate: idea\n", "no closing code block found"},
+		{"anchor is not a mapping", "## Current state\n\n```yaml\n- state: idea\n```\n", "not a mapping"},
+		{"anchor is not yaml", "## Current state\n\n```yaml\nstate: [idea\n```\n", "router state"},
+		// The anchor's key set is closed on the way in, so a key the reader
+		// would reject is refused on the way out too rather than being
+		// written into a document that would then fail to load.
+		{"anchor carries an unknown key", "## Current state\n\n```yaml\nstate: idea\nproject_note: extra\n```\n", "project_note"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, path, mtime := writeRouterV2Fixture(t, tc.content)
+
+			err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime)
+			if err == nil {
+				t.Fatal("WriteRouterStateV2() expected an error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("WriteRouterStateV2() error = %v, want it to mention %q", err, tc.wantErr)
+			}
+			if got := readFileString(t, path); got != tc.content {
+				t.Error("file changed despite a refused write")
+			}
+		})
+	}
+}
+
+func TestWriteRouterStateV2_refusesMissingFile(t *testing.T) {
+	root := t.TempDir()
+
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, time.Now())
+	if err == nil {
+		t.Fatal("WriteRouterStateV2() expected an error for a missing router.md")
+	}
+	if !strings.Contains(err.Error(), "router.md") {
+		t.Errorf("WriteRouterStateV2() error = %v, want it to name router.md", err)
+	}
+}
+
+func TestWriteRouterStateV2_refusesARouterItCouldNotReadBack(t *testing.T) {
+	content := strings.Replace(routerV2FixtureContent(), "state: design", "state: audit-pending", 1)
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime)
+	if !errors.Is(err, ErrV2InvalidLifecycle) {
+		t.Fatalf("WriteRouterStateV2() error = %v, want ErrV2InvalidLifecycle", err)
+	}
+	if got := readFileString(t, path); got != content {
+		t.Error("file changed despite content that could not be read back")
+	}
+}
+
+func TestWriteRouterStateV2_roundTripsThroughReadStateV2(t *testing.T) {
+	content := routerV2FixtureContent()
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O012", Task: "T034"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	state, err := NewRouterReader().ReadStateV2(readFileString(t, path))
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Objective != "O012" || state.Task != "T034" {
+		t.Errorf("round trip gave objective %q task %q, want O012/T034", state.Objective, state.Task)
+	}
+	if state.State != RouterPhaseDesign {
+		t.Errorf("state changed to %q, want design", state.State)
+	}
+	if !strings.Contains(state.NextAction, "Turn a rough idea") {
+		t.Errorf("next_action changed to %q", state.NextAction)
+	}
+}
+
+func TestWriteRouterStateV2_preservesCRLFLineEndings(t *testing.T) {
+	content := strings.ReplaceAll(routerV2FixtureContent(), "\n", "\r\n")
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	got := readFileString(t, path)
+	if strings.Contains(strings.ReplaceAll(got, "\r\n", ""), "\n") {
+		t.Error("CRLF router gained bare LF line endings")
+	}
+	want := strings.Replace(content, "objective: none", "objective: O001", 1)
+	if got != want {
+		t.Errorf("CRLF router changed beyond the selection key:\n%q", got)
+	}
+}

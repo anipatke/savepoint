@@ -701,3 +701,93 @@ func TestNext_packageDoesNotImportMigrate(t *testing.T) {
 		}
 	}
 }
+
+// TestDataPackage_staysBeneathEverySurfaceItFeeds proves internal/data
+// imports none of internal/resume, internal/board, internal/doctor, or
+// internal/migrate (E48 T007). The projection this package computes is
+// meant to be consumed by every one of those surfaces; a package that
+// imported any of them back would mean the projection had started leaning
+// on how one particular consumer renders or reports it, which is exactly
+// the parallel-interpretation failure mode E48-Detail's "one projection,
+// computed above the gates and below every surface" design commits against.
+func TestDataPackage_staysBeneathEverySurfaceItFeeds(t *testing.T) {
+	if _, err := os.Stat("next.go"); err != nil {
+		t.Skipf("package source is not beside the test binary: %v", err)
+	}
+	pkg, err := build.ImportDir(".", build.IgnoreVendor)
+	if err != nil {
+		t.Fatalf("scan package imports: %v", err)
+	}
+	forbidden := []string{"/internal/resume", "/internal/board", "/internal/doctor", "/internal/migrate"}
+	for _, imported := range append(pkg.Imports, pkg.TestImports...) {
+		for _, suffix := range forbidden {
+			if strings.HasSuffix(imported, suffix) {
+				t.Errorf("internal/data imports %s, which internal/data must stay beneath rather than depend on", imported)
+			}
+		}
+	}
+}
+
+// TestResolveNext_nilInputsReturnAValueRatherThanPanicking covers the
+// boundary a long-running consumer reaches that a command does not: the
+// board holds a NextInput across reloads, so it can call with a load that
+// has not completed or did not succeed. An empty project is the reading;
+// reporting the failed load stays the caller's job.
+func TestResolveNext_nilInputsReturnAValueRatherThanPanicking(t *testing.T) {
+	index := &V2Index{Objectives: map[string]*ObjectiveV2{}, Tasks: map[string]*TaskV2{}}
+	router := &RouterStateV2{State: RouterPhaseDesign}
+
+	cases := []struct {
+		name  string
+		input NextInput
+		want  NextKind
+	}{
+		{"nil index", NextInput{Router: router}, NextPlanObjective},
+		{"nil router", NextInput{Index: index}, NextPlanObjective},
+		{"both nil", NextInput{}, NextPlanObjective},
+		{"zero value", NextInput{}, NextPlanObjective},
+		{
+			name:  "both nil with migration pending",
+			input: NextInput{Migration: MigrationState{Pending: true, OperationID: "op-1"}},
+			want:  NextPendingMigration,
+		},
+		{
+			name:  "nil index with migration pending",
+			input: NextInput{Router: router, Migration: MigrationState{Pending: true, OperationID: "op-2"}},
+			want:  NextPendingMigration,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			next := ResolveNext(tc.input)
+			if next.Kind != tc.want {
+				t.Errorf("ResolveNext().Kind = %q, want %q", next.Kind, tc.want)
+			}
+			if next.Objective != nil || next.Task != nil {
+				t.Errorf("ResolveNext() selected a record from an absent project: %+v", next)
+			}
+			if next.SelectionDiagnostic != nil {
+				t.Errorf("ResolveNext() reported a selection diagnostic for an absent selection: %+v", next.SelectionDiagnostic)
+			}
+			if len(next.Issues) != 0 {
+				t.Errorf("ResolveNext() reported %d issues from an absent project", len(next.Issues))
+			}
+		})
+	}
+}
+
+// TestResolveNext_nilInputMatchesAnEmptyProject pins the guard to the
+// reading it claims: an absent index answers exactly as a project that
+// loaded and has nothing in it.
+func TestResolveNext_nilInputMatchesAnEmptyProject(t *testing.T) {
+	empty := ResolveNext(NextInput{
+		Index:  &V2Index{},
+		Router: &RouterStateV2{State: RouterPhaseIdea},
+	})
+	absent := ResolveNext(NextInput{})
+
+	if empty.Kind != absent.Kind {
+		t.Errorf("empty project resolved %q, absent input resolved %q", empty.Kind, absent.Kind)
+	}
+}

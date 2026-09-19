@@ -71,7 +71,7 @@ func TestRender_objectiveDependency(t *testing.T) {
 		}},
 	}
 	text := renderText(next)
-	if !strings.Contains(text, "Blocked: The owning Objective is waiting on Objective O005, which is not done yet.") {
+	if !strings.Contains(text, "Blocked: The owning Objective is waiting: Objective O005 is not done yet.") {
 		t.Fatalf("renderText() = %q, want it to name the Objective-level wait", text)
 	}
 }
@@ -132,8 +132,10 @@ func TestRender_checkNeeded(t *testing.T) {
 }
 
 // TestRender_clearanceStatesAreDistinct proves missing, needs_work, stale,
-// unknown, and current each render in their own words, naming the Check and
-// the recorded freshness basis when one exists.
+// unknown, and current each render in their own words — plus the sixth
+// sentence, for the CLEAR Check whose current assessment lacks independent
+// checker provenance — naming the Check and the recorded freshness basis when
+// one exists.
 func TestRender_clearanceStatesAreDistinct(t *testing.T) {
 	assessedAt := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	cases := []struct {
@@ -147,6 +149,14 @@ func TestRender_clearanceStatesAreDistinct(t *testing.T) {
 			State: data.FreshnessStale, Check: "C002", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "S1"}, AssessedAt: assessedAt, Basis: "diff review",
 		}}, "Check C002 is recorded CLEAR, but its freshness assessment does not name it current — clearance is stale. Assessed stale by checker session S1 on 2026-09-01, basis: diff review."},
 		{"unknown", &data.Clearance{State: data.ClearanceUnknown, Check: "C003"}, "Check C003 is recorded CLEAR, but no freshness assessment has ever been recorded for it — clearance is unknown."},
+		// ResolveClearance also reports a CLEAR Check whose current assessment
+		// carries no independent checker session as unknown, but with that
+		// assessment attached. It is a different fact to act on, so it gets its
+		// own sentence. Both V2 decoders refuse the shapes that produce it, so
+		// it is unreachable from a project on disk and proven here instead.
+		{"unknown without checker provenance", &data.Clearance{State: data.ClearanceUnknown, Check: "C005", Freshness: &data.Freshness{
+			State: data.FreshnessCurrent, Check: "C005", AssessedBy: data.Actor{Role: data.ActorRoleExecutor, Session: "S3"}, AssessedAt: assessedAt, Basis: "self-reported",
+		}}, "Check C005 is recorded CLEAR and its freshness assessment names it current, but that evidence carries no independent checker session — clearance is not independently established. Assessed current by executor session S3 on 2026-09-01, basis: self-reported."},
 		{"current", &data.Clearance{State: data.ClearanceCurrent, Check: "C004", Freshness: &data.Freshness{
 			State: data.FreshnessCurrent, Check: "C004", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "S2"}, AssessedAt: assessedAt, Basis: "reran the suite",
 		}}, "Check C004 is recorded CLEAR and its freshness assessment names it current. Assessed current by checker session S2 on 2026-09-01, basis: reran the suite."},
@@ -154,12 +164,12 @@ func TestRender_clearanceStatesAreDistinct(t *testing.T) {
 
 	seen := make(map[string]bool, len(cases))
 	for _, c := range cases {
-		got := clearancePhrase(c.clearance)
+		got := ClearancePhrase(c.clearance)
 		if got != c.want {
-			t.Errorf("%s: clearancePhrase() = %q, want %q", c.name, got, c.want)
+			t.Errorf("%s: ClearancePhrase() = %q, want %q", c.name, got, c.want)
 		}
 		if seen[got] {
-			t.Errorf("%s: clearancePhrase() = %q duplicates another state's wording", c.name, got)
+			t.Errorf("%s: ClearancePhrase() = %q duplicates another state's wording", c.name, got)
 		}
 		seen[got] = true
 	}

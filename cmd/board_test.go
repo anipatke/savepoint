@@ -23,7 +23,7 @@ func TestRunBoardHelp(t *testing.T) {
 	if called {
 		t.Fatal("RunBoard() called runner for help")
 	}
-	if !strings.Contains(stdout.String(), "board [--release <release>] [--epic <epic>]") {
+	if !strings.Contains(stdout.String(), "board [--release <release>] [--epic <epic>] [--objective <objective>]") {
 		t.Fatalf("help output = %q", stdout.String())
 	}
 }
@@ -63,6 +63,43 @@ func TestRunBoardReleaseAndEpic(t *testing.T) {
 	}
 	if got.Epic != "E03" {
 		t.Fatalf("Epic = %q, want E03", got.Epic)
+	}
+}
+
+func TestRunBoardObjective(t *testing.T) {
+	got := runBoardOptions(t, []string{"--objective", "O009"})
+
+	if got.Objective != "O009" {
+		t.Fatalf("Objective = %q, want O009", got.Objective)
+	}
+	if got.Release != "" || got.Epic != "" {
+		t.Fatalf("Release/Epic = %q/%q, want both empty", got.Release, got.Epic)
+	}
+}
+
+// TestRunBoardObjectiveAlongsideV1Filters proves parsing accepts filters from
+// both schemas and judges neither: which of them applies is decided behind the
+// runner, where the project's schema_version is known (ARCH-01).
+func TestRunBoardObjectiveAlongsideV1Filters(t *testing.T) {
+	got := runBoardOptions(t, []string{"--release", "v1", "--objective", "O009"})
+
+	if got.Release != "v1" || got.Objective != "O009" {
+		t.Fatalf("options = %+v, want both filters parsed", got)
+	}
+}
+
+func TestRunBoardObjectiveMissingValue(t *testing.T) {
+	var stdout bytes.Buffer
+
+	err := RunBoard(context.Background(), []string{"--objective"}, &stdout, func(BoardOptions) error {
+		return nil
+	})
+
+	if err == nil {
+		t.Fatal("RunBoard() error = nil, want missing value error")
+	}
+	if !strings.Contains(err.Error(), "--objective requires a value") {
+		t.Fatalf("error = %q", err.Error())
 	}
 }
 

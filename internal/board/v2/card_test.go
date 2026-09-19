@@ -1,0 +1,302 @@
+package v2
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
+	"github.com/opencode/savepoint/internal/data"
+)
+
+// fixtureCard builds a card from values a resolver would have returned, with no
+// project behind it. Every rendering test below uses it, which is what proves
+// the renderer reads the resolved values and nothing else: there is no index,
+// no Check, and no dependency here to inspect.
+func fixtureCard(task *data.TaskV2, clearance data.Clearance, decision data.GateDecision) TaskCard {
+	return TaskCard{
+		Task:        task,
+		Clearance:   clearance,
+		Decision:    decision,
+		ByException: decision.AllowedByException,
+	}
+}
+
+func fixtureTask(id, title string, status data.ColumnType, stage data.ProgressStage) *data.TaskV2 {
+	return &data.TaskV2{ID: id, Title: title, Objective: "O001", Status: status, Stage: stage}
+}
+
+func renderedText(card TaskCard, width int, focused bool) string {
+	return xansi.Strip(renderCard(card, width, focused))
+}
+
+func TestRenderCardLabelsWithTheTitleAndCarriesTheIdentity(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T001", "Open the board a V2 project already has", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+
+	got := renderedText(card, 40, false)
+
+	if !strings.Contains(got, "Open the board a V2 project") {
+		t.Errorf("card does not carry its title:\n%s", got)
+	}
+	if !strings.Contains(got, "T001") {
+		t.Errorf("card does not carry its T### identity:\n%s", got)
+	}
+	if strings.Contains(got, "O001") {
+		t.Errorf("card shows its objective reference as display language:\n%s", got)
+	}
+}
+
+// TestRenderCardReadsOnlyResolvedValues is the derive-nothing proof. The
+// clearance says stale while naming no Check and carrying no freshness
+// assessment, and the decision reports a dependency wait over a target that
+// does not exist in any project. A renderer that re-derived any of it would
+// have nothing to derive from and could not produce these badges.
+func TestRenderCardReadsOnlyResolvedValues(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T010", "Carry what the resolvers said", data.ColumnInProgress, data.StageAudit),
+		data.Clearance{State: data.ClearanceStale},
+		data.GateDecision{Blockers: []data.GateBlocker{
+			{Kind: data.GateBlockDependency, Dependency: &data.DependencyBlock{Target: "T999"}},
+			{Kind: data.GateBlockOwnerAcceptance},
+		}},
+	)
+
+	got := renderedText(card, 44, false)
+
+	for _, want := range []string{"AUDIT", "STALE", "WAITS T999", "OWNER"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("card missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates keeps the card from
+// saying the same fact twice in two wordings.
+func TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T011", "One statement per fact", data.ColumnInProgress, data.StageAudit),
+		data.Clearance{State: data.ClearanceNeedsWork},
+		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockClearanceNeedsWork}}},
+	)
+
+	got := renderedText(card, 44, false)
+
+	if count := strings.Count(got, "NEEDS WORK"); count != 1 {
+		t.Errorf("card states NEEDS WORK %d times, want exactly one:\n%s", count, got)
+	}
+}
+
+func TestRenderCardDistinguishesDoneByException(t *testing.T) {
+	ordinary := fixtureCard(
+		fixtureTask("T020", "Closed the ordinary way", data.ColumnDone, ""),
+		data.Clearance{State: data.ClearanceCurrent},
+		data.GateDecision{},
+	)
+	exception := TaskCard{
+		Task:        fixtureTask("T021", "Closed by a recorded exception", data.ColumnDone, ""),
+		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
+		ByException: true,
+	}
+	stale := fixtureCard(
+		fixtureTask("T022", "Closed, and the check went stale", data.ColumnDone, ""),
+		data.Clearance{State: data.ClearanceStale},
+		data.GateDecision{},
+	)
+
+	ordinaryText := renderedText(ordinary, 44, false)
+	exceptionText := renderedText(exception, 44, false)
+	staleText := renderedText(stale, 44, false)
+
+	if !strings.Contains(ordinaryText, "✓ DONE") {
+		t.Errorf("an ordinary done card does not read as finished:\n%s", ordinaryText)
+	}
+	if !strings.Contains(exceptionText, "BY EXCEPTION") {
+		t.Errorf("a done-by-exception card does not name the exception:\n%s", exceptionText)
+	}
+	if strings.Contains(exceptionText, "✓ DONE") {
+		t.Errorf("a done-by-exception card reads as an ordinary done:\n%s", exceptionText)
+	}
+	if !strings.Contains(staleText, "⚠ DONE") || !strings.Contains(staleText, "STALE") {
+		t.Errorf("a stale done card does not read as needing attention:\n%s", staleText)
+	}
+}
+
+func TestRenderCardStageAbsentOffAnInProgressTask(t *testing.T) {
+	planned := renderedText(fixtureCard(
+		fixtureTask("T030", "Not started", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	), 40, false)
+
+	for _, stage := range []string{"BUILD", "TEST", "AUDIT"} {
+		if strings.Contains(planned, stage) {
+			t.Errorf("a planned card carries stage %q:\n%s", stage, planned)
+		}
+	}
+}
+
+// TestRenderCardFocusChangesColorNotGeometry holds the visual identity's rule
+// that a layout must not move under focus.
+func TestRenderCardFocusChangesColorNotGeometry(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	card := fixtureCard(
+		fixtureTask("T040", "A card that must not move when focused", data.ColumnInProgress, data.StageBuild),
+		data.Clearance{State: data.ClearanceCurrent},
+		data.GateDecision{Allowed: true},
+	)
+
+	unfocused := renderCard(card, 40, false)
+	focused := renderCard(card, 40, true)
+
+	if lipgloss.Width(unfocused) != lipgloss.Width(focused) {
+		t.Errorf("focused width %d, unfocused width %d", lipgloss.Width(focused), lipgloss.Width(unfocused))
+	}
+	if lipgloss.Height(unfocused) != lipgloss.Height(focused) {
+		t.Errorf("focused height %d, unfocused height %d", lipgloss.Height(focused), lipgloss.Height(unfocused))
+	}
+	if xansi.Strip(unfocused) != xansi.Strip(focused) {
+		t.Errorf("focus changed the card's text, not only its accent:\n%s\n%s", xansi.Strip(unfocused), xansi.Strip(focused))
+	}
+	if unfocused == focused {
+		t.Error("focus produced an identical rendering; the accent must change")
+	}
+}
+
+func TestRenderCardNeverExceedsItsWidth(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T050", "A title long enough to need more than one line at any sensible width", data.ColumnInProgress, data.StageAudit),
+		data.Clearance{State: data.ClearanceUnknown},
+		data.GateDecision{Blockers: []data.GateBlocker{
+			{Kind: data.GateBlockObjectiveDependency, ObjectiveDependency: &data.ObjectiveDependencyBlock{Target: "O009"}},
+		}},
+	)
+
+	for _, width := range []int{20, 28, 40, 72} {
+		for _, line := range strings.Split(renderedText(card, width, true), "\n") {
+			if lipgloss.Width(line) > width {
+				t.Errorf("at width %d a line is %d cells wide: %q", width, lipgloss.Width(line), line)
+			}
+		}
+	}
+}
+
+// TestGroupTaskCardsGroupsByRecordedStatus proves the columns come from
+// TaskV2.Status and that resolution reaches every Task.
+func TestGroupTaskCardsGroupsByRecordedStatus(t *testing.T) {
+	root := writeBadgeProject(t)
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("fixture project did not load: %s", loaded.Diagnostic)
+	}
+
+	grouped := groupTaskCards(loaded.State.Index)
+
+	if len(grouped) != 3 {
+		t.Errorf("grouped into %d columns, want exactly three", len(grouped))
+	}
+	counts := map[data.ColumnType]int{data.ColumnPlanned: 2, data.ColumnInProgress: 4, data.ColumnDone: 3}
+	for column, want := range counts {
+		if got := len(grouped[column]); got != want {
+			t.Errorf("column %q holds %d cards, want %d", column, got, want)
+		}
+	}
+	for column, cards := range grouped {
+		for _, card := range cards {
+			if card.Task.Status != column {
+				t.Errorf("card %s with status %q sits in column %q", card.Task.ID, card.Task.Status, column)
+			}
+		}
+	}
+
+	planned := grouped[data.ColumnPlanned]
+	if len(planned) < 2 || planned[0].Task.ID != "T001" || planned[1].Task.ID != "T002" {
+		t.Errorf("planned cards = %v, want ascending Task ID order", cardIDs(planned))
+	}
+}
+
+// TestGroupTaskCardsResolvesTheSameDecisionTheProjectionDoes proves a card and
+// the Next area cannot disagree: for the Task the projection selected, the
+// card's decision is the decision the projection carried.
+func TestGroupTaskCardsResolvesTheSameDecisionTheProjectionDoes(t *testing.T) {
+	root := writeBadgeProject(t)
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("fixture project did not load: %s", loaded.Diagnostic)
+	}
+	next := loaded.State.Next
+	if next.Task == nil || next.GateDecision == nil {
+		t.Fatalf("fixture projection selected no Task with a decision: %+v", next)
+	}
+
+	card, ok := findCard(groupTaskCards(loaded.State.Index), next.Task.ID)
+	if !ok {
+		t.Fatalf("no card for the projection's selected Task %s", next.Task.ID)
+	}
+
+	if card.Decision.Allowed != next.GateDecision.Allowed || len(card.Decision.Blockers) != len(next.GateDecision.Blockers) {
+		t.Errorf("card decision %+v differs from the projection's %+v", card.Decision, *next.GateDecision)
+	}
+}
+
+// TestCardReportsAnObjectiveLevelWait proves the Objective-dependency badge
+// reaches a card from a real project: the Task itself declares no dependency,
+// so the wait can only have come from the gate decision over its owning
+// Objective.
+func TestCardReportsAnObjectiveLevelWait(t *testing.T) {
+	root := writeObjectiveDependencyProject(t)
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("fixture project did not load: %s", loaded.Diagnostic)
+	}
+
+	card, ok := findCard(groupTaskCards(loaded.State.Index), "T002")
+	if !ok {
+		t.Fatal("no card for T002")
+	}
+	if len(card.Task.DependsOn) != 0 {
+		t.Fatalf("fixture Task declares its own dependencies: %+v", card.Task.DependsOn)
+	}
+
+	got := renderedText(card, 44, false)
+	if !strings.Contains(got, "OBJECTIVE WAITS O001") {
+		t.Errorf("card does not report the Objective-level wait:\n%s", got)
+	}
+}
+
+func TestGroupTaskCardsHandlesAProjectWithNoIndex(t *testing.T) {
+	grouped := groupTaskCards(nil)
+
+	if len(grouped) != 3 {
+		t.Fatalf("grouped into %d columns, want three empty ones", len(grouped))
+	}
+	for column, cards := range grouped {
+		if len(cards) != 0 {
+			t.Errorf("column %q holds %d cards over no index", column, len(cards))
+		}
+	}
+}
+
+func cardIDs(cards []TaskCard) []string {
+	ids := make([]string, 0, len(cards))
+	for _, card := range cards {
+		ids = append(ids, card.Task.ID)
+	}
+	return ids
+}
+
+func findCard(grouped map[data.ColumnType][]TaskCard, id string) (TaskCard, bool) {
+	for _, cards := range grouped {
+		for _, card := range cards {
+			if card.Task.ID == id {
+				return card, true
+			}
+		}
+	}
+	return TaskCard{}, false
+}

@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v2
-epic: E48-next-resume
-task: E48-next-resume/T004-say-what-the-evidence-actually-shows
-next_action: E48-next-resume/T004-say-what-the-evidence-actually-shows is built and awaiting user review; only the user may mark it done. Next planned task after that is E48-next-resume/T005-reopen-a-project-without-changing-it.
+epic: E49-objective-board
+task: E49-objective-board/T010-read-it-anywhere-and-prove-one-interpretation
+next_action: Build E49-objective-board/T010-read-it-anywhere-and-prove-one-interpretation.
 ```
 
 ## State → action

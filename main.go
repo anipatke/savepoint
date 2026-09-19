@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/opencode/savepoint/cmd"
@@ -14,6 +17,7 @@ import (
 	"github.com/opencode/savepoint/internal/doctor"
 	savepointinit "github.com/opencode/savepoint/internal/init"
 	"github.com/opencode/savepoint/internal/migrate"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
 //go:embed templates/project
@@ -46,7 +50,11 @@ func main() {
 			os.Exit(0)
 		case "board":
 			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
-				return board.RunWithFilters(opts.Release, opts.Epic)
+				return board.RunWithFilters(board.Filters{
+					Release:   opts.Release,
+					Epic:      opts.Epic,
+					Objective: opts.Objective,
+				})
 			}); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -68,6 +76,12 @@ func main() {
 			os.Exit(0)
 		case "migrate":
 			code, err := cmd.RunMigrate(context.Background(), args[1:], os.Stdout, migrateRunner)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			os.Exit(code)
+		case "resume":
+			code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
@@ -148,6 +162,101 @@ func migrateRunner(ctx context.Context, opts cmd.MigrateOptions) (int, error) {
 		Now:            time.Now,
 		NewOperationID: migrate.NewOperationID,
 	})
+}
+
+// resumeRunner is the production wiring for the resume command: real stdout,
+// matching upgradeAssetsRunner and migrateRunner above. All behavior lives in
+// runResume, which is unit-testable with an injected writer.
+func resumeRunner(ctx context.Context, opts cmd.ResumeOptions) (int, error) {
+	return runResume(opts.Dir, os.Stdout)
+}
+
+// runResume performs one `savepoint resume` invocation: it resolves opts.Dir
+// exactly as migrate does (ARCH-03), reads any pending migration state before
+// anything else (a project mid-conversion has records that do not yet mean
+// what they appear to, regardless of what schema_version currently reads),
+// then — for an intact V2 project — loads the project, reads its V2 router,
+// resolves the Next projection, and renders it to stdout. It performs no
+// write on any path, including every failure path: every read here is
+// os.ReadFile, os.Stat, or a pure computation, never a write. The V1-project
+// case reports through stdout as an explanatory message (exit 1, no error),
+// matching upgradeAssetsRunner's own V1 migrate-route note; every other
+// nonzero path returns an error so the dispatch above prints it to stderr.
+func runResume(dir string, stdout io.Writer) (int, error) {
+	root, err := migrate.ResolveTarget(dir)
+	if err != nil {
+		return 1, resumeTargetError(dir, err)
+	}
+	savepointRoot := filepath.Join(root, ".savepoint")
+
+	pending, err := migrate.PendingOperation(root)
+	if err != nil {
+		return 1, fmt.Errorf("resume: %w", err)
+	}
+	if pending != nil {
+		next := data.ResolveNext(data.NextInput{
+			Migration: data.MigrationState{Pending: true, OperationID: pending.OperationID},
+		})
+		if err := resume.Render(stdout, next); err != nil {
+			return 1, fmt.Errorf("resume: writing output: %w", err)
+		}
+		return 0, nil
+	}
+
+	version, err := data.ReadSchemaVersion(filepath.Join(savepointRoot, "config.yml"))
+	if err != nil {
+		return 1, fmt.Errorf("resume: %w", err)
+	}
+	if version != data.SchemaVersionV2 {
+		fmt.Fprintf(stdout, "resume: this project is schema_version %s; run `savepoint migrate` to move it to schema_version 2 before resume can project its current state\n", schemaVersionLabel(version))
+		return 1, nil
+	}
+
+	project, err := data.LoadProject(savepointRoot)
+	if err != nil {
+		return 1, fmt.Errorf("resume: loading project: %w", err)
+	}
+
+	routerContent, err := os.ReadFile(filepath.Join(savepointRoot, "router.md"))
+	if err != nil {
+		return 1, fmt.Errorf("resume: reading router: %w", err)
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(routerContent))
+	if err != nil {
+		return 1, fmt.Errorf("resume: reading router: %w", err)
+	}
+
+	next := data.ResolveNext(data.NextInput{Index: project.V2, Router: router})
+
+	if err := resume.Render(stdout, next); err != nil {
+		return 1, fmt.Errorf("resume: writing output: %w", err)
+	}
+	return 0, nil
+}
+
+// resumeTargetError names migrate.ResolveTarget's two target diagnostics for
+// the command the user actually ran. Resolution is shared read-only behavior
+// (ARCH-03), but its sentinels spell "migrate:", so without this a failed
+// `savepoint resume /typo` reports a migrate error for a resume invocation.
+func resumeTargetError(dir string, err error) error {
+	switch {
+	case errors.Is(err, migrate.ErrTargetMissing):
+		return fmt.Errorf("resume: target directory does not exist: %s", dir)
+	case errors.Is(err, migrate.ErrTargetNotSavepoint):
+		return fmt.Errorf("resume: target directory is not a Savepoint project: %s has no .savepoint directory", dir)
+	default:
+		return fmt.Errorf("resume: %w", err)
+	}
+}
+
+// schemaVersionLabel names the schema_version a V1-vs-V2 branch read, for the
+// message runResume prints rather than data.SchemaVersion's internal zero
+// value (SchemaVersionV1 is 0 as a Go sentinel, not a declared "version 0").
+func schemaVersionLabel(v data.SchemaVersion) string {
+	if v == data.SchemaVersionV2 {
+		return "2"
+	}
+	return "1"
 }
 
 func initRunner(ctx context.Context, opts cmd.InitOptions) error {
