@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v2
-epic: E49-objective-board
-task: E49-objective-board/T010-read-it-anywhere-and-prove-one-interpretation
-next_action: Build E49-objective-board/T010-read-it-anywhere-and-prove-one-interpretation.
+epic: E51-first-class-releases
+task: E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy
+next_action: Build E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy.
 ```
 
 ## State → action

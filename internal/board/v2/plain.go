@@ -68,7 +68,7 @@ func renderPlain(state ProjectState, selected string) string {
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, plainIssuesSummary(state.Issues.Rows))
 
-	return b.String()
+	return stripTerminalControls(b.String())
 }
 
 func plainIssuesSummary(rows []IssueRow) string {

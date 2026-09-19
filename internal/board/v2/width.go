@@ -2,6 +2,7 @@ package v2
 
 import (
 	"strings"
+	"unicode"
 
 	xansi "github.com/charmbracelet/x/ansi"
 )
@@ -41,4 +42,24 @@ func truncateCells(text string, width int) string {
 // use this helper because a focus change must not change their geometry.
 func fitLine(text string, width int) string {
 	return truncateCells(strings.ReplaceAll(text, "\n", " "), terminalWidthOrOne(width))
+}
+
+// stripTerminalControls makes redirected output plain even when authored
+// record text contains YAML-escaped ANSI or other terminal control bytes.
+// Newlines produced by the renderer remain structural; authored tabs become
+// spaces and other controls are removed.
+func stripTerminalControls(text string) string {
+	text = xansi.Strip(text)
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n':
+			return r
+		case r == '\t':
+			return ' '
+		case unicode.IsControl(r):
+			return -1
+		default:
+			return r
+		}
+	}, text)
 }
