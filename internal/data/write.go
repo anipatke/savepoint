@@ -1014,6 +1014,9 @@ type NewCheckV2 struct {
 // content is validated as a decodable CheckV2 before the file is created, so
 // a rejected record leaves no file behind.
 func CreateCheckV2(root string, index *V2Index, fields NewCheckV2) (*CheckV2, error) {
+	if fields.Scope.Kind == CheckScopeRelease && !checkScopeTargetExists(index, fields.Scope) {
+		return nil, fmt.Errorf("%w: check scope names missing release %s", ErrV2CheckMissingScopeTarget, fields.Scope.ID)
+	}
 	id := nextV2CheckID(index)
 
 	raw := checkV2Frontmatter{

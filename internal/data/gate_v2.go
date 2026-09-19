@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// ClearanceState is the resolved clearance for a Task or Objective's
+// ClearanceState is the resolved clearance for a Task, Objective, or Release's
 // recorded evidence. It is derived only from Checks and freshness
 // assessments already present in the loaded index — never from file
 // scanning, hashing, timestamp comparison, or Git inspection.
@@ -31,7 +31,7 @@ const (
 	ClearanceMissing ClearanceState = "missing"
 )
 
-// Clearance is the resolved clearance for one Task or Objective: the state
+// Clearance is the resolved clearance for one Task, Objective, or Release: the state
 // it landed in, the latest Check it was derived from, and the freshness
 // assessment consulted, if any (which carries the recorded basis).
 type Clearance struct {
@@ -41,8 +41,8 @@ type Clearance struct {
 }
 
 // ResolveClearance resolves targetID's clearance from index, re-reading the
-// latest Check and evidence already loaded there. targetID may name either a
-// Task or an Objective; both share the same evidence shape. It returns a
+// latest Check and evidence already loaded there. targetID may name a Task,
+// Objective, or Release; all three share the same evidence shape. It returns a
 // decision for every reachable state rather than an error: a target with no
 // evidence and no Check resolves to missing, never a failure.
 func ResolveClearance(index *V2Index, targetID string) Clearance {
@@ -93,8 +93,8 @@ func untrustedCurrentClearance(index *V2Index, targetID, checkID string) bool {
 }
 
 // evidenceFreshness looks up targetID's recorded freshness assessment,
-// checking Tasks then Objectives. It returns nil when the target carries no
-// evidence or no freshness block, never a healed value.
+// checking Tasks, Objectives, then Releases. It returns nil when the target
+// carries no evidence or no freshness block, never a healed value.
 func evidenceFreshness(index *V2Index, targetID string) *Freshness {
 	if task, ok := index.Tasks[targetID]; ok {
 		if task.Evidence == nil {
@@ -107,6 +107,12 @@ func evidenceFreshness(index *V2Index, targetID string) *Freshness {
 			return nil
 		}
 		return objective.Evidence.Freshness
+	}
+	if release, ok := index.Releases[targetID]; ok {
+		if release.Evidence == nil {
+			return nil
+		}
+		return release.Evidence.Freshness
 	}
 	return nil
 }
@@ -148,6 +154,15 @@ const (
 	// and why, so a consumer can explain that the wait is at the Objective
 	// level rather than the Task's own dependencies.
 	GateBlockObjectiveDependency GateBlockKind = "objective_dependency"
+	// GateBlockReleaseNoObjectives means a Release has no derived member
+	// Objectives and therefore cannot claim its delivery promise is complete.
+	GateBlockReleaseNoObjectives GateBlockKind = "release_no_objectives"
+	// GateBlockReleaseObjectiveIncomplete means one member Objective did not
+	// satisfy its existing completion decision.
+	GateBlockReleaseObjectiveIncomplete GateBlockKind = "release_objective_incomplete"
+	// GateBlockReleaseIssueUnresolved means a material Issue linked to the
+	// current Release Check is still open or in progress.
+	GateBlockReleaseIssueUnresolved GateBlockKind = "release_issue_unresolved"
 )
 
 // GateBlocker names one unmet requirement blocking a start, advance, or
@@ -159,6 +174,8 @@ const (
 type GateBlocker struct {
 	Kind                GateBlockKind
 	Detail              string
+	Objective           string
+	Issue               string
 	Dependency          *DependencyBlock
 	ObjectiveDependency *ObjectiveDependencyBlock
 }
@@ -169,11 +186,13 @@ type GateBlocker struct {
 // allowed only through a recorded exception sets AllowedByException and
 // Exception instead of reporting a CLEAR result or current clearance.
 type GateDecision struct {
-	Allowed            bool
-	Actor              ActorRole // meaningful only when Allowed is true
-	Blockers           []GateBlocker
-	AllowedByException bool
-	Exception          *Exception // set only when AllowedByException
+	Allowed                   bool
+	Actor                     ActorRole // meaningful only when Allowed is true
+	Blockers                  []GateBlocker
+	AllowedByException        bool
+	Exception                 *Exception // set only when AllowedByException
+	AllowedByLegacyCompletion bool
+	LegacyCompletion          *LegacyCompletionReference
 }
 
 // ResolveTaskStart decides whether taskID may move from planned to

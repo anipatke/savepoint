@@ -1,6 +1,7 @@
 ---
 id: E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
-status: planned
+status: in_progress
+stage: build
 objective: Decide Release completion from member Objectives, independent Release evidence, material Issues, and acceptance by the owner.
 depends_on:
   - E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy
@@ -34,27 +35,30 @@ A Release record is only first-class if Savepoint can distinguish work in progre
 
 ## Acceptance Criteria
 
-- [ ] `Check.scope.kind` accepts exactly `task|objective|release`; a Release Check target must resolve to an indexed Release.
-- [ ] Release Checks use the existing immutable ID, reviewed-scope, supersession, Issue, freshness, and executor/checker-independence contracts.
-- [ ] Release completion is refused when the Release has no member Objectives or any member Objective is not validly complete.
-- [ ] Release completion is refused for missing, unknown, stale, NEEDS WORK, or superseded Release evidence.
-- [ ] Release completion is refused while a material linked Issue remains unresolved unless a scoped owner exception explicitly covers it.
-- [ ] A current CLEAR Release Check still requires owner acceptance naming that exact Check before `status: done` is allowed.
-- [ ] A material Release/Objective requirement change or a superseding Check makes prior freshness or owner acceptance inapplicable without silently rewriting history.
-- [ ] A migrated legacy-completion reference can explain historical `done`, but is typed and displayed separately and never resolves as a new CLEAR Check.
-- [ ] Managed acceptance and lifecycle writes preserve unknown fields and body bytes, reject stale source documents, and are idempotent on an unchanged second call.
-- [ ] Existing Task and Objective gate outcomes are unchanged by the addition of Release scope.
+- [x] `Check.scope.kind` accepts exactly `task|objective|release`; a Release Check target must resolve to an indexed Release.
+- [x] Release Checks use the existing immutable ID, reviewed-scope, supersession, Issue, freshness, and executor/checker-independence contracts.
+- [x] Release completion is refused when the Release has no member Objectives or any member Objective is not validly complete.
+- [x] Release completion is refused for missing, unknown, stale, NEEDS WORK, or superseded Release evidence.
+- [x] Release completion is refused while a material linked Issue remains unresolved unless a scoped owner exception explicitly covers it.
+- [x] A current CLEAR Release Check still requires owner acceptance naming that exact Check before `status: done` is allowed.
+- [x] A material Release/Objective requirement change or a superseding Check makes prior freshness or owner acceptance inapplicable without silently rewriting history.
+- [x] A migrated legacy-completion reference can explain historical `done`, but is typed and displayed separately and never resolves as a new CLEAR Check.
+- [x] Managed acceptance and lifecycle writes preserve unknown fields and body bytes, reject stale source documents, and are idempotent on an unchanged second call.
+- [x] Existing Task and Objective gate outcomes are unchanged by the addition of Release scope.
 
 ## Implementation Plan
 
-- [ ] Extend the Check scope decoder and index links with Release targets.
-- [ ] Add Release evidence resolution using the existing freshness and latest/superseded Check vocabulary.
-- [ ] Add the canonical Release completion decision and blocker kinds in `internal/data`.
-- [ ] Compose member Objective completion, Release Check, Issue, exception, and owner-acceptance results without reimplementing their underlying rules.
-- [ ] Define and validate the typed historical-completion reference used only by migration.
-- [ ] Add source-preserving, mtime-guarded Release acceptance and lifecycle writes behind canonical decisions.
-- [ ] Test every refusal and allowed path, stale/superseded evidence, repeat writes, conflicts, exceptions, and non-regression of existing gates.
+- [x] Extend the Check scope decoder and index links with Release targets.
+- [x] Add Release evidence resolution using the existing freshness and latest/superseded Check vocabulary.
+- [x] Add the canonical Release completion decision and blocker kinds in `internal/data`.
+- [x] Compose member Objective completion, Release Check, Issue, exception, and owner-acceptance results without reimplementing their underlying rules.
+- [x] Define and validate the typed historical-completion reference used only by migration.
+- [x] Add source-preserving, mtime-guarded Release acceptance and lifecycle writes behind canonical decisions.
+- [x] Test every refusal and allowed path, stale/superseded evidence, repeat writes, conflicts, exceptions, and non-regression of existing gates.
 
 ## Context Log
 
-Pending.
+- Read: router, E51 detail, this task, Guardrails, and the existing Check, Evidence, Objective gate, Issue, write, project/index, discovery, parser, and gate implementations/tests.
+- Edited: `internal/data/check_v2.go`, `internal/data/errors.go`, `internal/data/gate_v2.go`, `internal/data/project.go`, `internal/data/release_v2.go`, `internal/data/write.go`; added `internal/data/release_gate_v2.go` and `internal/data/release_gate_v2_test.go`.
+- Verification: Release scope decoding/target resolution, member Objective composition, all five non-current clearance outcomes, unresolved Issue blocking and scoped exceptions, superseded acceptance/freshness, historical completion separation, source-preserving/no-op/stale writes, and existing gate non-regression are covered by `internal/data/release_gate_v2_test.go` plus the existing package suite.
+- Quality gates: `go test ./internal/data`, `go test ./...`, and `make build && make test` passed.

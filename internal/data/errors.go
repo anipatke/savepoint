@@ -37,6 +37,8 @@ var (
 	ErrV2EvidenceMalformed        = errors.New("v2 record evidence has a malformed field")
 	ErrV2EvidenceMissingReference = errors.New("v2 record evidence names a check that does not exist")
 	ErrV2CheckImmutable           = errors.New("v2 check record already exists and cannot be rewritten")
+	ErrV2ReleaseCompletionBlocked = errors.New("v2 release completion is blocked")
+	ErrV2ReleaseLegacyMalformed   = errors.New("v2 release legacy completion is malformed")
 
 	ErrV2IssueMalformed              = errors.New("v2 issue record has a malformed field")
 	ErrV2IssueMissingDuplicateTarget = errors.New("v2 issue duplicate_of names an issue that does not exist")

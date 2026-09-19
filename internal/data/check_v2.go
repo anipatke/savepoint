@@ -31,9 +31,10 @@ type CheckScopeKind string
 const (
 	CheckScopeTask      CheckScopeKind = "task"
 	CheckScopeObjective CheckScopeKind = "objective"
+	CheckScopeRelease   CheckScopeKind = "release"
 )
 
-// CheckScope identifies the single Task or Objective a Check evaluates.
+// CheckScope identifies the single Task, Objective, or Release a Check evaluates.
 type CheckScope struct {
 	Kind CheckScopeKind
 	ID   string
@@ -117,8 +118,8 @@ type checkV2Frontmatter struct {
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
-// a valid global C### ID, a scope naming a T### or O### target consistent
-// with its kind, a CLEAR or NEEDS WORK result, checked_by actor provenance,
+// a valid global C### ID, a scope naming a T###, O###, or R### target
+// consistent with its kind, a CLEAR or NEEDS WORK result, checked_by actor provenance,
 // and a parseable checked_at timestamp. A CLEAR Check must be recorded by a
 // checker; other roles may record NEEDS WORK evidence, but cannot author a
 // clearance-capable result. It also requires the non-empty execution session
@@ -220,16 +221,19 @@ func decodeCheckScope(path, checkID string, raw checkScopeFrontmatter) (CheckSco
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s missing required field scope.kind", ErrV2MissingField, path, checkID)
 	}
 	kind := CheckScopeKind(raw.Kind)
-	if kind != CheckScopeTask && kind != CheckScopeObjective {
-		return CheckScope{}, fmt.Errorf("%w: %s: check %s scope.kind %q; use task or objective", ErrV2CheckMalformed, path, checkID, raw.Kind)
+	if kind != CheckScopeTask && kind != CheckScopeObjective && kind != CheckScopeRelease {
+		return CheckScope{}, fmt.Errorf("%w: %s: check %s scope.kind %q; use task, objective, or release", ErrV2CheckMalformed, path, checkID, raw.Kind)
 	}
 	if raw.ID == "" {
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s missing required field scope.id", ErrV2MissingField, path, checkID)
 	}
 
 	pattern := taskIDPatternV2
-	if kind == CheckScopeObjective {
+	switch kind {
+	case CheckScopeObjective:
 		pattern = objectiveIDPattern
+	case CheckScopeRelease:
+		pattern = releaseIDPatternV2
 	}
 	if !pattern.MatchString(raw.ID) {
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s scope.id %q does not match scope.kind %s", ErrV2InvalidID, path, checkID, raw.ID, kind)

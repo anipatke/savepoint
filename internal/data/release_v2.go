@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -13,6 +14,20 @@ import (
 type ReleaseID = string
 
 var releaseIDPatternV2 = regexp.MustCompile(`^R[0-9]{3,}$`)
+var legacyCompletionHashPatternV2 = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+// LegacyCompletionReference records why a migrated historical Release may
+// retain status: done without pretending that archived evidence is a new V2
+// CLEAR Check. Migration owns the referenced bytes and their archive.
+type LegacyCompletionReference struct {
+	SourcePath  string
+	ArchivePath string
+	SHA256      string
+}
+
+// LegacyCompletion is a short alias for callers that name the frontmatter
+// block rather than its reference role.
+type LegacyCompletion = LegacyCompletionReference
 
 // ReleaseV2 is a strict V2 Release record. Release membership is deliberately
 // absent: it is derived from ObjectiveV2.Release when the project index is
@@ -25,13 +40,28 @@ type ReleaseV2 struct {
 	Why               string
 	SuccessConditions string
 	Boundaries        string
+	Evidence          *Evidence
+	LegacyCompletion  *LegacyCompletionReference
 	Source            V2SourceDocument
 }
 
 type releaseV2Frontmatter struct {
-	ID     string     `yaml:"id"`
-	Title  string     `yaml:"title"`
-	Status ColumnType `yaml:"status"`
+	ID                    string     `yaml:"id"`
+	Title                 string     `yaml:"title"`
+	Status                ColumnType `yaml:"status"`
+	evidenceV2Frontmatter `yaml:",inline"`
+	LegacyCompletion      *legacyCompletionV2Frontmatter `yaml:"legacy_completion"`
+}
+
+type legacyCompletionV2Frontmatter struct {
+	SourcePath  string `yaml:"source_path"`
+	ArchivePath string `yaml:"archive_path"`
+	SHA256      string `yaml:"sha256"`
+	// These aliases let migration adapters consume plain-language manifests;
+	// managed writes always emit the canonical names above.
+	Reference  string `yaml:"reference"`
+	Archive    string `yaml:"archive"`
+	SourceHash string `yaml:"source_hash"`
 }
 
 // DecodeReleaseV2 strictly decodes a Release's identity and lifecycle, while
@@ -64,6 +94,18 @@ func DecodeReleaseV2(path, content string) (*ReleaseV2, error) {
 		return nil, err
 	}
 
+	evidence, err := decodeEvidenceV2(path, "release", fields.ID, fields.evidenceV2Frontmatter)
+	if err != nil {
+		return nil, err
+	}
+	legacyCompletion, err := decodeLegacyCompletionV2(path, fields.ID, fields.LegacyCompletion)
+	if err != nil {
+		return nil, err
+	}
+	if legacyCompletion != nil && fields.Status != ColumnDone {
+		return nil, fmt.Errorf("%w: %s: release %s legacy_completion is valid only with status done", ErrV2ReleaseLegacyMalformed, path, fields.ID)
+	}
+
 	return &ReleaseV2{
 		ID:                fields.ID,
 		Title:             fields.Title,
@@ -72,8 +114,52 @@ func DecodeReleaseV2(path, content string) (*ReleaseV2, error) {
 		Why:               sections["Why"],
 		SuccessConditions: sections["Success Conditions"],
 		Boundaries:        sections["Boundaries"],
+		Evidence:          evidence,
+		LegacyCompletion:  legacyCompletion,
 		Source:            doc,
 	}, nil
+}
+
+func decodeLegacyCompletionV2(path, id string, raw *legacyCompletionV2Frontmatter) (*LegacyCompletionReference, error) {
+	if raw == nil {
+		return nil, nil
+	}
+
+	sourcePath := firstNonBlankV2(raw.SourcePath, raw.Reference)
+	if strings.TrimSpace(sourcePath) == "" {
+		return nil, fmt.Errorf("%w: %s: release %s legacy_completion requires source_path", ErrV2ReleaseLegacyMalformed, path, id)
+	}
+	archivePath := firstNonBlankV2(raw.ArchivePath, raw.Archive)
+	if strings.TrimSpace(archivePath) == "" {
+		return nil, fmt.Errorf("%w: %s: release %s legacy_completion requires archive_path", ErrV2ReleaseLegacyMalformed, path, id)
+	}
+	if !isSafeRelativeV2Path(archivePath) {
+		return nil, fmt.Errorf("%w: %s: release %s legacy_completion archive_path %q is not a confined relative path", ErrV2ReleaseLegacyMalformed, path, id, archivePath)
+	}
+
+	hash := firstNonBlankV2(raw.SHA256, raw.SourceHash)
+	if !legacyCompletionHashPatternV2.MatchString(hash) {
+		return nil, fmt.Errorf("%w: %s: release %s legacy_completion sha256 must be 64 hexadecimal characters", ErrV2ReleaseLegacyMalformed, path, id)
+	}
+
+	return &LegacyCompletionReference{SourcePath: sourcePath, ArchivePath: archivePath, SHA256: hash}, nil
+}
+
+func firstNonBlankV2(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func isSafeRelativeV2Path(path string) bool {
+	clean := filepath.Clean(path)
+	if clean == "." || filepath.IsAbs(path) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return path != ""
 }
 
 func decodeReleaseBody(path, id, body string) (map[string]string, error) {

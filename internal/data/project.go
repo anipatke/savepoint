@@ -67,7 +67,7 @@ func loadProjectV2(root string) (*Project, error) {
 // V2Index construction validates structure only: duplicate identity, path
 // safety, ownership, and reference-graph diagnostics. It does not infer
 // Check clearance, owner acceptance, or dependency satisfaction; those gates
-// belong to E43.
+// belong to the data gate resolvers.
 type V2Index struct {
 	Releases   map[string]*ReleaseV2
 	Objectives map[string]*ObjectiveV2
@@ -91,10 +91,10 @@ type V2Index struct {
 	// a recheck or proof Check that never recorded it, while the pairing rule
 	// guarantees every Check-side link appears there too.
 	CheckIssues map[string][]string
-	// ScopeChecks maps a Task or Objective ID to the IDs of the Checks that
+	// ScopeChecks maps a Task, Objective, or Release ID to the IDs of the Checks that
 	// name it as their scope target, in recorded (ascending C### ID) order.
 	ScopeChecks map[string][]string
-	// LatestCheck maps a Task or Objective ID to the most recently recorded
+	// LatestCheck maps a Task, Objective, or Release ID to the most recently recorded
 	// Check ID for that target — the last entry of ScopeChecks[id].
 	LatestCheck map[string]string
 }
@@ -330,8 +330,8 @@ func validateIssueDuplicateGraph(index *V2Index) error {
 	return nil
 }
 
-// validateEvidenceReferences resolves every Check reference named in Task
-// and Objective evidence blocks — last_check, freshness.check,
+// validateEvidenceReferences resolves every Check reference named in Task,
+// Objective, and Release evidence blocks — last_check, freshness.check,
 // owner_validation.accepted_check, and exception.check — against
 // index.Checks, so a load fails closed on a dangling reference exactly as
 // Check supersedes references do. It walks Task IDs then Objective IDs in
@@ -346,6 +346,12 @@ func validateEvidenceReferences(index *V2Index) error {
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
 		if err := checkEvidenceReferences(index, objective.Source.Path, "objective", objective.ID, objective.Evidence); err != nil {
+			return err
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(index.Releases)) {
+		release := index.Releases[id]
+		if err := checkEvidenceReferences(index, release.Source.Path, "release", release.ID, release.Evidence); err != nil {
 			return err
 		}
 	}
@@ -453,12 +459,18 @@ func normalizedV2CheckNumber(id string) string {
 }
 
 func checkScopeTargetExists(index *V2Index, scope CheckScope) bool {
+	if index == nil {
+		return false
+	}
 	switch scope.Kind {
 	case CheckScopeTask:
 		_, ok := index.Tasks[scope.ID]
 		return ok
 	case CheckScopeObjective:
 		_, ok := index.Objectives[scope.ID]
+		return ok
+	case CheckScopeRelease:
+		_, ok := index.Releases[scope.ID]
 		return ok
 	default:
 		return false
