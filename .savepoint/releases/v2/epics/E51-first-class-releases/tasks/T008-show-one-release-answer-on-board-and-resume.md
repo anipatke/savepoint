@@ -1,6 +1,7 @@
 ---
 id: E51-first-class-releases/T008-show-one-release-answer-on-board-and-resume
-status: planned
+status: in_progress
+stage: build
 objective: Present the same Release promise, evidence, readiness, and next action across board, plain output, and resume.
 depends_on:
   - E51-first-class-releases/T007-switch-releases-with-the-existing-r-key
@@ -50,15 +51,19 @@ Release selection is useful only if every surface explains the same delivery pro
 
 ## Implementation Plan
 
-- [ ] Add Release detail resolution and rendering over indexed identity plus canonical gate/evidence values.
-- [ ] Extend the Next panel and plain output with compact Release context from the projection.
-- [ ] Add shared Release wording to `internal/resume` and consume it from the board where the same fact is stated.
-- [ ] Keep historical proof, current technical clearance, and owner acceptance visually and textually separate.
-- [ ] Apply existing cell-width, truncation, monochrome, and stable-geometry helpers to every new line.
-- [ ] Extend binary-level board/resume parity fixtures across Release rungs and diagnostics.
-- [ ] Add no-write browse snapshots and deterministic repeated-output assertions.
-- [ ] Run focused board/resume tests and the unchanged no-Release matrix.
+- [x] Add Release detail resolution and rendering over indexed identity plus canonical gate/evidence values.
+- [x] Extend the Next panel and plain output with compact Release context from the projection.
+- [x] Add shared Release wording to `internal/resume` and consume it from the board where the same fact is stated.
+- [x] Keep historical proof, current technical clearance, and owner acceptance visually and textually separate.
+- [x] Apply existing cell-width, truncation, monochrome, and stable-geometry helpers to every new line.
+- [x] Extend binary-level board/resume parity fixtures across Release rungs and diagnostics.
+- [x] Add no-write browse snapshots and deterministic repeated-output assertions.
+- [x] Run focused board/resume tests and the unchanged no-Release matrix.
 
 ## Context Log
 
-Pending.
+- Read the E51 detail, this task's context files, `.savepoint/Guardrails.md`, and the active task-building skill before implementation.
+- Updated `internal/board/v2` Release detail/selector/Next rendering, `internal/resume` Release identity/evidence/action wording, and board/resume parity fixtures. Existing no-Release and V1 paths remain covered by the existing matrix.
+- Added coverage for Release detail evidence/history/issues/owner boundary, read-only selector browsing, Release rung and selection-diagnostic resume cases, and board/plain/TUI/built-command parity.
+- Quality gates passed: `go test ./internal/resume ./internal/board/v2 .`, `make build && make test`, and `git diff --check`.
+- No `.savepoint/Health-Check.md` is present, so the repository health-check step was skipped per the phase workflow.

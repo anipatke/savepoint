@@ -39,7 +39,7 @@ func renderText(next data.Next) string {
 // implementation state. It renders nothing for a rung with no selection —
 // pending migration and plan-next-Objective both carry neither.
 func identityLines(next data.Next) []string {
-	var lines []string
+	lines := ReleaseIdentityLines(next)
 	if next.Objective != nil {
 		lines = append(lines, fmt.Sprintf("Objective: %s — %s", next.Objective.ID, next.Objective.Title))
 		if next.Task == nil {
@@ -94,18 +94,67 @@ func EvidenceLines(next data.Next) []string {
 	case data.NextOwnerValidationRequired:
 		return []string{
 			"Technical clearance: " + ClearancePhrase(next.Clearance),
-			"Owner wait: " + ownerWaitPhrase(clearanceCheckID(next.Clearance)),
+			"Owner wait: " + OwnerWaitPhrase(clearanceCheckID(next.Clearance)),
 		}
 	case data.NextObjectiveIntegration:
 		lines := []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
 		if hasBlockerKind(next.GateDecision, data.GateBlockOwnerAcceptance) {
-			lines = append(lines, "Owner wait: "+ownerWaitPhrase(clearanceCheckID(next.Clearance)))
+			lines = append(lines, "Owner wait: "+OwnerWaitPhrase(clearanceCheckID(next.Clearance)))
 		}
 		return lines
+	case data.NextReleaseIntegration:
+		return releaseIntegrationLines(next)
+	case data.NextReleaseCheckNeeded:
+		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
+	case data.NextReleaseOwnerValidationRequired:
+		return []string{
+			"Technical clearance: " + ClearancePhrase(next.Clearance),
+			"Owner wait: " + OwnerWaitPhrase(clearanceCheckID(next.Clearance)),
+		}
+	case data.NextReleaseReady:
+		return releaseReadyLines(next)
 	case data.NextReady, data.NextPlanObjective:
 		return nil
 	default:
 		return nil
+	}
+}
+
+// releaseIntegrationLines reports the typed blockers that keep a selected
+// Release from reaching its Check or completion rung. Release membership and
+// gate decisions were resolved before this function runs; it only words those
+// values and never reaches back to an index.
+func releaseIntegrationLines(next data.Next) []string {
+	if next.GateDecision == nil || len(next.GateDecision.Blockers) == 0 {
+		return []string{"Release readiness: integration is not complete."}
+	}
+
+	lines := make([]string, 0, len(next.GateDecision.Blockers))
+	for _, blocker := range next.GateDecision.Blockers {
+		if blocker.Kind == data.GateBlockOwnerAcceptance {
+			lines = append(lines, "Owner wait: "+OwnerWaitPhrase(clearanceCheckID(next.Clearance)))
+			continue
+		}
+		lines = append(lines, "Release readiness: "+ReleaseBlockerPhrase(blocker))
+	}
+	return lines
+}
+
+// releaseReadyLines keeps three allowed outcomes visibly separate: a current
+// V2 Check accepted by the owner, an owner exception, and migrated historical
+// completion. None of those states is collapsed into a generic "ready" line.
+func releaseReadyLines(next data.Next) []string {
+	if next.GateDecision != nil {
+		switch {
+		case next.GateDecision.AllowedByLegacyCompletion:
+			return []string{HistoricalCompletionPhrase(releaseID(next), next.GateDecision.LegacyCompletion)}
+		case next.GateDecision.AllowedByException:
+			return []string{"Completion: " + ExceptionPhrase(next.GateDecision.Exception)}
+		}
+	}
+	return []string{
+		"Technical clearance: " + ClearancePhrase(next.Clearance),
+		ReleaseAcceptancePhrase(next.Release, next.Clearance),
 	}
 }
 
@@ -224,6 +273,17 @@ func ActionPhrase(next data.Next) string {
 		return "Ask the owner to accept the current Check."
 	case data.NextObjectiveIntegration:
 		return objectiveIntegrationNextActionPhrase(next)
+	case data.NextReleaseIntegration:
+		return releaseIntegrationNextActionPhrase(next)
+	case data.NextReleaseCheckNeeded:
+		if id := releaseID(next); id != "" {
+			return fmt.Sprintf("Record a fresh Release Check for %s.", id)
+		}
+		return "Record a fresh Release Check."
+	case data.NextReleaseOwnerValidationRequired:
+		return "Ask the owner to accept the current Release Check."
+	case data.NextReleaseReady:
+		return releaseReadyNextActionPhrase(next)
 	case data.NextReady:
 		return readyNextActionPhrase(next)
 	case data.NextPlanObjective:
@@ -252,6 +312,79 @@ func objectiveIntegrationNextActionPhrase(next data.Next) string {
 		return "Ask the owner to accept the Objective's current integration Check."
 	}
 	return fmt.Sprintf("Record the Objective %s integration Check.", next.Objective.ID)
+}
+
+func releaseIntegrationNextActionPhrase(next data.Next) string {
+	id := releaseID(next)
+	var hasObjectiveBlock, hasIssueBlock bool
+	for _, blocker := range blockers(next.GateDecision) {
+		switch blocker.Kind {
+		case data.GateBlockReleaseNoObjectives, data.GateBlockReleaseObjectiveIncomplete:
+			hasObjectiveBlock = true
+		case data.GateBlockReleaseIssueUnresolved:
+			hasIssueBlock = true
+		}
+	}
+
+	switch {
+	case hasObjectiveBlock:
+		if id != "" {
+			return fmt.Sprintf("Complete the member Objectives of Release %s before recording its Release Check.", id)
+		}
+		return "Complete the member Objectives before recording the Release Check."
+	case hasIssueBlock:
+		if id != "" {
+			return fmt.Sprintf("Resolve the material Issues blocking Release %s before completing it.", id)
+		}
+		return "Resolve the material Issues blocking the Release before completing it."
+	default:
+		if id != "" {
+			return fmt.Sprintf("Resolve the integration blockers for Release %s.", id)
+		}
+		return "Resolve the Release integration blockers."
+	}
+}
+
+func releaseReadyNextActionPhrase(next data.Next) string {
+	id := releaseID(next)
+	if next.GateDecision != nil {
+		if next.GateDecision.AllowedByLegacyCompletion {
+			if id != "" {
+				return fmt.Sprintf("Review the archived historical completion for Release %s; it is already marked done.", id)
+			}
+			return "Review the archived historical Release completion; it is already marked done."
+		}
+		if next.GateDecision.AllowedByException {
+			if id != "" {
+				return fmt.Sprintf("Record Release %s as done under the recorded exception.", id)
+			}
+			return "Record the Release as done under the recorded exception."
+		}
+	}
+	if next.Release != nil && next.Release.Status == data.ColumnDone {
+		if id != "" {
+			return fmt.Sprintf("Release %s is already done; no further Release action is required.", id)
+		}
+		return "The Release is already done; no further Release action is required."
+	}
+	if id != "" {
+		return fmt.Sprintf("Record Release %s as done.", id)
+	}
+	return "Record the Release as done."
+}
+
+func blockers(decision *data.GateDecision) []data.GateBlocker {
+	if decision == nil {
+		return nil
+	}
+	return decision.Blockers
+}
+
+func releaseID(next data.Next) string {
+	if next.Release == nil {
+		return ""
+	}
+	return next.Release.ID
 }
 
 func readyNextActionPhrase(next data.Next) string {

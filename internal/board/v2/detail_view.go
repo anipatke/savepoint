@@ -64,19 +64,31 @@ func renderDetail(detail RecordDetail, width, height, offset int) string {
 func detailLines(detail RecordDetail, width int) []string {
 	lines := identityRows(detail, width)
 
-	if detail.Kind == DetailObjective {
+	switch detail.Kind {
+	case DetailRelease:
+		lines = append(lines, detailSection("RELEASE PROMISE", releasePromiseLines(detail), width)...)
+		lines = append(lines, detailSection("MEMBER OBJECTIVES", releaseObjectiveLines(detail.MemberObjectives), width)...)
+	case DetailObjective:
 		lines = append(lines, detailSection("OWNED TASKS", refLines(detail.OwnedTasks), width)...)
 		lines = append(lines, detailSection("OBJECTIVE DEPENDENCIES", objectiveDependencyLines(detail.ObjectiveDependencies), width)...)
-	} else {
+	default:
 		lines = append(lines, detailSection("DEPENDENCIES", dependencyLines(detail.Dependencies), width)...)
 	}
 
 	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Clearance), width)...)
-	lines = append(lines, detailSection("OWNER VALIDATION", ownerValidationLines(detail.Evidence), width)...)
+	if detail.Kind == DetailRelease {
+		lines = append(lines, detailSection("RELEASE READINESS", releaseReadinessLines(detail), width)...)
+		lines = append(lines, detailSection("OWNER VALIDATION", releaseOwnerValidationLines(detail), width)...)
+	} else {
+		lines = append(lines, detailSection("OWNER VALIDATION", ownerValidationLines(detail.Evidence), width)...)
+	}
 	lines = append(lines, detailSection("EXCEPTION", exceptionLines(detail.Evidence), width)...)
 	lines = append(lines, detailSection("REPLAN", replanLines(detail.Evidence), width)...)
 	lines = append(lines, detailSection("CHECKS", checkHistoryLines(detail.Checks), width)...)
 	lines = append(lines, detailSection("ISSUES", issueLines(detail.Issues), width)...)
+	if detail.Kind == DetailRelease && detail.LegacyCompletion != nil {
+		lines = append(lines, detailSection("HISTORICAL COMPLETION", historicalCompletionLines(detail), width)...)
+	}
 	lines = append(lines, detailSection("BODY", bodyLines(detail.Body), width)...)
 
 	return lines
@@ -106,6 +118,113 @@ func identityRows(detail RecordDetail, width int) []string {
 		}
 	}
 	return lines
+}
+
+// releasePromiseLines exposes the authored Release promise as structured
+// fields, while BODY below still carries the source markdown verbatim.
+func releasePromiseLines(detail RecordDetail) []string {
+	return []string{
+		fieldRow("Outcome", orNone(detail.Outcome)),
+		fieldRow("Why", orNone(detail.Why)),
+		fieldRow("Success Conditions", orNone(detail.SuccessConditions)),
+		fieldRow("Boundaries", orNone(detail.Boundaries)),
+	}
+}
+
+// releaseObjectiveLines reports derived membership without implying that a
+// Release owns the Objective or its Tasks. The counts come from the resolved
+// detail value; the renderer reads no index and runs no completion resolver.
+func releaseObjectiveLines(entries []ReleaseObjectiveProgress) []string {
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		line := fmt.Sprintf("%s — Tasks %d/%d done; %s", refLabel(entry.Objective), entry.TasksDone, entry.TasksTotal, objectiveCompletionPhrase(entry.Decision))
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return []string{"(no member Objectives)"}
+	}
+	return lines
+}
+
+func objectiveCompletionPhrase(decision data.GateDecision) string {
+	if decision.Allowed {
+		if decision.AllowedByException {
+			return "completion allowed by exception"
+		}
+		return "completion allowed"
+	}
+	if len(decision.Blockers) == 0 {
+		return "completion not allowed"
+	}
+	if decision.Blockers[0].Detail != "" {
+		return "completion blocked: " + decision.Blockers[0].Detail
+	}
+	return "completion blocked"
+}
+
+// releaseReadinessLines reports the canonical Release completion decision.
+// Historical proof and exception permission stay distinct from current V2
+// technical clearance, even when the gate allows the Release to be done.
+func releaseReadinessLines(detail RecordDetail) []string {
+	decision := detail.ReleaseDecision
+	if decision == nil {
+		return []string{"No Release completion decision was resolved."}
+	}
+	if decision.AllowedByLegacyCompletion {
+		return []string{resume.HistoricalCompletionPhrase(detail.ID, decision.LegacyCompletion)}
+	}
+	if decision.AllowedByException {
+		return []string{"Completion: " + resume.ExceptionPhrase(decision.Exception)}
+	}
+	if decision.Allowed {
+		return []string{resume.ReleaseAcceptancePhraseForEvidence(detail.ID, detail.Evidence, &detail.Clearance)}
+	}
+
+	lines := make([]string, 0, len(decision.Blockers))
+	for _, blocker := range decision.Blockers {
+		lines = append(lines, resume.ReleaseBlockerPhrase(blocker))
+	}
+	if len(lines) == 0 {
+		return []string{"Release completion is not currently allowed."}
+	}
+	return lines
+}
+
+// releaseOwnerValidationLines makes the Release's mandatory owner boundary
+// explicit. Unlike Task and Objective records, a Release does not need an
+// owner_validation.required flag to require acceptance.
+func releaseOwnerValidationLines(detail RecordDetail) []string {
+	lines := []string{"Required: yes (Release completion)"}
+	checkID := detail.Clearance.Check
+	if checkID == "" {
+		return append(lines, "Accepted: (not recorded; a current Release Check is required first)")
+	}
+
+	if detail.Evidence != nil && detail.Evidence.OwnerValidation != nil {
+		accepted := detail.Evidence.OwnerValidation
+		if accepted.AcceptedCheck == checkID {
+			return append(lines, fmt.Sprintf("Accepted: Check %s, by %s", accepted.AcceptedCheck, resume.ActorLabel(accepted.AcceptedBy)))
+		}
+		if accepted.AcceptedCheck != "" {
+			lines = append(lines, fmt.Sprintf("Accepted: Check %s, by %s", accepted.AcceptedCheck, resume.ActorLabel(accepted.AcceptedBy)))
+			lines = append(lines, fmt.Sprintf("Current Check: %s (acceptance is not current)", checkID))
+			return lines
+		}
+	}
+	return append(lines, "Accepted: "+notRecorded)
+}
+
+func historicalCompletionLines(detail RecordDetail) []string {
+	reference := detail.LegacyCompletion
+	if reference == nil {
+		return []string{resume.HistoricalCompletionPhrase(detail.ID, nil)}
+	}
+	return []string{
+		resume.HistoricalCompletionPhrase(detail.ID, reference),
+		"Source: " + reference.SourcePath,
+		"Archive: " + reference.ArchivePath,
+		"SHA-256: " + reference.SHA256,
+	}
 }
 
 // detailSection renders one titled block, or nothing at all when the section

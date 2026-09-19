@@ -160,6 +160,23 @@ func (m Model) handleReleaseKey(key string) (tea.Model, tea.Cmd) {
 		}
 		m.releaseRollback = &before
 		return m, writeReleaseSelectionCmd(m.Root, release, m.State.RouterMtime)
+	case "v", "d":
+		if len(m.Releases) == 0 || m.State.Index == nil {
+			return m, nil
+		}
+		release, ok := newReleaseDetail(m.State.Index, m.Releases[m.ReleaseCursor])
+		if !ok {
+			return m, nil
+		}
+		// The detail belongs to the Release the selector was opened over, but
+		// opening it is still a read: it does not select or persist that
+		// Release. Closing therefore restores the pre-selector surface.
+		m.DetailOrigin = m.releaseOrigin
+		m.releaseOriginSet = false
+		m.ReleaseOverlay = false
+		m.Detail = &release
+		m.DetailOffset = 0
+		return m, nil
 	}
 	return m, nil
 }
@@ -604,10 +621,14 @@ func recordExists(index *data.V2Index, kind DetailKind, id string) bool {
 	if index == nil {
 		return false
 	}
-	if kind == DetailObjective {
+	switch kind {
+	case DetailObjective:
 		return objectiveExists(index, id)
+	case DetailRelease:
+		return releaseExists(index, id)
+	default:
+		return taskExists(index, id)
 	}
-	return taskExists(index, id)
 }
 
 func objectiveLabel(id string) string {

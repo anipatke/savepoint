@@ -342,7 +342,7 @@ func (m Model) hints() string {
 	case m.Help:
 		return "esc:close help  q:quit"
 	case m.ReleaseOverlay:
-		return "↑↓ / j k:release  enter:select  esc/q:cancel"
+		return "↑↓ / j k:release  enter:select  v:detail  esc/q:cancel"
 	case m.Issues != nil && m.Issues.Detail != nil:
 		return "↑↓:scroll  enter:canonical  esc:back  q:quit"
 	case m.Issues != nil:

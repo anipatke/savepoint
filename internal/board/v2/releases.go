@@ -104,7 +104,7 @@ func renderReleaseSelector(index *data.V2Index, releases []string, cursor, width
 	}
 
 	lines = append(lines, "",
-		styles.CardMeta.Render("↑↓ / j k:nav  enter:select  esc:cancel  q:cancel"))
+		styles.CardMeta.Render("↑↓ / j k:nav  enter:select  v:detail  esc:cancel  q:cancel"))
 	return styles.DetailOverlay.Width(width).Render(strings.Join(lines, "\n"))
 }
 

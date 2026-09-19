@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
@@ -93,6 +94,135 @@ func TestReleaseSelectorOpensOverTheBoardAndStartsOnCurrentRelease(t *testing.T)
 	}
 	if after := snapshotProject(t, model.Root); !equalSnapshots(before, after) {
 		t.Errorf("opening and cancelling changed project files:\n before %v\n  after %v", before, after)
+	}
+}
+
+func TestReleaseSelectorOpensReadOnlyReleaseDetail(t *testing.T) {
+	model := releaseBoard(t)
+	before := snapshotProject(t, model.Root)
+
+	detail := press(t, model, "r", "v")
+	if detail.ReleaseOverlay || detail.Detail == nil || detail.Detail.Kind != DetailRelease {
+		t.Fatalf("release detail state = overlay %t, detail %+v; want a Release detail", detail.ReleaseOverlay, detail.Detail)
+	}
+	view := xansi.Strip(detail.View())
+	for _, want := range []string{
+		"RELEASE DETAIL",
+		"ID: R001",
+		"Title: First release",
+		"RELEASE PROMISE",
+		"Outcome: Ship the promised delivery.",
+		"MEMBER OBJECTIVES",
+		"O001 — First objective (planned)",
+		"Tasks 0/1 done",
+		"RELEASE READINESS",
+		"CHECKS",
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("Release detail is missing %q:\n%s", want, view)
+		}
+	}
+
+	closed := press(t, detail, "down", "esc")
+	if closed.Detail != nil || closed.ReleaseOverlay {
+		t.Fatalf("closing Release detail left an overlay open: detail=%+v release=%t", closed.Detail, closed.ReleaseOverlay)
+	}
+	if after := snapshotProject(t, model.Root); !equalSnapshots(before, after) {
+		t.Errorf("opening, scrolling, and closing Release detail changed project files:\n before %v\n  after %v", before, after)
+	}
+}
+
+func TestReleaseDetailShowsEvidenceHistoryIssuesAndOwnerBoundary(t *testing.T) {
+	root := savepointRoot(t)
+	writeConfig(t, root)
+	testutil.WriteFile(t, filepath.Join(root, "releases", "R001-first", "Release.md"), `---
+id: R001
+title: "界 First delivery 🙂"
+status: in_progress
+last_check: C003
+freshness:
+  state: current
+  check: C003
+  assessed_by: {role: checker, session: release-checker}
+  assessed_at: '2026-09-14T01:00:00Z'
+  basis: "reran the release suite"
+owner_validation:
+  required: true
+  accepted_check: C003
+  accepted_by: {role: owner, session: release-owner}
+exception:
+  requirements: [I001]
+  reason: "accepted the documented gap"
+  owner: release-owner
+  recorded_at: '2026-09-14T02:00:00Z'
+  check: C003
+---
+# Release
+
+## Outcome
+
+Ship the 界 promised delivery 🙂 without losing the source promise.
+
+## Why
+
+The delivery needs a stable boundary.
+
+## Success Conditions
+
+Every member Objective is complete.
+
+## Boundaries
+
+Release does not own Tasks.
+`)
+	writeObjectiveExtra(t, root, "O001", "Finished Objective", "done", "release: R001\nlast_check: C001\n"+currentFreshness("C001"))
+	writeTask(t, root, "O001", "T001", "Finished Task", "status: done\n")
+	writeCheck(t, root, "C001", "objective", "O001", "CLEAR")
+	writeCheck(t, root, "C002", "release", "R001", "NEEDS WORK")
+	writeCheckExtra(t, root, "C003", "release", "R001", "CLEAR", "supersedes: C002\n")
+	testutil.WriteFile(t, filepath.Join(root, "issues", "I001.md"), `---
+id: I001
+title: "Documented release gap"
+type: defect
+status: open
+source: {kind: check, check: C003, actor: {role: checker, session: release-checker}, at: '2026-09-14T00:00:00Z'}
+tasks: [T001]
+checks: [C002, C003]
+---
+# Documented release gap
+`)
+	writeRouterWithRelease(t, root, "R001", "none", "none")
+
+	model := openSizedBoard(t, root, 80, 48)
+	detail := press(t, model, "r", "v")
+	view := strings.Join(detailLines(*detail.Detail, columnTextWidth(80)), "\n")
+	for _, want := range []string{
+		"界 First delivery",
+		"Outcome: Ship the 界 promised delivery",
+		"MEMBER OBJECTIVES",
+		"O001 — Finished Objective (done)",
+		"Tasks 1/1 done",
+		"CLEAR",
+		"C002  NEEDS WORK  [superseded]",
+		"C003  CLEAR  [latest]",
+		"ISSUES",
+		"I001 (defect, open): Documented release gap",
+		"RELEASE READINESS",
+		"Allowed by exception, not by clearance",
+		"OWNER VALIDATION",
+		"Accepted: Check C003, by owner session release-owner",
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("Release detail is missing %q:\n%s", want, view)
+		}
+	}
+	for _, width := range []int{48, 80, 120} {
+		sized := press(t, openSizedBoard(t, root, width, 48), "r", "v")
+		for lineNo, line := range strings.Split(xansi.Strip(sized.View()), "\n") {
+			if got := lipgloss.Width(line); got > width {
+				t.Errorf("Release detail line %d is %d cells wide at width %d: %q", lineNo+1, got, width, line)
+			}
+		}
 	}
 }
 

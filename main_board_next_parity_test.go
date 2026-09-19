@@ -90,10 +90,10 @@ func boardTUINextFacts(t *testing.T, dir string) nextFacts {
 	final := loaded.(boardv2.Model)
 	panel := nextPanelText(xansi.Strip(final.View()))
 	return nextFacts{
-		identity: linesWithTrimmedPrefix(panel, "Objective: ", "Task: "),
+		identity: linesWithTrimmedPrefix(panel, "Release: ", "Release outcome: ", "Release status: ", "Objective: ", "Task: "),
 		evidence: linesWithTrimmedPrefix(panel,
 			"Migration: ", "Replan: ", "Blocked: ", "Completion: ", "Ready: ",
-			"Technical clearance: ", "Owner wait: "),
+			"Technical clearance: ", "Owner wait: ", "Release readiness: ", "Historical completion: "),
 		action: strings.TrimPrefix(lineWithTrimmedPrefix(t, panel, "Action: "), "Action: "),
 	}
 }
@@ -164,7 +164,7 @@ func resumeNextFacts(t *testing.T, dir string) nextFacts {
 	}
 
 	return nextFacts{
-		identity: linesWithAnyPrefix(out.String(), "Objective: ", "Task: "),
+		identity: linesWithAnyPrefix(out.String(), "Release: ", "Release outcome: ", "Release status: ", "Objective: ", "Task: "),
 		evidence: evidenceLinesIn(out.String()),
 		action:   strings.TrimPrefix(lineWithPrefixIn(t, out.String(), "Next action: "), "Next action: "),
 	}
@@ -182,7 +182,7 @@ func boardNextFacts(t *testing.T, dir string) nextFacts {
 	}
 
 	return nextFacts{
-		identity: linesWithAnyPrefix(out.String(), "Objective: ", "Task: "),
+		identity: linesWithAnyPrefix(out.String(), "Release: ", "Release outcome: ", "Release status: ", "Objective: ", "Task: "),
 		evidence: evidenceLinesIn(out.String()),
 		action:   strings.TrimPrefix(lineWithPrefixIn(t, out.String(), "Action: "), "Action: "),
 	}
@@ -192,6 +192,11 @@ func boardNextFacts(t *testing.T, dir string) nextFacts {
 // built from the projection itself.
 func projectionIdentity(next data.Next) []string {
 	var lines []string
+	if next.Release != nil {
+		lines = append(lines, "Release: "+next.Release.ID+" — "+next.Release.Title)
+		lines = append(lines, "Release outcome: "+next.Release.Outcome)
+		lines = append(lines, "Release status: "+string(next.Release.Status))
+	}
 	if next.Objective != nil {
 		lines = append(lines, "Objective: "+next.Objective.ID+" — "+next.Objective.Title)
 	}
@@ -207,7 +212,7 @@ func projectionIdentity(next data.Next) []string {
 func evidenceLinesIn(text string) []string {
 	return linesWithAnyPrefix(text,
 		"Migration: ", "Replan: ", "Blocked: ", "Completion: ", "Ready: ",
-		"Technical clearance: ", "Owner wait: ")
+		"Technical clearance: ", "Owner wait: ", "Release readiness: ", "Historical completion: ")
 }
 
 func linesWithAnyPrefix(text string, prefixes ...string) []string {
@@ -240,10 +245,10 @@ func lineWithTrimmedPrefix(t *testing.T, text, prefix string) string {
 func factsFromCommandOutput(t *testing.T, text, actionPrefix string) nextFacts {
 	t.Helper()
 	return nextFacts{
-		identity: linesWithTrimmedPrefix(text, "Objective: ", "Task: "),
+		identity: linesWithTrimmedPrefix(text, "Release: ", "Release outcome: ", "Release status: ", "Objective: ", "Task: "),
 		evidence: linesWithTrimmedPrefix(text,
 			"Migration: ", "Replan: ", "Blocked: ", "Completion: ", "Ready: ",
-			"Technical clearance: ", "Owner wait: "),
+			"Technical clearance: ", "Owner wait: ", "Release readiness: ", "Historical completion: "),
 		action: strings.TrimPrefix(lineWithTrimmedPrefix(t, text, actionPrefix), actionPrefix),
 	}
 }

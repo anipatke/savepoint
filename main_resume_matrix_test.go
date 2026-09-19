@@ -27,10 +27,11 @@ import (
 // matching writeResumeV2Project's shape); wantKind is the single NextKind
 // the whole pipeline — load, router read, projection, render — must reach.
 type matrixCase struct {
-	name       string
-	build      func(t *testing.T, dir string)
-	wantKind   data.NextKind
-	wantAction string // substring resume's rendered "Next action:" line must contain
+	name                    string
+	build                   func(t *testing.T, dir string)
+	wantKind                data.NextKind
+	wantAction              string // substring resume's rendered "Next action:" line must contain
+	wantSelectionDiagnostic data.SelectionDiagnosticKind
 }
 
 // resumeMatrixCases covers every rung of the precedence ladder documented on
@@ -40,6 +41,37 @@ type matrixCase struct {
 // expected rung.
 func resumeMatrixCases() []matrixCase {
 	return []matrixCase{
+		{
+			name:       "selected Release executes its member Task",
+			build:      matrixBuildReleaseExecute,
+			wantKind:   data.NextExecute,
+			wantAction: "Start Task T001.",
+		},
+		{
+			name:       "selected Release needs its integration Check",
+			build:      matrixBuildReleaseCheckNeeded,
+			wantKind:   data.NextReleaseCheckNeeded,
+			wantAction: "Record a fresh Release Check for R001.",
+		},
+		{
+			name:       "selected Release waits for owner validation",
+			build:      matrixBuildReleaseOwnerValidation,
+			wantKind:   data.NextReleaseOwnerValidationRequired,
+			wantAction: "Ask the owner to accept the current Release Check.",
+		},
+		{
+			name:       "selected Release is ready",
+			build:      matrixBuildReleaseReady,
+			wantKind:   data.NextReleaseReady,
+			wantAction: "Record Release R001 as done.",
+		},
+		{
+			name:                    "missing Release selection keeps global work available",
+			build:                   matrixBuildMissingReleaseSelection,
+			wantKind:                data.NextReady,
+			wantAction:              "Start Task T001.",
+			wantSelectionDiagnostic: data.SelectionReleaseNotFound,
+		},
 		{
 			name:       "pending migration outranks everything",
 			build:      matrixBuildPendingMigration,
@@ -126,6 +158,81 @@ func matrixBuildPendingMigration(t *testing.T, dir string) {
 func matrixConfig(t *testing.T, dir string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "config.yml"), "schema_version: 2\n")
+}
+
+func matrixRelease(t *testing.T, dir, status, extra string) {
+	t.Helper()
+	content := "---\nid: R001\ntitle: \"First delivery\"\nstatus: " + status + "\n" + extra + "---\n" +
+		"# Release\n\n## Outcome\n\nShip the promised outcome.\n\n## Why\n\nThe delivery needs a stable boundary.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nRelease does not own Tasks.\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "releases", "R001-first", "Release.md"), content)
+}
+
+func matrixReleaseObjective(t *testing.T, dir, status, extra string) {
+	t.Helper()
+	content := "---\nid: O001\ntitle: \"Objective O001\"\nstatus: " + status + "\nrelease: R001\n" + extra + "---\n\n# Objective O001\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "Objective.md"), content)
+}
+
+func matrixReleaseTask(t *testing.T, dir, status string) {
+	t.Helper()
+	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: " + status + "\n---\n\n# Alpha\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
+}
+
+func matrixReleaseRouter(t *testing.T, dir, release, objective, task string) {
+	t.Helper()
+	content := "# Router\n\n## Current state\n\n```yaml\nstate: check\nrelease: " + release +
+		"\nobjective: " + objective + "\ntask: " + task + "\nnext_action: \"continue the Release\"\n```\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), content)
+}
+
+func matrixReleaseCheck(t *testing.T, dir, id, scope, target string) {
+	t.Helper()
+	content := "---\nid: " + id + "\nscope: {kind: " + scope + ", id: " + target + "}\nresult: CLEAR\n" +
+		"checked_by: {role: checker, session: checker-" + id + "}\nexecuted_session: executor-" + id +
+		"\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "checks", id+"-fixture.md"), content)
+}
+
+func matrixBuildReleaseExecute(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixRelease(t, dir, "in_progress", "")
+	matrixReleaseObjective(t, dir, "planned", "")
+	matrixReleaseTask(t, dir, "planned")
+	matrixReleaseRouter(t, dir, "R001", "O001", "T001")
+}
+
+func matrixBuildReleaseCheckNeeded(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixRelease(t, dir, "in_progress", "")
+	matrixReleaseObjective(t, dir, "done", "last_check: C001\nfreshness:\n  state: current\n  check: C001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
+	matrixReleaseTask(t, dir, "done")
+	matrixReleaseCheck(t, dir, "C001", "objective", "O001")
+	matrixReleaseRouter(t, dir, "R001", "O001", "none")
+}
+
+func matrixBuildReleaseOwnerValidation(t *testing.T, dir string) {
+	t.Helper()
+	matrixBuildReleaseCheckNeeded(t, dir)
+	// Re-write the Release with its current technical evidence, but without
+	// owner acceptance, so the Release gate reaches its owner-wait rung.
+	matrixRelease(t, dir, "in_progress", "last_check: C002\nfreshness:\n  state: current\n  check: C002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
+	matrixReleaseCheck(t, dir, "C002", "release", "R001")
+}
+
+func matrixBuildReleaseReady(t *testing.T, dir string) {
+	t.Helper()
+	matrixBuildReleaseOwnerValidation(t, dir)
+	matrixRelease(t, dir, "in_progress", "last_check: C002\nfreshness:\n  state: current\n  check: C002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\nowner_validation:\n  required: true\n  accepted_check: C002\n  accepted_by: {role: owner, session: owner-1}\n")
+}
+
+func matrixBuildMissingReleaseSelection(t *testing.T, dir string) {
+	t.Helper()
+	matrixBuildReleaseExecute(t, dir)
+	matrixReleaseRouter(t, dir, "R999", "O001", "T001")
 }
 
 func matrixObjective(t *testing.T, dir, dirName, id, status string) {
@@ -342,8 +449,13 @@ func TestResumeMatrix_everyRungReachedExactlyOnce(t *testing.T) {
 			if next.Kind != tc.wantKind {
 				t.Fatalf("resolveNextFromDisk() Kind = %q, want exactly %q", next.Kind, tc.wantKind)
 			}
-			if next.SelectionDiagnostic != nil {
+			if tc.wantSelectionDiagnostic == "" && next.SelectionDiagnostic != nil {
 				t.Errorf("SelectionDiagnostic = %+v, want nil: no matrix case names a router selection that fails to resolve", next.SelectionDiagnostic)
+			}
+			if tc.wantSelectionDiagnostic != "" {
+				if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != tc.wantSelectionDiagnostic {
+					t.Errorf("SelectionDiagnostic = %+v, want %q", next.SelectionDiagnostic, tc.wantSelectionDiagnostic)
+				}
 			}
 			seenKinds[next.Kind] = true
 

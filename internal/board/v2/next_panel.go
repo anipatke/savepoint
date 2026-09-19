@@ -80,10 +80,7 @@ func nextKindLabel(kind data.NextKind) string {
 // A rung that selected neither — pending migration, and planning a first
 // Objective — contributes nothing here rather than an empty label.
 func nextIdentityLines(next data.Next) []string {
-	var lines []string
-	if next.Release != nil {
-		lines = append(lines, fmt.Sprintf("Release: %s — %s", next.Release.ID, next.Release.Title))
-	}
+	lines := resume.ReleaseIdentityLines(next)
 	if next.Objective != nil {
 		lines = append(lines, fmt.Sprintf("Objective: %s — %s", next.Objective.ID, next.Objective.Title))
 	}

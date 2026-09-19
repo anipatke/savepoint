@@ -23,6 +23,7 @@ type DetailKind string
 const (
 	DetailTask      DetailKind = "TASK"
 	DetailObjective DetailKind = "OBJECTIVE"
+	DetailRelease   DetailKind = "RELEASE"
 )
 
 // RecordRef is one record named from a detail — an owning Objective, an owned
@@ -49,6 +50,16 @@ type DependencyEntry struct {
 type ObjectiveDependencyEntry struct {
 	Target   RecordRef
 	Decision data.ObjectiveDependencyDecision
+}
+
+// ReleaseObjectiveProgress is the resolved progress of one Objective derived
+// into a Release. The Objective still owns its Tasks; this value only carries
+// the counts and completion decision needed to explain Release readiness.
+type ReleaseObjectiveProgress struct {
+	Objective  RecordRef
+	TasksDone  int
+	TasksTotal int
+	Decision   data.GateDecision
 }
 
 // RecordDetail is everything one open overlay shows about one record: its
@@ -81,6 +92,17 @@ type RecordDetail struct {
 	// the other, in the order its record declares them.
 	Dependencies          []DependencyEntry
 	ObjectiveDependencies []ObjectiveDependencyEntry
+	// MemberObjectives and the fields below are populated only for a Release
+	// detail. Membership is derived from each Objective's release reference;
+	// the detail carries the resolved values so the renderer never consults the
+	// index.
+	MemberObjectives  []ReleaseObjectiveProgress
+	Outcome           string
+	Why               string
+	SuccessConditions string
+	Boundaries        string
+	ReleaseDecision   *data.GateDecision
+	LegacyCompletion  *data.LegacyCompletionReference
 
 	Clearance data.Clearance
 	Evidence  *data.Evidence
@@ -158,6 +180,60 @@ func newObjectiveDetail(index *data.V2Index, objectiveID string) (RecordDetail, 
 	return detail, true
 }
 
+// newReleaseDetail resolves one Release and all of the evidence the overlay
+// promises: its authored delivery promise, derived member Objective progress,
+// canonical completion decision, Check history, and linked Issues. The
+// renderer receives this finished value and does not reinterpret the index.
+func newReleaseDetail(index *data.V2Index, releaseID string) (RecordDetail, bool) {
+	if index == nil {
+		return RecordDetail{}, false
+	}
+	release, ok := index.Releases[releaseID]
+	if !ok {
+		return RecordDetail{}, false
+	}
+
+	decision := data.ResolveReleaseCompletion(index, release.ID)
+	detail := RecordDetail{
+		Kind:              DetailRelease,
+		ID:                release.ID,
+		Title:             release.Title,
+		Status:            release.Status,
+		Body:              release.Source.Body,
+		Outcome:           release.Outcome,
+		Why:               release.Why,
+		SuccessConditions: release.SuccessConditions,
+		Boundaries:        release.Boundaries,
+		ReleaseDecision:   &decision,
+		LegacyCompletion:  release.LegacyCompletion,
+		Clearance:         data.ResolveClearance(index, release.ID),
+		Evidence:          release.Evidence,
+		Checks:            checkHistory(index, release.ID),
+	}
+
+	objectiveIDs := slices.Clone(index.ReleaseObjectives[release.ID])
+	slices.Sort(objectiveIDs)
+	for _, objectiveID := range objectiveIDs {
+		if _, ok := index.Objectives[objectiveID]; !ok {
+			continue
+		}
+		progress := ReleaseObjectiveProgress{
+			Objective:  objectiveRef(index, objectiveID),
+			TasksTotal: len(index.ObjectiveTasks[objectiveID]),
+			Decision:   data.ResolveObjectiveCompletion(index, objectiveID),
+		}
+		for _, taskID := range index.ObjectiveTasks[objectiveID] {
+			if task, ok := index.Tasks[taskID]; ok && task.Status == data.ColumnDone {
+				progress.TasksDone++
+			}
+		}
+		detail.MemberObjectives = append(detail.MemberObjectives, progress)
+	}
+	detail.Issues = linkedIssues(index, nil, detail.Checks)
+
+	return detail, true
+}
+
 // reopenDetail re-resolves an open detail against a freshly loaded index, so a
 // reload under an open overlay shows the records as they now are. A record the
 // load no longer holds reports ok=false: there is nothing left to show, and the
@@ -168,6 +244,9 @@ func reopenDetail(index *data.V2Index, detail RecordDetail) (RecordDetail, bool)
 	}
 	if detail.Kind == DetailObjective {
 		return newObjectiveDetail(index, detail.ID)
+	}
+	if detail.Kind == DetailRelease {
+		return newReleaseDetail(index, detail.ID)
 	}
 	return newTaskDetail(index, detail.ID)
 }

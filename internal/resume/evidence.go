@@ -30,6 +30,21 @@ func ActorLabel(actor data.Actor) string {
 	return fmt.Sprintf("%s session %s", actor.Role, actor.Session)
 }
 
+// ReleaseIdentityLines names the Release promise carried by a projection.
+// Both the board's Next area and resume use these lines so a selected Release
+// is accompanied by the same title, outcome, and recorded lifecycle on every
+// surface. It returns no lines for the release-free V2 path.
+func ReleaseIdentityLines(next data.Next) []string {
+	if next.Release == nil {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("Release: %s — %s", next.Release.ID, next.Release.Title),
+		"Release outcome: " + next.Release.Outcome,
+		"Release status: " + string(next.Release.Status),
+	}
+}
+
 // ClearancePhrase reports one resolved data.Clearance in wording distinct
 // per state, naming the Check when one exists and the freshness assessor,
 // date, and recorded basis when a freshness assessment exists. A nil
@@ -86,11 +101,10 @@ func freshnessBasisPhrase(freshness *data.Freshness) string {
 		freshness.State, ActorLabel(freshness.AssessedBy), freshness.AssessedAt.Format("2006-01-02"), freshness.Basis)
 }
 
-// ownerWaitPhrase reports an outstanding owner-acceptance block. It is kept
-// as its own phrase, distinct from ClearancePhrase, because a technical
-// clearance being current and an owner not yet having accepted it are two
-// different things a user has to act on.
-func ownerWaitPhrase(checkID string) string {
+// OwnerWaitPhrase reports an outstanding owner-acceptance block. It is
+// exported because Release detail uses the same sentence as the shared Next
+// projection and resume output.
+func OwnerWaitPhrase(checkID string) string {
 	if checkID == "" {
 		return "Owner acceptance is required and has not been recorded."
 	}
@@ -163,6 +177,77 @@ func IssueLine(issue *data.IssueV2) string {
 	return fmt.Sprintf("- %s (%s, %s): %s", issue.ID, issue.Type, issue.Status, issue.Title)
 }
 
+// ReleaseBlockerPhrase turns one typed Release gate blocker into readable
+// evidence. The blocker was already resolved by internal/data; this function
+// only gives that value one shared sentence for resume, the Next area, and
+// Release detail.
+func ReleaseBlockerPhrase(blocker data.GateBlocker) string {
+	switch blocker.Kind {
+	case data.GateBlockReleaseNoObjectives:
+		return "No member Objective is recorded."
+	case data.GateBlockReleaseObjectiveIncomplete:
+		if blocker.Objective != "" {
+			return fmt.Sprintf("Member Objective %s is not complete: %s", blocker.Objective, blocker.Detail)
+		}
+		return "A member Objective is not complete: " + blocker.Detail
+	case data.GateBlockReleaseIssueUnresolved:
+		if blocker.Issue != "" {
+			return fmt.Sprintf("Issue %s remains unresolved: %s", blocker.Issue, blocker.Detail)
+		}
+		return "A material Release Issue remains unresolved: " + blocker.Detail
+	case data.GateBlockOwnerAcceptance:
+		if blocker.Detail != "" {
+			return "Owner acceptance is required: " + blocker.Detail
+		}
+		return OwnerWaitPhrase("")
+	default:
+		if blocker.Detail != "" {
+			return "Release completion is blocked: " + blocker.Detail
+		}
+		return fmt.Sprintf("Release completion is blocked by %s.", blocker.Kind)
+	}
+}
+
+// HistoricalCompletionPhrase keeps migrated historical proof distinct from a
+// current V2 Check. The archive path is evidence's recorded destination, not
+// a claim that resume opened or verified it.
+func HistoricalCompletionPhrase(releaseID string, reference *data.LegacyCompletionReference) string {
+	if reference == nil {
+		return fmt.Sprintf("Historical completion: Release %s is recorded done from archived legacy evidence; it is not a new V2 CLEAR Check.", releaseID)
+	}
+	return fmt.Sprintf("Historical completion: Release %s is recorded done from archived legacy evidence at %s; it is not a new V2 CLEAR Check.", releaseID, reference.ArchivePath)
+}
+
+// ReleaseAcceptancePhrase reports the owner decision that permits a current
+// Release Check to close the Release promise. It is deliberately separate
+// from ClearancePhrase: technical currentness and product acceptance are two
+// different facts even when the gate has allowed completion.
+func ReleaseAcceptancePhrase(release *data.ReleaseV2, clearance *data.Clearance) string {
+	if release == nil {
+		return ReleaseAcceptancePhraseForEvidence("", nil, clearance)
+	}
+	return ReleaseAcceptancePhraseForEvidence(release.ID, release.Evidence, clearance)
+}
+
+// ReleaseAcceptancePhraseForEvidence is the same Release acceptance wording
+// for a resolved detail, which carries the record's evidence fields rather
+// than the full Release pointer.
+func ReleaseAcceptancePhraseForEvidence(releaseID string, evidence *data.Evidence, clearance *data.Clearance) string {
+	if clearance == nil || clearance.Check == "" {
+		if releaseID != "" {
+			return fmt.Sprintf("Release readiness: Release %s completion is allowed by the recorded Release decision.", releaseID)
+		}
+		return "Release readiness: completion is allowed by the recorded Release decision."
+	}
+	if evidence != nil && evidence.OwnerValidation != nil {
+		accepted := evidence.OwnerValidation
+		if accepted.AcceptedCheck == clearance.Check {
+			return fmt.Sprintf("Release readiness: Check %s is current and accepted by %s.", clearance.Check, ActorLabel(accepted.AcceptedBy))
+		}
+	}
+	return fmt.Sprintf("Release readiness: Check %s is current and the recorded owner decision allows completion.", clearance.Check)
+}
+
 // implementationPhrase reports a Task's recorded status and stage as a
 // plain fact, never as a judgement about whether that status is correct.
 func implementationPhrase(task *data.TaskV2) string {
@@ -189,7 +274,22 @@ func SelectionPhrase(diagnostic *data.SelectionDiagnostic) string {
 	case data.SelectionMismatch:
 		return fmt.Sprintf("The router names Objective %s and Task %s, but Task %s's own record names %s as its owner — the Task record wins, so this selection is not honored.",
 			diagnostic.RouterObjective, diagnostic.Task, diagnostic.Task, diagnostic.TaskObjective)
+	case data.SelectionReleaseNotFound:
+		return fmt.Sprintf("The router names Release %s, which does not exist among the project's live records.", selectionReleaseID(diagnostic))
+	case data.SelectionReleaseArchived:
+		return fmt.Sprintf("The router names Release %s, which is historical and cannot be used as a live delivery context.", selectionReleaseID(diagnostic))
+	case data.SelectionObjectiveUnassigned:
+		return fmt.Sprintf("The router selects Objective %s inside Release %s, but the Objective has no Release reference, so this selection is not honored.", diagnostic.Objective, diagnostic.Release)
+	case data.SelectionReleaseMismatch:
+		return fmt.Sprintf("The router selects Objective %s inside Release %s, but its record names Release %s, so this selection is not honored.", diagnostic.Objective, diagnostic.Release, diagnostic.ObjectiveRelease)
 	default:
 		return fmt.Sprintf("The router selection did not resolve, for an unrecognized reason %q.", diagnostic.Kind)
 	}
+}
+
+func selectionReleaseID(diagnostic *data.SelectionDiagnostic) string {
+	if diagnostic.Release != "" {
+		return diagnostic.Release
+	}
+	return diagnostic.ID
 }
