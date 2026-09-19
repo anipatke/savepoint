@@ -40,6 +40,7 @@ import (
 type TargetKind string
 
 const (
+	TargetRelease   TargetKind = "release"
 	TargetObjective TargetKind = "objective"
 	TargetTask      TargetKind = "task"
 	TargetIssue     TargetKind = "issue"
@@ -65,6 +66,13 @@ type PlannedTarget struct {
 	GlobalID   string
 	Legacy     LegacyKey
 	TargetPath string
+	// ReleaseID is the allocated V2 Release identity an Objective belongs to.
+	// It is empty for records that are not Objective-owned by a Release.
+	ReleaseID string
+	// ReleaseStatus is the resolved V2 lifecycle for a TargetRelease. It is
+	// persisted with the plan so recovery never has to reinterpret legacy
+	// release status after source files have been archived.
+	ReleaseStatus string
 	// DependsOn lists the global Task IDs (only meaningful for TargetTask)
 	// this target's converted depends_on will name. A dependency on
 	// archived, completed work never appears here; see LegacyPrerequisite.
@@ -100,8 +108,13 @@ func (t PlannedTarget) InstallPath() string {
 type ArchiveEntry struct {
 	SourcePath  string
 	ArchivePath string
-	Role        Role
-	Legacy      *LegacyKey // nil when the source carries no legacy identity (e.g. an unclassified file)
+	// SourceSHA256 is populated for release PRDs so the manifest can state
+	// the exact archived source hash next to its accountable archive mapping.
+	// Other archive entries continue to use ManifestSource for the shared
+	// inventory hash table.
+	SourceSHA256 string
+	Role         Role
+	Legacy       *LegacyKey // nil when the source carries no legacy identity (e.g. an unclassified file)
 	// CandidateCommands lists command-looking lines convert_docs.go found in
 	// an archived Health-Check.md body, for a future preview to report as an
 	// owner decision. It is nil for every other role: nothing ever writes
@@ -236,6 +249,7 @@ const (
 	v2ObjectiveFile  = "Objective.md"
 	v2TasksDir       = "tasks"
 	v2IssuesDir      = "issues"
+	v2ReleasesDir    = "releases"
 
 	ideaTargetPath   = "Idea.md"
 	routerTargetPath = "router.md"
@@ -404,8 +418,25 @@ func newIDAllocator() *idAllocator {
 
 func (a *idAllocator) allocate(prefix string) string {
 	n := a.next[prefix]
-	a.next[prefix] = n + 1
-	return fmt.Sprintf("%s%03d", prefix, n)
+	for {
+		id := fmt.Sprintf("%s%03d", prefix, n)
+		if !a.reserved(id) {
+			a.next[prefix] = n + 1
+			return id
+		}
+		n++
+	}
+}
+
+func (a *idAllocator) reserved(id string) bool {
+	return a.next["reserved:"+id] > 0
+}
+
+func (a *idAllocator) reserve(id string) {
+	if id == "" {
+		return
+	}
+	a.next["reserved:"+id] = 1
 }
 
 // planBuilder accumulates one Plan's worth of decisions while walking the
@@ -439,6 +470,10 @@ type planBuilder struct {
 	// ID raises AmbiguityDuplicateSourceIdentity instead of silently
 	// shadowing or overwriting the first.
 	taskIdentitySeen map[string]string // "release/epic/originalID" -> first source path
+	// releaseIDs is the one source-qualified mapping from a V1 release
+	// directory name to its allocated V2 R### identity. Objectives and router
+	// selections use this map; they never derive an R### independently.
+	releaseIDs map[string]string
 }
 
 type plannedTaskOutcome struct {
@@ -451,6 +486,7 @@ func (b *planBuilder) build() error {
 	b.taskByLegacyPath = map[string]plannedTaskOutcome{}
 	b.issueByFindingID = map[string]string{}
 	b.taskIdentitySeen = map[string]string{}
+	b.releaseIDs = map[string]string{}
 
 	savepointRoot := filepath.Join(b.root, ".savepoint")
 	discover := data.NewDiscover()
@@ -461,6 +497,21 @@ func (b *planBuilder) build() error {
 			releases = nil // an empty V1 project has no releases yet; nothing to plan
 		} else {
 			return fmt.Errorf("list releases: %w", err)
+		}
+	}
+	for _, release := range releases {
+		// A V1 directory can itself already carry an R###-shaped name. Reserve
+		// that source identity so allocation cannot silently reuse it as a new
+		// V2 identity.
+		b.ids.reserve(sourceReleaseIdentity(release.ID))
+	}
+
+	// Pass 0: every release and its PRD are resolved before any Objective is
+	// planned. This makes the Objective release edge a lookup to the same
+	// allocated R### target rather than a second interpretation of the source.
+	for _, release := range releases {
+		if err := b.planRelease(release.ID); err != nil {
+			return err
 		}
 	}
 
@@ -523,6 +574,145 @@ func (b *planBuilder) build() error {
 	return nil
 }
 
+func sourceReleaseIdentity(name string) string {
+	if !strings.HasPrefix(name, "R") {
+		return ""
+	}
+	digits := 1
+	for digits < len(name) && name[digits] >= '0' && name[digits] <= '9' {
+		digits++
+	}
+	if digits-1 < 3 {
+		return ""
+	}
+	return name[:digits]
+}
+
+type releaseRawFrontmatter struct {
+	Name   string `yaml:"name"`
+	Title  string `yaml:"title"`
+	Status string `yaml:"status"`
+}
+
+// planRelease allocates one stable R### for one source release and gives its
+// PRD both a live Release destination and an exact-byte archive destination.
+// A missing PRD in the old container-only shape has no promise to convert.
+// A duplicated PRD is a blocking source-identity ambiguity: the planner does
+// not invent a promise or choose one authored document without an owner
+// decision.
+func (b *planBuilder) planRelease(release string) error {
+	releaseDir := filepath.ToSlash(filepath.Join(".savepoint", "releases", release))
+	prds := b.findRolesUnder(RoleReleasePRD, releaseDir)
+	var source SourceFile
+	switch len(prds) {
+	case 0:
+		// Some V1 projects used the release directory only as a container for
+		// Epic records and never authored a release PRD. There is no promise
+		// source to convert in that shape; leave the container untouched and
+		// keep the existing E45 migration behavior. A directory with multiple
+		// PRDs, by contrast, is an explicit source collision and blocks.
+		return nil
+	case 1:
+		source = prds[0]
+	default:
+		paths := make([]string, 0, len(prds))
+		for _, prd := range prds {
+			paths = append(paths, prd.Path)
+		}
+		ambiguityID := string(AmbiguityDuplicateReleaseSource) + ":" + releaseDir
+		b.addAmbiguity(AmbiguityDuplicateReleaseSource, releaseDir,
+			fmt.Sprintf("release %s has multiple release PRD sources: %s; migration cannot choose one without an owner decision", release, strings.Join(paths, ", ")), paths)
+		if decision, ok := b.decisions[ambiguityID]; ok {
+			for _, prd := range prds {
+				if prd.Path == decision.Value {
+					source = prd
+					break
+				}
+			}
+		}
+		if source.Path == "" {
+			return nil
+		}
+	}
+
+	content, err := b.readSource(source.Path)
+	if err != nil {
+		return err
+	}
+	fm, _, err := data.SplitFrontmatterBody(content)
+	if err != nil {
+		return fmt.Errorf("parse release PRD %s: %w", source.Path, err)
+	}
+	var raw releaseRawFrontmatter
+	if err := yaml.Unmarshal([]byte(fm), &raw); err != nil {
+		return fmt.Errorf("parse release PRD %s: %w", source.Path, err)
+	}
+
+	status, ok := b.resolveReleaseStatus(source.Path, raw.Status)
+	if !ok {
+		return nil
+	}
+
+	releaseID := b.ids.allocate("R")
+	b.releaseIDs[release] = releaseID
+	legacy := LegacyKey{Release: release, Path: source.Path, OriginalID: release}
+	b.targets = append(b.targets, PlannedTarget{
+		Kind:          TargetRelease,
+		GlobalID:      releaseID,
+		Legacy:        legacy,
+		TargetPath:    filepath.ToSlash(filepath.Join(v2ReleasesDir, releaseID+"-"+slugOf(release), "Release.md")),
+		ReleaseID:     releaseID,
+		ReleaseStatus: status,
+	})
+	b.archives = append(b.archives, ArchiveEntry{
+		SourcePath:   source.Path,
+		ArchivePath:  archivePathFor(source.Path),
+		SourceSHA256: source.SHA256,
+		Role:         RoleReleasePRD,
+		Legacy:       &legacy,
+	})
+	return nil
+}
+
+// resolveReleaseStatus maps legacy release lifecycle to the deliberately
+// conservative V2 migration outcome. Any non-settled legacy status becomes
+// in_progress so the migrated Release cannot be mistaken for completed work.
+// A legacy `audited` disposition is not completion evidence by itself and
+// therefore requires an explicit owner choice before a target is planned.
+func (b *planBuilder) resolveReleaseStatus(path, raw string) (string, bool) {
+	switch raw {
+	case "planned", "in_progress", "todo":
+		return string(data.ColumnInProgress), true
+	case "done", "complete", "completed":
+		return string(data.ColumnDone), true
+	case "audited":
+		id := string(AmbiguityReleaseCompletion) + ":" + path
+		b.addAmbiguity(AmbiguityReleaseCompletion, path,
+			fmt.Sprintf("release PRD %s records audited without a typed completion decision; choose whether the release is historical or active", path),
+			[]string{"in_progress", "done"})
+		if decision, ok := b.decisions[id]; ok {
+			if decision.Value == "done" {
+				return string(data.ColumnDone), true
+			}
+			if decision.Value == "in_progress" {
+				return string(data.ColumnInProgress), true
+			}
+		}
+		return "", false
+	default:
+		id := string(AmbiguityReleaseLifecycle) + ":" + path
+		b.addAmbiguity(AmbiguityReleaseLifecycle, path,
+			fmt.Sprintf("release PRD %s has unrecognized status %q; choose an active or historical V2 lifecycle", path, raw),
+			[]string{"in_progress", "done"})
+		if decision, ok := b.decisions[id]; ok {
+			if decision.Value == "done" || decision.Value == "in_progress" {
+				return decision.Value, true
+			}
+		}
+		return "", false
+	}
+}
+
 // epicRawFrontmatter reads only the fields plan.go needs from an epic detail
 // file: its raw, unhealed status. Epic status is not part of the strict V2
 // decoders (there is no EpicDetail record family), so this is a small local
@@ -583,6 +773,7 @@ func (b *planBuilder) planEpic(discover *data.Discover, savepointRoot, release, 
 		GlobalID:   objectiveID,
 		Legacy:     legacy,
 		TargetPath: filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2ObjectiveFile)),
+		ReleaseID:  b.releaseIDs[release],
 	})
 	// The original epic detail is archived alongside conversion: migration
 	// preserves the source bytes even though their content became an
@@ -1164,7 +1355,16 @@ func slugOf(id string) string {
 // not its full directory name, so lookup goes by role and directory rather
 // than by constructing an assumed filename.
 func (b *planBuilder) findRoleUnder(role Role, dir string) (SourceFile, bool) {
+	matches := b.findRolesUnder(role, dir)
+	if len(matches) == 1 {
+		return matches[0], true
+	}
+	return SourceFile{}, false
+}
+
+func (b *planBuilder) findRolesUnder(role Role, dir string) []SourceFile {
 	prefix := dir + "/"
+	var matches []SourceFile
 	for path, sf := range b.byPath {
 		if !strings.HasPrefix(path, prefix) {
 			continue
@@ -1173,10 +1373,11 @@ func (b *planBuilder) findRoleUnder(role Role, dir string) (SourceFile, bool) {
 			continue // nested further (e.g. tasks/); not directly under dir
 		}
 		if Classify(path) == role {
-			return sf, true
+			matches = append(matches, sf)
 		}
 	}
-	return SourceFile{}, false
+	sort.Slice(matches, func(i, j int) bool { return matches[i].Path < matches[j].Path })
+	return matches
 }
 
 func mustRel(root, path string) string {

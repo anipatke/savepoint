@@ -29,11 +29,16 @@ func TestClassify_unclassifiedIsReportedNotDropped(t *testing.T) {
 	cases := []string{
 		".savepoint/scratch-notes.txt",
 		"README.md",
+		".savepoint/releases/v1",
 		".savepoint/releases/v1/random.md",
 	}
 	for _, path := range cases {
-		if got := Classify(path); got != RoleUnclassified {
-			t.Errorf("Classify(%s) = %s, want %s", path, got, RoleUnclassified)
+		want := RoleUnclassified
+		if path == ".savepoint/releases/v1" {
+			want = RoleRelease
+		}
+		if got := Classify(path); got != want {
+			t.Errorf("Classify(%s) = %s, want %s", path, got, want)
 		}
 	}
 }
@@ -52,7 +57,7 @@ func TestClassify_shippedSkill(t *testing.T) {
 func TestClassify_roleVocabularyIsComplete(t *testing.T) {
 	want := []Role{
 		RoleConfig, RoleRouter, RoleProductPRD, RoleArchitecture, RoleHealthCheck,
-		RoleReleasePRD, RoleEpicDetail, RoleEpicAudit, RoleTask, RoleDefect,
+		RoleRelease, RoleReleasePRD, RoleEpicDetail, RoleEpicAudit, RoleTask, RoleDefect,
 		RoleAuditPrompt, RoleAuditRegister, RoleFinding, RoleAuditRun,
 		RoleManagedGuide, RoleSkill,
 	}

@@ -44,10 +44,17 @@ files:
             - global_id: O001
               kind: objective
               release: v1
+              release_id: R001
               epic: E01-example
               path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
               original_id: E01-example
               target_path: objectives/O001-example/Objective.md
+            - global_id: R001
+              kind: release
+              release: v1
+              path: .savepoint/releases/v1/v1-PRD.md
+              original_id: v1
+              target_path: releases/R001-v1/Release.md
             - global_id: T001
               kind: task
               release: v1
@@ -71,6 +78,12 @@ files:
               release: v1
               epic: E01-example
               original_id: E01-example/T001-original
+            - source_path: .savepoint/releases/v1/v1-PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
+              sha256: 4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc
+              role: release-prd
+              release: v1
+              original_id: v1
         legacy_prerequisites:
             - task: T001
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
@@ -81,7 +94,7 @@ files:
         id: O001
         title: 'Epic E01: Example'
         status: in_progress
-        release: v1
+        release: R001
         ---
         ## Migrated from V1
 
@@ -108,6 +121,52 @@ files:
         None; this is a documentation-only example epic.
     - path: .savepoint/objectives/O001-example/tasks/T001-follow-up.md
       content: "---\r\nid: T001\r\ntitle: Extend the baseline with a dependent follow-up\r\nobjective: O001\r\nplanned_by:\r\n    role: planner\r\n    session: migration\r\nstatus: in_progress\r\nstage: build\r\nrelease: v1\r\nlegacy_fields:\r\n    legacy_note: kept from v1 authoring; not part of the current schema\r\n    metadata:\r\n        origin: hand-authored\r\n        reviewer:\r\n            name: sam\r\n            role: peer\r\n---\r\n## Migrated from V1\r\n\r\nRelocated verbatim from the V1 task body at `.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md` (release `v1`).\r\n\r\n## V1 Body (verbatim)\r\n\r\n<!-- Author note: this task intentionally keeps v1-era authoring shape,\r\n     including the phase field and this comment, as migration source\r\n     evidence. Do not \"fix\" it to match current templates. -->\r\n\r\n# T002: Follow-up\r\n\r\n## Acceptance Criteria\r\n\r\n- [x] Baseline extended\r\n- [ ] Follow-up documented across more than\r\n      one line, describing the exact expected\r\n      behavior for the dependent step\r\n\r\n## Implementation Plan\r\n\r\n- [x] Read the baseline output\r\n- [ ] Extend it with the following steps: first\r\n      gather inputs, then apply the follow-up\r\n      transform, then record results\r\n\r\n## Evidence\r\n\r\nRecorded across more than one authored line so the raw\r\nbody preserves its original v1 formatting, including this\r\ntrailing note about scope and intent.\r\n\r\n\r\n## Legacy Prerequisite\r\n\r\nThis Task's V1 source depended on completed V1 work that received no V2 identity, archived at `.savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md`. Recorded completion evidence: recorded done; acceptance criteria: Baseline output exists\r\n"
+    - path: .savepoint/releases/R001-v1/Release.md
+      content: |
+        ---
+        id: R001
+        title: Example Release
+        status: in_progress
+        ---
+        ## Outcome
+
+        The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1/v1-PRD.md`.
+
+        ## Why
+
+        This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+        ## Success Conditions
+
+        - Converted Objectives sourced from this V1 release reference this Release identity.
+        - Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+        ## Boundaries
+
+        Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+        ## Legacy Source (verbatim)
+
+        Source path: `.savepoint/releases/v1/v1-PRD.md`
+
+        SHA-256: `4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc`
+
+        Original frontmatter:
+
+        ```yaml
+        version: 1
+        name: "Example Release"
+        status: in_progress
+        ```
+
+        ````markdown
+
+
+        # Release v1 — Example
+
+        Minimal frozen release scope, kept only as migration source evidence for
+        E41. One epic, two tasks: a completed baseline and a dependent follow-up.
+        ````
     - path: .savepoint/router.md
       content: |
         # Agent State Machine
@@ -123,6 +182,7 @@ files:
 
         ```yaml
         state: task
+        release: R001
         objective: O001
         task: T001
         next_action: Build E01-example/T002-follow-up.

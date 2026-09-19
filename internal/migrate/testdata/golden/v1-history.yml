@@ -262,10 +262,23 @@ files:
             - global_id: O001
               kind: objective
               release: v1.1
+              release_id: R002
               epic: E01-example
               path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
               original_id: E01-example
               target_path: objectives/O001-example/Objective.md
+            - global_id: R001
+              kind: release
+              release: v1
+              path: .savepoint/releases/v1/v1-PRD.md
+              original_id: v1
+              target_path: releases/R001-v1/Release.md
+            - global_id: R002
+              kind: release
+              release: v1.1
+              path: .savepoint/releases/v1.1/v1.1-PRD.md
+              original_id: v1.1
+              target_path: releases/R002-v1.1/Release.md
             - global_id: T001
               kind: task
               release: v1.1
@@ -309,6 +322,12 @@ files:
               release: v1.1
               epic: E01-example
               original_id: E01-example
+            - source_path: .savepoint/releases/v1.1/v1.1-PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/v1.1-PRD.md
+              sha256: 04e9a920234ac71d1d67f92b378ccc4c4134790da1e66c01963be04ceb78cdd6
+              role: release-prd
+              release: v1.1
+              original_id: v1.1
             - source_path: .savepoint/releases/v1/defects/D001-shared.md
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1/defects/D001-shared.md
               role: defect
@@ -326,6 +345,12 @@ files:
               release: v1
               epic: E01-example
               original_id: E01-example/T001-shared
+            - source_path: .savepoint/releases/v1/v1-PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
+              sha256: 878523ffd0b4230243d1414ff9e407efec33ee37d73649763a28532c514edaeb
+              role: release-prd
+              release: v1
+              original_id: v1
         waived_references:
             - task: T001
               archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
@@ -336,7 +361,7 @@ files:
         id: O001
         title: 'Epic E01: Example (v1.1 continuation)'
         status: in_progress
-        release: v1.1
+        release: R002
         ---
         ## Migrated from V1
 
@@ -418,6 +443,102 @@ files:
         ## Implementation Plan
 
         - [ ] Wait for T001-shared, then extend it
+    - path: .savepoint/releases/R001-v1/Release.md
+      content: |
+        ---
+        id: R001
+        title: Example Release
+        status: done
+        legacy_completion:
+            source_path: .savepoint/releases/v1/v1-PRD.md
+            archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
+            sha256: 878523ffd0b4230243d1414ff9e407efec33ee37d73649763a28532c514edaeb
+        ---
+        ## Outcome
+
+        The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1/v1-PRD.md`.
+
+        ## Why
+
+        This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+        ## Success Conditions
+
+        - Converted Objectives sourced from this V1 release reference this Release identity.
+        - Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+        ## Boundaries
+
+        Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+        ## Legacy Source (verbatim)
+
+        Source path: `.savepoint/releases/v1/v1-PRD.md`
+
+        SHA-256: `878523ffd0b4230243d1414ff9e407efec33ee37d73649763a28532c514edaeb`
+
+        Original frontmatter:
+
+        ```yaml
+        version: 1
+        name: "Example Release"
+        status: done
+        ```
+
+        ````markdown
+
+
+        # Release v1 — Example
+
+        Minimal frozen release scope, kept only as migration source evidence for E41. One epic,
+        one Task, completed, plus one resolved defect.
+        ````
+    - path: .savepoint/releases/R002-v1.1/Release.md
+      content: |
+        ---
+        id: R002
+        title: Example Release — Follow-up
+        status: in_progress
+        ---
+        ## Outcome
+
+        The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1.1/v1.1-PRD.md`.
+
+        ## Why
+
+        This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+        ## Success Conditions
+
+        - Converted Objectives sourced from this V1 release reference this Release identity.
+        - Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+        ## Boundaries
+
+        Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+        ## Legacy Source (verbatim)
+
+        Source path: `.savepoint/releases/v1.1/v1.1-PRD.md`
+
+        SHA-256: `04e9a920234ac71d1d67f92b378ccc4c4134790da1e66c01963be04ceb78cdd6`
+
+        Original frontmatter:
+
+        ```yaml
+        version: 1.1
+        name: "Example Release — Follow-up"
+        status: in_progress
+        ```
+
+        ````markdown
+
+
+        # Release v1.1 — Example Follow-up
+
+        Reuses the v1 baseline epic and Task short ID, redoes the baseline Task under v1.1, and
+        adds a dependent follow-up Task, an open defect, and an audited findings history.
+        ````
     - path: .savepoint/router.md
       content: |
         # Agent State Machine
@@ -433,6 +554,7 @@ files:
 
         ```yaml
         state: task
+        release: R002
         objective: O001
         task: T001
         next_action: Build E01-example/T001-shared.

@@ -168,6 +168,7 @@ func decodeReleaseBody(path, id, body string) (map[string]string, error) {
 	sections := make(map[string]string, requiredCount)
 	var current string
 	var content []string
+	fenceTicks := 0
 
 	flush := func() {
 		if current != "" {
@@ -178,6 +179,23 @@ func decodeReleaseBody(path, id, body string) (map[string]string, error) {
 
 	for _, line := range strings.Split(normalizeLineEndings(body), "\n") {
 		trimmed := strings.TrimSpace(line)
+		if ticks := leadingBackticksV2(trimmed); ticks >= 3 {
+			if fenceTicks == 0 {
+				fenceTicks = ticks
+			} else if ticks >= fenceTicks {
+				fenceTicks = 0
+			}
+			if current != "" {
+				content = append(content, line)
+			}
+			continue
+		}
+		if fenceTicks > 0 {
+			if current != "" {
+				content = append(content, line)
+			}
+			continue
+		}
 		if strings.HasPrefix(trimmed, "## ") {
 			flush()
 			current = strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
@@ -198,4 +216,12 @@ func decodeReleaseBody(path, id, body string) (map[string]string, error) {
 		}
 	}
 	return sections, nil
+}
+
+func leadingBackticksV2(line string) int {
+	count := 0
+	for count < len(line) && line[count] == '`' {
+		count++
+	}
+	return count
 }

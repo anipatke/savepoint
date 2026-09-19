@@ -49,6 +49,7 @@ type ManifestIdentity struct {
 	GlobalID   string `yaml:"global_id"`
 	Kind       string `yaml:"kind"`
 	Release    string `yaml:"release,omitempty"`
+	ReleaseID  string `yaml:"release_id,omitempty"`
 	Epic       string `yaml:"epic,omitempty"`
 	Path       string `yaml:"path"`
 	OriginalID string `yaml:"original_id"`
@@ -60,6 +61,7 @@ type ManifestIdentity struct {
 type ManifestArchive struct {
 	SourcePath  string `yaml:"source_path"`
 	ArchivePath string `yaml:"archive_path"`
+	SHA256      string `yaml:"sha256,omitempty"`
 	Role        string `yaml:"role,omitempty"`
 	Release     string `yaml:"release,omitempty"`
 	Epic        string `yaml:"epic,omitempty"`
@@ -110,10 +112,15 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 	}
 
 	for _, t := range plan.Targets {
+		releaseID := ""
+		if t.Kind == TargetObjective {
+			releaseID = t.ReleaseID
+		}
 		m.Identities = append(m.Identities, ManifestIdentity{
 			GlobalID:   t.GlobalID,
 			Kind:       string(t.Kind),
 			Release:    t.Legacy.Release,
+			ReleaseID:  releaseID,
 			Epic:       t.Legacy.Epic,
 			Path:       t.Legacy.Path,
 			OriginalID: t.Legacy.OriginalID,
@@ -123,7 +130,7 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 	sort.Slice(m.Identities, func(i, j int) bool { return m.Identities[i].GlobalID < m.Identities[j].GlobalID })
 
 	for _, a := range plan.Archives {
-		entry := ManifestArchive{SourcePath: a.SourcePath, ArchivePath: a.ArchivePath, Role: string(a.Role)}
+		entry := ManifestArchive{SourcePath: a.SourcePath, ArchivePath: a.ArchivePath, SHA256: a.SourceSHA256, Role: string(a.Role)}
 		if a.Legacy != nil {
 			entry.Release = a.Legacy.Release
 			entry.Epic = a.Legacy.Epic

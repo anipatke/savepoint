@@ -121,8 +121,8 @@ func TestConvertObjective_activeEpicFields(t *testing.T) {
 		wantRelease   string
 		wantDependsOn []string
 	}{
-		{fixture: "v1-basic", wantTitle: "Epic E01: Example", wantStatus: data.ColumnInProgress, wantRelease: "v1"},
-		{fixture: "v1-history", wantTitle: "Epic E01: Example (v1.1 continuation)", wantStatus: data.ColumnInProgress, wantRelease: "v1.1"},
+		{fixture: "v1-basic", wantTitle: "Epic E01: Example", wantStatus: data.ColumnInProgress, wantRelease: "R001"},
+		{fixture: "v1-history", wantTitle: "Epic E01: Example (v1.1 continuation)", wantStatus: data.ColumnInProgress, wantRelease: "R002"},
 	}
 
 	for _, tc := range cases {

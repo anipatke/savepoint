@@ -407,6 +407,8 @@ func renderTargetContent(root string, plan *ConversionPlan, t PlannedTarget) ([]
 	var content string
 	var err error
 	switch t.Kind {
+	case TargetRelease:
+		content, err = ConvertRelease(root, plan, t)
 	case TargetObjective:
 		content, err = ConvertObjective(root, plan, t)
 	case TargetTask:

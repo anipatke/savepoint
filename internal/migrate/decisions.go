@@ -42,6 +42,18 @@ const (
 	// cross-reference to an identity that does not exist, rather than a
 	// finding with no identity of its own.
 	AmbiguityUnresolvedNarrativeFind AmbiguityKind = "unresolved_narrative_finding"
+	// AmbiguityMissingReleaseSource means a V1 release directory has no
+	// release PRD, so migration cannot create an accountable Release promise.
+	AmbiguityMissingReleaseSource AmbiguityKind = "missing_release_source"
+	// AmbiguityDuplicateReleaseSource means a release directory has more than
+	// one PRD-shaped source and migration cannot choose one authoritatively.
+	AmbiguityDuplicateReleaseSource AmbiguityKind = "duplicate_release_source"
+	// AmbiguityReleaseLifecycle means a release PRD has a lifecycle value that
+	// is not part of the migration vocabulary.
+	AmbiguityReleaseLifecycle AmbiguityKind = "release_lifecycle"
+	// AmbiguityReleaseCompletion means a legacy disposition such as `audited`
+	// does not by itself prove a settled release promise.
+	AmbiguityReleaseCompletion AmbiguityKind = "release_completion_evidence"
 
 	// AmbiguityUnclassifiedFile is a source file matching no known Role. It
 	// is archived intact regardless, so it never blocks; it is named so the
@@ -55,7 +67,9 @@ const (
 func isBlockingAmbiguityKind(kind AmbiguityKind) bool {
 	switch kind {
 	case AmbiguityUnrecognizedLifecycle, AmbiguityMissingDependencyTarget,
-		AmbiguityDuplicateSourceIdentity, AmbiguityUnresolvedNarrativeFind:
+		AmbiguityDuplicateSourceIdentity, AmbiguityUnresolvedNarrativeFind,
+		AmbiguityMissingReleaseSource, AmbiguityDuplicateReleaseSource,
+		AmbiguityReleaseLifecycle, AmbiguityReleaseCompletion:
 		return true
 	default:
 		return false

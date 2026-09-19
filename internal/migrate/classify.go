@@ -2,9 +2,9 @@ package migrate
 
 import "regexp"
 
-// Role names what a source file is, so migration can give it an accountable
-// destination or archive reference. The vocabulary is frozen against the two
-// V1 fixture manifests in internal/data/testdata/migration/.
+// Role names what an inventoried source path is, so migration can give it an
+// accountable destination or archive reference. The vocabulary is frozen
+// against the two V1 fixture manifests in internal/data/testdata/migration/.
 type Role string
 
 const (
@@ -13,6 +13,7 @@ const (
 	RoleProductPRD    Role = "product-prd"
 	RoleArchitecture  Role = "architecture"
 	RoleHealthCheck   Role = "health-check"
+	RoleRelease       Role = "release"
 	RoleReleasePRD    Role = "release-prd"
 	RoleEpicDetail    Role = "epic-detail"
 	RoleEpicAudit     Role = "epic-audit"
@@ -51,6 +52,7 @@ var classifyRules = []classifyRule{
 	{RoleProductPRD, regexp.MustCompile(`^\.savepoint/PRD\.md$`)},
 	{RoleArchitecture, regexp.MustCompile(`^\.savepoint/Design\.md$`)},
 	{RoleHealthCheck, regexp.MustCompile(`^\.savepoint/Health-Check\.md$`)},
+	{RoleRelease, regexp.MustCompile(`^\.savepoint/releases/[^/]+$`)},
 	{RoleAuditPrompt, regexp.MustCompile(`^\.savepoint/audit/prompt\.md$`)},
 	{RoleAuditRegister, regexp.MustCompile(`^\.savepoint/audit/register\.md$`)},
 	{RoleFinding, regexp.MustCompile(`^\.savepoint/audit/findings/[^/]+\.md$`)},

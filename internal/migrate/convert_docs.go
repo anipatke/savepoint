@@ -47,6 +47,7 @@ var routerStateMap = map[string]string{
 // does not define.
 type routerV2State struct {
 	State      string `yaml:"state"`
+	Release    string `yaml:"release,omitempty"`
 	Objective  string `yaml:"objective,omitempty"`
 	Task       string `yaml:"task,omitempty"`
 	NextAction string `yaml:"next_action"`
@@ -113,6 +114,15 @@ func mapRouterState(plan *ConversionPlan, v1 data.RouterState) (routerV2State, s
 	out := routerV2State{State: v2, NextAction: v1.NextAction}
 	var notes []string
 
+	if v1.Release != "" {
+		if releaseID := resolveRouterRelease(plan, v1.Release); releaseID != "" {
+			out.Release = releaseID
+		} else {
+			notes = append(notes, fmt.Sprintf(
+				"The previously selected release %s does not resolve to a planned V2 Release; the router now selects no Release.", v1.Release))
+		}
+	}
+
 	if v1.Epic != "" {
 		objectiveID, archivePath := resolveRouterObjective(plan, v1.Release, v1.Epic)
 		switch {
@@ -146,6 +156,15 @@ func mapRouterState(plan *ConversionPlan, v1 data.RouterState) (routerV2State, s
 	}
 
 	return out, strings.Join(notes, "\n\n"), nil
+}
+
+func resolveRouterRelease(plan *ConversionPlan, release string) string {
+	for _, t := range plan.Targets {
+		if t.Kind == TargetRelease && t.Legacy.Release == release {
+			return t.GlobalID
+		}
+	}
+	return ""
 }
 
 // resolveRouterObjective resolves a V1 router epic selection to the

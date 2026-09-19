@@ -77,6 +77,12 @@ func writePlannedRecords(b *strings.Builder, targets []PlannedTarget) {
 		if len(t.DependsOn) > 0 {
 			fmt.Fprintf(b, "    depends_on: %s\n", strings.Join(t.DependsOn, ", "))
 		}
+		if t.Kind == TargetRelease {
+			fmt.Fprintf(b, "    status: %s\n", t.ReleaseStatus)
+			if t.ReleaseStatus == "done" {
+				fmt.Fprintf(b, "    completion: historical archive reference at %s\n", archivePathFor(t.Legacy.Path))
+			}
+		}
 		if t.DuplicateOfGlobalID != "" {
 			fmt.Fprintf(b, "    duplicate_of: %s\n", t.DuplicateOfGlobalID)
 		}

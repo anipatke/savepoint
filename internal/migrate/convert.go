@@ -179,7 +179,7 @@ func ConvertObjective(root string, plan *ConversionPlan, target PlannedTarget) (
 		Title:        title,
 		Status:       status,
 		DependsOn:    dependsOn,
-		Release:      target.Legacy.Release,
+		Release:      firstNonEmptyString(target.ReleaseID, target.Legacy.Release),
 		LegacyFields: legacyFields,
 	}
 
