@@ -188,9 +188,94 @@ const (
 	v2ObjectivesDirName = "objectives"
 	v2ObjectiveFileName = "Objective.md"
 	v2TasksDirName      = "tasks"
+	v2ReleasesDirName   = "releases"
+	v2ReleaseFileName   = "Release.md"
 	v2ChecksDirName     = "checks"
 	v2IssuesDirName     = "issues"
 )
+
+// DiscoverV2Releases confines discovery to root/releases and decodes the
+// optional Release record family. A release directory is identified by its
+// own Release.md record; the directory slug never supplies or changes the
+// declared R### identity. Missing releases/ and directories without a
+// Release.md are valid, which keeps release-free V2 projects unchanged.
+func DiscoverV2Releases(root string) (map[string]*ReleaseV2, error) {
+	releases := map[string]*ReleaseV2{}
+	releasesPath := filepath.Join(root, v2ReleasesDirName)
+	if _, statErr := os.Lstat(releasesPath); os.IsNotExist(statErr) {
+		return releases, nil
+	}
+
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	confined := &v2PathConfiner{rootAbs: rootAbs, seen: map[string]string{}}
+
+	releasesInfo, err := confined.stat(releasesPath, v2ReleasesDirName)
+	if err != nil {
+		return nil, err
+	}
+	if !releasesInfo.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", releasesPath)
+	}
+
+	entries, err := os.ReadDir(releasesPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		relDir := filepath.Join(v2ReleasesDirName, entry.Name())
+		dirPath := filepath.Join(releasesPath, entry.Name())
+		dirInfo, err := confined.stat(dirPath, relDir)
+		if err != nil {
+			return nil, err
+		}
+		if !dirInfo.IsDir() {
+			continue
+		}
+
+		relFile := filepath.Join(relDir, v2ReleaseFileName)
+		filePath := filepath.Join(dirPath, v2ReleaseFileName)
+		fileInfo, statErr := confined.stat(filePath, relFile)
+		if statErr != nil {
+			if os.IsNotExist(statErr) {
+				continue
+			}
+			return nil, statErr
+		}
+		if fileInfo.IsDir() {
+			return nil, fmt.Errorf("%s is a directory, want a file", filePath)
+		}
+
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", filePath, err)
+		}
+		release, err := DecodeReleaseV2(relFile, string(content))
+		if err != nil {
+			return nil, err
+		}
+		release.Source.ProjectRoot = rootAbs
+
+		if !releasePathMatchesID(entry.Name(), release.ID) {
+			return nil, fmt.Errorf("%w: %s: release %s directory name %q does not match its id", ErrV2PathMismatch, relDir, release.ID, entry.Name())
+		}
+
+		id := string(release.ID)
+		if existing, ok := releases[id]; ok {
+			return nil, fmt.Errorf("%w: release %s declared at both %s and %s", ErrV2DuplicateID, id, existing.Source.Path, relFile)
+		}
+		releases[id] = release
+	}
+
+	return releases, nil
+}
+
+func releasePathMatchesID(name string, id ReleaseID) bool {
+	return name == string(id) || strings.HasPrefix(name, string(id)+"-")
+}
 
 // DiscoverV2Records confines discovery to root/objectives and decodes every
 // Objective and Task record found there into identity-keyed maps. It never

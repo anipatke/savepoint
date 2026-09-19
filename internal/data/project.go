@@ -55,9 +55,11 @@ func loadProjectV2(root string) (*Project, error) {
 	return &Project{Root: root, SchemaVersion: SchemaVersionV2, V2: index}, nil
 }
 
-// V2Index is the identity-keyed project index for a V2 project's Objective
-// and Task records, built by LoadV2Index. Objectives and Tasks are looked up
-// by their global ID, never by directory-derived numbering or path. Task
+// V2Index is the identity-keyed project index for a V2 project's Release,
+// Objective, and Task records, built by LoadV2Index. Records are looked up by
+// their global ID, never by directory-derived numbering or path. Release
+// membership is derived from Objective.Release; ReleaseObjectives is a
+// reverse lookup only and is never read as an authored membership list. Task
 // ownership in ObjectiveTasks is explicit: it comes from each Task's
 // objective field, not from the directory a Task file happens to live in, so
 // moving a Task file retains both its identity and its ownership.
@@ -67,6 +69,7 @@ func loadProjectV2(root string) (*Project, error) {
 // Check clearance, owner acceptance, or dependency satisfaction; those gates
 // belong to E43.
 type V2Index struct {
+	Releases   map[string]*ReleaseV2
 	Objectives map[string]*ObjectiveV2
 	Tasks      map[string]*TaskV2
 	Checks     map[string]*CheckV2
@@ -76,6 +79,10 @@ type V2Index struct {
 	// ObjectiveTasks maps an Objective ID to the sorted IDs of the Tasks
 	// that declare it as their owner.
 	ObjectiveTasks map[string][]string
+	// ReleaseObjectives maps a Release ID to the sorted IDs of Objectives
+	// whose records declare that Release. It is derived during load; Release
+	// records do not contain a second, mutable membership list.
+	ReleaseObjectives map[string][]string
 	// TaskIssues maps a Task ID to the sorted IDs of the Issues that name it
 	// as carrying their repair.
 	TaskIssues map[string][]string
@@ -92,15 +99,20 @@ type V2Index struct {
 	LatestCheck map[string]string
 }
 
-// LoadV2Index discovers and validates the V2 Objective and Task records
-// under root (a .savepoint directory), returning one authoritative,
-// identity-keyed index. It fails closed on the first structural diagnostic
-// encountered — duplicate/malformed IDs, unsafe paths, missing ownership,
-// missing dependency targets, self-dependencies, or Task/Objective cycles —
-// in deterministic ID order, so repeated runs against the same project
-// report the same diagnostic first.
+// LoadV2Index discovers and validates the optional Release records and the V2
+// Objective and Task records under root (a .savepoint directory), returning
+// one authoritative, identity-keyed index. It fails closed on the first
+// structural diagnostic encountered — duplicate/malformed IDs, unsafe paths,
+// missing ownership, dangling Release references, missing dependency targets,
+// self-dependencies, or Task/Objective cycles — in deterministic ID order, so
+// repeated runs against the same project report the same diagnostic first.
 func LoadV2Index(root string) (*V2Index, error) {
 	objectives, tasks, err := DiscoverV2Records(root)
+	if err != nil {
+		return nil, err
+	}
+
+	releases, err := DiscoverV2Releases(root)
 	if err != nil {
 		return nil, err
 	}
@@ -116,15 +128,25 @@ func LoadV2Index(root string) (*V2Index, error) {
 	}
 
 	index := &V2Index{
-		Objectives:     objectives,
-		Tasks:          tasks,
-		Checks:         checks,
-		Issues:         issues,
-		ObjectiveTasks: map[string][]string{},
-		TaskIssues:     map[string][]string{},
-		CheckIssues:    map[string][]string{},
-		ScopeChecks:    map[string][]string{},
-		LatestCheck:    map[string]string{},
+		Releases:          releases,
+		Objectives:        objectives,
+		Tasks:             tasks,
+		Checks:            checks,
+		Issues:            issues,
+		ObjectiveTasks:    map[string][]string{},
+		ReleaseObjectives: map[string][]string{},
+		TaskIssues:        map[string][]string{},
+		CheckIssues:       map[string][]string{},
+		ScopeChecks:       map[string][]string{},
+		LatestCheck:       map[string]string{},
+	}
+
+	for id := range releases {
+		index.ReleaseObjectives[id] = nil
+	}
+
+	if err := indexReleaseObjectives(index); err != nil {
+		return nil, err
 	}
 
 	for _, id := range slices.Sorted(maps.Keys(tasks)) {
@@ -166,6 +188,34 @@ func LoadV2Index(root string) (*V2Index, error) {
 	indexIssueLinks(index)
 
 	return index, nil
+}
+
+// indexReleaseObjectives validates typed Objective release references and
+// derives the only reverse membership view. Legacy V2 packaging labels remain
+// loadable only while a project has no Release records, preserving the E45
+// transitional migration boundary; any R### reference must resolve.
+func indexReleaseObjectives(index *V2Index) error {
+	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
+		objective := index.Objectives[id]
+		if objective.Release == "" {
+			continue
+		}
+
+		ref := objective.Release
+		if !releaseIDPatternV2.MatchString(ref) {
+			if len(index.Releases) == 0 {
+				continue
+			}
+			return fmt.Errorf("%w: %s: objective %s release %q must match R###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
+		}
+
+		releaseID := string(ref)
+		if _, ok := index.Releases[releaseID]; !ok {
+			return fmt.Errorf("%w: %s: objective %s references missing release %s", ErrV2MissingRelease, objective.Source.Path, objective.ID, releaseID)
+		}
+		index.ReleaseObjectives[releaseID] = append(index.ReleaseObjectives[releaseID], objective.ID)
+	}
+	return nil
 }
 
 // validateIssueLinkTargets resolves every Issue reference that crosses record

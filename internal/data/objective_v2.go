@@ -18,8 +18,8 @@ type ObjectiveV2 struct {
 	ID        string
 	Title     string
 	Status    ColumnType
-	DependsOn []string // O### references
-	Release   string   // optional filtering/packaging metadata only
+	DependsOn []string  // O### references
+	Release   ReleaseID // optional R### Release reference
 	Evidence  *Evidence
 	Source    V2SourceDocument
 }
@@ -60,7 +60,6 @@ func DecodeObjectiveV2(path, content string) (*ObjectiveV2, error) {
 	if !IsCanonicalTaskStatus(fields.Status) {
 		return nil, fmt.Errorf("%w: %s: objective %s status %q; use planned, in_progress, or done", ErrV2InvalidLifecycle, path, fields.ID, fields.Status)
 	}
-
 	dependsOn := make([]string, 0, len(fields.DependsOn))
 	for _, ref := range fields.DependsOn {
 		if !objectiveIDPattern.MatchString(ref) {
@@ -79,7 +78,7 @@ func DecodeObjectiveV2(path, content string) (*ObjectiveV2, error) {
 		Title:     fields.Title,
 		Status:    fields.Status,
 		DependsOn: dependsOn,
-		Release:   fields.Release,
+		Release:   ReleaseID(fields.Release),
 		Evidence:  evidence,
 		Source:    doc,
 	}, nil

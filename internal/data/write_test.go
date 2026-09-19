@@ -1005,7 +1005,7 @@ id: O002
 title: "Load V2 work with stable identity"
 status: planned
 depends_on: [O001]
-release: v2
+release: R001
 owner:
   team: platform
   contact: "team@example.com"
@@ -1046,8 +1046,8 @@ Authored planning notes that must survive the rewrite.`
 	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
 		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
 	}
-	if reparsed.Release != "v2" {
-		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	if reparsed.Release != "R001" {
+		t.Errorf("Release = %q, want R001 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "team: platform") {
 		t.Error("unknown nested field not preserved")
@@ -1169,7 +1169,7 @@ depends_on:
   - task: T003
   - task: T004
     requires: accepted
-release: v2
+release: R001
 ---
 
 # Task
@@ -1208,9 +1208,6 @@ Authored task notes.`
 	}
 	if reparsed.DependsOn[1].Task != "T004" || reparsed.DependsOn[1].Requires != TaskDependencyAccepted {
 		t.Errorf("DependsOn[1] = %+v, want T004/accepted preserved", reparsed.DependsOn[1])
-	}
-	if reparsed.Release != "v2" {
-		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "Authored task notes.") {
 		t.Error("authored body content not preserved")
@@ -1583,7 +1580,7 @@ status: in_progress
 stage: build
 depends_on:
   - task: T010
-release: v2
+release: R001
 ---
 
 # Task
@@ -1669,9 +1666,6 @@ Authored task notes.`
 	}
 	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T010" {
 		t.Errorf("DependsOn = %v, want [T010] preserved", reparsed.DependsOn)
-	}
-	if reparsed.Release != "v2" {
-		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "Authored task notes.") {
 		t.Error("authored body content not preserved")
@@ -3212,7 +3206,7 @@ id: O020
 title: "No evidence yet"
 status: in_progress
 depends_on: [O001]
-release: v2
+release: R001
 ---
 
 # Objective
@@ -3265,8 +3259,8 @@ Authored objective notes.`
 	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
 		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
 	}
-	if reparsed.Release != "v2" {
-		t.Errorf("Release = %q, want v2 preserved", reparsed.Release)
+	if reparsed.Release != "R001" {
+		t.Errorf("Release = %q, want R001 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "Authored objective notes.") {
 		t.Error("authored body content not preserved")

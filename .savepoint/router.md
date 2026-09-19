@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E51-first-class-releases
-task: E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy
-next_action: Build E51-first-class-releases/T001-give-releases-identity-without-rebuilding-the-hierarchy.
+task: E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance
+next_action: Build E51-first-class-releases/T002-require-release-integration-evidence-and-owner-acceptance.
 ```
 
 ## State → action

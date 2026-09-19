@@ -12,7 +12,7 @@ id: O002
 title: "Load V2 work with stable identity"
 status: in_progress
 depends_on: [O001]
-release: v2
+release: R001
 ---
 
 # Objective`
@@ -33,8 +33,8 @@ release: v2
 	if len(objective.DependsOn) != 1 || objective.DependsOn[0] != "O001" {
 		t.Errorf("DependsOn = %v, want [O001]", objective.DependsOn)
 	}
-	if objective.Release != "v2" {
-		t.Errorf("Release = %q, want v2", objective.Release)
+	if objective.Release != "R001" {
+		t.Errorf("Release = %q, want R001", objective.Release)
 	}
 }
 
@@ -216,7 +216,7 @@ status: planned
 	}
 }
 
-func TestDecodeObjectiveV2_releaseIsInertMetadata(t *testing.T) {
+func TestDecodeObjectiveV2_releaseIsTypedReference(t *testing.T) {
 	base := `---
 id: O002
 title: "Objective"
@@ -226,7 +226,7 @@ release: %s
 
 # Objective`
 
-	withRelease, err := DecodeObjectiveV2("test.md", fmt.Sprintf(base, "v2"))
+	withRelease, err := DecodeObjectiveV2("test.md", fmt.Sprintf(base, "R001"))
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() error = %v", err)
 	}
@@ -241,12 +241,31 @@ status: planned
 		t.Fatalf("DecodeObjectiveV2() error = %v", err)
 	}
 
-	// Release differs, but identity and validity are unaffected: release is
-	// filtering/packaging metadata, never consulted for identity checks.
+	// Release is an optional typed reference and does not replace Objective
+	// identity or ownership.
 	if withRelease.ID != withoutRelease.ID || withRelease.Title != withoutRelease.Title {
 		t.Fatalf("release value changed identity fields: %+v vs %+v", withRelease, withoutRelease)
 	}
-	if withRelease.Release != "v2" || withoutRelease.Release != "" {
-		t.Fatalf("Release fields = %q / %q, want v2 / empty", withRelease.Release, withoutRelease.Release)
+	if withRelease.Release != "R001" || withoutRelease.Release != "" {
+		t.Fatalf("Release fields = %q / %q, want R001 / empty", withRelease.Release, withoutRelease.Release)
+	}
+}
+
+func TestDecodeObjectiveV2_preservesTransitionalPackagingText(t *testing.T) {
+	content := `---
+id: O002
+title: "Objective"
+status: planned
+release: v2
+---
+
+# Objective`
+
+	objective, err := DecodeObjectiveV2("objectives/O002-objective/Objective.md", content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v, want transitional compatibility", err)
+	}
+	if objective.Release != "v2" {
+		t.Errorf("Release = %q, want legacy v2 label retained for migration compatibility", objective.Release)
 	}
 }

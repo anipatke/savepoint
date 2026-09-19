@@ -39,9 +39,12 @@ type TaskV2 struct {
 	Status    ColumnType
 	Stage     ProgressStage
 	DependsOn []TaskDependencyV2
-	Release   string // optional filtering/packaging metadata only
-	Evidence  *Evidence
-	Source    V2SourceDocument
+	// Release is retained only for transitional V2 migration compatibility.
+	// Release-aware indexing derives context from the owning Objective and
+	// never reads this legacy packaging field as an ownership edge.
+	Release  string
+	Evidence *Evidence
+	Source   V2SourceDocument
 }
 
 type taskDependencyV2Frontmatter struct {

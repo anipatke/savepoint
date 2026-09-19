@@ -17,7 +17,6 @@ depends_on:
   - task: T003
   - task: T004
     requires: accepted
-release: v2
 ---
 
 # Task`
@@ -49,9 +48,6 @@ release: v2
 	}
 	if task.DependsOn[1].Task != "T004" || task.DependsOn[1].Requires != TaskDependencyAccepted {
 		t.Errorf("DependsOn[1] = %+v, want T004/accepted", task.DependsOn[1])
-	}
-	if task.Release != "v2" {
-		t.Errorf("Release = %q, want v2", task.Release)
 	}
 }
 
@@ -347,10 +343,9 @@ func TestDecodeTaskV2_noFrontmatter(t *testing.T) {
 	}
 }
 
-func TestDecodeTaskV2_releaseNeverEstablishesOwnership(t *testing.T) {
-	// A task with no release at all must still validate ownership purely
-	// from the objective field; release is filtering/packaging metadata
-	// only and must never be consulted as an implicit owner or identity.
+func TestDecodeTaskV2_ownershipComesOnlyFromObjective(t *testing.T) {
+	// A task has no Release field of its own. Its only ownership edge remains
+	// the explicit Objective reference.
 	content := `---
 id: T005
 title: "Task"
@@ -364,9 +359,6 @@ status: planned
 	task, err := DecodeTaskV2("test.md", content)
 	if err != nil {
 		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
-	if task.Release != "" {
-		t.Errorf("Release = %q, want empty", task.Release)
 	}
 	if task.Objective != "O002" {
 		t.Errorf("Objective = %q, want O002", task.Objective)
