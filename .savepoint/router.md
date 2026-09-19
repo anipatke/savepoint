@@ -14,9 +14,9 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 ```yaml
 state: task-building
 release: v2
-epic: E51-first-class-releases
-task: E51-first-class-releases/T009-prove-release-migration-and-gate-the-cutover
-next_action: Build E51-first-class-releases/T009-prove-release-migration-and-gate-the-cutover.
+epic: E50
+task: E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight
+next_action: Build E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight.
 ```
 
 ## State → action

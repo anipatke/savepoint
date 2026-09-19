@@ -1,7 +1,7 @@
 ---
 type: project-design
 status: active
-last_audited: v2/E46-agent-workflow-assets
+last_audited: v2/E51-first-class-releases
 ---
 
 # Savepoint — System Architecture

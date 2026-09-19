@@ -37,16 +37,16 @@ Release selection is useful only if every surface explains the same delivery pro
 
 ## Acceptance Criteria
 
-- [ ] Release detail shows title/outcome, member Objective progress, latest and superseded Release Checks, relevant Issues, freshness basis, exceptions, and owner acceptance.
-- [ ] Current CLEAR, owner-wait, stale/unknown/NEEDS WORK, done-by-exception, and historical-completion states are textually distinct without relying on colour.
-- [ ] Board Next, non-TTY board output, and `savepoint resume` report the same selected Release, readiness state, evidence basis, owner wait, and action from one `data.Next`.
-- [ ] Renderers do not consult `V2Index` to reinterpret Release readiness after receiving the projection.
-- [ ] A project with no Releases retains the existing output shape and wording except where an additive empty context is explicitly required.
-- [ ] Missing, archived, and Objective-mismatched Release selections use the shared selection diagnostic and still expose an available global action.
-- [ ] Release detail and selector-related status render without wrapping or geometry changes at narrow widths and with CJK, emoji, and combining marks.
-- [ ] Non-TTY output is deterministic and ANSI-free; browsing Release detail, Checks, Issues, and filters changes no project bytes or mtimes.
-- [ ] Parity coverage includes selected Release execution, Release Check needed, Release owner validation, Release ready, missing selection, and no Release.
-- [ ] Existing Task/Objective parity rungs and V1 plain-board behavior remain unchanged.
+- [x] Release detail shows title/outcome, member Objective progress, latest and superseded Release Checks, relevant Issues, freshness basis, exceptions, and owner acceptance.
+- [x] Current CLEAR, owner-wait, stale/unknown/NEEDS WORK, done-by-exception, and historical-completion states are textually distinct without relying on colour.
+- [x] Board Next, non-TTY board output, and `savepoint resume` report the same selected Release, readiness state, evidence basis, owner wait, and action from one `data.Next`.
+- [x] Renderers do not consult `V2Index` to reinterpret Release readiness after receiving the projection.
+- [x] A project with no Releases retains the existing output shape and wording except where an additive empty context is explicitly required.
+- [x] Missing, archived, and Objective-mismatched Release selections use the shared selection diagnostic and still expose an available global action.
+- [x] Release detail and selector-related status render without wrapping or geometry changes at narrow widths and with CJK, emoji, and combining marks.
+- [x] Non-TTY output is deterministic and ANSI-free; browsing Release detail, Checks, Issues, and filters changes no project bytes or mtimes.
+- [x] Parity coverage includes selected Release execution, Release Check needed, Release owner validation, Release ready, missing selection, and no Release.
+- [x] Existing Task/Objective parity rungs and V1 plain-board behavior remain unchanged.
 
 ## Implementation Plan
 

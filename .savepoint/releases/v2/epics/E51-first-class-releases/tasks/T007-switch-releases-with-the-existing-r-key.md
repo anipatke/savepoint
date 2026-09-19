@@ -37,16 +37,16 @@ The current board lets a user press `r`, see Releases, move from the current sel
 
 ## Acceptance Criteria
 
-- [ ] On the V2 board, pressing `r` opens a Release selector overlay while leaving the board visible behind it.
-- [ ] The selector cursor starts on the currently selected Release, or the first Release when the prior selection is absent.
-- [ ] Arrow keys and `j`/`k` move within bounds; Esc or `q` closes without changing Release, router state, focus, bytes, or mtimes.
-- [ ] Enter selects the focused Release, closes the overlay, refreshes visible Objectives and Tasks from `ReleaseObjectives`, and resets only invalid cursors/focus.
-- [ ] Selection persists optional router `release` context through the canonical async writer and changes no lifecycle/evidence record or `next_action` prose.
-- [ ] A pending migration or mtime conflict refuses persistence, reports the reason, and reloads/retains a truthful prior selection without partial state.
-- [ ] Selecting a Release never nests Objective or Task ownership and never derives membership from titles, paths, or IDs outside the index.
-- [ ] A project with no Releases keeps the shortcut safe and presents the established `(none)` selector state or an equally explicit inert result.
-- [ ] Reload after Release/Objective edits preserves selection and focus when records still exist; a removed selection produces the canonical diagnostic.
-- [ ] Help text continues to advertise `r` as the Release selector, and the V1 selector tests remain unchanged and passing.
+- [x] On the V2 board, pressing `r` opens a Release selector overlay while leaving the board visible behind it.
+- [x] The selector cursor starts on the currently selected Release, or the first Release when the prior selection is absent.
+- [x] Arrow keys and `j`/`k` move within bounds; Esc or `q` closes without changing Release, router state, focus, bytes, or mtimes.
+- [x] Enter selects the focused Release, closes the overlay, refreshes visible Objectives and Tasks from `ReleaseObjectives`, and resets only invalid cursors/focus.
+- [x] Selection persists optional router `release` context through the canonical async writer and changes no lifecycle/evidence record or `next_action` prose.
+- [x] A pending migration or mtime conflict refuses persistence, reports the reason, and reloads/retains a truthful prior selection without partial state.
+- [x] Selecting a Release never nests Objective or Task ownership and never derives membership from titles, paths, or IDs outside the index.
+- [x] A project with no Releases keeps the shortcut safe and presents the established `(none)` selector state or an equally explicit inert result.
+- [x] Reload after Release/Objective edits preserves selection and focus when records still exist; a removed selection produces the canonical diagnostic.
+- [x] Help text continues to advertise `r` as the Release selector, and the V1 selector tests remain unchanged and passing.
 
 ## Implementation Plan
 
