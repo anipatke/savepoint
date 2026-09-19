@@ -2,265 +2,226 @@
 
 # Savepoint
 
-> **Hard gates for AI-driven development. Local files, tight context, no telemetry.**<br>
-> Official site: [getsavepoint.dev](https://getsavepoint.dev)
+> **Hard gates for AI-driven development.**
+>
+> Local files. Tight context. No telemetry.
 
-Savepoint is a local-first CLI and Bubble Tea terminal board that keeps AI-assisted software projects inside a disciplined engineering workflow.
+Savepoint gives AI coding agents an engineering process they can actually
+follow. It turns a fuzzy idea into a durable plan, limits each implementation
+step to the files it needs, and asks for independent evidence before the work
+advances.
 
-It acts as a control layer between you and your coding agents (Claude Code, Cursor, Codex, Gemini, Aider). It gives agents a simple 4-beat rhythm to follow, exact scoped context files to read, and hard gates before work drifts away from the plan:
+The result is a small, local-first control plane for shipping software with
+agents — stored in your repository, inspectable by your team, and usable with
+the tools you already have.
 
-$$\textbf{Idea} \longrightarrow \textbf{Design} \longrightarrow \textbf{Task} \longrightarrow \textbf{Check}$$
+[Website](https://www.getsavepoint.dev/) ·
+[GitHub](https://github.com/anipatke/savepoint) ·
+[npm](https://www.npmjs.com/package/savepoint)
+
+## Why Savepoint?
+
+AI-assisted development tends to fail at the boundaries: context gets too
+large, scope gets vague, architecture drifts, and “tests passed” becomes a
+substitute for someone checking the actual outcome.
+
+Savepoint makes those boundaries explicit:
+
+- **Plan before implementation.** Intent, architecture, and constraints are
+  written down before an agent starts changing code.
+- **Keep execution bounded.** Each Task has one observable outcome and a
+  strict list of Context Files.
+- **Keep policy durable.** Guardrails live beside the project instead of being
+  hidden in a prompt or a chat transcript.
+- **Check independently.** A fresh Check verifies the result and returns a
+  simple `CLEAR` or `NEEDS WORK` verdict.
+- **Keep ownership clear.** Agents implement and prove their work; people
+  decide whether the outcome is what they wanted.
+
+Savepoint does not replace Git, your test runner, or human judgment. It gives
+those things a shared workflow.
+
+## The workflow
 
 ```text
-Plan deeply. Execute cheaply. Check independently.
+IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  CHECK
+  intent       architecture    bounded      independent
+  & outcome    & guardrails    execution     evidence
 ```
 
-**No database. No proprietary cloud. No telemetry. Your Git filesystem is the source of truth.**
+### Idea
 
----
+Capture what you are building, who it is for, why it matters, and what is out
+of scope. A rough sentence is enough to begin.
 
-## Quick Start
+### Design
+
+Turn intent into architecture: components, interfaces, boundaries, decisions,
+and durable engineering guardrails. Design describes the system that exists;
+it is not a second backlog.
+
+### Task
+
+Break the next outcome into a small execution packet. A Task records its
+objective, dependencies, acceptance criteria, implementation plan, and the
+exact files the agent may need to read.
+
+If the plan is materially wrong, the agent stops with `REPLAN REQUIRED` rather
+than quietly inventing a new architecture.
+
+### Check
+
+An independent checker verifies the Task against its acceptance criteria,
+guardrails, tests, and relevant design. A successful check is evidence, not
+just a green command: it explains what was verified and why the result is
+safe to advance.
+
+## Quick start
+
+Install Savepoint into the repository you want to work on:
 
 ```bash
 npx savepoint init
+```
+
+Then open the board and inspect the next action:
+
+```bash
 npx savepoint board
+npx savepoint resume
+```
+
+Ask your coding agent to read the generated `AGENTS.md`. That file routes the
+agent to the current Savepoint state, the matching workflow skill, and the
+bounded context for the active Task.
+
+When you want a deterministic project check:
+
+```bash
 npx savepoint doctor
 ```
 
-* `init` scaffolds `.savepoint/`, `AGENTS.md`, and agent skills into your repository.
-* `board` opens the Atari-Noir keyboard-driven terminal dashboard.
-* `doctor` deterministically checks repository sanity, router state, and quality gates.
+Commit the generated `.savepoint/` files and `AGENTS.md` with your project.
+They are the project memory that lets a new agent, a new session, or a human
+teammate pick up where the last one stopped.
 
-After `init`, point your agent at `AGENTS.md` and let it follow the plan.
+## The command line
 
----
+| Command | What it does |
+| --- | --- |
+| `savepoint init [dir]` | Scaffolds Savepoint's project files and agent guidance. |
+| `savepoint board` | Opens the keyboard-driven terminal board. |
+| `savepoint resume [dir]` | Prints the current state and the next recorded action. |
+| `savepoint doctor` | Runs deterministic project diagnostics and configured quality gates. |
+| `savepoint migrate [dir]` | Converts a legacy Savepoint project to V2. Preview is the default. |
+| `savepoint upgrade-assets [dir]` | Refreshes shipped skills and templates in an existing project. |
 
-## The Core Philosophy
+Run `savepoint <command>` without arguments to see that command's usage. The
+package is also available through `npx` for projects that do not need a global
+installation.
 
-### 1. The Division of Labor
-> **The user validates outcomes. Savepoint verifies implementation.**
+## The terminal board
 
-You shouldn't have to spend your Sunday reviewing 600-line git diffs of generated code just to know if your app is safe.
+`savepoint board` is a fast, keyboard-driven view of the work recorded in your
+project:
 
-* **Your job:** Validate the outcome. *Does the button work? Does the screen look right? Can I complete the workflow?*
-* **Savepoint's job:** Verify the code. *Did the agent violate `Guardrails.md`? Did it touch files it wasn't supposed to touch? Did it drift from `Design.md`? Did unit tests pass?*
+- **Next** shows the single action selected by the project state.
+- **Objectives** group related outcomes without forcing a large hierarchy on
+  small projects.
+- **Task columns** show planned, in-progress, and done work, including the
+  current build/test/audit stage.
+- **Detail views** expose acceptance criteria, dependencies, evidence, and
+  issues without leaving the terminal.
+- **Router priority** lets you focus the next task without rewriting the
+  history of the project.
 
-### 2. The Tri-Model Architecture
-Smart models are too expensive to write every line of code. Cheap models are too dumb to design systems. And **no model should ever grade its own homework**.
+The board is a view over the files. It is not a second database and does not
+silently invent state that is missing from the repository.
 
-Savepoint splits AI work into three distinct capability roles:
+## What lives in the repository
 
-| Role | Capability | Responsibility |
-| :--- | :--- | :--- |
-| **Planner** | Frontier reasoning (e.g., Claude 3.7 / Opus / GPT-4.5) | Refines the **Idea**, produces technical **Design**, settles durable **Guardrails**, and decomposes work into small, bounded **Tasks**. Does the expensive thinking up front—once. |
-| **Executor** | Fast & budget-friendly (e.g., Haiku / Gemini Flash / GPT-4o-mini) | Executes one **Task** at a time within strictly scoped files. Never improvises architecture. If blocked or if the plan is wrong, raises its hand: `REPLAN REQUIRED`. |
-| **Checker** | Independent reasoning (e.g., Sonnet / Codex) | Skeptically tests the completed Task. Challenges executor claims. Verifies technical integrity, tests, and guardrails. Returns `CLEAR` or `NEEDS WORK`. |
-
----
-
-## The 4-Beat Rhythm
-
-```text
-IDEA ───► DESIGN ───► TASK ───► CHECK
-                        ▲         │
-                        └─────────┘
-```
-
-1. **Idea (`Idea.md`):** What are we building, who is it for, and why? Start with a rough sentence; let the planning model refine the scope and explicit out-of-scope boundaries.
-2. **Design (`Design.md` & `Guardrails.md`):** Architecture before code. Major components, data flow, boundaries, and 10–20 durable guardrails. Settled before implementation starts.
-3. **Task (`tasks/T###-slug.md`):** Bounded execution packets. One discrete, observable outcome with strictly scoped context files (2–3 files max).
-4. **Check:** Independent verification. Tests pass? Guardrails intact? No design drift? Produces a simple verdict: `CLEAR` or `NEEDS WORK`.
-
----
-
-## What Savepoint Creates
-
-Savepoint stores project state directly in Markdown and YAML frontmatter next to your code:
+Savepoint uses Markdown and YAML as its source of truth:
 
 ```text
 .savepoint/
-├── Idea.md             # What we're building & why (replaces PRD)
-├── Design.md           # Architecture, components, data flow, codebase map
-├── Guardrails.md       # Durable constraints the agent must not break
-├── router.md           # Current state machine & active task pointer
-├── objectives/         # Objectives group related tasks (optional for small projects)
+├── config.yml             # Project settings and quality gates
+├── router.md              # Current workflow state and next action
+├── Idea.md                # Intent, user, scope, and success criteria
+├── Design.md              # Architecture and verified technical state
+├── Guardrails.md          # Durable engineering policy
+├── objectives/            # Outcomes and their bounded Tasks
 │   └── O001-example/
 │       ├── Objective.md
 │       └── tasks/
-│           ├── T001-setup.md
-│           └── T002-feature.md
-├── checks/             # Check evaluation results & verification evidence
-└── issues/             # Durable follow-up: defects, drift, and guardrail items
-AGENTS.md               # The single entrypoint for your coding agents
-agent-skills/           # Workflow instructions for planner, executor, and checker
+├── checks/                # Independent verification evidence
+└── issues/                # Durable follow-up and discovered problems
+
+AGENTS.md                  # The agent's entrypoint
+agent-skills/              # The workflow instructions it activates
 ```
 
----
+The files are intentionally ordinary. You can read them in an editor, review
+them in a pull request, diff them with Git, or recover from them without a
+Savepoint server.
 
-## Task as a Bounded Execution Packet
+## Safe migration
 
-In Savepoint, a Task is not a vague to-do item. It is a **handoff contract**:
-
-```markdown
----
-id: O003/T004-resume-work
-status: in_progress
-stage: build              # build | test | audit
-objective: O003-improve-project-recovery
-depends_on: []
-planned_by: planner
----
-
-# T004: Resume unfinished work
-
-## Outcome
-When I reopen Savepoint, I can see what I was working on and what to do next.
-
-## User Check
-1. Start a task, interrupt Savepoint, reopen project.
-2. Run `savepoint resume`.
-3. Confirm current task and next action are shown accurately without disk writes.
-
-## Context Files (Strictly Scoped)
-- `cmd/resume.go`
-- `internal/data/project.go`
-
-## Guardrails
-- `STATE-01` (read-only execution)
-- `DATA-03` (use canonical parser)
-
-## Implementation Plan
-1. Resolve active task from router state.
-2. Implement read-only query helper.
-3. Add CLI command wiring.
-4. Add regression tests for corrupted router state.
-
-## Boundaries
-Do not redesign router persistence or add automatic model routing.
-
-## Technical Verification
-- [ ] Unit tests pass (`make test`).
-- [ ] Zero filesystem writes during execution.
-```
-
-If an executor gets stuck or discovers an architectural ambiguity, it returns:
-```text
-REPLAN REQUIRED
-The Task assumes router state exposes Objective directly, but data model requires derivation.
-Planner decision required.
-```
-This halts execution cleanly instead of letting the agent improvise rogue code.
-
----
-
-## The Terminal Board (`savepoint board`)
-
-`savepoint board` launches the retro **Atari-Noir** Bubble Tea terminal interface:
-
-* **Header:** Displays release status, active objective, and open defect warnings (`⚠ 1 open`).
-* **Next Activity Line:** The exact next step derived from `.savepoint/router.md`.
-* **Kanban Columns:** `PLANNED`, `IN PROGRESS` (with `[build]`, `[test]`, `[audit]` stage tags), and `DONE`.
-* **Sidebar:** Fast navigation across Epics and Objectives.
-* **Overlays:**
-  * Press `Enter` on any card to view the **Task Detail** modal.
-  * Press `d` to open the **Defects Overlay** for release-level bugs and regressions.
-  * Press `A` to inspect the **Audit Register / Issues** overlay.
-* **Keyboard-Driven:** Fast vim/arrow key navigation (`p` to set router priority, `q` to quit).
-
----
-
-## Project Sanity (`savepoint doctor`)
-
-Run `savepoint doctor` to run deterministic sanity checks on your project:
-
-```text
-$ savepoint doctor
-savepoint doctor report
-────────────────────────────────
-
-◆ Config Check
-  ✓ config
-
-◆ Router Check
-  ✓ router (active: O003/T004)
-
-◆ Project Check
-  ✓ no problems
-
-◆ Structure Check
-  ✓ no problems
-
-◆ Defect Check
-  ✓ 1 open defect tracked (D003)
-
-◆ Quality Gates
-  [PASS] build (make build)
-  [PASS] test (make test)
-
-result: ALL CLEAN (exit code 0)
-```
-
-Real tools measuring real files—not AI opinion.
-
----
-
-## Migrating a Legacy Project (`savepoint migrate`)
-
-`savepoint migrate [dir]` converts a V1 project into V2 once: fresh Objectives, Tasks, and Issues for active work, a byte-preserved archive of everything it replaces, and a recorded reference map at `.savepoint/migrations/v1-to-v2.yml`.
-
-**Preview is the default and writes nothing.** Run it with no flags (or `--dry-run`, an explicit synonym for the same default) to see every planned record, archive, identity mapping, conflict, and owner decision required, with no file, directory, or backup created:
+Existing V1 projects can be moved to V2 with a preview-first workflow:
 
 ```bash
 npx savepoint migrate
-```
-
-Add `--apply` when you are ready to write:
-
-```bash
 npx savepoint migrate --apply
 ```
 
-Passing `--apply` together with `--dry-run` still previews — `--dry-run` always wins.
+The preview reports planned records, identity mappings, archived source,
+conflicts, and decisions that still need an owner. Nothing is written unless
+`--apply` is used. If a migration is interrupted, `--recover` reports the
+pending operation and can resume it.
 
-* `--decisions FILE` supplies concrete answers to any blocking ambiguity the preview names (an unrecognized status, a missing dependency target, a duplicate task id, an unresolved duplicate finding). A plan with unresolved blocking ambiguities refuses to apply and exits nonzero, naming every unresolved ID.
-* `--recover` reports an incomplete migration operation and how to finish it; combined with `--apply`, it resumes and completes that operation.
-* A missing directory, an unwritable directory, or a directory that is not a Savepoint project each fail with a distinct, named error rather than a partial write.
+For existing projects, refresh only the shipped Savepoint assets with:
 
----
+```bash
+npx savepoint upgrade-assets --dry-run
+npx savepoint upgrade-assets
+```
 
-## Defects & Issues
+User-authored project files remain outside the managed asset region. Repeated
+updates are designed to be safe and reviewable.
 
-Savepoint distinguishes between planned tasks and discovered problems:
-* **Defect:** Observed behavior is wrong, broken, or regressed.
-* **Issue:** Umbrella tracking for defects, architectural drift, guardrail violations, or required owner verifications.
-* Discovered during development or checks; tracked with stable IDs so the same issue isn't rediscovered every run.
+## Built for agent work
 
----
+Savepoint is agent-agnostic. It works with any coding agent that can read
+files, including Claude Code, Cursor, Codex, Gemini, and Aider.
 
-## Design Principles
+The important integration point is `AGENTS.md`: it tells the agent what to
+read, which workflow applies, what the current objective is, and where the
+active Task sets its context boundary. The agent does not need a plugin,
+account, or hosted workspace to participate.
 
-* **Simple surface, rigorous engine:** The terminal board hides complexity; the underlying files enforce discipline.
-* **File-first & Local-only:** Markdown and YAML are the database. No cloud lock-in, no telemetry, no tracking.
-* **Agent-agnostic:** Works with Claude Code, Cursor, Codex, Gemini, Aider, or any tool that reads files.
-* **Token-efficient:** Bounded context packets prevent agents from blowing 100k tokens on chat history.
-* **Safe updates:** User-authored files (`Idea.md`, `Design.md`, `Guardrails.md`, Tasks) are **never** silently overwritten.
+## Principles
 
----
+- **Local first:** project state stays in your Git filesystem.
+- **Small context:** agents read the minimum relevant context before acting.
+- **One source of truth:** the router, records, checks, and issues are plain
+  files, not mirrored in a hidden service.
+- **Human outcomes, machine evidence:** people judge the result; tools verify
+  the implementation.
+- **Safe updates:** managed scaffolding can be refreshed without silently
+  overwriting user-authored content.
+- **No telemetry:** Savepoint has no server, database, authentication, billing,
+  or external network dependency in the core workflow.
 
 ## Development
 
-Build and test the CLI locally:
+Savepoint is a Go CLI and Bubble Tea terminal UI:
 
 ```bash
 make build
 make test
 ```
 
-* **CLI & TUI:** Written in Go with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
-* **Distribution:** Packaged via npm (`npx savepoint`) wrapping cross-compiled native binaries.
-* **Marketing Site:** Ultra-lightweight static site at [getsavepoint.dev](https://getsavepoint.dev).
-
----
+The npm package wraps platform-specific binaries so most users can run the
+tool with `npx savepoint`.
 
 ## License
 
