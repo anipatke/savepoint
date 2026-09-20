@@ -24,9 +24,11 @@ related step when they are absent; absence is not an Issue.
 A Task Check is focused and optional: one Task's outcome and evidence against
 its own acceptance criteria, plan, and scoped files. If the owner skips this
 local Check, the Task evidence must record an explicit waiver naming the Task,
-reason, actor, and time. A waiver is not technical `CLEAR`, does not waive an
-acceptance criterion or guardrail, and does not satisfy a dependency that
-explicitly requires `clear`.
+reason, actor, and time. A waiver is not technical `CLEAR` and does not waive
+an acceptance criterion or guardrail. It does satisfy a downstream Task
+dependency that requires `clear` — the owner's own completion decision
+stands in there — but never one that requires `accepted`, since there is no
+Check for the owner to have accepted.
 
 An Objective Check does everything a Task Check does, plus integration across
 the Objective's Tasks and reconciliation against Design. It is mandatory and

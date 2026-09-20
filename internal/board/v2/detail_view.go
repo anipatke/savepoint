@@ -75,7 +75,8 @@ func detailLines(detail RecordDetail, width int) []string {
 		lines = append(lines, detailSection("DEPENDENCIES", dependencyLines(detail.Dependencies), width)...)
 	}
 
-	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Clearance), width)...)
+	waived := detail.Evidence != nil && detail.Evidence.CheckWaiver != nil
+	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived), width)...)
 	if detail.Kind == DetailRelease {
 		lines = append(lines, detailSection("RELEASE READINESS", releaseReadinessLines(detail), width)...)
 		lines = append(lines, detailSection("OWNER VALIDATION", releaseOwnerValidationLines(detail), width)...)
@@ -105,7 +106,7 @@ func identityRows(detail RecordDetail, width int) []string {
 		fieldRow("Status", string(detail.Status)),
 	}
 	if detail.Kind == DetailTask {
-		rows = append(rows, fieldRow("Stage", orNone(string(detail.Stage))))
+		rows = append(rows, fieldRow("Stage", orNone(stageLabel(detail.Stage))))
 	}
 	if detail.Owner != nil {
 		rows = append(rows, fieldRow("Objective", refLabel(*detail.Owner)))
@@ -242,13 +243,21 @@ func detailSection(heading string, body []string, width int) []string {
 	return lines
 }
 
-// clearanceLines state the resolved clearance twice over: the badge a card
-// would show, so the overlay and the card agree at a glance, and the sentence
-// that says which of the states it is and on what recorded basis. Both read the
-// one value ResolveClearance returned; neither inspects a Check.
-func clearanceLines(clearance data.Clearance) []string {
+// clearanceLines state the resolved clearance twice over: the badge a card or
+// sidebar row would show, so the overlay agrees with them at a glance, and
+// the sentence that says which of the states it is and on what recorded
+// basis. All three read the one value ResolveClearance returned; none
+// inspects a Check. waived is meaningful only for a Task detail — an
+// Objective's Check is never waivable — and reads whether the record's own
+// Evidence carries a CheckWaiver, the same fact the card badge reads off
+// GateDecision.AllowedByWaiver while the Task is still open.
+func clearanceLines(kind DetailKind, clearance data.Clearance, waived bool) []string {
+	badge := objectiveCheckBadge(clearance.State)
+	if kind == DetailTask {
+		badge = taskCheckBadge(clearance.State, waived)
+	}
 	return []string{
-		clearanceBadge(clearance.State).Text(),
+		badge.Text(),
 		resume.ClearancePhrase(&clearance),
 	}
 }

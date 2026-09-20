@@ -15,10 +15,8 @@ func TestRunWithoutTTYLeadsWithNextAndReportsCounts(t *testing.T) {
 	}
 
 	got := stdout.String()
-	for _, want := range []string{"NEXT: Work the selected Task", "Task: T001 — Do the thing", "Action: Start Task T001."} {
-		if !strings.Contains(got, want) {
-			t.Errorf("output does not lead with the resolved next action, missing %q:\n%s", want, got)
-		}
+	if want := "Planned T001 — Do the thing"; !strings.Contains(got, want) {
+		t.Errorf("output does not lead with the resolved Task, missing %q:\n%s", want, got)
 	}
 	if !strings.Contains(got, "Objectives: 1  Tasks: 2") {
 		t.Errorf("output does not report the loaded counts:\n%s", got)
@@ -73,7 +71,7 @@ func TestRunWithoutTTYIncludesTitlesBadgesAndIssueSummary(t *testing.T) {
 	got := stdout.String()
 	for _, want := range []string{
 		"Rechecked after the first run found problems",
-		"[◆ AUDIT  ✓ CLEAR",
+		"[◆ CHECK  [✓] Check",
 		"Issues: 1 — 1 defect",
 	} {
 		if !strings.Contains(got, want) {

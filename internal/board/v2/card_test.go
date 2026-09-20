@@ -68,7 +68,7 @@ func TestRenderCardReadsOnlyResolvedValues(t *testing.T) {
 
 	got := renderedText(card, 44, false)
 
-	for _, want := range []string{"AUDIT", "STALE", "WAITS T999", "OWNER"} {
+	for _, want := range []string{"CHECK", "Check (stale)", "WAITS T999", "OWNER"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("card missing %q:\n%s", want, got)
 		}
@@ -86,8 +86,8 @@ func TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates(t *testing.T) {
 
 	got := renderedText(card, 44, false)
 
-	if count := strings.Count(got, "NEEDS WORK"); count != 1 {
-		t.Errorf("card states NEEDS WORK %d times, want exactly one:\n%s", count, got)
+	if count := strings.Count(got, "needs work"); count != 1 {
+		t.Errorf("card states \"needs work\" %d times, want exactly one:\n%s", count, got)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestRenderCardDistinguishesDoneByException(t *testing.T) {
 	if strings.Contains(exceptionText, "✓ DONE") {
 		t.Errorf("a done-by-exception card reads as an ordinary done:\n%s", exceptionText)
 	}
-	if !strings.Contains(staleText, "⚠ DONE") || !strings.Contains(staleText, "STALE") {
+	if !strings.Contains(staleText, "⚠ DONE") || !strings.Contains(staleText, "Check (stale)") {
 		t.Errorf("a stale done card does not read as needing attention:\n%s", staleText)
 	}
 }
@@ -133,7 +133,7 @@ func TestRenderCardStageAbsentOffAnInProgressTask(t *testing.T) {
 		data.GateDecision{Allowed: true},
 	), 40, false)
 
-	for _, stage := range []string{"BUILD", "TEST", "AUDIT"} {
+	for _, stage := range []string{"BUILD", "TEST", "CHECK"} {
 		if strings.Contains(planned, stage) {
 			t.Errorf("a planned card carries stage %q:\n%s", stage, planned)
 		}

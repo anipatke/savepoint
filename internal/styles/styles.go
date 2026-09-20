@@ -14,6 +14,7 @@ var (
 	clrSurfaceDark = color(Surface, Surface256, Surface16)    // intentionally black
 	clrGreen       = color(NPPGreen, NPPGreen256, NPPGreen16)
 	clrPurple      = color(VibePurple, VibePurple256, VibePurple16)
+	clrWhite       = color(White, White256, White16)
 	clrDim         = color(Dim, Dim256, Dim16)
 )
 
@@ -82,6 +83,22 @@ var (
 				BorderForeground(clrPurple).
 				Padding(0, 1)
 
+	// ObjectiveItemFocused, SidebarTitleFocused, and SidebarPanelFocused are
+	// the V2 sidebar's own focus accent: purple, distinct from the orange the
+	// Task columns wear, so an Objective under the cursor never reads as a
+	// Task card.
+	ObjectiveItemFocused = lipgloss.NewStyle().
+				Foreground(clrPurple)
+
+	SidebarTitleFocused = lipgloss.NewStyle().
+				Foreground(clrPurple).
+				Bold(true)
+
+	SidebarPanelFocused = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrPurple).
+				Padding(0, 1)
+
 	Card = lipgloss.NewStyle().
 		Padding(0, 1)
 
@@ -145,11 +162,46 @@ var (
 	FooterHints = lipgloss.NewStyle().
 			Foreground(clrDim)
 
+	// V2 router-phase pills: Idea/Design/Task/Check, colored to match the
+	// public site (getsavepoint.dev): white, purple, orange, green.
+	FooterPhaseIdea = lipgloss.NewStyle().
+			Foreground(clrWhite).
+			Bold(true)
+
+	FooterPhaseDesign = lipgloss.NewStyle().
+				Foreground(clrPurple).
+				Bold(true)
+
+	FooterPhaseTask = lipgloss.NewStyle().
+			Foreground(clrOrange).
+			Bold(true)
+
+	FooterPhaseCheck = lipgloss.NewStyle().
+				Foreground(clrGreen).
+				Bold(true)
+
 	HeaderRight = lipgloss.NewStyle().
 			Foreground(clrDim)
 
 	HeaderRelease = lipgloss.NewStyle().
 			Foreground(clrText)
+
+	// HeaderWhiteBold and HeaderWhite are a label/value pair for the
+	// Release line in the V2 selection header: a bold white label, plain
+	// white following text.
+	HeaderWhiteBold = lipgloss.NewStyle().
+			Foreground(clrWhite).
+			Bold(true)
+
+	HeaderWhite = lipgloss.NewStyle().
+			Foreground(clrWhite)
+
+	// NextLabel is the bold orange "NEXT:" prefix the Next area leads with —
+	// the same accent weight the router's Task phase wears, so the panel a
+	// reader glances at first carries the boldest color on the board.
+	NextLabel = lipgloss.NewStyle().
+			Foreground(clrOrange).
+			Bold(true)
 
 	RootLine = lipgloss.NewStyle()
 

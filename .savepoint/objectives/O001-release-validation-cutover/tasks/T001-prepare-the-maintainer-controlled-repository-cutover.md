@@ -5,8 +5,15 @@ objective: O001
 planned_by:
     role: planner
     session: migration
-status: done
+status: planned
 release: v2
+check_waiver:
+    task: T001
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-20T10:11:01Z"
 ---
 ## Migrated from V1
 

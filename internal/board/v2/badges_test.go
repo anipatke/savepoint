@@ -34,10 +34,10 @@ var blockerKinds = []data.GateBlockKind{
 	data.GateBlockInvalidState,
 }
 
-func TestClearanceBadgeRendersEveryStateDistinctly(t *testing.T) {
+func TestTaskCheckBadgeRendersEveryStateDistinctly(t *testing.T) {
 	seen := map[string]data.ClearanceState{}
 	for _, state := range clearanceStates {
-		badge := clearanceBadge(state)
+		badge := taskCheckBadge(state, false)
 		if badge.Glyph == "" || badge.Label == "" {
 			t.Errorf("clearance %q has no glyph or label: %+v", state, badge)
 		}
@@ -48,6 +48,34 @@ func TestClearanceBadgeRendersEveryStateDistinctly(t *testing.T) {
 	}
 }
 
+// TestTaskCheckBadgeWaivedOutranksClearance proves a recorded waiver always
+// reads as "waived", whatever the underlying clearance state happens to be —
+// waived is only reachable from ClearanceMissing in practice, but the badge
+// itself does not depend on that to stay honest.
+func TestTaskCheckBadgeWaivedOutranksClearance(t *testing.T) {
+	waived := taskCheckBadge(data.ClearanceMissing, true)
+	notWaived := taskCheckBadge(data.ClearanceMissing, false)
+	if waived.Text() == notWaived.Text() {
+		t.Errorf("a waived Task and one simply not yet checked both render as %q", waived.Text())
+	}
+	if waived.Glyph != glyphCheckFlagged {
+		t.Errorf("waived badge glyph = %q, want the flagged glyph", waived.Glyph)
+	}
+}
+
+// TestObjectiveCheckBadgeIsTwoNotchOnly proves the Objective badge never
+// reports a waived state: the Full Objective Check is never waivable.
+func TestObjectiveCheckBadgeIsTwoNotchOnly(t *testing.T) {
+	seen := map[string]bool{}
+	for _, state := range clearanceStates {
+		badge := objectiveCheckBadge(state)
+		seen[badge.Text()] = true
+	}
+	if len(seen) != 2 {
+		t.Errorf("objectiveCheckBadge produced %d distinct renderings across every clearance state, want exactly 2 (pending, current)", len(seen))
+	}
+}
+
 func TestStageBadgeIsPresentOnlyWhileInProgress(t *testing.T) {
 	stages := []struct {
 		stage data.ProgressStage
@@ -55,7 +83,7 @@ func TestStageBadgeIsPresentOnlyWhileInProgress(t *testing.T) {
 	}{
 		{data.StageBuild, "BUILD"},
 		{data.StageTest, "TEST"},
-		{data.StageAudit, "AUDIT"},
+		{data.StageAudit, "CHECK"},
 	}
 
 	seen := map[string]bool{}
@@ -140,12 +168,19 @@ func TestBlockerBadgeNamesTheWaitTarget(t *testing.T) {
 }
 
 func TestCompletionBadgeDistinguishesExceptionAndStaleFromFinished(t *testing.T) {
-	finished := completionBadge(data.ClearanceCurrent, false)
-	byException := completionBadge(data.ClearanceCurrent, true)
-	stale := completionBadge(data.ClearanceStale, false)
+	finished := completionBadge(data.ClearanceCurrent, false, false)
+	byException := completionBadge(data.ClearanceCurrent, true, false)
+	byWaiver := completionBadge(data.ClearanceMissing, false, true)
+	stale := completionBadge(data.ClearanceStale, false, false)
 
 	if finished.Text() == byException.Text() {
 		t.Errorf("a done Task and one done by exception both render as %q", finished.Text())
+	}
+	if finished.Text() == byWaiver.Text() {
+		t.Errorf("a done Task and one done by waiver both render as %q", finished.Text())
+	}
+	if byException.Text() == byWaiver.Text() {
+		t.Errorf("a done-by-exception Task and a done-by-waiver one both render as %q", byException.Text())
 	}
 	if finished.Text() == stale.Text() {
 		t.Errorf("a cleared done Task and a stale one both render as %q", finished.Text())
@@ -199,17 +234,25 @@ func allBadges() []Badge {
 			badges = append(badges, badge)
 		}
 	}
+	// objectiveCheckBadge is deliberately excluded here: it is a Task card's
+	// sibling vocabulary for a different row context (the sidebar), and its
+	// "[✓] Check" for a current Objective is meant to read as the same fact
+	// taskCheckBadge's "[✓] Check" does for a current Task — reused
+	// presentation for reused meaning, not a collision. Its own two-state
+	// distinctness is covered by TestObjectiveCheckBadgeIsTwoNotchOnly.
 	for _, state := range clearanceStates {
-		badges = append(badges, clearanceBadge(state))
+		badges = append(badges, taskCheckBadge(state, false))
 	}
+	badges = append(badges, taskCheckBadge(data.ClearanceMissing, true))
 	for _, kind := range blockerKinds {
 		if badge, ok := blockerBadge(data.GateBlocker{Kind: kind}); ok {
 			badges = append(badges, badge)
 		}
 	}
 	badges = append(badges,
-		completionBadge(data.ClearanceCurrent, false),
-		completionBadge(data.ClearanceStale, false),
+		completionBadge(data.ClearanceCurrent, false, false),
+		completionBadge(data.ClearanceStale, false, false),
+		completionBadge(data.ClearanceMissing, false, true),
 	)
 	return badges
 }

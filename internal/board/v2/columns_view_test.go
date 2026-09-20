@@ -33,8 +33,8 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		"Planned with nothing recorded",
 		"Being built right now",
 		"Done and cleared",
-		"▣ BUILD", "◇ TEST", "◆ AUDIT",
-		"○ NO CHECK", "✗ NEEDS WORK", "✓ CLEAR",
+		"▣ BUILD", "◇ TEST", "◆ CHECK",
+		"[ ] Check", "[!] Check (needs work)", "[✓] Check",
 		"→ WAITS T001", "⚠ REPLAN", "! OWNER",
 		"✓ DONE", "! BY EXCEPTION", "⚠ DONE",
 	} {

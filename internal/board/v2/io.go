@@ -154,6 +154,137 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 	}
 }
 
+// writeTaskAdvanceCmd is Space on a focused Task: start a planned Task, move
+// an in-progress one to its next stage, or complete one at stage check —
+// whichever ResolveTaskStart/ResolveTaskAdvance/ResolveTaskCompletion already
+// govern for its current lifecycle position, re-resolved fresh so a stale
+// in-memory card can never write a transition its own gate would refuse.
+// Completion is never forced: an in-progress Task at stage check only
+// reaches done when its own gate decision is already Allowed — through
+// current clearance, a recorded exception, or an owner Task-check waiver —
+// exactly the same authority the board's other lifecycle writes require.
+func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
+	return func() tea.Msg {
+		if message, refused := writeGuard(root); refused {
+			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
+		}
+
+		index, err := freshV2Index(root)
+		if err != nil {
+			return actionFailure(err, "task advance")
+		}
+		task, ok := index.Tasks[taskID]
+		if !ok {
+			return actionMsg{err: fmt.Errorf("task %s is no longer present", taskID)}
+		}
+
+		waivedNow := false
+		switch {
+		case task.Status == data.ColumnDone:
+			return actionMsg{err: fmt.Errorf("%s is already done", taskID)}
+		case task.Status == data.ColumnPlanned:
+			decision := data.ResolveTaskStart(index, taskID)
+			if !decision.Allowed {
+				return actionMsg{err: fmt.Errorf("cannot start %s: %s", taskID, decisionRefusal(decision))}
+			}
+			task.Status, task.Stage = data.ColumnInProgress, data.StageBuild
+		case task.Stage == data.StageAudit:
+			decision := data.ResolveTaskCompletion(index, taskID)
+			if !decision.Allowed {
+				clearance := data.ResolveClearance(index, taskID)
+				if !clearanceIsMissing(clearance) {
+					// A Check was actually run and found a problem — needs_work,
+					// stale, or unverified. That result stands; Space never
+					// silently overrides an independent checker's finding.
+					return actionMsg{err: fmt.Errorf("cannot complete %s: %s", taskID, decisionRefusal(decision))}
+				}
+				// No Check was ever requested for this Task. Completing it here
+				// is an interactive owner action — only a human at the keyboard
+				// reaches this key — so that action itself is the explicit
+				// Task-check waiver TEST-09 requires. Record it, then complete
+				// under it, rather than refusing and making the owner write the
+				// same fact into the file by hand first.
+				if task.Evidence == nil {
+					task.Evidence = &data.Evidence{}
+				}
+				task.Evidence.CheckWaiver = &data.CheckWaiver{
+					Task:       taskID,
+					Reason:     "Owner completed this Task via the board without requesting a Task Check.",
+					Actor:      data.Actor{Role: data.ActorRoleOwner, Session: ownerBoardSession},
+					RecordedAt: time.Now().UTC(),
+				}
+				if err := data.WriteTaskEvidenceV2(task); err != nil {
+					return actionFailure(err, "task check waiver")
+				}
+				waivedNow = true
+			}
+			task.Status, task.Stage = data.ColumnDone, ""
+		default:
+			decision := data.ResolveTaskAdvance(index, taskID)
+			if !decision.Allowed {
+				return actionMsg{err: fmt.Errorf("cannot advance %s: %s", taskID, decisionRefusal(decision))}
+			}
+			next, err := data.AdvanceTaskLifecycleState(data.TaskLifecycleState{Status: task.Status, Stage: task.Stage})
+			if err != nil {
+				return actionFailure(err, "task advance")
+			}
+			task.Status, task.Stage = next.Status, next.Stage
+		}
+
+		if err := data.WriteTaskV2(task); err != nil {
+			return actionFailure(err, "task advance")
+		}
+		message := taskLifecycleMessage(taskID, task.Status, task.Stage)
+		if waivedNow {
+			message = fmt.Sprintf("%s completed; no Task Check was requested, so an owner waiver was recorded.", taskID)
+		}
+		return actionMsg{message: message, reload: true}
+	}
+}
+
+// writeTaskRetreatCmd is Backspace on a focused Task: move it one lifecycle
+// step backward. Retreat carries no Check gate — only the owner's own
+// keypress reaches it, matching AGENTS.md's "only the user may retreat a
+// Task to an earlier status" — but it is still refused outright while a
+// migration is pending, the same as every other board write.
+func writeTaskRetreatCmd(root, taskID string) tea.Cmd {
+	return func() tea.Msg {
+		if message, refused := writeGuard(root); refused {
+			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
+		}
+
+		index, err := freshV2Index(root)
+		if err != nil {
+			return actionFailure(err, "task retreat")
+		}
+		task, ok := index.Tasks[taskID]
+		if !ok {
+			return actionMsg{err: fmt.Errorf("task %s is no longer present", taskID)}
+		}
+
+		prev, err := data.RetreatTaskLifecycleState(data.TaskLifecycleState{Status: task.Status, Stage: task.Stage})
+		if err != nil {
+			return actionMsg{err: fmt.Errorf("cannot retreat %s: %v", taskID, err)}
+		}
+		task.Status, task.Stage = prev.Status, prev.Stage
+
+		if err := data.WriteTaskV2(task); err != nil {
+			return actionFailure(err, "task retreat")
+		}
+		return actionMsg{message: taskLifecycleMessage(taskID, task.Status, task.Stage), reload: true}
+	}
+}
+
+// taskLifecycleMessage is the one status-bar phrase both the advance and the
+// retreat write share, so a card's next status line reads the same lifecycle
+// vocabulary whichever direction moved it.
+func taskLifecycleMessage(taskID string, status data.ColumnType, stage data.ProgressStage) string {
+	if stage == "" {
+		return fmt.Sprintf("%s moved to %s.", taskID, status)
+	}
+	return fmt.Sprintf("%s moved to %s, stage %s.", taskID, status, stage)
+}
+
 // writeSelectionCmd re-reads both the V2 index and router before passing only
 // the requested selection to data.WriteRouterStateV2. The data writer owns
 // byte preservation and its final freshness check; this command owns the

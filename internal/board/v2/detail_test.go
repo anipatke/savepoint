@@ -24,14 +24,14 @@ import (
 // presses the detail key.
 func openTaskDetail(t *testing.T, root, taskID string) Model {
 	t.Helper()
-	return press(t, focusTask(t, openSizedBoard(t, root, 120, 70), taskID), "enter")
+	return press(t, focusTask(t, openSizedBoard(t, root, 130, 72), taskID), "enter")
 }
 
 // openObjectiveDetail does the same from the sidebar, where enter already
 // selects and v is the detail key.
 func openObjectiveDetail(t *testing.T, root, objectiveID string) Model {
 	t.Helper()
-	model := press(t, openSizedBoard(t, root, 120, 70), "tab")
+	model := press(t, openSizedBoard(t, root, 130, 72), "tab")
 	return press(t, focusObjective(t, model, objectiveID), "v")
 }
 
@@ -82,7 +82,7 @@ func TestTaskDetailNamesTheRecordAndItsLifecycle(t *testing.T) {
 		"ID: T002",
 		"Title: Rechecked after the first run found problems",
 		"Status: in_progress",
-		"Stage: audit",
+		"Stage: CHECK",
 		"Objective: O001 — Ship the evidence surface",
 		"The board shows the record behind the badge.",
 	)
@@ -190,19 +190,19 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 		clearance data.Clearance
 		wantParts []string
 	}{
-		{"missing", data.Clearance{State: data.ClearanceMissing}, []string{"NO CHECK", "No Check has ever been recorded"}},
-		{"needs_work", data.Clearance{State: data.ClearanceNeedsWork, Check: "C001"}, []string{"NEEDS WORK", "C001 recorded NEEDS WORK"}},
-		{"stale", data.Clearance{State: data.ClearanceStale, Check: "C001", Freshness: assessed}, []string{"STALE", "clearance is stale"}},
-		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C001"}, []string{"UNVERIFIED", "clearance is unknown"}},
+		{"missing", data.Clearance{State: data.ClearanceMissing}, []string{"[ ] Check", "No Check has ever been recorded"}},
+		{"needs_work", data.Clearance{State: data.ClearanceNeedsWork, Check: "C001"}, []string{"Check (needs work)", "C001 recorded NEEDS WORK"}},
+		{"stale", data.Clearance{State: data.ClearanceStale, Check: "C001", Freshness: assessed}, []string{"Check (stale)", "clearance is stale"}},
+		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C001"}, []string{"Check (unverified)", "clearance is unknown"}},
 		{"unknown without checker provenance", data.Clearance{State: data.ClearanceUnknown, Check: "C001", Freshness: &selfAssessed},
 			[]string{"no independent checker session", "not independently established"}},
 		{"current", data.Clearance{State: data.ClearanceCurrent, Check: "C001", Freshness: assessed},
-			[]string{"CLEAR", "names it current", "Assessed current by checker session checker-fixture on 2026-01-02", "basis: reran the suite"}},
+			[]string{"[✓] Check", "names it current", "Assessed current by checker session checker-fixture on 2026-01-02", "basis: reran the suite"}},
 	}
 
 	rendered := map[string]string{}
 	for _, c := range cases {
-		got := strings.Join(clearanceLines(c.clearance), " ")
+		got := strings.Join(clearanceLines(DetailTask, c.clearance, false), " ")
 		requireContains(t, got, c.wantParts...)
 		for name, other := range rendered {
 			if other == got {
@@ -315,7 +315,7 @@ func TestDetailScrollsAndClampsAtBothEnds(t *testing.T) {
 func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 	root := writeEvidenceProject(t)
 
-	fromColumns := focusTask(t, openSizedBoard(t, root, 120, 70), "T005")
+	fromColumns := focusTask(t, openSizedBoard(t, root, 130, 72), "T005")
 	reopened := press(t, fromColumns, "enter", "down", "esc")
 	if reopened.Detail != nil {
 		t.Fatal("esc left the overlay open")
@@ -329,7 +329,7 @@ func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 		t.Error("closing the overlay did not return the board to the surface it was opened over")
 	}
 
-	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 120, 70), "tab"), "O002")
+	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 130, 72), "tab"), "O002")
 	closed := press(t, fromSidebar, "v", "esc")
 	if !closed.SidebarFocused || closed.ObjectiveCursor != fromSidebar.ObjectiveCursor {
 		t.Errorf("closing left the sidebar cursor at %d (focused %v), want %d on the sidebar",

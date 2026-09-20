@@ -13,6 +13,7 @@ const (
 	AtariOrange  = "#FC6323"
 	NPPGreen     = "#A4C639"
 	VibePurple   = "#B1A1DF"
+	White        = "#FFFFFF"
 )
 
 // 256-color (ANSI256) fallbacks — nearest terminal approximations
@@ -26,6 +27,7 @@ const (
 	AtariOrange256  = "208"
 	NPPGreen256     = "148"
 	VibePurple256   = "147"
+	White256        = "231"
 )
 
 // 16-color (basic ANSI) fallbacks
@@ -39,6 +41,7 @@ const (
 	AtariOrange16  = "9"  // bright red (closest to orange)
 	NPPGreen16     = "2"  // green
 	VibePurple16   = "5"  // magenta
+	White16        = "15" // bright white
 	Dim16          = "8"  // dark gray
 )
 

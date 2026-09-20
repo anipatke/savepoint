@@ -616,8 +616,8 @@ func WriteTaskV2(task *TaskV2) error {
 }
 
 // WriteTaskEvidenceV2 patches only the evidence fields — last_check,
-// freshness, owner_validation, exception, and replan — of a V2 Task
-// record's frontmatter to match task.Evidence, preserving every other YAML
+// freshness, owner_validation, exception, replan, and check_waiver — of a V2
+// Task record's frontmatter to match task.Evidence, preserving every other YAML
 // key/value (including status, stage, depends_on, and unknown fields) and
 // the authored Markdown body unchanged. A nil Evidence, or a nil sub-block
 // within it, removes that key rather than writing an empty value — clearing
@@ -666,6 +666,7 @@ func evidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
 	var ownerValidation *OwnerValidation
 	var exception *Exception
 	var replan *Replan
+	var checkWaiver *CheckWaiver
 	if evidence != nil {
 		if evidence.LastCheck != "" {
 			lastCheck = &evidence.LastCheck
@@ -674,6 +675,7 @@ func evidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
 		ownerValidation = evidence.OwnerValidation
 		exception = evidence.Exception
 		replan = evidence.Replan
+		checkWaiver = evidence.CheckWaiver
 	}
 
 	patches := []v2FieldPatch{lastCheckV2Patch(lastCheck)}
@@ -694,8 +696,28 @@ func evidencePatches(evidence *Evidence) ([]v2FieldPatch, error) {
 	if err != nil {
 		return nil, err
 	}
+	checkWaiverPatch, err := checkWaiverV2Patch(checkWaiver)
+	if err != nil {
+		return nil, err
+	}
 
-	return append(patches, freshnessPatch, ownerValidationPatch, exceptionPatch, replanPatch), nil
+	return append(patches, freshnessPatch, ownerValidationPatch, exceptionPatch, replanPatch, checkWaiverPatch), nil
+}
+
+func checkWaiverV2Patch(waiver *CheckWaiver) (v2FieldPatch, error) {
+	if waiver == nil {
+		return v2FieldPatch{Key: "check_waiver", Remove: true}, nil
+	}
+	node, err := encodeV2Node(checkWaiverV2Frontmatter{
+		Task:       waiver.Task,
+		Reason:     waiver.Reason,
+		Actor:      evidenceActorFrontmatter{Role: string(waiver.Actor.Role), Session: waiver.Actor.Session},
+		RecordedAt: waiver.RecordedAt.Format(time.RFC3339),
+	})
+	if err != nil {
+		return v2FieldPatch{}, fmt.Errorf("encode check_waiver evidence: %w", err)
+	}
+	return v2FieldPatch{Key: "check_waiver", Node: node}, nil
 }
 
 func lastCheckV2Patch(lastCheck *string) v2FieldPatch {

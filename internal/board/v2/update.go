@@ -119,6 +119,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.toggleSidebarFocus()
 		return m, nil
 	}
+	if !m.SidebarFocused {
+		if key == " " || key == "backspace" {
+			if taskID := m.focusedTaskID(); taskID != "" {
+				if key == " " {
+					return m, writeTaskAdvanceCmd(m.Root, taskID)
+				}
+				return m, writeTaskRetreatCmd(m.Root, taskID)
+			}
+			return m, nil
+		}
+	}
 	if m.SidebarFocused {
 		m.handleSidebarKey(key)
 		return m, nil
@@ -376,6 +387,8 @@ func (m *Model) handleSidebarKey(key string) {
 		}
 	case "v":
 		m.openDetail()
+	case "i":
+		m.openIssues("")
 	case "esc":
 		m.selectObjective("")
 	}

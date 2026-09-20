@@ -39,8 +39,15 @@ This contract applies to every implementation:
   results before handoff.
 - A Task Check is optional. If the owner skips it, record an explicit waiver
   in the Task evidence naming the Task, reason, actor, and time. The waiver is
-  not technical `CLEAR`, does not waive acceptance criteria or guardrails, and
-  does not satisfy a dependency that explicitly requires `clear`.
+  not technical `CLEAR` and does not waive acceptance criteria or guardrails.
+  It satisfies a Task dependency that requires `clear` — the waiver stands in
+  as the owner's own completion decision — but never one that requires
+  `accepted`, since there is no Check for the owner to have accepted.
+  Pressing Space on the V2 board to complete a Task at stage check with no
+  recorded Check at all is itself that explicit owner action — the board
+  auto-records the waiver rather than requiring it written by hand first —
+  but never when a recorded Check actually found a problem; that result
+  stands.
 - The Full Objective Check is mandatory before Objective closure. It is the V2
   equivalent of the epic-level integration gate and reviews every owned Task,
   including waived Tasks, cross-Task integration, and reconciliation against

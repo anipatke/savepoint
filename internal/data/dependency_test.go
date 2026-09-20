@@ -129,6 +129,44 @@ func TestResolveTaskDependencyV2_clearSatisfiedWhenDoneAndCurrent(t *testing.T) 
 	}
 }
 
+// TestResolveTaskDependencyV2_clearSatisfiedByCheckWaiver proves an owner
+// Task-check waiver satisfies a requires: clear dependency exactly the way
+// current clearance does — the waiver is the owner's own completion
+// decision, so a downstream Task's default dependency does not re-demand an
+// independent Check the owner already chose to skip.
+func TestResolveTaskDependencyV2_clearSatisfiedByCheckWaiver(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyClear})
+	if !got.Satisfied || got.Block != nil {
+		t.Fatalf("ResolveTaskDependencyV2() = %+v, want satisfied by the recorded waiver", got)
+	}
+}
+
+// TestResolveTaskDependencyV2_acceptedNeverSatisfiedByCheckWaiver proves the
+// waiver's stand-in for "clear" does not extend to requires: accepted —
+// there is no Check for the owner to have accepted, so that stricter
+// dependency level stays blocked.
+func TestResolveTaskDependencyV2_acceptedNeverSatisfiedByCheckWaiver(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyAccepted})
+	if got.Satisfied {
+		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false: a waiver is not an accepted Check")
+	}
+	if got.Block == nil || got.Block.Kind != DependencyBlockNotAccepted {
+		t.Fatalf("Block = %+v, want {Kind: not_accepted}", got.Block)
+	}
+}
+
 func TestResolveTaskDependencyV2_notDoneUnsatisfied(t *testing.T) {
 	index := newV2TestIndex()
 	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress}

@@ -46,8 +46,10 @@ Apply this contract to every implementation, not only to migration work:
 - Every Task needs implementation evidence and configured quality-gate results.
 - A Task Check is optional. If the owner skips it, record an explicit waiver
   in the Task evidence naming the Task, reason, actor, and time. The waiver is
-  not technical `CLEAR`, does not waive acceptance criteria or guardrails, and
-  does not satisfy a dependency that explicitly requires `clear`.
+  not technical `CLEAR` and does not waive acceptance criteria or guardrails.
+  It satisfies a Task dependency that requires `clear` — the waiver stands in
+  as the owner's own completion decision — but never one that requires
+  `accepted`, since there is no Check for the owner to have accepted.
 - The Full Objective Check is mandatory before Objective closure. It reviews
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.

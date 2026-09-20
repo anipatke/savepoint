@@ -5,8 +5,7 @@ objective: O001
 planned_by:
     role: planner
     session: migration
-status: in_progress
-stage: audit
+status: planned
 depends_on:
     - task: T001
 release: v2

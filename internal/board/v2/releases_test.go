@@ -46,7 +46,7 @@ func writeRouterWithRelease(t *testing.T, root, release, objective, task string)
 
 func releaseBoard(t *testing.T) Model {
 	t.Helper()
-	return openSizedBoard(t, writeReleaseBoardProject(t), 120, 48)
+	return openSizedBoard(t, writeReleaseBoardProject(t), 130, 48)
 }
 
 func applyBoardCommands(t *testing.T, model Model, cmd tea.Cmd) Model {
@@ -256,7 +256,7 @@ func TestReleaseSelectorNavigationClampsAndQCancels(t *testing.T) {
 
 func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t *testing.T) {
 	root := writeReleaseBoardProject(t)
-	model := openSizedBoard(t, root, 120, 48)
+	model := openSizedBoard(t, root, 130, 48)
 	beforeRouter, err := os.ReadFile(filepath.Join(root, "router.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -299,21 +299,29 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if len(final.Objectives) != 1 || final.Objectives[0].ID() != "O002" {
 		t.Errorf("reloaded visible Objectives = %v, want only O002", final.Objectives)
 	}
+	// The board's own Next area and `savepoint resume` intentionally carry
+	// different amounts of detail now (the board is a one-line glance; resume
+	// stays the full narrative) — so each is checked against its own wording
+	// rather than for a shared substring between them.
 	view := xansi.Strip(final.View())
+	for _, want := range []string{
+		"RELEASE: R002 — Second release",
+		"Build T002 — Second task",
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("board view missing %q:\n%s", want, view)
+		}
+	}
 	var resumeOutput bytes.Buffer
 	if err := resume.Render(&resumeOutput, final.State.Next); err != nil {
 		t.Fatalf("resume.Render() error = %v", err)
 	}
 	for _, want := range []string{
-		"Release: R002 — Second release",
 		"Task: T002 — Second task",
-		"Action: " + resume.ActionPhrase(final.State.Next),
+		"Next action: " + resume.ActionPhrase(final.State.Next),
 	} {
-		if !strings.Contains(view, want) {
-			t.Errorf("board view missing shared Next line %q:\n%s", want, view)
-		}
-		if !strings.Contains(resumeOutput.String(), strings.TrimPrefix(want, "Action: ")) {
-			t.Errorf("resume output missing shared Next fact %q:\n%s", want, resumeOutput.String())
+		if !strings.Contains(resumeOutput.String(), want) {
+			t.Errorf("resume output missing %q:\n%s", want, resumeOutput.String())
 		}
 	}
 	content, err := os.ReadFile(filepath.Join(root, "router.md"))
@@ -355,7 +363,7 @@ func TestSelectionWriteRejectsCrossReleaseObjective(t *testing.T) {
 
 func TestReleaseSelectionConflictRollsBackAndReloads(t *testing.T) {
 	root := writeReleaseBoardProject(t)
-	model := openSizedBoard(t, root, 120, 48)
+	model := openSizedBoard(t, root, 130, 48)
 	opened, _ := model.Update(keyMsg("r"))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
@@ -385,7 +393,7 @@ func TestReleaseSelectionConflictRollsBackAndReloads(t *testing.T) {
 
 func TestReleaseSelectionPendingMigrationRefusesWithoutPartialContext(t *testing.T) {
 	root := writeReleaseBoardProject(t)
-	model := openSizedBoard(t, root, 120, 48)
+	model := openSizedBoard(t, root, 130, 48)
 	operationID := createPendingOperation(t, root)
 	opened, _ := model.Update(keyMsg("r"))
 	selector := opened.(Model)
@@ -412,7 +420,7 @@ func TestReleaseSelectionPendingMigrationRefusesWithoutPartialContext(t *testing
 
 func TestReleaseReloadPreservesFocusAndDiagnosesRemovedSelection(t *testing.T) {
 	root := writeReleaseBoardProject(t)
-	model := openSizedBoard(t, root, 120, 48)
+	model := openSizedBoard(t, root, 130, 48)
 	opened, _ := model.Update(keyMsg("r"))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
@@ -448,7 +456,7 @@ func TestReleaseReloadPreservesFocusAndDiagnosesRemovedSelection(t *testing.T) {
 }
 
 func TestReleaseSelectorWithoutReleasesIsExplicitAndSafe(t *testing.T) {
-	model := openSizedBoard(t, writeEmptyProjectFromTemplate(t), 120, 30)
+	model := openSizedBoard(t, writeEmptyProjectFromTemplate(t), 130, 30)
 	opened, cmd := model.Update(keyMsg("r"))
 	selector := opened.(Model)
 	if cmd != nil || !selector.ReleaseOverlay || !strings.Contains(xansi.Strip(selector.View()), "(none)") {

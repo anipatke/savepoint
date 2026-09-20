@@ -40,6 +40,7 @@ last_audited: v2/E51-first-class-releases
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
 - **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Release Check is mandatory whenever a Release exists. The executor cannot clear its own work or close an Issue.
+- **Board-recorded Task-check waivers**: pressing Space on the V2 board to complete a Task at stage check that has no recorded Check at all (`ClearanceMissing`) is itself the explicit owner action TEST-09 requires — only a human at the interactive keyboard reaches that key, never an agent. The board auto-records the `check_waiver` block (task, reason, `actor: {role: owner, session: board-owner}`, time) in the same write that sets the Task done, rather than requiring the owner to hand-write that fact first. This never applies when a Check was actually recorded and found a problem (`needs_work`, `stale`, `unverified`): that result stands, and completion stays refused.
 
 ## 2. Directory layout
 
@@ -114,7 +115,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 
 - Declared in YAML frontmatter. Task dependencies use `T###` references and Objective dependencies use `O###`; the board transition gate and doctor diagnostics resolve them through `internal/data.ResolveDependency`.
 - Doctor dependency checks detect duplicate task IDs, missing dependencies, and dependency cycles.
-- Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate. A Task-check waiver does not satisfy a dependency that explicitly requires `clear`; the planner must choose another qualifying evidence path or replan that dependency.
+- Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate. A Task-check waiver satisfies a Task dependency that requires `clear` — the waiver is the owner's own completion decision, standing in for "clear" there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
 ## 6. CLI surface
 
@@ -162,7 +163,7 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Release selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. The selected Objective and Task are filtered from the identity-keyed index, while the Next area renders the shared `data.Next` projection and Issues summary. Non-TTY output and resume use the same resolved evidence wording.
+**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Release selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. The selected Objective and Task are filtered from the identity-keyed index. The Next area is a one-line glance at the shared `data.Next` projection's own Task or Objective — its lifecycle word (Build/Test/Check, Planned, or Done; never "Audit"), its identity, and its title — and nothing more; the TUI panel and the deterministic non-TTY plain table render that same one line, so piping the board and looking at it still agree with each other. The rung label, per-criterion evidence, owner-wait/exception/dependency wording, and the action sentence remain `savepoint resume`'s narrative (`internal/resume`) and the record's own detail overlay, both unchanged, both still read from the same resolvers — board and resume are intentionally no longer required to render identical wording for that fuller detail; the board is a glance, resume is the report.
 
 **Visual guardrail:** the terminal board intentionally uses one black background for Background, Surface, and Surface 2. Do not restore subtly different dark panel fills; depth should come from spacing, dividers, glyphs, and focused Atari Orange borders.
 

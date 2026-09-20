@@ -246,6 +246,122 @@ func hasAction(actions []BoardAction, kind ActionKind) bool {
 	return false
 }
 
+// TestTaskAdvanceCommandStartsAndAdvancesNormally covers Space's ordinary
+// path through the lifecycle it shares with ResolveTaskStart/ResolveTaskAdvance:
+// planned moves to in_progress/build, and build moves to test.
+func TestTaskAdvanceCommandStartsAndAdvancesNormally(t *testing.T) {
+	root := writeEvidenceProject(t)
+	writeTask(t, root, "O002", "T900", "Not started yet", "status: planned\n")
+
+	msg := writeTaskAdvanceCmd(root, "T900")()
+	result := msg.(actionMsg)
+	if result.err != nil || !result.reload {
+		t.Fatalf("start result = %#v, want successful reload", result)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("reload diagnostic = %q", loaded.Diagnostic)
+	}
+	task := loaded.State.Index.Tasks["T900"]
+	if task.Status != data.ColumnInProgress || task.Stage != data.StageBuild {
+		t.Fatalf("T900 status/stage = %q/%q, want in_progress/build after starting", task.Status, task.Stage)
+	}
+
+	msg = writeTaskAdvanceCmd(root, "T900")()
+	result = msg.(actionMsg)
+	if result.err != nil || !result.reload {
+		t.Fatalf("advance result = %#v, want successful reload", result)
+	}
+	loaded = loadProject(root)
+	if got := loaded.State.Index.Tasks["T900"].Stage; got != data.StageTest {
+		t.Errorf("T900 stage = %q, want test after advancing from build", got)
+	}
+}
+
+// TestTaskAdvanceCommandCompletingWithNoCheckRequestedRecordsAnOwnerWaiver is
+// the behavior an owner asked for directly: pressing Space to complete a
+// Task at stage check that has no recorded Check at all is itself treated as
+// the explicit Task-check waiver TEST-09 requires — recorded automatically,
+// not demanded of the owner as a separate manual step first.
+func TestTaskAdvanceCommandCompletingWithNoCheckRequestedRecordsAnOwnerWaiver(t *testing.T) {
+	root := writeEvidenceProject(t)
+	writeTask(t, root, "O001", "T900", "Never checked", "status: in_progress\nstage: audit\n")
+
+	msg := writeTaskAdvanceCmd(root, "T900")()
+	result := msg.(actionMsg)
+	if result.err != nil || !result.reload {
+		t.Fatalf("completion result = %#v, want successful reload", result)
+	}
+	if !strings.Contains(result.message, "waiver") {
+		t.Errorf("completion message = %q, want it to say a waiver was recorded", result.message)
+	}
+
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("reload diagnostic = %q", loaded.Diagnostic)
+	}
+	task := loaded.State.Index.Tasks["T900"]
+	if task.Status != data.ColumnDone {
+		t.Fatalf("T900 status = %q, want done", task.Status)
+	}
+	waiver := task.Evidence.CheckWaiver
+	if waiver == nil || waiver.Task != "T900" {
+		t.Fatalf("CheckWaiver = %+v, want one naming T900", waiver)
+	}
+	if waiver.Actor.Role != data.ActorRoleOwner || waiver.Actor.Session != ownerBoardSession {
+		t.Errorf("CheckWaiver.Actor = %+v, want owner/%s", waiver.Actor, ownerBoardSession)
+	}
+}
+
+// TestTaskAdvanceCommandNeverAutoWaivesARealCheckFinding proves the
+// auto-waiver applies only when no Check was ever requested. A Task whose
+// recorded Check actually found a problem stays blocked — Space never
+// silently overrides an independent checker's NEEDS WORK.
+func TestTaskAdvanceCommandNeverAutoWaivesARealCheckFinding(t *testing.T) {
+	root := writeEvidenceProject(t)
+	writeCheck(t, root, "C900", "task", "T900", "NEEDS WORK")
+	writeTask(t, root, "O001", "T900", "Checked and found wanting", "status: in_progress\nstage: audit\nlast_check: C900\n")
+
+	msg := writeTaskAdvanceCmd(root, "T900")()
+	result := msg.(actionMsg)
+	if result.err == nil {
+		t.Fatalf("completion result = %#v, want a refusal for a NEEDS WORK check", result)
+	}
+	if strings.Contains(result.err.Error(), "waiver") {
+		t.Errorf("refusal = %q, want no mention of a waiver being an option here", result.err.Error())
+	}
+
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("reload diagnostic = %q", loaded.Diagnostic)
+	}
+	task := loaded.State.Index.Tasks["T900"]
+	if task.Status != data.ColumnInProgress || task.Evidence.CheckWaiver != nil {
+		t.Fatalf("T900 = status %q, CheckWaiver %+v, want unchanged and unwaived", task.Status, task.Evidence.CheckWaiver)
+	}
+}
+
+// TestTaskRetreatCommandMovesBackOneStepAndIsUngated proves Backspace moves a
+// Task backward through the lifecycle without any Check gate — only the
+// owner's own keypress reaches it.
+func TestTaskRetreatCommandMovesBackOneStepAndIsUngated(t *testing.T) {
+	root := writeEvidenceProject(t)
+	writeTask(t, root, "O001", "T900", "Mid test", "status: in_progress\nstage: test\n")
+
+	msg := writeTaskRetreatCmd(root, "T900")()
+	result := msg.(actionMsg)
+	if result.err != nil || !result.reload {
+		t.Fatalf("retreat result = %#v, want successful reload", result)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("reload diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Index.Tasks["T900"].Stage; got != data.StageBuild {
+		t.Errorf("T900 stage = %q, want build after retreating from test", got)
+	}
+}
+
 func TestExceptionCompletionCommandWritesOnlyWhenOwnerAuthorityRemains(t *testing.T) {
 	root := writeEvidenceProject(t)
 	writeTask(t, root, "O001", "T005", "Open exception completion", "status: in_progress\nstage: audit\nlast_check: C004\nexception:\n  requirements: [TEST-02]\n  reason: \"ship the known gap\"\n  owner: \"owner-fixture\"\n  recorded_at: 2026-01-05T00:00:00Z\n  check: C004\n")

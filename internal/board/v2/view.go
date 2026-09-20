@@ -27,7 +27,18 @@ const (
 	// minColumnHeight is the shortest column the board will draw rather than
 	// give the columns no room at all.
 	minColumnHeight = 6
+
+	// boardMarginX and boardMarginY are the outer breathing room between the
+	// terminal's own edge and every surface the board draws — columns, header,
+	// footer, overlays alike. They are reserved out of the terminal's reported
+	// size before anything is laid out, then restored as padding around the
+	// finished frame, so no surface's own geometry has to know about them.
+	boardMarginX = 2
+	boardMarginY = 1
 )
+
+// boardMargin is the padding applied once, around the whole assembled frame.
+var boardMargin = lipgloss.NewStyle().Padding(boardMarginY, boardMarginX)
 
 // diagnosticHeading is the load-diagnostic screen's title. It names the class
 // of problem — the project's data, not the board — so the reader knows which
@@ -52,34 +63,53 @@ func (m Model) View() string {
 	if !m.Loaded {
 		return styles.StatusBar.Render("Loading project…")
 	}
-	if m.Diagnostic != "" {
-		return m.renderDiagnostic(w)
+
+	var content string
+	switch {
+	case m.Diagnostic != "":
+		content = m.renderDiagnostic(w)
+	case w < narrowNoticeBreakpoint:
+		content = m.renderNarrowNotice(w)
+	default:
+		content = m.renderBoard(w, h)
+		if m.ReleaseOverlay {
+			content = m.renderReleaseOverlay(content, w, h)
+		}
 	}
-	if w < narrowNoticeBreakpoint {
-		return m.renderNarrowNotice(w)
-	}
-	base := m.renderBoard(w, h)
-	if m.ReleaseOverlay {
-		return m.renderReleaseOverlay(base, w, h)
-	}
-	return base
+	return boardMargin.Render(content)
 }
 
 // terminalWidth and terminalHeight are the size every surface is laid out
 // against, falling back to a conventional 80×24 before the first
-// WindowSizeMsg arrives.
+// WindowSizeMsg arrives. Both are the *content* size: boardMarginX and
+// boardMarginY are reserved out of the terminal's own reported size here, so
+// every surface downstream lays out against room that already excludes the
+// margin View restores around the finished frame.
 func (m Model) terminalWidth() int {
-	if m.Width <= 0 {
-		return defaultTermW
+	w := defaultTermW
+	if m.Width > 0 {
+		w = m.Width
 	}
-	return m.Width
+	return marginedDimension(w, boardMarginX)
 }
 
 func (m Model) terminalHeight() int {
-	if m.Height <= 0 {
-		return defaultTermH
+	h := defaultTermH
+	if m.Height > 0 {
+		h = m.Height
 	}
-	return m.Height
+	return marginedDimension(h, boardMarginY)
+}
+
+// marginedDimension reserves margin cells off both ends of outer, clamped so
+// a terminal too small to carry the full margin still gets at least one cell
+// of content rather than a negative or zero size.
+func marginedDimension(outer, margin int) int {
+	inner := outer - margin*2
+	if inner < 1 {
+		return 1
+	}
+	return inner
 }
 
 // renderDiagnostic is the whole screen for a project that did not load: the
@@ -130,8 +160,24 @@ func (m Model) boardChrome(w int) (above, below []string) {
 		above = append(above, m.renderMigration(w))
 	}
 	above = append(above, m.renderNext(w), styles.Divider.Render(strings.Repeat("─", w)))
-	below = []string{styles.Divider.Render(strings.Repeat("─", w)), m.renderStatusBar(w)}
+	below = []string{styles.Divider.Render(strings.Repeat("─", w)), m.renderPhaseRow(w), "", m.renderStatusBar(w)}
 	return above, below
+}
+
+// renderPhaseRow draws the four V2 router phases together, in the same
+// colors the public site (getsavepoint.dev) uses for them: white Idea,
+// purple Design, orange Task, green Check. It is a fixed reference row, not
+// a status indicator — it does not read the router's own state — the same
+// shape V1's board drew for its PLAN/BUILD/AUDIT phases.
+func (m Model) renderPhaseRow(w int) string {
+	row := styles.FooterPhaseIdea.Render("IDEA") +
+		styles.FooterDivider.Render(" │ ") +
+		styles.FooterPhaseDesign.Render("DESIGN") +
+		styles.FooterDivider.Render(" │ ") +
+		styles.FooterPhaseTask.Render("TASK") +
+		styles.FooterDivider.Render(" │ ") +
+		styles.FooterPhaseCheck.Render("CHECK")
+	return styles.RootLine.Width(w).Align(lipgloss.Center).Render(row)
 }
 
 // renderReloadDiagnostic keeps the last good board visible while making the
@@ -205,39 +251,24 @@ func (m Model) renderHeader(w int) string {
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
 }
 
-// renderSelection states the optional Release context and which Objective the
-// columns are filtered to. Both are navigation state; the Next area's answer
-// remains the load command's shared projection.
+// renderSelection states the optional Release context alone — a bold
+// capitalized "RELEASE:" label with the record's own ID and title in plain
+// white after it. It carries no Objective language at all: which Objective the columns
+// are filtered to is the sidebar's own purple-accented selection marker
+// (glyphSelected), not restated here. Nothing here is truncated by fitLine: a
+// styled line carries ANSI codes fitLine's rune count would miscount, so
+// overflow is left to the terminal to wrap. With no Release selected, this
+// line is blank.
 func (m Model) renderSelection(w int) string {
-	text := "Objective: none selected"
-	if m.SelectedRelease != "" {
-		text = "Release: " + m.SelectedRelease
-		if release := m.selectedReleaseRecord(); release != nil {
-			text += " — " + release.Title
-		}
-		text += " · Objective: none selected"
+	if m.SelectedRelease == "" {
+		return styles.RootLine.Width(w).Render("")
 	}
-	if m.SelectedObjective != "" {
-		text = "Objective: " + m.SelectedObjective
-		if objective := m.selectedObjectiveRecord(); objective != nil {
-			text += " — " + objective.Title
-		}
-		if m.SelectedRelease != "" {
-			text = "Release: " + m.SelectedRelease
-			if release := m.selectedReleaseRecord(); release != nil {
-				text += " — " + release.Title
-			}
-			text += " · "
-			text += "Objective: " + m.SelectedObjective
-			if objective := m.selectedObjectiveRecord(); objective != nil {
-				text += " — " + objective.Title
-			}
-		}
-		// The header counts the whole project, so a filtered board says how
-		// much of it the columns are showing.
-		text += fmt.Sprintf(" · %d of %d tasks", m.cardCount(), m.State.taskCount())
+	releaseText := m.SelectedRelease
+	if r := m.selectedReleaseRecord(); r != nil {
+		releaseText += " — " + r.Title
 	}
-	return styles.RootLine.Width(w).Render(styles.CardMeta.Render(fitLine(text, w)))
+	text := styles.HeaderWhiteBold.Render("RELEASE:") + " " + styles.HeaderWhite.Render(releaseText)
+	return styles.RootLine.Width(w).Render(text)
 }
 
 func (m Model) selectedObjectiveRecord() *data.ObjectiveV2 {
@@ -321,9 +352,9 @@ func columnWidth(termW int) int {
 
 func (m Model) renderStatusBar(w int) string {
 	if strings.TrimSpace(m.StatusMessage) != "" {
-		return styles.RootLine.Width(w).Render(styles.StatusBar.Render(fitLine(m.StatusMessage, w)))
+		return styles.RootLine.Width(w).Align(lipgloss.Center).Render(styles.StatusBar.Render(fitLine(m.StatusMessage, w)))
 	}
-	return styles.RootLine.Width(w).Render(styles.FooterHints.Render(fitLine(m.hints(), w)))
+	return styles.RootLine.Width(w).Align(lipgloss.Center).Render(styles.FooterHints.Render(fitLine(m.hints(), w)))
 }
 
 func columnLabel(status data.ColumnType) string {
@@ -350,11 +381,11 @@ func (m Model) hints() string {
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():
-		return joinHints("↑↓←→:card  r:releases  enter:detail", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail", m.focusedActionText(), "?:help  q:quit")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  r:releases  enter:select  v:detail  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  r:releases  enter:select  v:detail  i:issues  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
 	default:
-		return joinHints("↑↓←→:card  r:releases  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
 	}
 }
 

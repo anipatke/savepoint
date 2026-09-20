@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
@@ -181,7 +182,7 @@ func (r ObjectiveRow) badges() []Badge {
 	if badge, ok := objectiveIntegrationBadge(r.TasksComplete, r.Clearance.State); ok {
 		badges = append(badges, badge)
 	}
-	badges = append(badges, clearanceBadge(r.Clearance.State))
+	badges = append(badges, objectiveCheckBadge(r.Clearance.State))
 	for _, wait := range r.Waits {
 		badges = append(badges, objectiveWaitBadge(wait))
 	}
@@ -202,13 +203,13 @@ func renderSidebar(rows []ObjectiveRow, selected string, cursor int, focused boo
 
 	title := styles.ColumnTitle.Render(sidebarTitle)
 	if focused {
-		title = styles.ColumnTitleFocused.Render(sidebarTitle)
+		title = styles.SidebarTitleFocused.Render(sidebarTitle)
 	}
 	lines := []string{title, styles.Divider.Render(strings.Repeat("─", textW))}
 
 	if len(rows) == 0 {
 		lines = append(lines, styles.CardMeta.Render(sidebarEmpty))
-		return frameColumn(lines, textW, bodyH, focused)
+		return frameSidebar(lines, textW, bodyH, focused)
 	}
 
 	rendered := make([]string, len(rows))
@@ -237,7 +238,29 @@ func renderSidebar(rows []ObjectiveRow, selected string, cursor int, focused boo
 		lines = append(lines, scrollIndicator("↓", len(rows)-end, "more"))
 	}
 
-	return frameColumn(lines, textW, bodyH, focused)
+	return frameSidebar(lines, textW, bodyH, focused)
+}
+
+// frameSidebar draws the sidebar's own frame, mirroring frameColumn's shape
+// exactly: the same gray border the Task columns wear when unfocused, and the
+// sidebar's own purple accent — distinct from the columns' orange — only once
+// the sidebar itself holds focus.
+func frameSidebar(lines []string, textW, bodyH int, focused bool) string {
+	return sidebarStyle(focused).
+		Width(textW + paddingCells).
+		Height(bodyH).
+		MaxHeight(bodyH + borderCells).
+		Render(strings.Join(lines, "\n"))
+}
+
+// sidebarStyle is the sidebar frame in two accents, mirroring columnStyle:
+// gray unfocused, purple focused. Only the color differs — the border and
+// padding are identical in both states.
+func sidebarStyle(focused bool) lipgloss.Style {
+	if focused {
+		return styles.SidebarPanelFocused
+	}
+	return styles.ColumnUnfocused
 }
 
 // renderObjectiveRow draws one row: its markers and O### identity, the human
@@ -253,7 +276,7 @@ func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) stri
 	style := styles.TaskItem
 	switch {
 	case cursor:
-		style = styles.TaskItemFocused
+		style = styles.ObjectiveItemFocused
 	case selected:
 		style = styles.SidebarSelected
 	}

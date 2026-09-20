@@ -45,13 +45,18 @@ const (
 	glyphTest      = "◇"
 	glyphAudit     = "◆"
 	glyphClear     = "✓"
-	glyphNeedsWork = "✗"
-	glyphStale     = "◐"
 	glyphUnknown   = "?"
-	glyphNone      = "○"
 	glyphAttention = "⚠"
 	glyphWaiting   = "→"
 	glyphOwner     = "!"
+
+	// Check-badge glyphs: an explicit checkbox rather than the narrower
+	// clearance glyphs above, since this badge is read on its own as the
+	// friendly "has this been checked" answer — grey empty, green ticked,
+	// amber flagged — not as one entry in the fuller clearance vocabulary.
+	glyphCheckPending = "[ ]"
+	glyphCheckClear   = "[✓]"
+	glyphCheckFlagged = "[!]"
 )
 
 // stageBadge names the implementation stage of a Task under way. It reports
@@ -63,44 +68,87 @@ func stageBadge(status data.ColumnType, stage data.ProgressStage) (Badge, bool) 
 	}
 	switch stage {
 	case data.StageBuild:
-		return Badge{Glyph: glyphBuild, Label: "BUILD", Style: styles.BadgeAttention}, true
+		return Badge{Glyph: glyphBuild, Label: stageLabel(stage), Style: styles.BadgeAttention}, true
 	case data.StageTest:
-		return Badge{Glyph: glyphTest, Label: "TEST", Style: styles.BadgeClear}, true
+		return Badge{Glyph: glyphTest, Label: stageLabel(stage), Style: styles.BadgeClear}, true
 	case data.StageAudit:
-		return Badge{Glyph: glyphAudit, Label: "AUDIT", Style: styles.BadgeWaiting}, true
+		return Badge{Glyph: glyphAudit, Label: stageLabel(stage), Style: styles.BadgeWaiting}, true
 	default:
 		return Badge{}, false
 	}
 }
 
-// clearanceBadge names a resolved clearance state. All five states render with
-// their own glyph and label, so "stale" is never mistaken for "clear" on a
-// terminal without color.
-func clearanceBadge(state data.ClearanceState) Badge {
-	switch state {
-	case data.ClearanceCurrent:
-		return Badge{Glyph: glyphClear, Label: "CLEAR", Style: styles.BadgeClear}
-	case data.ClearanceNeedsWork:
-		return Badge{Glyph: glyphNeedsWork, Label: "NEEDS WORK", Style: styles.BadgeAttention}
-	case data.ClearanceStale:
-		return Badge{Glyph: glyphStale, Label: "STALE", Style: styles.BadgeAttention}
-	case data.ClearanceUnknown:
-		return Badge{Glyph: glyphUnknown, Label: "UNVERIFIED", Style: styles.BadgeAttention}
+// stageLabel is the one place a Task's stage becomes owner-facing text.
+// data.StageAudit's stored value stays "audit" — every existing Task record,
+// including ones already on disk, keeps parsing unchanged — but nothing the
+// board displays says that word: this project's stages read as build, test,
+// check, matching the rest of V2's Check vocabulary. A stage outside the
+// three canonical values reports itself rather than a guess.
+func stageLabel(stage data.ProgressStage) string {
+	switch stage {
+	case data.StageBuild:
+		return "BUILD"
+	case data.StageTest:
+		return "TEST"
+	case data.StageAudit:
+		return "CHECK"
 	default:
-		// ClearanceMissing, and any state ResolveClearance could add later:
-		// reported as nothing recorded rather than as a met requirement.
-		return Badge{Glyph: glyphNone, Label: "NO CHECK", Style: styles.BadgeNeutral}
+		return string(stage)
 	}
 }
 
-// completionBadge names how a done Task reached done. A recorded exception
-// reads differently from an ordinary close, and a close whose clearance is no
-// longer current reads as needing attention rather than as finished — both
-// distinctions the release design requires to be visible.
-func completionBadge(clearance data.ClearanceState, byException bool) Badge {
+// taskCheckBadge is the friendly three-notch Check badge a Task card shows:
+// grey "[ ] Check" before any Check has ever been requested, green "[✓]
+// Check" once an independent Check recorded it current, and amber "[!]
+// Check" when the owner waived the local Check instead (never a fourth,
+// unmarked state — a waiver is not technical CLEAR, and this badge does not
+// pretend otherwise). A Check that was recorded but came back NEEDS WORK,
+// or whose freshness is stale or unknown, is a real, distinct problem — it
+// keeps the amber "[!]" accent so it still reads as needing attention, but
+// its own label names which of the three it is rather than collapsing them
+// into the same word as a waiver.
+func taskCheckBadge(clearance data.ClearanceState, waived bool) Badge {
+	if waived {
+		return Badge{Glyph: glyphCheckFlagged, Label: "Check (waived)", Style: styles.BadgeAttention}
+	}
+	switch clearance {
+	case data.ClearanceCurrent:
+		return Badge{Glyph: glyphCheckClear, Label: "Check", Style: styles.BadgeClear}
+	case data.ClearanceNeedsWork:
+		return Badge{Glyph: glyphCheckFlagged, Label: "Check (needs work)", Style: styles.BadgeAttention}
+	case data.ClearanceStale:
+		return Badge{Glyph: glyphCheckFlagged, Label: "Check (stale)", Style: styles.BadgeAttention}
+	case data.ClearanceUnknown:
+		return Badge{Glyph: glyphCheckFlagged, Label: "Check (unverified)", Style: styles.BadgeAttention}
+	default:
+		// ClearanceMissing: no Check has been requested yet, and no waiver is
+		// recorded either — still mid-build, nothing to flag.
+		return Badge{Glyph: glyphCheckPending, Label: "Check", Style: styles.BadgeNeutral}
+	}
+}
+
+// objectiveCheckBadge is the same friendly badge for an Objective's own
+// mandatory Full Objective Check: grey "[ ] Check" until it is current,
+// green "[✓] Check" once it is. Unlike a Task's, this one has no waived
+// state — the Full Objective Check is never waivable — so the badge stays a
+// plain two-notch signal.
+func objectiveCheckBadge(clearance data.ClearanceState) Badge {
+	if clearance == data.ClearanceCurrent {
+		return Badge{Glyph: glyphCheckClear, Label: "Check", Style: styles.BadgeClear}
+	}
+	return Badge{Glyph: glyphCheckPending, Label: "Check", Style: styles.BadgeNeutral}
+}
+
+// completionBadge names how a done Task reached done. A recorded exception or
+// waiver reads differently from an ordinary close, and a close whose
+// clearance is no longer current reads as needing attention rather than as
+// finished — every distinction the release design requires to be visible.
+func completionBadge(clearance data.ClearanceState, byException, byWaiver bool) Badge {
 	switch {
 	case byException:
 		return Badge{Glyph: glyphOwner, Label: "BY EXCEPTION", Style: styles.BadgeAttention}
+	case byWaiver:
+		return Badge{Glyph: glyphCheckFlagged, Label: "BY WAIVER", Style: styles.BadgeAttention}
 	case clearance == data.ClearanceCurrent:
 		return Badge{Glyph: glyphClear, Label: "DONE", Style: styles.BadgeClear}
 	default:
@@ -198,6 +246,13 @@ func objectiveDependencyTarget(blocker data.GateBlocker) string {
 
 func clearanceIsCurrent(clearance data.Clearance) bool {
 	return clearance.State == data.ClearanceCurrent
+}
+
+// clearanceIsMissing reports whether clearance means no Check has ever been
+// recorded at all — the one state a Task-check waiver may stand in for, at
+// Space's completion write in io.go.
+func clearanceIsMissing(clearance data.Clearance) bool {
+	return clearance.State == data.ClearanceMissing
 }
 
 func hasOwnerAcceptanceBlock(decision data.GateDecision) bool {

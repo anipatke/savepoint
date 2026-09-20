@@ -1602,7 +1602,14 @@ Authored task notes.`
 	assessedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
 	recordedAt := time.Date(2026, 9, 14, 1, 0, 0, 0, time.UTC)
 	replanAt := time.Date(2026, 9, 14, 2, 0, 0, 0, time.UTC)
+	waiverAt := time.Date(2026, 9, 14, 3, 0, 0, 0, time.UTC)
 	task.Evidence = &Evidence{
+		CheckWaiver: &CheckWaiver{
+			Task:       "T020",
+			Reason:     "Owner completed via board without requesting a Check.",
+			Actor:      Actor{Role: ActorRoleOwner, Session: "board-owner"},
+			RecordedAt: waiverAt,
+		},
 		LastCheck: "C001",
 		Freshness: &Freshness{
 			State:      FreshnessCurrent,
@@ -1659,6 +1666,9 @@ Authored task notes.`
 	}
 	if reparsed.Evidence.Replan == nil || reparsed.Evidence.Replan.Reason != "Plan needs revisiting." {
 		t.Errorf("Replan = %+v, want reason set", reparsed.Evidence.Replan)
+	}
+	if reparsed.Evidence.CheckWaiver == nil || reparsed.Evidence.CheckWaiver.Task != "T020" || reparsed.Evidence.CheckWaiver.Actor.Role != ActorRoleOwner {
+		t.Errorf("CheckWaiver = %+v, want task T020 recorded by owner", reparsed.Evidence.CheckWaiver)
 	}
 
 	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {

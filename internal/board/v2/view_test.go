@@ -33,11 +33,8 @@ func TestViewEmptyTemplateProjectOpensWithThreeEmptyColumns(t *testing.T) {
 			t.Errorf("view missing empty column %q:\n%s", label, got)
 		}
 	}
-	if !strings.Contains(got, "Objective: none selected") {
-		t.Errorf("view does not report that no Objective is selected:\n%s", got)
-	}
-	if !strings.Contains(got, "Plan an Objective") {
-		t.Errorf("view missing the planning next action:\n%s", got)
+	if !strings.Contains(got, "Nothing selected yet") {
+		t.Errorf("view does not report the plain fallback for a project with nothing to point at:\n%s", got)
 	}
 	for _, forbidden := range []string{diagnosticHeading, "error", "not found", "MIGRATION"} {
 		if strings.Contains(got, forbidden) {
@@ -57,9 +54,6 @@ func TestViewReportsTheCountsItLoaded(t *testing.T) {
 	}
 	if !strings.Contains(got, "PLANNED (1)") || !strings.Contains(got, "DONE (1)") {
 		t.Errorf("view does not report Tasks in the columns their status names:\n%s", got)
-	}
-	if !strings.Contains(got, "Objective: O001 — First objective") {
-		t.Errorf("view does not name the router's selected Objective:\n%s", got)
 	}
 	if !strings.Contains(got, "T001") || !strings.Contains(got, "Do the thing") {
 		t.Errorf("view does not name the record the projection selected:\n%s", got)

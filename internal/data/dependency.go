@@ -133,12 +133,16 @@ type DependencyDecision struct {
 }
 
 // ResolveTaskDependencyV2 resolves whether dep is satisfied, re-resolving
-// the dependency Task's status, clearance, and owner acceptance from index
-// on every call rather than trusting any cached judgement. A requires: clear
-// dependency is satisfied only when its target Task is done with current
-// clearance; requires: accepted additionally needs recorded owner acceptance
-// of that Task's current Check — acceptance of a superseded Check does not
-// satisfy it.
+// the dependency Task's status, clearance, owner acceptance, and any
+// applicable Task-check waiver from index on every call rather than trusting
+// any cached judgement. A requires: clear dependency is satisfied when its
+// target Task is done with current clearance, or when the target carries an
+// applicable owner Task-check waiver — the waiver stands in for "clear" here
+// as the owner's own completion decision, even though it is never technical
+// CLEAR elsewhere. requires: accepted needs an actual current Check the
+// owner has accepted; a waiver never satisfies it, since there is no Check
+// for the owner to accept, and acceptance of a superseded Check does not
+// satisfy it either.
 func ResolveTaskDependencyV2(index *V2Index, dep TaskDependencyV2) DependencyDecision {
 	target, ok := index.Tasks[dep.Task]
 	if !ok || target.Status != ColumnDone {
@@ -146,12 +150,13 @@ func ResolveTaskDependencyV2(index *V2Index, dep TaskDependencyV2) DependencyDec
 	}
 
 	clearance := ResolveClearance(index, dep.Task)
-	if clearance.State != ClearanceCurrent {
+	waived := applicableCheckWaiver(target.Evidence, dep.Task) != nil
+	if clearance.State != ClearanceCurrent && !waived {
 		return DependencyDecision{Block: &DependencyBlock{Target: dep.Task, Requires: dep.Requires, Kind: DependencyBlockNotCleared, Clearance: clearance.State}}
 	}
 
 	if dep.Requires == TaskDependencyAccepted {
-		if !ownerAcceptedCheck(target.Evidence, clearance.Check) {
+		if (waived && clearance.State != ClearanceCurrent) || !ownerAcceptedCheck(target.Evidence, clearance.Check) {
 			return DependencyDecision{Block: &DependencyBlock{Target: dep.Task, Requires: dep.Requires, Kind: DependencyBlockNotAccepted, Clearance: clearance.State}}
 		}
 	}

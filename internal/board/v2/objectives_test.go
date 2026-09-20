@@ -20,7 +20,7 @@ import (
 // at.
 func sidebarBoard(t *testing.T, root string) Model {
 	t.Helper()
-	return openSizedBoard(t, root, 120, 48)
+	return openSizedBoard(t, root, 130, 48)
 }
 
 // sidebarLines returns the rendered board's lines with their ANSI stripped,
@@ -77,16 +77,22 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 	}
 }
 
-// TestSidebarShowsEachObjectivesOwnClearance proves all five clearance states
-// reach a row distinctly, through the same badge mapping a card uses.
-func TestSidebarShowsEachObjectivesOwnClearance(t *testing.T) {
+// TestSidebarShowsEachObjectivesOwnCheckBadge proves the sidebar's Check badge
+// is the deliberately simple two-notch signal objectiveCheckBadge defines: a
+// current Check reads "[✓] Check", and every other clearance state — missing,
+// needs_work, unknown, and stale alike — reads the same grey "[ ] Check"
+// rather than the fuller five-state vocabulary a Task card's badge carries.
+// The Full Objective Check is never waivable, so there is no third notch here.
+func TestSidebarShowsEachObjectivesOwnCheckBadge(t *testing.T) {
 	got := sidebarText(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	// O001 current, O002/O003 missing, O004 needs work, O005 unknown, O006 stale.
-	for _, want := range []string{"✓ CLEAR", "○ NO CHECK", "✗ NEEDS WORK", "? UNVERIFIED", "◐ STALE"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("sidebar does not distinguish clearance state %q:\n%s", want, got)
-		}
+	// O001 current; O002/O003 missing, O004 needs work, O005 unknown, O006
+	// stale all fold into the same "not yet" badge.
+	if !strings.Contains(got, "[✓] Check") {
+		t.Errorf("sidebar does not show a current Objective as checked:\n%s", got)
+	}
+	if count := strings.Count(got, "[ ] Check"); count != 5 {
+		t.Errorf("sidebar shows %d Objectives as not-yet-checked, want 5 (missing, needs_work, unknown, and stale all read the same):\n%s", count, got)
 	}
 }
 
@@ -168,9 +174,6 @@ func TestNoSelectionShowsEveryTaskInTheProject(t *testing.T) {
 	if got := cardIDsInView(model); !equalIDs(got, []string{"T001", "T002", "T003", "T004"}) {
 		t.Errorf("columns show %v, want every Task in the project", got)
 	}
-	if !strings.Contains(xansi.Strip(model.View()), "Objective: none selected") {
-		t.Errorf("board does not report that no Objective is selected:\n%s", xansi.Strip(model.View()))
-	}
 }
 
 // TestInitialSelectionPrecedence covers the three ways a board opens: the flag
@@ -202,8 +205,11 @@ func TestInitialSelectionPrecedence(t *testing.T) {
 }
 
 // TestRouterNamingAMissingObjectiveOpensTheBoardAnyway proves a stale router
-// hint costs nothing: no selection, every Task rendered, the diagnostic on
-// screen, and no refusal to open.
+// hint costs nothing: no selection, every Task rendered, and no refusal to
+// open. The selection-diagnostic sentence itself (data.SelectionDiagnostic,
+// still resolved onto State.Next and still what `savepoint resume` reports)
+// is no longer echoed in the board's own one-line Next area — that panel is
+// a glance at the resolved Task now, not a diagnostics surface.
 func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 	root := writeNavigationProject(t)
 	writeRouter(t, root, "task", "O009", "none")
@@ -217,8 +223,11 @@ func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 	if ids := cardIDsInView(model); len(ids) != 4 {
 		t.Errorf("columns show %v, want every Task while nothing is selected", ids)
 	}
-	if !strings.Contains(got, "O009") || !strings.Contains(got, "does not exist among the project's live records") {
-		t.Errorf("board does not surface the selection diagnostic:\n%s", got)
+	if model.State.Next.SelectionDiagnostic == nil {
+		t.Fatalf("State.Next carries no selection diagnostic for a missing router Objective")
+	}
+	if !strings.Contains(model.State.Next.SelectionDiagnostic.ID, "O009") {
+		t.Errorf("selection diagnostic = %+v, want it to name O009", model.State.Next.SelectionDiagnostic)
 	}
 	if !strings.Contains(got, "OBJECTIVES") || !strings.Contains(got, "PLANNED (") {
 		t.Errorf("board did not open over a stale router hint:\n%s", got)
@@ -294,7 +303,7 @@ func TestSidebarSurvivesAReloadThatShortensTheList(t *testing.T) {
 // TestSidebarScrollsRatherThanWrapping proves a list longer than the viewport
 // reports what is out of view and keeps every line inside the sidebar's width.
 func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
-	model := openSizedBoard(t, writeNavigationProject(t), 120, 24)
+	model := openSizedBoard(t, writeNavigationProject(t), 130, 24)
 
 	lines := sidebarLines(t, model)
 	got := strings.Join(lines, "\n")

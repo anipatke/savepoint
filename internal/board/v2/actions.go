@@ -263,29 +263,22 @@ func selectionForTarget(index *data.V2Index, target actionTarget) (data.RouterSe
 	}
 }
 
+// focusedActionText names the owner keys available on the focused record, and
+// nothing else: the footer is keys only. A blocked action is never explained
+// here — that prose belongs to the status-bar message a refused attempt
+// produces (decisionRefusal, used only inside the write commands), not to a
+// hint line shown at every idle moment regardless of whether anything was
+// attempted.
 func (m Model) focusedActionText() string {
-	target, ok := m.focusedActionTarget()
-	if !ok || m.Issues != nil {
+	actions := m.focusedActions()
+	if len(actions) == 0 {
 		return ""
 	}
-	gateActions := actionsForRecord(m.State.Index, target)
-	if actions := m.focusedActions(); len(actions) > 0 {
-		parts := make([]string, 0, len(actions))
-		for _, action := range actions {
-			parts = append(parts, action.Key+":"+action.Label)
-		}
-		if len(gateActions) == 0 {
-			if decision, _, resolved := recordDecision(m.State.Index, target); resolved {
-				parts = append(parts, decisionRefusal(decision))
-			}
-		}
-		return strings.Join(parts, "  ")
+	parts := make([]string, 0, len(actions))
+	for _, action := range actions {
+		parts = append(parts, action.Key+":"+action.Label)
 	}
-	decision, _, ok := recordDecision(m.State.Index, target)
-	if !ok {
-		return ""
-	}
-	return decisionRefusal(decision)
+	return strings.Join(parts, "  ")
 }
 
 func (m Model) actionForKey(key string) (BoardAction, bool) {

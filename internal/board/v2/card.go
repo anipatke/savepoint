@@ -35,6 +35,10 @@ type TaskCard struct {
 	// still open, and the Task's own recorded exception once it is done and
 	// the completion decision no longer applies to it.
 	ByException bool
+	// ByWaiver mirrors ByException for an owner-recorded Task-check waiver:
+	// GateDecision.AllowedByWaiver while open, the Task's own recorded
+	// CheckWaiver once done.
+	ByWaiver bool
 }
 
 // newTaskCard resolves everything a card shows about task, through the
@@ -48,6 +52,7 @@ func newTaskCard(index *data.V2Index, task *data.TaskV2) TaskCard {
 	switch {
 	case task.Status == data.ColumnDone:
 		card.ByException = task.Evidence != nil && task.Evidence.Exception != nil
+		card.ByWaiver = task.Evidence != nil && task.Evidence.CheckWaiver != nil
 		return card
 	case task.Status == data.ColumnPlanned:
 		card.Decision = data.ResolveTaskStart(index, task.ID)
@@ -58,6 +63,7 @@ func newTaskCard(index *data.V2Index, task *data.TaskV2) TaskCard {
 	}
 
 	card.ByException = card.Decision.AllowedByException
+	card.ByWaiver = card.Decision.AllowedByWaiver
 	return card
 }
 
@@ -107,9 +113,9 @@ func (c TaskCard) badges() []Badge {
 		badges = append(badges, badge)
 	}
 	if c.Task.Status == data.ColumnDone {
-		badges = append(badges, completionBadge(c.Clearance.State, c.ByException))
+		badges = append(badges, completionBadge(c.Clearance.State, c.ByException, c.ByWaiver))
 	}
-	badges = append(badges, clearanceBadge(c.Clearance.State))
+	badges = append(badges, taskCheckBadge(c.Clearance.State, c.ByWaiver))
 	for _, blocker := range c.Decision.Blockers {
 		if badge, ok := blockerBadge(blocker); ok {
 			badges = append(badges, badge)

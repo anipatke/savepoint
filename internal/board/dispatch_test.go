@@ -64,7 +64,7 @@ func TestRunWithFiltersDispatchesV2ProjectToTheV2Board(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if !strings.Contains(got, "NEXT:") || !strings.Contains(got, "Objectives: 1  Tasks: 1") {
+	if !strings.Contains(got, "Planned T001") || !strings.Contains(got, "Objectives: 1  Tasks: 1") {
 		t.Errorf("V2 project did not reach the V2 board:\n%s", got)
 	}
 	if strings.Contains(got, "releases directory not found") {
