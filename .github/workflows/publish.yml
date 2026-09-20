@@ -12,7 +12,29 @@ permissions:
   id-token: write
 
 jobs:
+  validate:
+    name: Validate distribution and CLI contract
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # This job is intentionally read-only: it builds, verifies, and packs
+      # locally, but never publishes, tags, deploys, or writes a changelog.
+      - run: make ci
+
   publish:
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:
@@ -57,9 +79,6 @@ jobs:
           else
             npm install
           fi
-
-      - run: make ci
-        if: steps.check.outputs.publish == 'true'
 
       - run: npm publish
         if: steps.check.outputs.publish == 'true'

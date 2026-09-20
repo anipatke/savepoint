@@ -96,6 +96,15 @@ npx savepoint board
 npx savepoint resume
 ```
 
+Use the V2 objective filter when you want to focus the board, and use the
+command help when you need the complete option contract:
+
+```bash
+npx savepoint board --objective O001
+npx savepoint --help
+npx savepoint board --help
+```
+
 Ask your coding agent to read the generated `AGENTS.md`. That file routes the
 agent to the current Savepoint state, the matching workflow skill, and the
 bounded context for the active Task.
@@ -115,15 +124,15 @@ teammate pick up where the last one stopped.
 | Command | What it does |
 | --- | --- |
 | `savepoint init [dir]` | Scaffolds Savepoint's project files and agent guidance. |
-| `savepoint board` | Opens the keyboard-driven terminal board. |
+| `savepoint board [--objective O###]` | Opens the keyboard-driven V2 board, optionally focused on one Objective. |
 | `savepoint resume [dir]` | Prints the current state and the next recorded action. |
 | `savepoint doctor` | Runs deterministic project diagnostics and configured quality gates. |
 | `savepoint migrate [dir]` | Converts a legacy Savepoint project to V2. Preview is the default. |
 | `savepoint upgrade-assets [dir]` | Refreshes shipped skills and templates in an existing project. |
 
-Run `savepoint <command>` without arguments to see that command's usage. The
-package is also available through `npx` for projects that do not need a global
-installation.
+Run `savepoint --help` for the command list or `savepoint <command> --help` for
+command-specific options. The package is also available through `npx` for
+projects that do not need a global installation.
 
 ## The terminal board
 
@@ -198,6 +207,11 @@ npx savepoint upgrade-assets --dry-run
 npx savepoint upgrade-assets
 ```
 
+`migrate` and `upgrade-assets` are deliberately separate. Use `migrate` for a
+legacy V1 project; after it is converted to V2, use `upgrade-assets` to refresh
+the managed skills and templates. `upgrade-assets` does not perform a
+migration.
+
 User-authored project files remain outside the managed asset region. Repeated
 updates are designed to be safe and reviewable.
 
@@ -235,6 +249,13 @@ make test
 
 The npm package wraps platform-specific binaries so most users can run the
 tool with `npx savepoint`.
+
+Distribution validation is local and does not publish or tag a release:
+
+```bash
+make dist
+make package-check
+```
 
 ## License
 

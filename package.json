@@ -28,8 +28,9 @@
   ],
   "scripts": {
     "build": "go run ./internal/buildtool build-npm",
-    "test": "echo \"Run 'make test' for Go tests\"",
-    "postinstall": "node -e \"console.log('Run \\\"savepoint upgrade-assets\\\" in each existing Savepoint project to refresh agent skills and templates.')\"",
+    "test": "node --test bin/savepoint.test.js",
+    "test:go": "make test",
+    "postinstall": "node -e \"console.log('For a legacy project, run \\\"savepoint migrate --apply\\\" first; then run \\\"savepoint upgrade-assets\\\" to refresh V2 assets.')\"",
     "prepublishOnly": "npm run build"
   }
 }

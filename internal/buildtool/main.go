@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -48,7 +49,7 @@ func run(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|smoke-test>")
+		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|verify-dist|smoke-test>")
 	}
 
 	switch flags.Arg(0) {
@@ -68,6 +69,8 @@ func run(args []string) error {
 		return buildAll()
 	case "dist":
 		return dist()
+	case "verify-dist":
+		return verifyDistribution("dist", version())
 	case "smoke-test":
 		return smokeTest()
 	default:
@@ -172,12 +175,13 @@ func requireWindowsExecutable(path string) error {
 }
 
 func dist() error {
+	releaseVersion := version()
 	if err := buildAll(); err != nil {
 		return err
 	}
 	var archives []string
 	for _, target := range targets {
-		name := "savepoint-" + version() + "-" + target.os + "-" + target.arch + ".tar.gz"
+		name := archiveName(releaseVersion, target)
 		source := filepath.Join("dist", target.os+"-"+target.arch, executableName(target.os))
 		archive := filepath.Join("dist", name)
 		if err := writeTarGz(archive, source, executableName(target.os)); err != nil {
@@ -185,7 +189,10 @@ func dist() error {
 		}
 		archives = append(archives, archive)
 	}
-	return writeChecksums(filepath.Join("dist", "checksums.txt"), archives)
+	if err := writeDistributionChecksums("dist", releaseVersion, archives); err != nil {
+		return err
+	}
+	return verifyDistribution("dist", releaseVersion)
 }
 
 func writeChecksums(dest string, archives []string) error {
@@ -210,6 +217,281 @@ func writeChecksums(dest string, archives []string) error {
 		return fmt.Errorf("write checksums: %w", err)
 	}
 	return nil
+}
+
+func archiveName(releaseVersion string, target target) string {
+	return fmt.Sprintf("savepoint-%s-%s-%s.tar.gz", releaseVersion, target.os, target.arch)
+}
+
+func expectedArchiveNames(releaseVersion string) []string {
+	names := make([]string, 0, len(targets))
+	for _, target := range targets {
+		names = append(names, archiveName(releaseVersion, target))
+	}
+	return names
+}
+
+func writeDistributionChecksums(distDir, releaseVersion string, archives []string) error {
+	if err := validateArchiveInventory(distDir, releaseVersion); err != nil {
+		return err
+	}
+
+	expected := make(map[string]struct{}, len(targets))
+	for _, name := range expectedArchiveNames(releaseVersion) {
+		expected[name] = struct{}{}
+	}
+	if len(archives) != len(expected) {
+		return fmt.Errorf("distribution checksum inventory has %d archives, want %d", len(archives), len(expected))
+	}
+	seen := make(map[string]struct{}, len(archives))
+	for _, path := range archives {
+		name := filepath.Base(path)
+		if _, ok := expected[name]; !ok {
+			return fmt.Errorf("distribution checksum archive %q is not an expected release archive", name)
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("distribution checksum archive %q is listed more than once", name)
+		}
+		seen[name] = struct{}{}
+	}
+	if len(seen) != len(expected) {
+		return fmt.Errorf("distribution checksum inventory is incomplete")
+	}
+
+	return writeChecksums(filepath.Join(distDir, "checksums.txt"), archives)
+}
+
+func validateArchiveInventory(distDir, releaseVersion string) error {
+	expectedNames := expectedArchiveNames(releaseVersion)
+	expected := make(map[string]struct{}, len(expectedNames))
+	for _, name := range expectedNames {
+		expected[name] = struct{}{}
+	}
+
+	entries, err := os.ReadDir(distDir)
+	if err != nil {
+		return fmt.Errorf("read distribution directory: %w", err)
+	}
+	seen := make(map[string]struct{}, len(expectedNames))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tar.gz") {
+			continue
+		}
+		if _, ok := expected[entry.Name()]; !ok {
+			return fmt.Errorf("unexpected distribution archive %q", entry.Name())
+		}
+		seen[entry.Name()] = struct{}{}
+	}
+	for _, name := range expectedNames {
+		if _, ok := seen[name]; !ok {
+			return fmt.Errorf("missing distribution archive %q", name)
+		}
+	}
+	return nil
+}
+
+func verifyDistribution(distDir, releaseVersion string) error {
+	if err := verifyDistributionStructure(distDir, releaseVersion); err != nil {
+		return err
+	}
+	if err := smokeNativeDistribution(distDir, releaseVersion); err != nil {
+		return err
+	}
+	fmt.Printf("distribution verified: %d archives (%s)\n", len(targets), releaseVersion)
+	return nil
+}
+
+func verifyDistributionStructure(distDir, releaseVersion string) error {
+	if err := validateArchiveInventory(distDir, releaseVersion); err != nil {
+		return err
+	}
+	if err := verifyChecksumManifest(distDir, releaseVersion); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		path := filepath.Join(distDir, archiveName(releaseVersion, target))
+		if _, _, err := readArchiveBinary(path, target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyChecksumManifest(distDir, releaseVersion string) error {
+	manifestPath := filepath.Join(distDir, "checksums.txt")
+	contents, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("read checksum manifest: %w", err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(contents), "\n"), "\n")
+	if len(lines) == 1 && strings.TrimSpace(lines[0]) == "" {
+		return errors.New("checksum manifest is empty")
+	}
+
+	expected := make(map[string]struct{}, len(targets))
+	for _, name := range expectedArchiveNames(releaseVersion) {
+		expected[name] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(expected))
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || len(fields[0]) != sha256.Size*2 {
+			return fmt.Errorf("invalid checksum manifest line %q", line)
+		}
+		if _, err := hex.DecodeString(fields[0]); err != nil {
+			return fmt.Errorf("invalid checksum for %q: %w", fields[1], err)
+		}
+		if _, ok := expected[fields[1]]; !ok {
+			return fmt.Errorf("checksum manifest contains unexpected archive %q", fields[1])
+		}
+		if _, ok := seen[fields[1]]; ok {
+			return fmt.Errorf("checksum manifest contains duplicate archive %q", fields[1])
+		}
+		seen[fields[1]] = struct{}{}
+
+		actual, err := checksumFile(filepath.Join(distDir, fields[1]))
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(fields[0], actual) {
+			return fmt.Errorf("checksum mismatch for %q", fields[1])
+		}
+	}
+	if len(seen) != len(expected) {
+		return fmt.Errorf("checksum manifest has %d archives, want %d", len(seen), len(expected))
+	}
+	return nil
+}
+
+func checksumFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("checksum open %s: %w", path, err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("checksum read %s: %w", path, err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func readArchiveBinary(archivePath string, target target) ([]byte, int64, error) {
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		return nil, 0, fmt.Errorf("open distribution archive %s: %w", archivePath, err)
+	}
+	defer archive.Close()
+
+	gzipReader, err := gzip.NewReader(archive)
+	if err != nil {
+		return nil, 0, fmt.Errorf("open distribution gzip %s: %w", archivePath, err)
+	}
+	defer gzipReader.Close()
+
+	tarReader := tar.NewReader(gzipReader)
+	memberName := executableName(target.os)
+	var content []byte
+	var mode int64
+	memberCount := 0
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, 0, fmt.Errorf("read distribution archive %s: %w", archivePath, err)
+		}
+		memberCount++
+		if memberCount > 1 {
+			return nil, 0, fmt.Errorf("distribution archive %s contains more than one member", archivePath)
+		}
+		if header.Name != memberName {
+			return nil, 0, fmt.Errorf("distribution archive %s contains %q, want %q", archivePath, header.Name, memberName)
+		}
+		if header.Mode&0o111 == 0 {
+			return nil, 0, fmt.Errorf("distribution archive %s member is not executable", archivePath)
+		}
+		content, err = io.ReadAll(tarReader)
+		if err != nil {
+			return nil, 0, fmt.Errorf("read distribution member %s: %w", archivePath, err)
+		}
+		mode = header.Mode
+	}
+	if memberCount != 1 || len(content) == 0 {
+		return nil, 0, fmt.Errorf("distribution archive %s does not contain one non-empty executable", archivePath)
+	}
+	if !hasExpectedBinaryHeader(content, target.os) {
+		return nil, 0, fmt.Errorf("distribution archive %s member has an invalid %s executable header", archivePath, target.os)
+	}
+	return content, mode, nil
+}
+
+func hasExpectedBinaryHeader(content []byte, goos string) bool {
+	switch goos {
+	case "windows":
+		return bytes.HasPrefix(content, []byte("MZ"))
+	case "linux":
+		return bytes.HasPrefix(content, []byte{0x7f, 'E', 'L', 'F'})
+	case "darwin":
+		if len(content) < 4 {
+			return false
+		}
+		switch string(content[:4]) {
+		case string([]byte{0xcf, 0xfa, 0xed, 0xfe}), // 64-bit little-endian
+			string([]byte{0xce, 0xfa, 0xed, 0xfe}), // 32-bit little-endian
+			string([]byte{0xfe, 0xed, 0xfa, 0xcf}), // 64-bit big-endian
+			string([]byte{0xfe, 0xed, 0xfa, 0xce}), // 32-bit big-endian
+			string([]byte{0xca, 0xfe, 0xba, 0xbe}), // universal binary
+			string([]byte{0xbe, 0xba, 0xfe, 0xca}),
+			string([]byte{0xca, 0xfe, 0xba, 0xbf}), // 64-bit universal binary
+			string([]byte{0xbf, 0xba, 0xfe, 0xca}):
+			return true
+		}
+	}
+	return false
+}
+
+func smokeNativeDistribution(distDir, releaseVersion string) error {
+	native, ok := nativeTarget()
+	if !ok {
+		return nil
+	}
+	archivePath := filepath.Join(distDir, archiveName(releaseVersion, native))
+	content, mode, err := readArchiveBinary(archivePath, native)
+	if err != nil {
+		return err
+	}
+	tempDir, err := os.MkdirTemp("", "savepoint-dist-smoke-")
+	if err != nil {
+		return fmt.Errorf("create distribution smoke directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	binaryPath := filepath.Join(tempDir, executableName(native.os))
+	fileMode := os.FileMode(mode).Perm()
+	if err := os.WriteFile(binaryPath, content, fileMode); err != nil {
+		return fmt.Errorf("write distribution smoke binary: %w", err)
+	}
+	cmd := exec.Command(binaryPath, "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("launch native distribution archive %s: %w", archivePath, err)
+	}
+	if got := strings.TrimSpace(string(output)); got != releaseVersion {
+		return fmt.Errorf("native distribution archive %s reported %q, want %q", archivePath, got, releaseVersion)
+	}
+	return nil
+}
+
+func nativeTarget() (target, bool) {
+	for _, target := range targets {
+		if target.os == runtime.GOOS && target.arch == runtime.GOARCH {
+			return target, true
+		}
+	}
+	return target{}, false
 }
 
 func writeTarGz(archivePath, sourcePath, archiveName string) error {

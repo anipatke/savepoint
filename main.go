@@ -37,6 +37,9 @@ func main() {
 
 	if len(args) > 0 {
 		switch args[0] {
+		case "--help", "-h", "help":
+			fmt.Print(mainUsage)
+			os.Exit(0)
 		case "--version":
 			fmt.Println(version)
 			os.Exit(0)
@@ -88,6 +91,22 @@ func main() {
 		panic(err)
 	}
 }
+
+const mainUsage = `Usage: savepoint <command> [options]
+
+Commands:
+  init [dir] [--force] [--install]       Create a V2 project
+  board [--objective <objective>]        Open the V2 board
+  doctor                                Check project health
+  resume [dir]                           Print the next V2 action
+  migrate [dir] [--apply]                Convert a legacy project to V2
+  upgrade-assets [dir]                   Refresh assets in an existing V2 project
+
+Run ` + "`savepoint <command> --help`" + ` for command-specific options.
+
+Migration and asset upgrades are separate: use migrate for a legacy project,
+then use upgrade-assets to refresh its V2-managed assets.
+`
 
 // stripDebugFlag removes --debug from args and reports whether it was present.
 func stripDebugFlag(args []string) ([]string, bool) {

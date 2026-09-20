@@ -31,6 +31,25 @@ func TestMainVersionFlagPrintsVersion(t *testing.T) {
 	}
 }
 
+func TestMainHelpPrintsV2CommandContract(t *testing.T) {
+	result := runMainForTest(t, []string{"--help"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint --help failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	for _, want := range []string{
+		"Usage: savepoint <command> [options]",
+		"board [--objective <objective>]",
+		"migrate [dir] [--apply]",
+		"upgrade-assets [dir]",
+		"Migration and asset upgrades are separate",
+	} {
+		if !strings.Contains(result.stdout, want) {
+			t.Errorf("stdout = %q, want %q", result.stdout, want)
+		}
+	}
+}
+
 func TestMainInitHelpStillUsesNormalDispatch(t *testing.T) {
 	result := runMainForTest(t, []string{"init", "--help"}, "")
 
