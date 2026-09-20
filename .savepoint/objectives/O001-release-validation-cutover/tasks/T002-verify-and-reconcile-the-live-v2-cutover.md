@@ -5,7 +5,7 @@ objective: O001
 planned_by:
     role: planner
     session: migration
-status: planned
+status: in_progress
 depends_on:
     - task: T001
 release: v2
@@ -16,6 +16,7 @@ check_waiver:
         role: owner
         session: owner-remote-control
     recorded_at: "2026-09-20T07:48:58Z"
+stage: build
 ---
 ## Migrated from V1
 

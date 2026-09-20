@@ -5,7 +5,7 @@ objective: O001
 planned_by:
     role: planner
     session: migration
-status: planned
+status: done
 release: v2
 check_waiver:
     task: T001
