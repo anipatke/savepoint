@@ -104,7 +104,7 @@ Three statuses, with explicit gates and ownership boundaries:
 - Only the user may set a task to `done` or retreat it from `done` to `in_progress` when follow-up work is required.
 - Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
 - Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks; a Release Check remains mandatory whenever a Release exists.
-- This verification contract is the current O001/T002 replan target. The router remains in `design` until the runtime gate resolvers and their tests enforce the same optional-Task / mandatory-Objective-and-Release split; these documents are not evidence that the code has already adopted it.
+- This verification contract's runtime enforcement lives in `internal/data`: `evidence_v2.go` decodes an explicit `check_waiver` Evidence sub-block (Task-only, owner-attributed), and `gate_v2.go`'s `ResolveTaskCompletion` grants completion `AllowedByWaiver` only when no Task Check was ever requested — never once a Check exists, and never for Objective or Release completion, which stay mandatory and unaffected.
 
 Issues use `open`, `in_progress`, and `resolved`; `stage` is required only while an Issue is `in_progress`. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
 

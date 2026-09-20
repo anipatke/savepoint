@@ -637,6 +637,120 @@ func TestResolveTaskCompletion_exceptionDoesNotCarryToASupersedingCheck(t *testi
 	}
 }
 
+func validTaskCheckWaiver(taskID string) *CheckWaiver {
+	return &CheckWaiver{
+		Task:       taskID,
+		Reason:     "owner waived the local Check; the Full Objective Check will cover it",
+		Actor:      Actor{Role: ActorRoleOwner, Session: "owner-1"},
+		RecordedAt: time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC),
+	}
+}
+
+func TestResolveTaskCompletion_allowedByWaiverWhenNoCheckWasEverRequested(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := ResolveTaskCompletion(index, "T001")
+	if !got.Allowed || !got.AllowedByWaiver {
+		t.Fatalf("ResolveTaskCompletion() = %+v, want allowed-by-waiver", got)
+	}
+	if got.Waiver == nil || got.Waiver.Reason == "" {
+		t.Fatalf("Waiver = %+v, want the recorded waiver attached", got.Waiver)
+	}
+	if got.Actor != ActorRoleOwner {
+		t.Errorf("Actor = %q, want owner", got.Actor)
+	}
+	if got.AllowedByException {
+		t.Errorf("AllowedByException = true, want false (a waiver is not an exception)")
+	}
+}
+
+// TestResolveTaskCompletion_waiverDoesNotApplyOnceACheckExists proves a
+// waiver only substitutes for a Task Check that was never requested at all.
+// Once a Check was actually run, its outcome — NEEDS WORK here — stands; the
+// owner cannot retroactively wave away a result that already came back.
+func TestResolveTaskCompletion_waiverDoesNotApplyOnceACheckExists(t *testing.T) {
+	index := newV2TestIndex()
+	mustCheck(index, "C001", "T001", CheckResultNeedsWork)
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := ResolveTaskCompletion(index, "T001")
+	if got.Allowed {
+		t.Fatalf("ResolveTaskCompletion() Allowed = true, want false (a waiver does not override a recorded NEEDS WORK)")
+	}
+	if got.AllowedByWaiver {
+		t.Errorf("AllowedByWaiver = true, want false")
+	}
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
+		t.Fatalf("Blockers = %+v, want one GateBlockClearanceNeedsWork", got.Blockers)
+	}
+}
+
+// TestResolveTaskCompletion_waiverNamingAnotherTaskDoesNotApply proves a
+// waiver is bound to the Task that names it, mirroring how an exception is
+// bound to the Check it names.
+func TestResolveTaskCompletion_waiverNamingAnotherTaskDoesNotApply(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T002")},
+	}
+
+	got := ResolveTaskCompletion(index, "T001")
+	if got.Allowed {
+		t.Fatalf("ResolveTaskCompletion() Allowed = true, want false (waiver names a different task)")
+	}
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceMissing {
+		t.Fatalf("Blockers = %+v, want one GateBlockClearanceMissing", got.Blockers)
+	}
+}
+
+// TestResolveObjectiveCompletion_unaffectedByAnOwnedTaskCheckWaiver proves
+// the Full Objective Check stays mandatory: an owned Task closing by waiver
+// still leaves the Objective needing its own current clearance, never
+// inheriting the Task's waiver as if it were CLEAR.
+func TestResolveObjectiveCompletion_unaffectedByAnOwnedTaskCheckWaiver(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001"}
+	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed {
+		t.Fatalf("ResolveObjectiveCompletion() Allowed = true, want false (no Objective-scope Check recorded)")
+	}
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceMissing {
+		t.Fatalf("Blockers = %+v, want one GateBlockClearanceMissing", got.Blockers)
+	}
+}
+
+// TestInspectTaskConsistency_waiverAllowedCompletionIsNotAContradiction
+// proves a Task sitting in_progress/audit with a valid, applicable waiver is
+// not reported as evidence-contradicts-status: like an exception, a waiver
+// is a deliberate owner decision awaiting the owner's own status: done
+// write, not an accidental hand-edit for doctor to flag.
+func TestInspectTaskConsistency_waiverAllowedCompletionIsNotAContradiction(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{
+		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	}
+
+	got := InspectTaskConsistency(index)
+	if len(got) != 0 {
+		t.Fatalf("InspectTaskConsistency() = %+v, want no diagnostics for a waiver-allowed task awaiting owner closure", got)
+	}
+}
+
 func TestInspectTaskConsistency_reportsEveryProblemNotOnlyTheFirst(t *testing.T) {
 	index := newV2TestIndex()
 

@@ -308,6 +308,82 @@ func TestDecodeEvidenceV2_replanPartiallyFilledRejected(t *testing.T) {
 	}
 }
 
+func validCheckWaiverFrontmatter() checkWaiverV2Frontmatter {
+	return checkWaiverV2Frontmatter{
+		Task:       "T001",
+		Reason:     "owner waived the local Check; the Full Objective Check will cover it",
+		Actor:      evidenceActorFrontmatter{Role: "owner", Session: "owner-1"},
+		RecordedAt: "2026-09-20T00:00:00Z",
+	}
+}
+
+func TestDecodeEvidenceV2_checkWaiverValid(t *testing.T) {
+	waiver := validCheckWaiverFrontmatter()
+	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	if err != nil {
+		t.Fatalf("decodeEvidenceV2() error = %v", err)
+	}
+	if evidence == nil || evidence.CheckWaiver == nil {
+		t.Fatal("decodeEvidenceV2() CheckWaiver = nil, want decoded block")
+	}
+	w := evidence.CheckWaiver
+	if w.Task != "T001" || w.Reason == "" {
+		t.Errorf("CheckWaiver = %+v, want task/reason set", w)
+	}
+	if w.Actor.Role != ActorRoleOwner || w.Actor.Session != "owner-1" {
+		t.Errorf("CheckWaiver.Actor = %+v, want owner/owner-1", w.Actor)
+	}
+}
+
+func TestDecodeEvidenceV2_checkWaiverOnlyAppliesToTaskEvidence(t *testing.T) {
+	waiver := validCheckWaiverFrontmatter()
+	waiver.Task = "O001"
+	_, err := decodeEvidenceV2("test.md", "objective", "O001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	if !errors.Is(err, ErrV2EvidenceMalformed) {
+		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
+	}
+}
+
+func TestDecodeEvidenceV2_checkWaiverMustNameItsOwnTask(t *testing.T) {
+	waiver := validCheckWaiverFrontmatter()
+	waiver.Task = "T999"
+	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	if !errors.Is(err, ErrV2EvidenceMalformed) {
+		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
+	}
+}
+
+// TestDecodeEvidenceV2_checkWaiverPartiallyFilledRejected proves every
+// required check-waiver field is enforced individually, including that the
+// actor role must be owner rather than any other self-reporting role.
+func TestDecodeEvidenceV2_checkWaiverPartiallyFilledRejected(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*checkWaiverV2Frontmatter)
+		wantErr error
+	}{
+		{"missing task", func(w *checkWaiverV2Frontmatter) { w.Task = "" }, ErrV2MissingField},
+		{"missing reason", func(w *checkWaiverV2Frontmatter) { w.Reason = "" }, ErrV2MissingField},
+		{"missing actor role", func(w *checkWaiverV2Frontmatter) { w.Actor.Role = "" }, ErrV2MissingField},
+		{"actor role executor", func(w *checkWaiverV2Frontmatter) { w.Actor.Role = "executor" }, ErrV2EvidenceMalformed},
+		{"actor role checker", func(w *checkWaiverV2Frontmatter) { w.Actor.Role = "checker" }, ErrV2EvidenceMalformed},
+		{"missing actor session", func(w *checkWaiverV2Frontmatter) { w.Actor.Session = "" }, ErrV2MissingField},
+		{"missing recorded_at", func(w *checkWaiverV2Frontmatter) { w.RecordedAt = "" }, ErrV2MissingField},
+		{"unparseable recorded_at", func(w *checkWaiverV2Frontmatter) { w.RecordedAt = "soon" }, ErrV2EvidenceMalformed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			waiver := validCheckWaiverFrontmatter()
+			tt.mutate(&waiver)
+			_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("decodeEvidenceV2() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestDecodeEvidenceV2_fullBlockAllSubBlocksTogether proves last_check,
 // freshness, owner_validation, exception, and replan all decode together on
 // one record without interfering with each other.

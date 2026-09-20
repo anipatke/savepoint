@@ -60,16 +60,31 @@ type Replan struct {
 	RecordedAt time.Time
 }
 
-// Evidence is the shared freshness, acceptance, exception, and replan
-// evidence block decoded identically for Task and Objective records by
-// decodeEvidenceV2. Every field is independently optional; a record carrying
-// none of them decodes to a nil Evidence rather than a defaulted one.
+// CheckWaiver records an owner's explicit decision to skip the optional Task
+// Check for one Task. It waives only that local Check: it is not technical
+// CLEAR, never satisfies a dependency that explicitly requires clear, and
+// never substitutes for the mandatory Full Objective Check or a Release
+// Check. It applies only to a Task's own evidence — decodeCheckWaiverV2
+// rejects one recorded on an Objective or Release.
+type CheckWaiver struct {
+	Task       string // T### this waiver names; must equal the owning Task's own ID
+	Reason     string
+	Actor      Actor // required role: owner
+	RecordedAt time.Time
+}
+
+// Evidence is the shared freshness, acceptance, exception, replan, and
+// check-waiver evidence block decoded identically for Task and Objective
+// records by decodeEvidenceV2. Every field is independently optional; a
+// record carrying none of them decodes to a nil Evidence rather than a
+// defaulted one.
 type Evidence struct {
 	LastCheck       string // optional C### reference to the most recent Check
 	Freshness       *Freshness
 	OwnerValidation *OwnerValidation
 	Exception       *Exception
 	Replan          *Replan
+	CheckWaiver     *CheckWaiver
 }
 
 type evidenceActorFrontmatter struct {
@@ -105,6 +120,13 @@ type replanV2Frontmatter struct {
 	RecordedAt string                   `yaml:"recorded_at"`
 }
 
+type checkWaiverV2Frontmatter struct {
+	Task       string                   `yaml:"task"`
+	Reason     string                   `yaml:"reason"`
+	Actor      evidenceActorFrontmatter `yaml:"actor"`
+	RecordedAt string                   `yaml:"recorded_at"`
+}
+
 // evidenceV2Frontmatter is the shared block of raw evidence fields, embedded
 // inline into both taskV2Frontmatter and objectiveV2Frontmatter so the two
 // records expose identical YAML shape and decode through the one
@@ -115,17 +137,19 @@ type evidenceV2Frontmatter struct {
 	OwnerValidation *ownerValidationV2Frontmatter `yaml:"owner_validation"`
 	Exception       *exceptionV2Frontmatter       `yaml:"exception"`
 	Replan          *replanV2Frontmatter          `yaml:"replan"`
+	CheckWaiver     *checkWaiverV2Frontmatter     `yaml:"check_waiver"`
 }
 
 // decodeEvidenceV2 strictly decodes the shared evidence block for a Task or
 // Objective record. recordKind ("task" or "objective") and id name the
 // owning record in diagnostics. Every sub-block is independently optional; a
 // record carrying none of last_check, freshness, owner_validation,
-// exception, or replan returns a nil Evidence. A present sub-block must be
-// fully and validly filled — an unknown state, a malformed timestamp, or a
-// partially filled block is a named diagnostic, never a healed value.
+// exception, replan, or check_waiver returns a nil Evidence. A present
+// sub-block must be fully and validly filled — an unknown state, a
+// malformed timestamp, or a partially filled block is a named diagnostic,
+// never a healed value.
 func decodeEvidenceV2(path, recordKind, id string, raw evidenceV2Frontmatter) (*Evidence, error) {
-	if raw.LastCheck == "" && raw.Freshness == nil && raw.OwnerValidation == nil && raw.Exception == nil && raw.Replan == nil {
+	if raw.LastCheck == "" && raw.Freshness == nil && raw.OwnerValidation == nil && raw.Exception == nil && raw.Replan == nil && raw.CheckWaiver == nil {
 		return nil, nil
 	}
 
@@ -168,6 +192,14 @@ func decodeEvidenceV2(path, recordKind, id string, raw evidenceV2Frontmatter) (*
 			return nil, err
 		}
 		evidence.Replan = replan
+	}
+
+	if raw.CheckWaiver != nil {
+		waiver, err := decodeCheckWaiverV2(path, recordKind, id, *raw.CheckWaiver)
+		if err != nil {
+			return nil, err
+		}
+		evidence.CheckWaiver = waiver
 	}
 
 	return evidence, nil
@@ -297,6 +329,43 @@ func decodeReplanV2(path, recordKind, id string, raw replanV2Frontmatter) (*Repl
 	}
 
 	return &Replan{Reason: raw.Reason, RecordedBy: recordedBy, RecordedAt: recordedAt}, nil
+}
+
+// decodeCheckWaiverV2 decodes an explicit owner waiver of the optional Task
+// Check. TEST-09 requires the waiver to name the Task, reason, actor, and
+// time; this decoder enforces all four plus the policy boundary that a
+// waiver applies only to a Task's own evidence and only under owner
+// authority, never planner, executor, or checker self-report.
+func decodeCheckWaiverV2(path, recordKind, id string, raw checkWaiverV2Frontmatter) (*CheckWaiver, error) {
+	if recordKind != "task" {
+		return nil, fmt.Errorf("%w: %s: %s %s check_waiver only applies to a task's evidence", ErrV2EvidenceMalformed, path, recordKind, id)
+	}
+
+	if strings.TrimSpace(raw.Task) == "" {
+		return nil, fmt.Errorf("%w: %s: %s %s missing required field check_waiver.task", ErrV2MissingField, path, recordKind, id)
+	}
+	if raw.Task != id {
+		return nil, fmt.Errorf("%w: %s: %s %s check_waiver.task %q must name its own task %s", ErrV2EvidenceMalformed, path, recordKind, id, raw.Task, id)
+	}
+
+	if strings.TrimSpace(raw.Reason) == "" {
+		return nil, fmt.Errorf("%w: %s: %s %s missing required field check_waiver.reason", ErrV2MissingField, path, recordKind, id)
+	}
+
+	actor, err := decodeV2Actor(ErrV2EvidenceMalformed, path, recordKind, id, "check_waiver.actor", raw.Actor)
+	if err != nil {
+		return nil, err
+	}
+	if actor.Role != ActorRoleOwner {
+		return nil, fmt.Errorf("%w: %s: %s %s check_waiver.actor.role %q; use owner", ErrV2EvidenceMalformed, path, recordKind, id, actor.Role)
+	}
+
+	recordedAt, err := decodeV2Timestamp(ErrV2EvidenceMalformed, path, recordKind, id, "check_waiver.recorded_at", raw.RecordedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CheckWaiver{Task: raw.Task, Reason: raw.Reason, Actor: actor, RecordedAt: recordedAt}, nil
 }
 
 // decodeV2Actor decodes one {role, session} provenance block. malformed is

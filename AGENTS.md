@@ -42,8 +42,8 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   Objectives and cross-Objective integration, followed by exact owner
   acceptance of the current Check.
 
-This contract is the current design/replan target. Do not resume Task execution
-until the runtime gate resolvers and their tests agree with it.
+The runtime gate resolvers and their tests in `internal/data` enforce this
+contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
 
 ## Terminology
 

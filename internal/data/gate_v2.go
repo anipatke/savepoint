@@ -185,12 +185,18 @@ type GateBlocker struct {
 // it, and every unmet requirement blocking it when it is not. A decision
 // allowed only through a recorded exception sets AllowedByException and
 // Exception instead of reporting a CLEAR result or current clearance.
+// A decision allowed only through a recorded Task Check waiver sets
+// AllowedByWaiver and Waiver the same way: never a CLEAR result or current
+// clearance, and never available for an Objective or Release completion
+// decision, which stay mandatory regardless of any Task-level waiver.
 type GateDecision struct {
 	Allowed                   bool
 	Actor                     ActorRole // meaningful only when Allowed is true
 	Blockers                  []GateBlocker
 	AllowedByException        bool
 	Exception                 *Exception // set only when AllowedByException
+	AllowedByWaiver           bool
+	Waiver                    *CheckWaiver // set only when AllowedByWaiver
 	AllowedByLegacyCompletion bool
 	LegacyCompletion          *LegacyCompletionReference
 }
@@ -312,7 +318,12 @@ func ResolveTaskAdvance(index *V2Index, taskID string) GateDecision {
 // distinct reason. When completion would otherwise be blocked, a recorded
 // exception naming the Task's current latest Check grants completion by
 // exception under owner authority instead — never as a CLEAR result — and an
-// exception naming any other Check does not apply.
+// exception naming any other Check does not apply. When clearance is
+// missing because the optional Task Check was never requested at all, a
+// recorded CheckWaiver naming this Task grants completion by waiver under
+// owner authority instead — also never a CLEAR result. A waiver does not
+// apply once any Check exists: needs_work, stale, and unknown clearance are
+// not waivable, since a Check was actually run and its outcome stands.
 func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 	task, ok := index.Tasks[taskID]
 	if !ok {
@@ -359,11 +370,32 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 		return GateDecision{Allowed: true, Actor: ActorRoleChecker}
 	}
 
+	if clearance.State == ClearanceMissing {
+		if waiver := applicableCheckWaiver(task.Evidence, taskID); waiver != nil {
+			return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByWaiver: true, Waiver: waiver}
+		}
+	}
+
 	if exception := applicableException(task.Evidence, index.LatestCheck[taskID]); exception != nil {
 		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
 	}
 
 	return GateDecision{Blockers: blockers}
+}
+
+// applicableCheckWaiver returns evidence's recorded Task Check waiver only
+// when it names taskID, the Task it was written for. It applies only when
+// the Task carries no recorded Check at all: once a Check exists, whatever
+// it found is not waivable, and only the mandatory Objective or Release
+// Check, or a Check-bound exception, can move the Task forward from there.
+func applicableCheckWaiver(evidence *Evidence, taskID string) *CheckWaiver {
+	if evidence == nil || evidence.CheckWaiver == nil {
+		return nil
+	}
+	if evidence.CheckWaiver.Task != taskID {
+		return nil
+	}
+	return evidence.CheckWaiver
 }
 
 // ownerValidationRequired and ownerAcceptedCheck read the shared Evidence
@@ -458,7 +490,7 @@ func InspectTaskConsistency(index *V2Index) []ConsistencyDiagnostic {
 
 		if task.Status != ColumnDone {
 			completion := ResolveTaskCompletion(index, id)
-			if completion.Allowed && !completion.AllowedByException {
+			if completion.Allowed && !completion.AllowedByException && !completion.AllowedByWaiver {
 				diagnostics = append(diagnostics, ConsistencyDiagnostic{
 					Task:   id,
 					Kind:   ConsistencyEvidenceContradictsStatus,
