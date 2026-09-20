@@ -14,11 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: task
+state: check
 release: R006
 objective: O001
 task: T002
-next_action: Runtime gate resolvers and tests now enforce the optional-Task / mandatory-Objective-and-Release policy (CheckWaiver in internal/data/evidence_v2.go and gate_v2.go). Resume T002's remaining plan item: complete the validation/cutover records and route E50 to a fresh independent epic audit session.
+next_action: "T002's implementation plan and evidence are complete; R006 has exactly one remaining blocker (T002 not done, expected). A fresh independent savepoint-check session is needed: either an optional Quick Task Check on T002, or an owner-recorded Task-check waiver (as with T001) routing straight to O001's mandatory Full Objective Check. That choice, and setting T002 status: done, are owner-only."
 ```
 
 ## State → action
