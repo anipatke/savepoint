@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -67,6 +69,20 @@ func TestMainBoardV2ProjectWithoutTTYReportsNextAndExitsZero(t *testing.T) {
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
+func TestMainBareStartupUsesTheV2BoardPath(t *testing.T) {
+	dir := t.TempDir()
+	writeBoardV2Project(t, dir)
+
+	result := runMainInDirForTest(t, dir, nil)
+
+	if result.err != nil {
+		t.Fatalf("bare startup failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "NEXT:") || !strings.Contains(result.stdout, "Task: T001 — Do the thing") {
+		t.Fatalf("stdout = %q, want the V2 Next projection", result.stdout)
+	}
+}
+
 // TestMainBoardV2LoadFailureExitsNonzeroWithDiagnosticOnStderr closes the
 // load-diagnostic contract end to end: without a TTY the failure is named on
 // stderr, the exit is nonzero, and no board is written to stdout.
@@ -91,7 +107,7 @@ func TestMainBoardV2LoadFailureExitsNonzeroWithDiagnosticOnStderr(t *testing.T) 
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
-func TestMainBoardRejectsV1FilterOnAV2Project(t *testing.T) {
+func TestMainBoardRejectsLegacyFilterBeforeProjectRouting(t *testing.T) {
 	dir := t.TempDir()
 	writeBoardV2Project(t, dir)
 
@@ -100,7 +116,65 @@ func TestMainBoardRejectsV1FilterOnAV2Project(t *testing.T) {
 	if result.err == nil {
 		t.Fatal("savepoint board --release over a V2 project succeeded, want a nonzero exit")
 	}
-	if !strings.Contains(result.stderr, "--release") || !strings.Contains(result.stderr, "schema_version 2") {
-		t.Fatalf("stderr = %q, want the flag and the schema version named", result.stderr)
+	if !strings.Contains(result.stderr, "--release") || !strings.Contains(result.stderr, "unknown board flag") {
+		t.Fatalf("stderr = %q, want the legacy flag rejected by the V2-only parser", result.stderr)
+	}
+}
+
+func TestMainBoardV1ProjectPrintsMigrationPreviewRouteAndDoesNotRender(t *testing.T) {
+	dir := t.TempDir()
+	writeMigrateMinimalProject(t, dir)
+	before := snapshotDir(t, dir)
+
+	result := runMainInDirForTest(t, dir, []string{"board"})
+
+	if result.err == nil {
+		t.Fatal("savepoint board over a V1 project exited zero, want migration refusal")
+	}
+	if !strings.Contains(result.stderr, "schema_version 1") || !strings.Contains(result.stderr, "migrate --dry-run") {
+		t.Fatalf("stderr = %q, want the migration preview route", result.stderr)
+	}
+	if result.stdout != "" {
+		t.Fatalf("stdout = %q, want no V1 board rendered", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainDoctorV1ProjectRefusesBeforeChecks(t *testing.T) {
+	dir := t.TempDir()
+	writeMigrateMinimalProject(t, dir)
+	before := snapshotDir(t, dir)
+
+	result := runMainInDirForTest(t, dir, []string{"doctor"})
+
+	if result.err == nil {
+		t.Fatal("savepoint doctor over a V1 project exited zero, want migration refusal")
+	}
+	if !strings.Contains(result.stderr, "schema_version 1") || !strings.Contains(result.stderr, "migrate --dry-run") {
+		t.Fatalf("stderr = %q, want the migration preview route", result.stderr)
+	}
+	if result.stdout != "" {
+		t.Fatalf("stdout = %q, want no V1 quality-gate report", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainDoctorPendingMigrationPrintsRecoveryGuidance(t *testing.T) {
+	dir := t.TempDir()
+	writeBoardV2Project(t, dir)
+	if _, err := migrate.CreateOperation(dir, "op-doctor-pending", nil, nil, time.Now()); err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+
+	result := runMainInDirForTest(t, dir, []string{"doctor"})
+
+	if result.err == nil {
+		t.Fatal("savepoint doctor with a pending migration exited zero, want recovery refusal")
+	}
+	if !strings.Contains(result.stderr, "op-doctor-pending") || !strings.Contains(result.stderr, "migrate --recover") {
+		t.Fatalf("stderr = %q, want recovery guidance", result.stderr)
+	}
+	if result.stdout != "" {
+		t.Fatalf("stdout = %q, want no quality-gate report", result.stdout)
 	}
 }

@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -37,22 +39,19 @@ func writeV2ProjectForDispatch(t *testing.T) string {
 	return projectRoot
 }
 
-func TestRunWithFiltersDispatchesV1ProjectToTodaysBoard(t *testing.T) {
+func TestRunWithFiltersRefusesV1ProjectBeforeStartingBoard(t *testing.T) {
 	projectRoot := writeV1ProjectForDispatch(t)
 	var stdout bytes.Buffer
 
-	if err := runWithFilters(projectRoot, Filters{}, &stdout, false); err != nil {
-		t.Fatalf("runWithFilters() error = %v", err)
+	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want the V1 project routed to migration")
 	}
-
-	got := stdout.String()
-	if !strings.Contains(got, "E01-alpha/T001-first") {
-		t.Errorf("V1 project did not reach today's board:\n%s", got)
+	if !strings.Contains(err.Error(), "schema_version 1") || !strings.Contains(err.Error(), "migrate --dry-run") {
+		t.Errorf("error = %q, want the named migration preview route", err.Error())
 	}
-	for _, header := range []string{"PLANNED", "IN PROGRESS", "DONE"} {
-		if !strings.Contains(got, header) {
-			t.Errorf("V1 output missing column %q:\n%s", header, got)
-		}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no V1 board rendered", stdout.String())
 	}
 }
 
@@ -110,19 +109,19 @@ func TestRunWithFiltersRejectsFiltersTheSchemaHasNoMeaningFor(t *testing.T) {
 			name:      "release against a V2 project",
 			project:   writeV2ProjectForDispatch,
 			filters:   Filters{Release: "v1"},
-			wantParts: []string{"--release", "schema_version 2"},
+			wantParts: []string{"--release", "V2-only runtime"},
 		},
 		{
 			name:      "epic against a V2 project",
 			project:   writeV2ProjectForDispatch,
 			filters:   Filters{Epic: "E01-alpha"},
-			wantParts: []string{"--epic", "schema_version 2"},
+			wantParts: []string{"--epic", "V2-only runtime"},
 		},
 		{
 			name:      "objective against a V1 project",
 			project:   writeV1ProjectForDispatch,
 			filters:   Filters{Objective: "O001"},
-			wantParts: []string{"--objective", "schema_version 1"},
+			wantParts: []string{"schema_version 1", "migrate --dry-run"},
 		},
 	}
 
@@ -173,19 +172,37 @@ func TestRunWithFiltersReportsAMissingProject(t *testing.T) {
 	}
 }
 
-func TestRunWithFiltersPassesV1FiltersThrough(t *testing.T) {
+func TestRunWithFiltersRejectsV1FiltersWithoutStartingBoard(t *testing.T) {
 	projectRoot := writeV1ProjectForDispatch(t)
 	var stdout bytes.Buffer
 
-	if err := runWithFilters(projectRoot, Filters{Release: "v1", Epic: "E01-alpha"}, &stdout, false); err != nil {
-		t.Fatalf("runWithFilters() error = %v", err)
+	err := runWithFilters(projectRoot, Filters{Release: "v1", Epic: "E01-alpha"}, &stdout, false)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want V1 filters refused")
 	}
-	if !strings.Contains(stdout.String(), "E01-alpha/T001-first") {
-		t.Errorf("V1 filters did not reach the V1 board:\n%s", stdout.String())
+	if !strings.Contains(err.Error(), "V2-only runtime") {
+		t.Errorf("error = %q, want the V2-only filter diagnostic", err.Error())
 	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no V1 board rendered", stdout.String())
+	}
+}
 
-	var rejected bytes.Buffer
-	if err := runWithFilters(projectRoot, Filters{Release: "v9"}, &rejected, false); err == nil {
-		t.Fatal("runWithFilters() error = nil, want an unknown release refused by the V1 board")
+func TestRunWithFiltersRefusesPendingOperationBeforeBoard(t *testing.T) {
+	projectRoot := writeV2ProjectForDispatch(t)
+	if _, err := migrate.CreateOperation(projectRoot, "op-dispatch-pending", nil, nil, time.Now()); err != nil {
+		t.Fatalf("CreateOperation() error = %v", err)
+	}
+	var stdout bytes.Buffer
+
+	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want pending recovery refusal")
+	}
+	if !strings.Contains(err.Error(), "op-dispatch-pending") || !strings.Contains(err.Error(), "migrate --recover") {
+		t.Errorf("error = %q, want operation ID and recovery command", err.Error())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no board rendered", stdout.String())
 	}
 }

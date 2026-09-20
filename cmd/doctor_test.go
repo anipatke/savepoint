@@ -25,39 +25,27 @@ func TestRunDoctorHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("RunDoctor() code = %d, want 0", code)
 	}
-	if !strings.Contains(stdout.String(), "doctor [--epic <epic>]") {
+	if !strings.Contains(stdout.String(), "doctor") {
 		t.Fatalf("help output = %q", stdout.String())
 	}
 }
 
 func TestRunDoctorNoArgs(t *testing.T) {
-	got := runDoctorOptions(t, nil)
-
-	if got.Epic != "" {
-		t.Fatalf("Epic = %q, want empty", got.Epic)
-	}
+	runDoctorOptions(t, nil)
 }
 
-func TestRunDoctorEpic(t *testing.T) {
-	got := runDoctorOptions(t, []string{"--epic", "E03"})
-
-	if got.Epic != "E03" {
-		t.Fatalf("Epic = %q, want E03", got.Epic)
-	}
-}
-
-func TestRunDoctorEpicMissingValue(t *testing.T) {
+func TestRunDoctorRejectsLegacyEpicFlag(t *testing.T) {
 	var stdout bytes.Buffer
 
-	code, err := RunDoctor(context.Background(), []string{"--epic"}, &stdout, func(DoctorOptions) (int, error) {
+	code, err := RunDoctor(context.Background(), []string{"--epic", "E03"}, &stdout, func(DoctorOptions) (int, error) {
 		return 0, nil
 	})
 
 	if err == nil {
-		t.Fatal("RunDoctor() error = nil, want missing value error")
+		t.Fatal("RunDoctor() error = nil, want legacy flag rejected")
 	}
-	if !strings.Contains(err.Error(), "--epic requires a value") {
-		t.Fatalf("error = %q", err.Error())
+	if !strings.Contains(err.Error(), "unknown doctor flag") {
+		t.Fatalf("error = %q, want unknown doctor flag", err.Error())
 	}
 	if code != 2 {
 		t.Fatalf("code = %d, want 2", code)

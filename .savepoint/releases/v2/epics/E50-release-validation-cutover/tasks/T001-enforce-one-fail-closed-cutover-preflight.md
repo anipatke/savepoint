@@ -1,7 +1,6 @@
 ---
 id: E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight
-status: in_progress
-stage: build
+status: done
 objective: Expose one fail-closed cutover preflight over migration safety, V2 validity, and canonical Release readiness.
 depends_on: []
 complexity_tier: high

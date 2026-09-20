@@ -155,7 +155,7 @@ func TestMainResumeUnresolvableSelectionStillExitsZero(t *testing.T) {
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
-func TestMainResumePendingMigrationRendersRungAndLeavesOperationUnchanged(t *testing.T) {
+func TestMainResumePendingMigrationPrintsRecoveryGuidanceAndLeavesOperationUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	writeMigrateMinimalProject(t, dir)
 	op, err := migrate.CreateOperation(dir, "op-test-resume-pending", nil, nil, time.Now())
@@ -166,11 +166,14 @@ func TestMainResumePendingMigrationRendersRungAndLeavesOperationUnchanged(t *tes
 
 	result := runMainForTest(t, []string{"resume", dir}, "")
 
-	if result.err != nil {
-		t.Fatalf("savepoint resume over a pending migration failed: %v\nstderr: %s", result.err, result.stderr)
+	if result.err == nil {
+		t.Fatal("savepoint resume over a pending migration exited zero, want a recovery refusal")
 	}
-	if !strings.Contains(result.stdout, "Migration:") || !strings.Contains(result.stdout, op.Journal.OperationID) {
-		t.Fatalf("stdout = %q, want the migration rung naming the pending operation", result.stdout)
+	if !strings.Contains(result.stdout, op.Journal.OperationID) || !strings.Contains(result.stdout, "migrate --recover") {
+		t.Fatalf("stdout = %q, want recovery guidance naming the pending operation", result.stdout)
+	}
+	if strings.Contains(result.stdout, "Migration:") {
+		t.Fatalf("stdout = %q, want no ordinary Migration rung while recovery is pending", result.stdout)
 	}
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }

@@ -6,16 +6,12 @@ import (
 	"io"
 )
 
-const boardUsage = "Usage: board [--release <release>] [--epic <epic>] [--objective <objective>]"
+const boardUsage = "Usage: board [--objective <objective>]"
 
-// BoardOptions is the board's whole parsed filter surface. --release and
-// --epic are schema_version 1 filters and --objective is the schema_version 2
-// one; which of them applies is decided behind the injected runner, where the
-// project's schema is known. Parsing accepts all three and judges none
-// (ARCH-01).
+// BoardOptions is the V2 board's whole parsed filter surface. Legacy Release
+// and Epic filters are intentionally absent from the live command contract;
+// migration remains the only V1 reader.
 type BoardOptions struct {
-	Release   string
-	Epic      string
 	Objective string
 }
 
@@ -41,18 +37,6 @@ func ParseBoardArgs(args []string) (BoardOptions, bool, error) {
 		switch arg {
 		case "--help":
 			return BoardOptions{}, true, nil
-		case "--release":
-			i++
-			if i >= len(args) {
-				return BoardOptions{}, false, fmt.Errorf("--release requires a value")
-			}
-			options.Release = args[i]
-		case "--epic":
-			i++
-			if i >= len(args) {
-				return BoardOptions{}, false, fmt.Errorf("--epic requires a value")
-			}
-			options.Epic = args[i]
 		case "--objective":
 			i++
 			if i >= len(args) {

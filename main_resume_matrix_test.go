@@ -536,8 +536,17 @@ func TestResumeMatrix_runResumeThroughTheRealCommandAlsoWritesNothingTwice(t *te
 			if err != nil {
 				t.Fatalf("runResume() error = %v", err)
 			}
-			if code != 0 {
-				t.Fatalf("runResume() code = %d, want 0 for an intact matrix project", code)
+			wantCode := 0
+			if tc.wantKind == data.NextPendingMigration {
+				wantCode = 1
+				if !strings.Contains(first.String(), "migrate --recover") {
+					t.Fatalf("pending runResume() output = %q, want recovery guidance", first.String())
+				}
+			} else if !strings.Contains(first.String(), "Next action:") {
+				t.Fatalf("runResume() output = %q, want the ordinary Next action", first.String())
+			}
+			if code != wantCode {
+				t.Fatalf("runResume() code = %d, want %d", code, wantCode)
 			}
 
 			var second strings.Builder
@@ -545,8 +554,8 @@ func TestResumeMatrix_runResumeThroughTheRealCommandAlsoWritesNothingTwice(t *te
 			if err != nil {
 				t.Fatalf("second runResume() error = %v", err)
 			}
-			if code != 0 {
-				t.Fatalf("second runResume() code = %d, want 0", code)
+			if code != wantCode {
+				t.Fatalf("second runResume() code = %d, want %d", code, wantCode)
 			}
 			if second.String() != first.String() {
 				t.Fatalf("second runResume() output = %q, want byte-identical to the first %q", second.String(), first.String())

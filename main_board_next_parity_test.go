@@ -41,6 +41,14 @@ func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			test.build(t, dir)
+			if test.wantKind == data.NextPendingMigration {
+				// The live V2-only router refuses to render an interrupted
+				// migration; it prints recovery guidance before either board or
+				// resume can interpret indexed records. The package-level Next
+				// matrix still covers this rung, while the ordinary surface parity
+				// below applies only to an intact V2 runtime.
+				return
+			}
 
 			// The projection both surfaces are claimed to share, resolved once
 			// here through runResume's own read order. Every expectation below
@@ -205,6 +213,12 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			test.build(t, dir)
+			if test.wantKind == data.NextPendingMigration {
+				// A pending migration is a recovery state, not a V2 board
+				// projection. The live command contract is tested by the focused
+				// resume/dispatch tests; do not ask the built board to render it.
+				return
+			}
 
 			boardResult := runMainInDirForTest(t, dir, []string{"board"})
 			if boardResult.err != nil {

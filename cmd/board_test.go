@@ -23,7 +23,7 @@ func TestRunBoardHelp(t *testing.T) {
 	if called {
 		t.Fatal("RunBoard() called runner for help")
 	}
-	if !strings.Contains(stdout.String(), "board [--release <release>] [--epic <epic>] [--objective <objective>]") {
+	if !strings.Contains(stdout.String(), "board [--objective <objective>]") {
 		t.Fatalf("help output = %q", stdout.String())
 	}
 }
@@ -31,38 +31,8 @@ func TestRunBoardHelp(t *testing.T) {
 func TestRunBoardNoArgs(t *testing.T) {
 	got := runBoardOptions(t, nil)
 
-	if got.Release != "" {
-		t.Fatalf("Release = %q, want empty", got.Release)
-	}
-	if got.Epic != "" {
-		t.Fatalf("Epic = %q, want empty", got.Epic)
-	}
-}
-
-func TestRunBoardRelease(t *testing.T) {
-	got := runBoardOptions(t, []string{"--release", "v1"})
-
-	if got.Release != "v1" {
-		t.Fatalf("Release = %q, want v1", got.Release)
-	}
-}
-
-func TestRunBoardEpic(t *testing.T) {
-	got := runBoardOptions(t, []string{"--epic", "E03"})
-
-	if got.Epic != "E03" {
-		t.Fatalf("Epic = %q, want E03", got.Epic)
-	}
-}
-
-func TestRunBoardReleaseAndEpic(t *testing.T) {
-	got := runBoardOptions(t, []string{"--release", "v1", "--epic", "E03"})
-
-	if got.Release != "v1" {
-		t.Fatalf("Release = %q, want v1", got.Release)
-	}
-	if got.Epic != "E03" {
-		t.Fatalf("Epic = %q, want E03", got.Epic)
+	if got.Objective != "" {
+		t.Fatalf("Objective = %q, want empty", got.Objective)
 	}
 }
 
@@ -71,20 +41,6 @@ func TestRunBoardObjective(t *testing.T) {
 
 	if got.Objective != "O009" {
 		t.Fatalf("Objective = %q, want O009", got.Objective)
-	}
-	if got.Release != "" || got.Epic != "" {
-		t.Fatalf("Release/Epic = %q/%q, want both empty", got.Release, got.Epic)
-	}
-}
-
-// TestRunBoardObjectiveAlongsideV1Filters proves parsing accepts filters from
-// both schemas and judges neither: which of them applies is decided behind the
-// runner, where the project's schema_version is known (ARCH-01).
-func TestRunBoardObjectiveAlongsideV1Filters(t *testing.T) {
-	got := runBoardOptions(t, []string{"--release", "v1", "--objective", "O009"})
-
-	if got.Release != "v1" || got.Objective != "O009" {
-		t.Fatalf("options = %+v, want both filters parsed", got)
 	}
 }
 
@@ -130,18 +86,20 @@ func TestRunBoardRejectsPositionalArgs(t *testing.T) {
 	}
 }
 
-func TestRunBoardReleaseMissingValue(t *testing.T) {
-	var stdout bytes.Buffer
-
-	err := RunBoard(context.Background(), []string{"--release"}, &stdout, func(BoardOptions) error {
-		return nil
-	})
-
-	if err == nil {
-		t.Fatal("RunBoard() error = nil, want missing value error")
-	}
-	if !strings.Contains(err.Error(), "--release requires a value") {
-		t.Fatalf("error = %q", err.Error())
+func TestRunBoardRejectsLegacyReleaseAndEpicFlags(t *testing.T) {
+	for _, flag := range []string{"--release", "--epic"} {
+		t.Run(flag, func(t *testing.T) {
+			var stdout bytes.Buffer
+			err := RunBoard(context.Background(), []string{flag, "value"}, &stdout, func(BoardOptions) error {
+				return nil
+			})
+			if err == nil {
+				t.Fatalf("RunBoard(%q) error = nil, want legacy flag rejected", flag)
+			}
+			if !strings.Contains(err.Error(), "unknown board flag") {
+				t.Fatalf("error = %q, want unknown board flag", err.Error())
+			}
+		})
 	}
 }
 

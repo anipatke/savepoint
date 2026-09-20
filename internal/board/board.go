@@ -13,9 +13,10 @@ import (
 	"github.com/opencode/savepoint/internal/migrate"
 )
 
-// Filters is the board's parsed filter surface, carried across both schemas.
-// Release and Epic are the V1 filters; Objective is the V2 one. Which of them
-// a project accepts is decided in runWithFilters, where the schema is known.
+// Filters is the board's live filter surface. Objective is the only filter
+// ordinary command routing accepts; Release and Epic remain on this internal
+// compatibility shape only so the transitional V1 model and its focused unit
+// tests can be retired independently in the migration-only follow-up.
 type Filters struct {
 	Release   string
 	Epic      string
@@ -30,11 +31,11 @@ func RunWithFilters(filters Filters) error {
 	return runWithFilters(".", filters, os.Stdout, xterm.IsTerminal(os.Stdout.Fd()))
 }
 
-// runWithFilters is the board's single dispatch point: it resolves the
-// project root once, loads the project through data.LoadProject, and runs the
-// board that the project's own schema_version names. The V2 board therefore
-// never sees a V1 project and the V1 board never sees a V2 one, so neither
-// needs a fallback into the other.
+// runWithFilters is the board's live dispatch point. It resolves the project
+// root once, runs the read-only cutover preflight before any V2 rendering or
+// watcher starts, and hands only a valid V2 project to the V2 board. Legacy
+// projects and pending/invalid projects receive a named refusal instead of a
+// fallback into V1 discovery.
 //
 // start, stdout, and isTTY are parameters rather than process state so the
 // dispatch is exercised against a temporary project directory without
@@ -49,72 +50,15 @@ func runWithFilters(start string, filters Filters, stdout io.Writer, isTTY bool)
 	}
 	debugf("board dispatch: root = %q", root)
 
-	// A migration is the highest V2 Next rung even while the source project
-	// still declares its old schema. Route it to the V2 board before schema
-	// dispatch so board and resume report the same safe action instead of
-	// trying to traverse the half-converted V1 tree.
-	if pending, err := migrate.PendingOperation(filepath.Dir(root)); err != nil {
-		return err
-	} else if pending != nil {
-		if filters.Release != "" || filters.Epic != "" {
-			return fmt.Errorf("V1 board filters are unavailable while migration %s is pending", pending.OperationID)
-		}
-		return runV2Board(root, filters, stdout, isTTY)
+	if filters.Release != "" || filters.Epic != "" {
+		return fmt.Errorf("--release and --epic are schema_version 1 filters and are unavailable in the V2-only runtime; use --objective")
 	}
 
-	project, loadErr := data.LoadProject(root)
-	version := data.SchemaVersionV1
-	if loadErr == nil {
-		version = project.SchemaVersion
-	} else {
-		// A V2 project whose records will not load is a diagnostic screen, not
-		// a crash and never a retry through V1 discovery, so route it to the V2
-		// board by schema version alone and let its own load report the same
-		// failure by name. Every other load failure — including a config.yml
-		// whose schema_version itself is unreadable — is reported as it is.
-		version = schemaVersionOrV1(root)
-		if version != data.SchemaVersionV2 {
-			return loadErr
-		}
+	preflight := migrate.PreflightCutover(filepath.Dir(root), migrate.CutoverPreflightOptions{})
+	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
+		return fmt.Errorf("board: %s", diagnostic)
 	}
-
-	if err := rejectFiltersForSchema(filters, version); err != nil {
-		return err
-	}
-
-	if version == data.SchemaVersionV2 {
-		return runV2Board(root, filters, stdout, isTTY)
-	}
-	return runV1Board(root, filters, stdout, isTTY)
-}
-
-// schemaVersionOrV1 reports root's declared schema version, reading a version
-// that cannot be determined as V1 so the caller reports its own, more specific
-// diagnostic instead of this one.
-func schemaVersionOrV1(root string) data.SchemaVersion {
-	version, err := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
-	if err != nil {
-		return data.SchemaVersionV1
-	}
-	return version
-}
-
-// rejectFiltersForSchema refuses a filter flag that the resolved schema has no
-// meaning for, naming both the flag and the schema version it was refused for
-// rather than ignoring the flag and showing an unfiltered board (CFG-01).
-func rejectFiltersForSchema(filters Filters, version data.SchemaVersion) error {
-	if version == data.SchemaVersionV2 {
-		for _, flag := range []struct{ name, value string }{{"--release", filters.Release}, {"--epic", filters.Epic}} {
-			if flag.value != "" {
-				return fmt.Errorf("%s is a schema_version 1 filter and this project is schema_version 2; select work with --objective instead", flag.name)
-			}
-		}
-		return nil
-	}
-	if filters.Objective != "" {
-		return fmt.Errorf("--objective is a schema_version 2 filter and this project is schema_version 1; select work with --release and --epic instead")
-	}
-	return nil
+	return runV2Board(root, filters, stdout, isTTY)
 }
 
 // runV2Board hands the resolved root to the V2 board, which owns its own load,
@@ -128,10 +72,9 @@ func runV2Board(root string, filters Filters, stdout io.Writer, isTTY bool) erro
 	})
 }
 
-// runV1Board runs today's board over an already-resolved root. The TTY branch
-// calls RunTUI with the call shape it already has: RunTUI resolves the root
-// itself, which is the same root this dispatch just resolved, and rewiring it
-// would edit a second V1 board file for no behavior change. E50 deletes it.
+// runV1Board is the retained transitional model for migration/history tests.
+// The live dispatch above never calls it after E50's V2 cutover; T003 removes
+// this compatibility surface once its frozen fixture coverage is isolated.
 func runV1Board(root string, filters Filters, stdout io.Writer, isTTY bool) error {
 	if !isTTY {
 		return runPlainOutput(root, filters, stdout)

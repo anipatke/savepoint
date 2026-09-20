@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/opencode/savepoint/internal/data"
@@ -172,6 +173,38 @@ func EvaluateCutover(projectRoot string, options CutoverPreflightOptions) Cutove
 	return PreflightCutover(projectRoot, options)
 }
 
+// RuntimeBlockers returns only the blockers that prevent an ordinary command
+// from using the V2 runtime. A valid V2 index is safe to open even when a
+// Release is not ready; Release blockers belong in the board/doctor evidence,
+// not in the legacy-project or invalid-project refusal used by command
+// routing. A nil V2 index keeps every blocker because no live interpretation
+// is safe in that state.
+func (r CutoverPreflightResult) RuntimeBlockers() []CutoverBlocker {
+	if r.Index != nil {
+		return nil
+	}
+	return append([]CutoverBlocker(nil), r.Blockers...)
+}
+
+// RuntimeDiagnostic formats the operational refusal an ordinary command must
+// show before it renders, runs checks, or starts a watcher. It is pure and
+// returns an empty string when a valid V2 index is available.
+func (r CutoverPreflightResult) RuntimeDiagnostic() string {
+	blockers := r.RuntimeBlockers()
+	if len(blockers) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(blockers))
+	for _, blocker := range blockers {
+		detail := blocker.Detail
+		if detail == "" {
+			detail = fmt.Sprintf("cutover is blocked by %s", blocker.Kind)
+		}
+		lines = append(lines, fmt.Sprintf("[%s] %s", blocker.Kind, detail))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (o CutoverPreflightOptions) withDefaults() CutoverPreflightOptions {
 	if o.Now == nil {
 		o.Now = time.Now
@@ -242,7 +275,7 @@ func (r *CutoverPreflightResult) finishV1(root string, options CutoverPreflightO
 	if err != nil {
 		r.add(CutoverBlocker{
 			Kind:   CutoverBlockMigrationPlan,
-			Detail: fmt.Sprintf("V1 project has no usable migration plan: %v; correct the named source or decision and rerun the migration preview", err),
+			Detail: fmt.Sprintf("V1 project has no usable migration plan: %v; correct the named source or decision, then review `savepoint migrate --dry-run`", err),
 		})
 		return r.finish()
 	}
@@ -252,7 +285,7 @@ func (r *CutoverPreflightResult) finishV1(root string, options CutoverPreflightO
 	// reviewed plan still has to be explicitly applied first.
 	r.add(CutoverBlocker{
 		Kind:   CutoverBlockMigrationRequired,
-		Detail: "project is still V1; review `savepoint migrate --dry-run`, then apply the migration before cutover",
+		Detail: "project is schema_version 1; review `savepoint migrate --dry-run`, then apply the migration before using the V2 runtime",
 	})
 
 	for _, conflict := range plan.Conflicts {

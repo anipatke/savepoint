@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E50
-task: E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight
-next_action: Review the completed build for E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight; user marks the task done before advancing.
+task: E50-release-validation-cutover/T003-confine-v1-compatibility-to-migration-and-history
+next_action: Build E50-release-validation-cutover/T003-confine-v1-compatibility-to-migration-and-history.
 ```
 
 ## State → action

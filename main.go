@@ -51,8 +51,6 @@ func main() {
 		case "board":
 			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
 				return board.RunWithFilters(board.Filters{
-					Release:   opts.Release,
-					Epic:      opts.Epic,
 					Objective: opts.Objective,
 				})
 			}); err != nil {
@@ -107,14 +105,19 @@ func stripDebugFlag(args []string) ([]string, bool) {
 	return out, found
 }
 
-func runDoctorChecks(opts cmd.DoctorOptions) (int, error) {
+func runDoctorChecks(_ cmd.DoctorOptions) (int, error) {
 	discover := data.NewDiscover()
 	root, err := discover.FindSavepointRoot(".")
 	if err != nil {
 		return 2, fmt.Errorf("savepoint root not found: %w", err)
 	}
 
-	report := doctor.RunAllChecks(root, opts.Epic)
+	preflight := migrate.PreflightCutover(filepath.Dir(root), migrate.CutoverPreflightOptions{})
+	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
+		return 1, fmt.Errorf("doctor: %s", diagnostic)
+	}
+
+	report := doctor.RunAllChecks(root, "")
 	fmt.Fprint(os.Stdout, report.Format())
 
 	if report.HasProblems() {
@@ -172,15 +175,14 @@ func resumeRunner(ctx context.Context, opts cmd.ResumeOptions) (int, error) {
 }
 
 // runResume performs one `savepoint resume` invocation: it resolves opts.Dir
-// exactly as migrate does (ARCH-03), reads any pending migration state before
-// anything else (a project mid-conversion has records that do not yet mean
-// what they appear to, regardless of what schema_version currently reads),
-// then — for an intact V2 project — loads the project, reads its V2 router,
-// resolves the Next projection, and renders it to stdout. It performs no
-// write on any path, including every failure path: every read here is
-// os.ReadFile, os.Stat, or a pure computation, never a write. The V1-project
-// case reports through stdout as an explanatory message (exit 1, no error),
-// matching upgradeAssetsRunner's own V1 migrate-route note; every other
+// exactly as migrate does (ARCH-03), runs the read-only cutover preflight
+// before interpreting any records, and gives pending migrations or legacy
+// projects named recovery/migration guidance instead of rendering them as V2.
+// For an intact V2 project it loads the project, reads its V2 router, resolves
+// the Next projection, and renders it to stdout. It performs no write on any
+// path, including every failure path: every read here is os.ReadFile,
+// os.Stat, or a pure computation, never a write. The V1-project case reports
+// through stdout as an explanatory message (exit 1, no error); every other
 // nonzero path returns an error so the dispatch above prints it to stderr.
 func runResume(dir string, stdout io.Writer) (int, error) {
 	root, err := migrate.ResolveTarget(dir)
@@ -189,27 +191,17 @@ func runResume(dir string, stdout io.Writer) (int, error) {
 	}
 	savepointRoot := filepath.Join(root, ".savepoint")
 
-	pending, err := migrate.PendingOperation(root)
-	if err != nil {
-		return 1, fmt.Errorf("resume: %w", err)
-	}
-	if pending != nil {
-		next := data.ResolveNext(data.NextInput{
-			Migration: data.MigrationState{Pending: true, OperationID: pending.OperationID},
-		})
-		if err := resume.Render(stdout, next); err != nil {
-			return 1, fmt.Errorf("resume: writing output: %w", err)
-		}
-		return 0, nil
-	}
-
-	version, err := data.ReadSchemaVersion(filepath.Join(savepointRoot, "config.yml"))
-	if err != nil {
-		return 1, fmt.Errorf("resume: %w", err)
-	}
-	if version != data.SchemaVersionV2 {
-		fmt.Fprintf(stdout, "resume: this project is schema_version %s; run `savepoint migrate` to move it to schema_version 2 before resume can project its current state\n", schemaVersionLabel(version))
+	preflight := migrate.PreflightCutover(root, migrate.CutoverPreflightOptions{})
+	if preflight.Pending != nil {
+		fmt.Fprintf(stdout, "resume: %s\n", preflight.Pending.RecoveryGuidance())
 		return 1, nil
+	}
+	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
+		if preflight.Plan != nil && !preflight.Plan.SchemaAlreadyV2 {
+			fmt.Fprintf(stdout, "resume: %s\n", diagnostic)
+			return 1, nil
+		}
+		return 1, fmt.Errorf("resume: %s", diagnostic)
 	}
 
 	project, err := data.LoadProject(savepointRoot)
@@ -247,16 +239,6 @@ func resumeTargetError(dir string, err error) error {
 	default:
 		return fmt.Errorf("resume: %w", err)
 	}
-}
-
-// schemaVersionLabel names the schema_version a V1-vs-V2 branch read, for the
-// message runResume prints rather than data.SchemaVersion's internal zero
-// value (SchemaVersionV1 is 0 as a Go sentinel, not a declared "version 0").
-func schemaVersionLabel(v data.SchemaVersion) string {
-	if v == data.SchemaVersionV2 {
-		return "2"
-	}
-	return "1"
 }
 
 func initRunner(ctx context.Context, opts cmd.InitOptions) error {
