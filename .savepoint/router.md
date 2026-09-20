@@ -18,7 +18,7 @@ state: check
 release: R006
 objective: O001
 task: T002
-next_action: "T002's implementation plan and evidence are complete; R006 has exactly one remaining blocker (T002 not done, expected). A fresh independent savepoint-check session is needed: either an optional Quick Task Check on T002, or an owner-recorded Task-check waiver (as with T001) routing straight to O001's mandatory Full Objective Check. That choice, and setting T002 status: done, are owner-only."
+next_action: "Owner waived T002's optional Task Check (check_waiver recorded in T002's frontmatter); its evidence now routes straight to O001's mandatory Full Objective Check. Two owner-only steps remain: mark T002 status: done, and run a fresh independent savepoint-check session for O001's Full Objective Check before R006 can clear."
 ```
 
 ## State → action
