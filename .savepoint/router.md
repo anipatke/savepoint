@@ -16,7 +16,7 @@ state: task-building
 release: v2
 epic: E50
 task: E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight
-next_action: Build E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight.
+next_action: Review the completed build for E50-release-validation-cutover/T001-enforce-one-fail-closed-cutover-preflight; user marks the task done before advancing.
 ```
 
 ## State → action
