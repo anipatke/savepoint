@@ -939,11 +939,11 @@ func TestRenderEpicAuditTab_v11AuditFiles(t *testing.T) {
 		path string
 		want string
 	}{
-		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E02-cross-platform-compatibility", "E02-Audit.md"), "cross-platform build work"},
-		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E03-ui-visual-refinement", "E03-Audit.md"), "visual refinement work"},
-		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E04-epic-navigation", "E04-Audit.md"), "wide-screen epic navigation"},
-		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E05-tasking-permissions", "E05-Audit.md"), "tasking-permissions shift"},
-		{filepath.Join("..", "..", ".savepoint", "releases", "v1.1", "epics", "E06-audit-command", "E06-Audit.md"), "agent-led"},
+		{filepath.Join("..", "..", ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E02-cross-platform-compatibility", "E02-Audit.md"), "cross-platform build work"},
+		{filepath.Join("..", "..", ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E03-ui-visual-refinement", "E03-Audit.md"), "visual refinement work"},
+		{filepath.Join("..", "..", ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E04-epic-navigation", "E04-Audit.md"), "wide-screen epic navigation"},
+		{filepath.Join("..", "..", ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E05-tasking-permissions", "E05-Audit.md"), "tasking-permissions shift"},
+		{filepath.Join("..", "..", ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E06-audit-command", "E06-Audit.md"), "agent-led"},
 	}
 
 	for _, tt := range files {

@@ -1,5 +1,9 @@
 # Agents Guide
 
+> Legacy V1 scaffold: this asset is retained for migration and historical
+> fixtures. New schema-2 projects use `templates/project-v2/AGENTS.md`; the V1
+> routing below is not active in the migrated repository.
+
 ## Workflow
 
 1. Read `.savepoint/router.md` — state + next action
@@ -111,7 +115,7 @@ make build && make test
 
 ## V2 Routing
 
-The table below is the live routing model for a V2 project — a project whose `config.yml` declares `schema_version: 2`. It is active for V2 projects; it is not active for this repository until `E50` migrates this repository itself onto the V2 lifecycle. Until then, the `## Skill Activation` table above governs how this repository routes work, and nothing below changes that.
+This section records the V2 routing contract for a project whose `config.yml` declares `schema_version: 2`. It is active in this migrated repository; in a legacy V1 scaffold it is not active until migration, while this repository's active table is the four-state table above.
 
 | Router `state` | Skill |
 |-----------------|-------|
@@ -124,4 +128,15 @@ The table below is the live routing model for a V2 project — a project whose `
 
 Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
 
-`E47` ships this table as the scaffold default for new V2 projects and retires the nine V1 skills from a project that migrates. `E50` migrates this repository itself onto the V2 lifecycle and removes the transitional V1 readers. Neither happens in this task.
+`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. V1 skills remain available only for the V1 scaffold/upgrade path and byte-preserved history.
+
+## Legacy V1 compatibility (not active)
+
+The following contract is retained only for archived V1 projects and the V1 scaffold; it is not an active route in this schema-2 repository.
+
+| task-building | savepoint-build-task |
+| audit-pending | savepoint-audit-epic |
+
+An explicit request uses `savepoint-audit-task` while `state` stays `task-building`; that is not a router state and not a new state here.
+
+Task `stage` (build/test/audit): **required** when `status: in_progress` — Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance. Only the user may set a task to `status: done`.

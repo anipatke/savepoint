@@ -1362,5 +1362,53 @@ func copyRepositoryWorkingTree(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("copy repository working tree: %v", err)
 	}
+	// The live repository is V2 after E50. Reconstruct the pre-migration
+	// project boundary from the byte-preserved archive so this integration test
+	// continues to exercise a real repository-scale V1 conversion without
+	// treating the migrated checkout as a mutable fixture.
+	if err := restoreArchivedV1Boundary(t, src, dst); err != nil {
+		t.Fatalf("restore archived V1 boundary: %v", err)
+	}
 	return dst
+}
+
+func restoreArchivedV1Boundary(t *testing.T, repositoryRoot, destinationRoot string) error {
+	t.Helper()
+	archivedRoot := filepath.Join(repositoryRoot, ".savepoint", "archive", "v1")
+	for _, pair := range []struct {
+		source string
+		target string
+	}{
+		{source: filepath.Join(archivedRoot, ".savepoint"), target: filepath.Join(destinationRoot, ".savepoint")},
+		{source: filepath.Join(archivedRoot, "agent-skills"), target: filepath.Join(destinationRoot, "agent-skills")},
+	} {
+		if err := os.RemoveAll(pair.target); err != nil {
+			return err
+		}
+		if err := copyTree(pair.source, pair.target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyTree(sourceRoot, destinationRoot string) error {
+	return filepath.WalkDir(sourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceRoot, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destinationRoot, rel)
+		if entry.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, content, 0644)
+	})
 }

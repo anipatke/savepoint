@@ -1,57 +1,52 @@
 # Agent State Machine
 
+This file routes the active V2 agent workflow. The matching skill is the
+canonical workflow source; this router records state and next action only.
+
 ## Read order
 
-1. This file (router.md)
-2. Current state → next action
-3. Active epic E##-Detail.md
-4. Active task file
-
-Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` only for architecture/audit.
+1. This file
+2. The matching skill for `state`
+3. `.savepoint/Idea.md`, when it exists, and `.savepoint/Design.md`
+4. The active Objective, when `objective` is set
+5. Files explicitly listed by the active Task
 
 ## Current state
 
 ```yaml
-state: task-building
-release: v2
-epic: E50
-task: E50-release-validation-cutover/T007-prepare-the-maintainer-controlled-repository-cutover
-next_action: Review E50-release-validation-cutover/T007 handoff; resolve the canonical Release blockers before owner-approved apply.
+state: task
+release: R006
+objective: O001
+task: T002
+next_action: Run an independent Check for T002; then obtain T001 clearance and owner completion evidence before reevaluating R006 cutover.
 ```
 
 ## State → action
 
-### pre-implementation
+| State | Skill | Next action |
+| --- | --- | --- |
+| `idea` | `savepoint-idea` | Capture intent and boundaries in `.savepoint/Idea.md`. |
+| `design` | `savepoint-design` | Reconcile architecture, guardrails, and Objective plan. |
+| `task` | `savepoint-task` | Execute the active Task within its Context Files and hand it to a fresh Check. |
+| `check` | `savepoint-check` | Independently verify the Task or Objective and record immutable evidence. |
 
-PRD + Design locked, no epics yet.
+`REPLAN REQUIRED` is not a fifth state. It routes the current plan back to
+`design` while preserving partial work and the executor's current lifecycle.
 
-**Next:** 1) Read release PRD for epic list, 2) Define + confirm epic order, 3) Create epic stubs. Transition to `epic-design` for E01.
+## V2 lifecycle
 
-### epic-design
+- Task `status` is `planned`, `in_progress`, or `done`.
+- Task `stage` is required only for `in_progress`: `build` → `test` → `audit`.
+- A Task's `done` transition remains owner-authorized; a Check does not silently
+  close it.
+- Issues are durable follow-up records, not a fourth task column or router
+  state. Only `savepoint-check` closes an Issue.
+- Releases are optional delivery boundaries. Their membership and completion
+  are derived by `internal/data`; they do not publish, deploy, tag, or create
+  changelogs.
 
-Epic E##-Detail.md is empty/stub.
+## Migration boundary
 
-**Next:** Define what this epic adds, files it touches, and architectural delta. Then transition to `epic-task-breakdown`.
-
-### epic-task-breakdown
-
-Epic exists, tasks missing.
-
-**Next:** 1) Re-read epic, 2) Create task files at `tasks/TNNN-slug.md` with `status: planned`, `objective`, `depends_on`, 3) Add `## Implementation Plan` checkboxes per task. When all planned → first unblocked task.
-
-### task-building
-
-Task `in_progress`, depends satisfied.
-
-**Next:** When starting work, set task `status: in_progress` and press `p` in TUI to mark the focused task as router priority. Execute plan, tick checkboxes, run quality gates, update router to next task or `audit-pending`. Stop.
-
-### audit-pending
-
-Epic complete, needs audit before next epic.
-
-**Next:** Fresh audit agent reads epic E##-Detail.md, task files, drift notes, Design.md, AGENTS.md, and scoped changed files. Write one audit file to `.savepoint/releases/{release}/epics/{E##-epic}/E##-Audit.md`:
-- `## Main Findings` user-facing narrative only
-- `## Code Style Review` checklist against AGENTS.md rules
-- `## Proposed Changes` admin/apply blocks using `### Target File`, `### Replace`, `### With`
-
-After user approves: apply proposals, mark epic `status: audited`, update Design.md `last_audited`, advance router.
+The V1 source hierarchy and retired skills remain under `.savepoint/archive/v1/`
+or the V1 scaffold. They are not active routing inputs for this schema-2
+repository.

@@ -1,17 +1,14 @@
 # Savepoint config — single source of truth for project preferences.
 
 verify_strict: false # vibe-coder soft mode; tasks reach done on assertion. Set true for TDD-strict.
-
 quality_gates:
-  # Filled in by epic E01-scaffolding. Until then, audits skip step 0.
-  lint: null
-  typecheck: null
-  test: null
-  block_on_failure: true
-
+    # Filled in by epic E01-scaffolding. Until then, audits skip step 0.
+    lint: null
+    typecheck: null
+    test: null
+    block_on_failure: true
 audit:
-  divergence_threshold: 0.5 # warn if a proposal changes >50% of a live file
-
+    divergence_threshold: 0.5 # warn if a proposal changes >50% of a live file
 # agent_launcher: opt-in, vendor-neutral interactive agent launches. Disabled
 # by default. Args are a structured list (no shell strings). Supported
 # placeholders: {{prompt}}, {{project_root}}.
@@ -28,17 +25,17 @@ audit:
 #     # override: # required when mode is override
 #     #   command: wezterm
 #     #   args: ["start", "--cwd", "{{project_root}}", "--"]
-
 theme:
-  bg: "#000000"
-  surface: "#000000"
-  surface_2: "#000000"
-  border: "#1A1A1A"
-  text: "#F0E6DA"
-  accents:
-    planned: "#B1A1DF"
-    in_progress: "#FC6323" # Atari Orange
-    done: "#A4C639" # NPP Green
-    blocked: "#FF4444"
-    epic: "#B1A1DF" # Vibe Purple
-  borders: "subtle" # subtle | sharp | none
+    bg: "#000000"
+    surface: "#000000"
+    surface_2: "#000000"
+    border: "#1A1A1A"
+    text: "#F0E6DA"
+    accents:
+        planned: "#B1A1DF"
+        in_progress: "#FC6323" # Atari Orange
+        done: "#A4C639" # NPP Green
+        blocked: "#FF4444"
+        epic: "#B1A1DF" # Vibe Purple
+    borders: "subtle" # subtle | sharp | none
+schema_version: 2

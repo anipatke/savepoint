@@ -1,0 +1,184 @@
+---
+id: R002
+title: Board Polish & Navigation
+status: done
+legacy_completion:
+    source_path: .savepoint/releases/v1.1/v1.1-PRD.md
+    archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/v1.1-PRD.md
+    sha256: 2944126beccacdd4df6bdd409239d76013c733a69df0808e23ee199e44231295
+---
+## Outcome
+
+The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1.1/v1.1-PRD.md`.
+
+## Why
+
+This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+## Success Conditions
+
+- Converted Objectives sourced from this V1 release reference this Release identity.
+- Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+## Boundaries
+
+Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+## Legacy Source (verbatim)
+
+Source path: `.savepoint/releases/v1.1/v1.1-PRD.md`
+
+SHA-256: `2944126beccacdd4df6bdd409239d76013c733a69df0808e23ee199e44231295`
+
+Original frontmatter:
+
+```yaml
+version: 1.1
+name: "Board Polish & Navigation"
+status: done
+```
+
+````markdown
+
+
+# Release v1.1 — Board Polish & Navigation
+
+## Overview
+
+v1.1 is the "love what you look at" release. It takes the functional board from v1 and makes it polished, reliable, and pleasant to navigate. The four epics cover layout robustness, multi-platform tooling, visual refinement, and a new epic navigation paradigm.
+
+**v1 delivered:** a working Kanban board with phase transitions.
+**v1.1 delivers:** a board that doesn't flicker on resize, builds everywhere, looks intentional, and treats epics as first-class navigable objects.
+
+## What ships in v1.1
+
+1. **TUI Optimisation (E01)** ✅ *Audited and complete*
+   - Next Activity indicator in header
+   - Naming conventions reconciled (Design.md → E##-Detail.md, PRD.md → v1-PRD.md)
+   - Virtual viewport scrolling for columns and detail overlay
+   - Column focus border stability — no content shift when switching columns
+   - All 7 tasks done
+
+2. **Cross-Platform Compatibility (E02)** — *Not started*
+   - `make build`, `test`, `clean` work on Windows, Linux, macOS
+   - Linux amd64 + arm64 and macOS amd64 + arm64 build targets
+   - Smoke tests and versioned release artifacts
+   - 4 tasks planned
+
+3. **UI Visual Refinement (E03)** — *Not started*
+   - Right-border clipping fixed on terminal resize
+   - Next Activity as a dedicated line below header with phase-aligned styling
+   - Checkbox rendering at sentence boundaries
+   - Width arithmetic audit — content fills available space exactly
+   - 4 tasks planned
+
+4. **Epic Navigation (E04)** — *Not started*
+   - Epic sidebar becomes a focusable, navigable component
+   - ↑/↓ to navigate epics, ←/→ to enter/exit sidebar
+   - Enter opens an "Epic Detail" overlay showing E##-Detail.md content
+   - Existing `E` key dropdown retained
+   - 2 tasks planned
+
+5. **Tasking Permissions & Router Updates (E05)** ✅ *Audited and complete*
+   - Agents can only set `status: in_progress`; user alone sets `done` or retreats
+   - New TUI `p` priority hotkey explicitly updates router to the focused non-done task
+   - Router task priority decoupled from navigation — browse without side effects
+   - Priority writes keep router in `task-building`; audit handoff remains explicit
+   - All 6 tasks done
+
+6. **Audit Command (E06)** — *Planned*
+   - `savepoint audit <epic-id|release>` runs full pipeline
+   - Quality gates block on failure
+   - AI semantic review checks 10 Code Style rules — blocks if "Must Fix Before Close" has items
+   - TUI review mode for approving/rejecting proposals
+   - Updates Design.md last_audited, marks epic status: audited
+   - 9 tasks planned
+
+7. **Init Command (E07)** — *Planned*
+   - `savepoint init [dir] [--force] [--install]` scaffolds .savepoint/
+   - Target validation (empty/compatible/already-initialized)
+   - Template-based scaffold with project name interpolation
+   - Magic prompt output to stdout + clipboard
+   - Best-effort clipboard (doesn't fail on error)
+   - 7 tasks planned
+
+8. **Board Command (E08)** — *Planned*
+   - `savepoint board [--release <release>] [--epic <epic>]` launches TUI
+   - `savepoint` (no args) defaults to board
+   - Bubble Tea TUI with 3-column Kanban
+   - Detail pane for selected task
+   - Keyboard navigation (arrows, vim-style j/k/h/l)
+   - Status transitions with gate enforcement
+   - Non-TTY plain table fallback
+   - 8 tasks planned
+
+9. **Doctor Command (E09)** — *Planned*
+   - `savepoint doctor [--epic <epic>]` runs diagnostics
+   - Config, router, structure, YAML validation
+   - Dependency checks (missing deps, cycles, duplicates)
+   - Audit state and orphan detection
+   - Ad-hoc quality gate runner
+   - Human-readable diagnostic output with repair suggestions
+   - Exit codes: 0=clean, 1=problems, 2=error
+   - 6 tasks planned
+
+10. **Task File Validation & Auto-Fix (E12)** — *In Progress*
+     - Default `phase: build` when `status=in_progress` but phase missing
+     - Default `status: planned` when both status and column missing
+     - Better error hints with suggested fixes
+     - Validate on write with helpful messages
+
+11. **Codebase Audit Remediation (E13)** — *In Progress*
+    - Fix cycle detection bug producing inaccurate error paths
+    - Remove dead code, stdlib reimplementations, hardcoded state maps
+    - Centralize duplicated logic (normalization, frontmatter extraction, shared utilities)
+    - Fix AtomicWrite cross-device fallback and config accent defaults
+    - Add quality gate timeout
+    - Remove committed binaries, add gitignore and linter config
+    - Decompose `update.go` monolith into focused handlers
+    - Extract synchronous I/O from `Update()` into `tea.Cmd` async pattern
+    - Add test coverage for untested packages
+    - 7 tasks planned
+
+12. **Defect Workflow TUI (E17)** — *Audited and complete*
+    - Release-level defect files for observed correctness fixes
+    - Defect data model, discovery, router priority, and doctor validation
+    - TUI defect count, Defects overlay, detail view, and related task-card markers
+    - All 6 tasks done
+
+## Epic breakdown
+
+| # | Epic | Status | Tasks |
+|---|------|--------|-------|
+| 01 | TUI Optimisation | Audited | 7/7 done |
+| 02 | Cross-Platform Compatibility | Audited | 4/4 done |
+| 03 | UI Visual Refinement | Planned | 0/4 done |
+| 04 | Epic Navigation | Audited | 2/2 done |
+| 05 | Tasking Permissions & Router Updates | Audited | 6/6 done |
+| 06 | Audit Command | Planned | 0/9 done |
+| 07 | Init Command | Planned | 0/7 done |
+| 08 | Board Command | Planned | 0/8 done |
+| 09 | Doctor Command | Planned | 0/6 done |
+| 10 | Task File Validation & Auto-Fix | In Progress | 5/5 done |
+| 13 | Codebase Audit Remediation | In Progress | 0/7 done |
+| 17 | Defect Workflow TUI | Audited | 6/6 done |
+
+## Success criteria
+
+- `make build` and `make test` pass on Windows, Linux, and macOS
+- Terminal resize at any width ≥ 40 produces no visual corruption
+- Content fills the available terminal width exactly at every breakpoint
+- Epic sidebar is navigable with ↑/↓, and Enter shows a detail overlay
+- All existing v1 functionality is preserved unchanged
+- `go build ./...` and `go test ./...` pass
+
+## Known issues
+
+- E03 has `Design.md` instead of the expected `E03-Detail.md` — rename to match convention (tracked in E01/T002 scope, may need a follow-up task)
+
+## Risks
+
+- **Build tooling scope creep.** E02 is pure Makefile work, but smoke-testing on non-Windows requires either CI or manual verification on actual Linux/macOS.
+- **Naming convention holdout.** E03's `Design.md` may cause discovery or rendering issues if the board ever reads `E##-Detail.md` by pattern. Low priority — handled as a rename task if needed.
+- **Epic panel is ≥120 only.** E04's features require a wide terminal — users on narrow terminals still use the `E` key dropdown.
+````

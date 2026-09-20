@@ -12,69 +12,52 @@ The phase skill is the canonical workflow source. This guide defines routing, te
 
 | State | Skill |
 |-------|-------|
-| pre-implementation | savepoint-draft-prd |
-| epic-design | savepoint-system-design |
-| epic-task-breakdown | savepoint-create-task |
-| task-building | savepoint-build-task |
-| audit-pending | savepoint-audit-epic |
-| defect-building | savepoint-build-task |
+| idea | savepoint-idea |
+| design | savepoint-design |
+| task | savepoint-task |
+| check | savepoint-check |
 
-An explicit request to audit or re-audit one in-progress task uses `savepoint-audit-task` while `state` stays `task-building`. It is a request-qualified override of the phase skill, not a router state.
-
-Use `savepoint-create-defect` when the user reports a concrete bug, regression, or broken expectation that should be captured as a release-level defect before repair starts.
+`REPLAN REQUIRED`, returned by `savepoint-task` on a materially invalid plan, routes back into `savepoint-design`. It is not a fifth router state — `state` stays `design` while the planner resolves what broke.
 
 Use the `skill` tool when the listed skill is available. If the agent says the skill is not found, read `agent-skills/{skill}/SKILL.md` directly and follow it as the active skill.
 
-Read `.savepoint/PRD.md` only for vision changes, `.savepoint/Design.md` only for architecture/audit.
+Three shared references back these four skills and are never triggered directly: `agent-skills/references/check-method.md` (loaded in full by `savepoint-check`), `agent-skills/references/issue-capture.md` (entered by `savepoint-design`, `savepoint-task`, and `savepoint-check` from their own workflow), and `agent-skills/references/commands-and-procedures.md` (loaded by `savepoint-design` for config reconciliation). Each carries `triggerable: false` frontmatter.
+
+Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only for architecture readiness.
 
 ## Terminology
 
-- Router `state`: the current phase, such as `epic-design`, `task-building`, or `audit-pending`
-- Task `status`: only `planned`, `in_progress`, or `done`
-- Task `stage` (build/test/audit): **required** when `status: in_progress` — omitting it self-heals to `stage: build` on load and is flagged by `savepoint doctor`
-- Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.
+- Router `state` is the current state: `idea`, `design`, `task`, or `check`.
+- Task `status`: only `planned`, `in_progress`, or `done`.
+- Task `stage`: **required** when `status: in_progress` — `build` → `test` → `audit`; reaching `audit` means the Task is ready for a Check, and explicitly does not mean it passed.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
-- Never: todo, doing, blocked, review, audit
-- Agents may set a task to `status: in_progress` when starting implementation.
-- Only the user may set a task to `status: done` or retreat a task to an earlier status.
+- Agents may set a Task to `status: in_progress` when starting implementation.
+- Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
+- Only `savepoint-check` may write a Check record or close an Issue.
 
-## Defect Workflow
+## Issue Capture
 
-Use a defect conversation when the user reports a concrete bug, regression, broken behavior, or failed expectation that should be repaired without reshaping the planned epic/task backlog.
+Use Issue capture when planning, implementation, or a Check surfaces a defect, drift, a guardrail gap, or other durable follow-up that does not belong inside Design or the current Objective's Tasks. “Defect” stays a word the user says; it maps to `type: defect` on the Issue record and does not reopen a separate defect workflow.
 
-- Defects live at `.savepoint/releases/{release}/defects/D###-slug.md`.
-- Use `agent-skills/savepoint-create-defect/SKILL.md` to capture a new defect file.
-- Router state may be `defect-building` with a `defect` field naming the active defect id.
-- Defect lifecycle: `open` → `in_progress` (requires `stage: build|test|audit`) → `resolved`. Never use task-style `planned` or `done` in defect files.
-- Use the board `d` overlay to inspect defects; do not turn defects into a fourth task column.
+- Issues live at `.savepoint/issues/I###-slug.md`.
+- See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
+- The executor reports repair evidence on an Issue without closing it; only `savepoint-check` verifies the proof and closes it.
 
 ## Implementation
 
-Follow the active skill for execution. During `task-building`, the canonical flow is `savepoint-build-task` — it owns the read order, `status: in_progress` + `stage: build` setting, AC verification, quality gates, and handoff.
+Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget, `status: in_progress` + `stage: build` setting, per-criterion evidence, and handoff to a fresh `savepoint-check` session.
 
 **Stop. Prompt the user before continuing.** Only the user may mark a task `status: done` or retreat a task to an earlier status.
 
-## Drift Check
+## Check
 
-- New files/modules not in Codebase Map?
-- Architecture changed from Design.md?
+`savepoint-check` is the only role that can close a Task, an Objective, or an Issue.
 
-If yes → append `## Drift Notes` to task file.
-
-## Audit
-
-Audit is agent-led and split by intent:
-
-- `savepoint-audit-epic` — the `audit-pending` phase workflow, or an explicit audit of a completed epic. It requires a session independent from the builder, runs the Full health check, and writes the single `E##-Audit.md` handoff file. The builder must not audit its own epic; start a fresh session.
-- `savepoint-audit-task` — an explicit request to audit or re-audit one in-progress task. Router `state` stays `task-building`, the review is read-only, it runs the Quick health check, and it returns `CLEAR` or `NEEDS WORK` without writing any file.
-
-Both skills load `agent-skills/references/audit-method.md`, the shared non-triggerable audit method: scope locks, coverage matrices, workflow and side-effect locks, adversarial pass, re-audit convergence, and materiality.
-
-When the project has `.savepoint/Guardrails.md` (policy) and `.savepoint/Health-Check.md` (evidence modes), both audits apply them — Quick at task handoff and task audit, Full at epic audit. Skip the related step when either file is absent; absence is not a finding.
-
-- Audit file: `.savepoint/releases/{release}/epics/{E##-slug}/E##-Audit.md`
-- During audit apply/close, update the same `E##-Audit.md` visible sections so `## Main Findings` and `## Code Style Review` describe the applied outcome, not stale pre-apply blockers.
-- When `.savepoint/audit/` exists, also follow the `savepoint-audit-register` skill: read `.savepoint/audit/prompt.md`, reconcile against `.savepoint/audit/register.md` with stable `F###` IDs, and record the run — do not restart from a cold scan.
+- A Task Check runs at Quick evidence; an Objective Check runs at Full evidence and additionally covers cross-Task integration and reconciliation against `Design.md`.
+- The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
+- Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
+- Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
+- Check records are immutable, at `.savepoint/checks/C###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
 
 ## Code Style
 
@@ -113,6 +96,11 @@ and the `ResolveReleaseCutover` composition consumed by E50. `internal/doctor`
 and `internal/board/v2` report that same decision; they do not maintain a
 second Release-readiness policy.
 
+After this repository's schema-2 migration, ordinary startup, board, doctor,
+resume, and init behavior is V2-only. The V1 readers and V1 board surfaces in
+the map are compatibility code reachable only from explicit migration or
+preserved historical fixtures.
+
 ## Context Budget
 
 - **Read only what you need.** Each phase has a strict read budget. Do not read files outside your current phase's context.
@@ -125,7 +113,7 @@ second Release-readiness policy.
 
 ## V2 Routing
 
-The table below is the live routing model for a V2 project — a project whose `config.yml` declares `schema_version: 2`. It is active for V2 projects; it is not active for this repository until `E50` migrates this repository itself onto the V2 lifecycle. Until then, the `## Skill Activation` table above governs how this repository routes work, and nothing below changes that.
+This section records the V2 routing contract for a project whose `config.yml` declares `schema_version: 2`. It is active in this migrated repository; in a legacy V1 scaffold it is not active until migration, while this repository's active table is the four-state table above.
 
 | Router `state` | Skill |
 |-----------------|-------|
@@ -138,4 +126,15 @@ The table below is the live routing model for a V2 project — a project whose `
 
 Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
 
-`E47` ships this table as the scaffold default for new V2 projects and retires the nine V1 skills from a project that migrates. `E50` migrates this repository itself onto the V2 lifecycle and removes the transitional V1 readers. Neither happens in this task.
+`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. V1 skills remain available only for the V1 scaffold/upgrade path and byte-preserved history.
+
+## Legacy V1 compatibility (not active)
+
+The following contract is retained only for archived V1 projects and the V1 scaffold; it is not an active route in this schema-2 repository.
+
+| task-building | savepoint-build-task |
+| audit-pending | savepoint-audit-epic |
+
+An explicit request uses `savepoint-audit-task` while `state` stays `task-building`; that is not a router state and not a new state here.
+
+Task `stage` (build/test/audit): **required** when `status: in_progress` — Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance. Only the user may set a task to `status: done`.
