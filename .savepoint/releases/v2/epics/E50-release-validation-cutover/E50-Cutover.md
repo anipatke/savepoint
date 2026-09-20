@@ -1,11 +1,12 @@
 # E50 maintainer-controlled repository cutover
 
-**Handoff state: NOT CLEAR TO APPLY.** This file is the owner-run runbook for the
-live repository. It is not an instruction for an agent to mutate this checkout.
-The agent has not run the Savepoint CLI, has not applied the migration, and has
-not published, tagged, deployed, or changed a changelog. The primary apply
-command appears once below as an owner-only action and is stopped behind the
-gates in this document.
+**Handoff state: OWNER-APPROVED SEQUENCING EXCEPTION — MIGRATION ONLY.** This
+file is the owner-run runbook for the live repository. The owner has explicitly
+approved the one-time exception recorded below so the migration may preserve
+the current E50 work while the post-cutover verification Task is still planned.
+The canonical Release decision remains not allowed; this does not close E50,
+declare a Release complete, or authorize publishing, tagging, deployment, or a
+changelog change. The Savepoint CLI is not run by the agent.
 
 ## Decision and stop point
 
@@ -25,11 +26,12 @@ current E50 Objective's T001 is still `in_progress` and T002 is still
 waive. The candidate also contains 11 Issues; owner acceptance of any material
 Issue remains a separate gate below.
 
-Therefore this handoff must stop before live apply. Complete the remaining
-current-release Tasks and recheck every material Issue, then repeat the
-isolated apply and all preflight evidence. A maintainer may approve the live
-operation only when every gate below is green and the exact preview has been
-reviewed.
+Under the normal process this decision stops live apply. The owner has now
+approved the one-time sequencing exception below because T008 is explicitly
+post-cutover verification and cannot be completed before migration. All other
+preflight, source-integrity, recovery, V2-load, and Issue-review controls still
+apply, and the repository must not be reported as cutover-complete until the
+canonical Release decision becomes allowed.
 
 When those gates are green, the one normal owner action is:
 
@@ -41,6 +43,29 @@ Do not run that command from this agent session. Do not infer approval from a
 clean migration plan: Release readiness, pending-operation state, V2 loading,
 exact owner acceptance, and the backup must all be recorded first. If any gate
 is red or evidence is stale, stop and return to the dry-run step.
+
+## Owner-approved one-time sequencing exception
+
+On 2026-09-20 the owner explicitly approved a narrow exception for this
+repository's E50 cutover. It permits the migration write to carry the current
+E50 Objective's active work — source T007 `in_progress` and source T008
+`planned` — into V2 before T008's post-cutover verification can run.
+
+The exception is limited to the sequencing contradiction described above. It
+does not:
+
+- change `data.ResolveReleaseCutover` or turn its `Allowed=false` result into
+  CLEAR evidence;
+- waive migration conflicts, unresolved blocking ambiguities, pending-operation
+  recovery, source-hash revalidation, structural V2 diagnostics, or material
+  Issue review;
+- mark T007 or T008 done, resolve any open defect, or authorize publication,
+  tagging, deployment, or changelog work; or
+- establish a general rule for other Releases or repositories.
+
+After migration, the expected canonical result is still R006 not allowed until
+the active E50 work and the required V2 evidence are complete. This is an
+owner-approved conversion exception, not Release completion.
 
 ## Independent evidence required before apply
 
@@ -107,7 +132,7 @@ or changed operation state requires the same recapture.
    structurally valid V2 index. Invalid IDs, unsafe paths, dangling ownership,
    dependency cycles, malformed records, or a failed recovery simulation stop
    the handoff.
-6. **Release decision is canonical and allowed.** Use only
+6. **Release decision is canonical and allowed under the normal process.** Use only
    `data.ResolveReleaseCutover`, which delegates to
    `ResolveReleaseCompletion`. Do not add a checklist or a parallel E50 rule.
    Every declared Release must be allowed; stale/missing evidence, a missing
@@ -120,8 +145,9 @@ or changed operation state requires the same recapture.
    edit is part of migration. Those are separate owner decisions.
 
 The current candidate fails gate 6 on the two current E50 Task states. The
-failure is intentionally recorded below rather than hidden behind a generic
-“not ready” statement.
+owner-approved sequencing exception permits the conversion write only; the
+failure remains recorded below and still blocks any claim that the Release is
+complete.
 
 ## Recorded Release decision from the isolated apply
 
@@ -207,11 +233,12 @@ and that a second apply reports “already at schema_version: 2; nothing to
 migrate.” Resolve every structural diagnostic and every recovery simulation
 failure in the copy first.
 
-Then record the canonical Release decision and the Issue review. The current
-two-blocker decision above is a stop. Only an explicit `Allowed=true` result,
-fresh evidence for every Release, and owner acceptance of all material Issues
-can move to the live stop point. No task status or Release field may be changed
-just to make this gate pass.
+Then record the canonical Release decision and the Issue review. Under the
+owner-approved sequencing exception, the current two-blocker decision is an
+expected post-migration state, not a Release completion result. Only an
+explicit `Allowed=true` result, fresh evidence for every Release, and owner
+acceptance of all material Issues can close the cutover. No task status or
+Release field may be changed just to make this gate pass.
 
 ### 4. Stop for explicit approval
 
@@ -296,9 +323,10 @@ The expected checks are:
   vanished;
 - there is no incomplete `.savepoint/.migration/` operation after successful
   cleanup; if one remains, use the recovery path and do not claim completion;
-- Release output is the canonical `ResolveReleaseCutover` result, with every
-  declared Release allowed and every material Issue explicitly accepted or
-  resolved; a generic “migration complete” message is not Release evidence;
+- Release output is the canonical `ResolveReleaseCutover` result. Under this
+  exception, R001-R005 remain allowed or retired, while R006 is expected to
+  remain blocked by the active E50 Tasks until T008's post-cutover verification
+  is complete; a generic “migration complete” message is not Release evidence;
 - a second migration preview reports that the project is already at schema 2
   and performs no write; no legacy reader is reachable from ordinary runtime;
 - the final worktree diff, manifest, operation report, doctor output, board /
@@ -327,10 +355,8 @@ out of scope and require separate explicit owner decisions.
 ## Handoff conclusion
 
 The runbook, independent E51 audit reference, source/plan evidence, disposable
-apply, and owner recovery boundary are prepared. The current live handoff is
-**blocked** by the explicit two-blocker Release decision and the outstanding
-owner review of candidate Issues. The maintainer must complete the current E50
-Tasks, resolve those conditions, recapture the dry-run after committing the
-reconciliation, review the backup, and then make the separate approval decision
-at the stop point. Until that happens, the repository remains V1 and no live
-migration command is authorized by this task.
+apply, and owner recovery boundary are prepared. The owner-approved exception
+allows the migration to proceed, but the live cutover remains **incomplete**
+until the canonical R006 decision is allowed and the material Issues have been
+reviewed. T008 owns that post-cutover verification. No publish, tag, deployment,
+or changelog action is authorized by this task.
