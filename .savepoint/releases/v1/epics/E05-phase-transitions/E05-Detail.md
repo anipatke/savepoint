@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # Epic E05: Phase Transitions

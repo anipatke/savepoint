@@ -1,7 +1,6 @@
 ---
 id: E17-defect-workflow-tui/T005-defect-detail-and-markers
-status: in_progress
-stage: build
+status: done
 objective: Add defect detail rendering and lightweight related-defect markers on task cards
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T004-defects-overlay]
 ---
@@ -24,14 +23,14 @@ The defect list gives users visibility, but repair work needs evidence: symptom,
 
 ## Acceptance Criteria
 
-- [ ] Enter on a selected defect opens a defect detail overlay
-- [ ] Defect detail renders symptom, expected behavior, reproduction, impact, fix plan, acceptance criteria, and resolution notes when present
-- [ ] Long defect content wraps and scrolls with the same behavior as task detail overlays
-- [ ] Defects that reference a visible task can produce a compact task-card marker such as `! D003`
-- [ ] Card markers only render when width permits and never displace required task id/title content
-- [ ] Existing task detail rendering remains unchanged
-- [ ] Tests cover full defect detail, missing optional sections, wrapping/scrolling, and card marker width behavior
-- [ ] `make build && make test` passes
+- [x] Enter on a selected defect opens a defect detail overlay
+- [x] Defect detail renders symptom, expected behavior, reproduction, impact, fix plan, acceptance criteria, and resolution notes when present
+- [x] Long defect content wraps and scrolls with the same behavior as task detail overlays
+- [x] Defects that reference a visible task can produce a compact task-card marker such as `! D003`
+- [x] Card markers only render when width permits and never displace required task id/title content
+- [x] Existing task detail rendering remains unchanged
+- [x] Tests cover full defect detail, missing optional sections, wrapping/scrolling, and card marker width behavior
+- [x] `make build && make test` passes
 
 ## Implementation Plan
 
@@ -49,4 +48,3 @@ The defect list gives users visibility, but repair work needs evidence: symptom,
 - Files created: defect_detail.go, defect_detail_test.go
 - Token estimate: ~12k
 - Quality gates: make build && make test — all pass
-

@@ -1,7 +1,6 @@
 ---
 id: E17-defect-workflow-tui/T003-board-defect-summary
-status: in_progress
-stage: build
+status: done
 objective: Load defects into board state and show a compact open-defect signal without changing the three-column board layout
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model]
 ---
@@ -25,14 +24,14 @@ Defects need to be visible from the primary board, but a fourth column would cro
 
 ## Acceptance Criteria
 
-- [ ] Board data loading includes release-scoped defects
-- [ ] The board header or Next Activity area shows open defect count when defects exist
-- [ ] Zero open defects do not add noisy visual chrome
-- [ ] The main board remains three task columns at existing breakpoints
-- [ ] Defect summary respects selected release
-- [ ] Existing epic and task filtering behavior remains unchanged
-- [ ] Tests cover zero defects, open defects, and unchanged three-column layout
-- [ ] `make build && make test` passes
+- [x] Board data loading includes release-scoped defects
+- [x] The board header or Next Activity area shows open defect count when defects exist
+- [x] Zero open defects do not add noisy visual chrome
+- [x] The main board remains three task columns at existing breakpoints
+- [x] Defect summary respects selected release
+- [x] Existing epic and task filtering behavior remains unchanged
+- [x] Tests cover zero defects, open defects, and unchanged three-column layout
+- [x] `make build && make test` passes
 
 ## Implementation Plan
 
@@ -49,4 +48,3 @@ Defects need to be visible from the primary board, but a fourth column would cro
 - Files edited: interfaces.go, model.go, board.go, watch.go, update.go, view.go, board_test.go, view_test.go, interfaces_test.go
 - Token estimate: ~18k
 - Quality gates: `go build ./...` clean, `go test ./...` all green
-

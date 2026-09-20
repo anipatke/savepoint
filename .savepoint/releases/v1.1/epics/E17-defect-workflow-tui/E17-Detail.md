@@ -1,6 +1,6 @@
 ---
 type: epic-design
-status: planned
+status: audited
 ---
 
 # E17: Defect Workflow TUI
@@ -45,4 +45,3 @@ Introduce first-class defect documentation and TUI visibility for observed corre
 - Automatic defect creation from runtime failures
 - New CLI commands for creating, editing, or closing defects
 - Changing task status ownership rules
-

@@ -10,16 +10,26 @@ gates in this document.
 ## Decision and stop point
 
 The repository is still a V1 project. A read-only preflight found an appliable
-plan with no conflicts and no unresolved *blocking* ambiguities, but the
-candidate V2 project is not Release-clear: the disposable apply has
-`data.ResolveReleaseCutover` **Allowed=false** with 44 named blockers. That is a
-clear, reproducible Release decision, not an ambiguity to waive. The 11 Issues
-in the candidate index also have no owner acceptance recorded in this handoff.
+plan with no conflicts and no unresolved *blocking* ambiguities. The owner
+reconciled the historical release records before this capture: R001, R002,
+R003, R004, and R005 are no longer active migration work. R001, R002, R003,
+R005 are recorded as completed historical Releases; R004's discarded v1.3
+source is preserved at `.savepoint/archive/retired/v1.3/` and is excluded from
+the active migration inventory.
 
-Therefore this handoff must stop before live apply. Resolve and recheck every
-Release blocker and every material Issue, then repeat the isolated apply and all
-preflight evidence. A maintainer may approve the live operation only when every
-gate below is green and the exact preview has been reviewed.
+The disposable apply now has six Releases (the current v2 release is R006),
+one active Objective, and two active Tasks. Canonical
+`data.ResolveReleaseCutover` is **Allowed=false** with two named blockers: the
+current E50 Objective's T001 is still `in_progress` and T002 is still
+`planned`. This is a clear, reproducible Release decision, not an ambiguity to
+waive. The candidate also contains 11 Issues; owner acceptance of any material
+Issue remains a separate gate below.
+
+Therefore this handoff must stop before live apply. Complete the remaining
+current-release Tasks and recheck every material Issue, then repeat the
+isolated apply and all preflight evidence. A maintainer may approve the live
+operation only when every gate below is green and the exact preview has been
+reviewed.
 
 When those gates are green, the one normal owner action is:
 
@@ -43,17 +53,20 @@ test` gate. This is an independent audit, not a self-review by the migration
 builder. Re-read the audit at the owner checkpoint; a changed audit, source
 tree, or design invalidates this handoff.
 
-The pre-runbook capture was made read-only with an injected evidence clock of
-`2026-09-20T00:00:00Z` and operation ID `op-t007-preflight`. At that capture:
+The current capture was made read-only after the owner-authorized lifecycle
+reconciliation and v1.3 retirement, with an injected evidence clock of
+`2026-09-20T00:00:00Z` and operation ID `op-t007-reconciliation`. At that
+capture:
 
 | Evidence | Value |
 | --- | --- |
-| source `HEAD` | `bdfd0e50036b7e1083cd475165bf7bd30bf05b09` |
-| working-tree diff at capture | only the T007 lifecycle edit (`status: in_progress`, `stage: build`); diff SHA-256 `6c8d7aa7626e69e4883509c0227e90dda4363d0970c83788e50b6acd03a6c9b9` |
-| migration source inventory | 616 files; canonical digest `30510fbfd0a11a8543c4c3c9bd1817d60bf5ea4d664595dddc75da71559b8f23` |
-| deterministic plan | 69 targets, 2 documents, 548 archives, 6 legacy prerequisites, 0 waived references, 0 conflicts, 140 ambiguities, 0 unresolved blocking IDs |
-| fixed-clock preview | 199,742 bytes; full SHA-256 `931cce6bbd3b9c95aaf4c0187fe04013ee16724941c163fbd7bae75e5b578259` |
-| normalized preview | SHA-256 `8da41cef2cf06344790907b7170f49b8891d782c24a8c1da06e3a0900a29e1da`, after removing only the generated `operation:` and `generated:` lines |
+| source `HEAD` | `a9901f88b8e83ece18e38ecbced625e6e2946f4c` |
+| working-tree state at capture | lifecycle reconciliation plus the v1.3 archive move and retirement note; tracked diff SHA-256 `4c55504025dc19b36d392cec86b80df5dcac8eb80464e01925ceb8cd103ddaee` |
+| retired v1.3 tree | 40 files preserved at `.savepoint/archive/retired/v1.3/`; pre-move path-qualified hash `88549f35e22f1189f629ddc600c4fcd4d8109a6896014d3d6956272c2630ce65`; post-move content hash `90bba76a269709aad9d7076ea3d2e76551431f3b7986407080eeed90343f8881` |
+| migration source inventory | 577 files; canonical digest `c9d408c37cae52aeadff5c01613e4e3a2bbe66b7ccf4854094bc338dc262b42a` |
+| deterministic plan | 20 targets (6 Releases, 1 Objective, 2 Tasks, 11 Issues), 2 documents, 544 archives, 1 legacy prerequisite, 0 waived references, 0 conflicts, 141 ambiguities, 0 unresolved blocking IDs |
+| fixed-clock preview | 184,840 bytes; full SHA-256 `472f2526bddcb3f013b067d832448f9cbf990b888e95ab92c0b76cef46e717c7` |
+| normalized preview | SHA-256 `e7330b0c59767ff2113d801e35bc20a431cab066bf32a6dcaaccea6cbf54c39d`, after removing only the generated `operation:` and `generated:` lines |
 | read-only command result | `RunCommand(Write:false)` returned code 0 with no error; no project file changed |
 
 The inventory digest is the sorted hash of each source path and exact-byte
@@ -63,33 +76,18 @@ The preview digest is only comparable after normalizing the random operation
 ID and timestamp. The full fixed-clock value above is a reproducibility anchor;
 an owner-run CLI preview will otherwise have different first two lines.
 
-The same preflight was run against a disposable repository copy at
-`/tmp/savepoint-t007-copy-1209378075` and the copy was removed after comparison.
-It returned the same V1 `migration_required` refusal, the same plan counts,
-the same inventory digest, and the same normalized preview digest. The live
-and copy comparison was byte-equal; no live migration was used as a test
-fixture.
+The same preflight was run against a disposable repository copy and the copy
+was removed after comparison. It returned code 0, the same 577-file inventory,
+the same plan counts, the same inventory digest, and the same normalized
+preview digest. Live and copy preview output was byte-equal; no live migration
+was used as a test fixture. The intentional differences from the earlier
+capture are the owner-authorized historical lifecycle edits and removal of the
+discarded v1.3 tree from active migration input.
 
-Adding this runbook is itself an intentional source-tree change. A second
-read-only capture after the file was added used operation ID
-`op-t007-post-runbook`; it returned code 0 with no error, and its live output
-and a fresh disposable repository copy were byte-equal:
-
-| Evidence after adding this runbook | Value |
-| --- | --- |
-| migration source inventory | 617 files; canonical digest `02b733027342b519e394fcf94ffc7e8eac502c0e49571092aa94caed9281610c` |
-| deterministic plan | 69 targets, 2 documents, 549 archives, 6 legacy prerequisites, 0 waived references, 0 conflicts, 141 ambiguities, 0 unresolved blocking IDs |
-| fixed-clock preview | 200,400 bytes; full SHA-256 `66a2e4b54a1a7efabb59b94331ae3407841f7fa5be5486ddd6e290d9977206ae` |
-| normalized preview | SHA-256 `e61161f73cab550dbb67f757de3a6069f88ac41c26bf09ad9a2db2381a86290a` |
-| repository-copy comparison | output equal, inventory equal, both exit code 0 |
-
-The extra archive and ambiguity are the intentional effects of this runbook
-becoming a migration source; they are not unexplained drift. These post-runbook
-values supersede the historical pre-runbook values for the next owner review.
-The owner must still recapture after this file and the task handoff are
-committed; neither table is permission to apply a stale plan. Any other source
-edit, changed revision, changed decision file, or changed operation state
-requires the same recapture.
+The owner must recapture after this file and the task handoff are committed;
+neither this uncommitted evidence nor the prior captures is permission to apply
+a stale plan. Any other source edit, changed revision, changed decision file,
+or changed operation state requires the same recapture.
 
 ## Gates that all must pass
 
@@ -121,25 +119,25 @@ requires the same recapture.
 8. **Scope.** No publish, tag, deployment, release announcement, or changelog
    edit is part of migration. Those are separate owner decisions.
 
-The current candidate fails gate 6. The failure is intentionally recorded
-below rather than hidden behind a generic “not ready” statement.
+The current candidate fails gate 6 on the two current E50 Task states. The
+failure is intentionally recorded below rather than hidden behind a generic
+“not ready” statement.
 
 ## Recorded Release decision from the isolated apply
 
-The disposable apply used the fixed operation ID `op-t007-apply` and a copy of
-the source tree. It completed into schema 2 with 7 Releases, 14 Objectives, 37
-Tasks, 0 Checks, and 11 Issues. `data.ResolveReleaseCutover` returned
-`Allowed=false` and 44 blockers:
+The disposable apply used the fixed operation ID `op-t007-reconciliation` and
+a copy of the source tree. It completed into schema 2 with 6 Releases, 1
+Objective, 2 Tasks, 0 Checks, and 11 Issues. `data.ResolveReleaseCutover`
+returned `Allowed=false` and 2 blockers:
 
 | Release | Decision | Canonical blockers |
 | --- | --- | --- |
-| R001 | not allowed (4) | O001, O002, O003, and O004 each have no recorded check |
-| R002 | not allowed (4) | O005 tasks T001-T004 are `in_progress` |
-| R003 | not allowed (1) | no member objectives |
-| R004 | not allowed (31) | O006 task T005 is `in_progress`; O006 tasks T006-T008, O007 tasks T009-T012, O008 tasks T013-T016, O009 tasks T017-T020, O010 tasks T021-T023, O011 tasks T024-T027, O012 tasks T028-T031, and O013 tasks T032-T035 are `planned` |
-| R005 | not allowed (1) | no member objectives |
-| R006 | not allowed (1) | no member objectives |
-| R007 | not allowed (2) | O014 task T036 is `in_progress`; T037 is `planned` |
+| R001 | allowed (historical) | v1 is `done`; its audited epics have no live Objective members |
+| R002 | allowed (historical) | v1.1 is `done`; E17 is audited with all six Tasks done |
+| R003 | allowed (historical) | v1.2 is `done`; audited epics have no live Objective members |
+| R004 | not in active migration | v1.3 was explicitly retired; the 40-file source tree is preserved under `.savepoint/archive/retired/v1.3/` |
+| R005 | allowed (historical) | v1.4 is `done`; audited epics have no live Objective members |
+| R006 | not allowed (2) | current v2/E50 Objective O001: T001 is `in_progress`; T002 is `planned` |
 
 These are the exact resolver outputs, not a second E50 policy. The 11 Issues
 must be reviewed by the owner after the candidate is loaded; this handoff does
@@ -195,11 +193,10 @@ must be listed with its reason (for example, this runbook's intentional source
 addition); an unexplained difference is a hard stop. Preserve the unmodified
 preview and the normalized comparison in the backup directory.
 
-The historical pre-runbook result was 69 targets, 2 documents, 548 archives, 6
-prerequisites, 0 waivers, 0 conflicts, and 140 advisory/resolved ambiguities;
-the current post-runbook result is 69 targets, 2 documents, 549 archives, 6
-prerequisites, 0 waivers, 0 conflicts, and 141 advisory/resolved ambiguities.
-Do not treat either hash as valid after the owner recaptures the committed tree.
+The reconciled result is 20 targets, 2 documents, 544 archives, 1 legacy
+prerequisite, 0 waivers, 0 conflicts, and 141 advisory/resolved ambiguities.
+Do not treat these hashes as valid after the owner recaptures the committed
+tree.
 
 ### 3. Re-run the isolated candidate and Release gate
 
@@ -211,7 +208,7 @@ migrate.” Resolve every structural diagnostic and every recovery simulation
 failure in the copy first.
 
 Then record the canonical Release decision and the Issue review. The current
-44-blocker decision above is a stop. Only an explicit `Allowed=true` result,
+two-blocker decision above is a stop. Only an explicit `Allowed=true` result,
 fresh evidence for every Release, and owner acceptance of all material Issues
 can move to the live stop point. No task status or Release field may be changed
 just to make this gate pass.
@@ -239,8 +236,9 @@ Expected writes are the exact paths in the reviewed plan:
   activation boundary;
 - the V2 router, `.savepoint/Idea.md`, objective/task/check/issue/release
   records, and any planned documents are installed at their identity paths;
-- `.savepoint/archive/v1/` receives the 549 byte-preserved legacy sources in
-  the current post-runbook plan (the pre-runbook evidence contained 548);
+- `.savepoint/archive/v1/` receives the 544 byte-preserved legacy sources in
+  the reconciled plan; the retired v1.3 tree is already preserved separately
+  under `.savepoint/archive/retired/v1.3/` and is not migration input;
 - `.savepoint/migrations/v1-to-v2.yml` records the operation ID, source hashes,
   identity mapping, archives, prerequisites, waived references, and decisions;
 - the operation journal's `backup/`, `staging/`, and `operation.yml` remain
@@ -294,7 +292,7 @@ The expected checks are:
 - the router is on the V2 lifecycle and ordinary board/doctor/resume paths do
   not parse V1 records;
 - the manifest exists and every source/archive pair has the recorded exact
-  SHA-256; the 549 current archived files are present and no unplanned source
+  SHA-256; the 544 current archived files are present and no unplanned source
   vanished;
 - there is no incomplete `.savepoint/.migration/` operation after successful
   cleanup; if one remains, use the recovery path and do not claim completion;
@@ -330,8 +328,9 @@ out of scope and require separate explicit owner decisions.
 
 The runbook, independent E51 audit reference, source/plan evidence, disposable
 apply, and owner recovery boundary are prepared. The current live handoff is
-**blocked** by the explicit 44-blocker Release decision and the unaccepted
-candidate Issues. The maintainer must resolve those conditions, recapture the
-post-runbook dry-run, review the backup, and then make the separate approval
-decision at the stop point. Until that happens, the repository remains V1 and
-no live migration command is authorized by this task.
+**blocked** by the explicit two-blocker Release decision and the outstanding
+owner review of candidate Issues. The maintainer must complete the current E50
+Tasks, resolve those conditions, recapture the dry-run after committing the
+reconciliation, review the backup, and then make the separate approval decision
+at the stop point. Until that happens, the repository remains V1 and no live
+migration command is authorized by this task.

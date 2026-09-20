@@ -1,7 +1,7 @@
 ---
 version: 1
 name: "Simplified Board"
-status: in_progress
+status: done
 ---
 
 # Release v1 — Simplified Board

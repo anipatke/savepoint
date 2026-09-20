@@ -1,7 +1,6 @@
 ---
 id: E17-defect-workflow-tui/T004-defects-overlay
-status: in_progress
-stage: build
+status: done
 objective: Add a keyboard-driven Defects overlay for browsing release defects by status
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T003-board-defect-summary]
 ---
@@ -25,15 +24,15 @@ Users need to inspect release defects without leaving the board or navigating th
 
 ## Acceptance Criteria
 
-- [ ] Pressing `d` opens a Defects overlay
-- [ ] The overlay lists defects grouped or filtered by open, in-progress, and resolved state
-- [ ] Defect rows show severity, defect id, title, and linked epic/task when available
-- [ ] Arrow and vim navigation move through defects consistently with existing overlays
-- [ ] `esc` closes the overlay without changing board selection
-- [ ] Help text documents the `d` shortcut
-- [ ] Empty defect lists render a clear empty state
-- [ ] Tests cover shortcut handling, navigation, empty state, and overlay rendering
-- [ ] `make build && make test` passes
+- [x] Pressing `d` opens a Defects overlay
+- [x] The overlay lists defects grouped or filtered by open, in-progress, and resolved state
+- [x] Defect rows show severity, defect id, title, and linked epic/task when available
+- [x] Arrow and vim navigation move through defects consistently with existing overlays
+- [x] `esc` closes the overlay without changing board selection
+- [x] Help text documents the `d` shortcut
+- [x] Empty defect lists render a clear empty state
+- [x] Tests cover shortcut handling, navigation, empty state, and overlay rendering
+- [x] `make build && make test` passes
 
 ## Implementation Plan
 
@@ -50,4 +49,3 @@ Users need to inspect release defects without leaving the board or navigating th
 - Files edited: model.go, update.go, view.go, help.go; new: defect_overlay.go, defect_overlay_test.go
 - Token estimate: ~12k
 - Quality gates: `go build ./...` clean, `go test ./...` all green
-

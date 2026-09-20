@@ -1,7 +1,6 @@
 ---
 id: E17-defect-workflow-tui/T006-doctor-docs-and-templates
-status: in_progress
-stage: build
+status: done
 objective: Document the defect workflow and add doctor diagnostics for malformed defect files
 depends_on: [E17-defect-workflow-tui/T001-defect-data-model, E17-defect-workflow-tui/T002-defect-router-priority]
 ---
@@ -25,23 +24,23 @@ Defects become part of the methodology once the TUI can display them. New projec
 
 ## Acceptance Criteria
 
-- [ ] Doctor reports malformed defect frontmatter
-- [ ] Doctor reports invalid defect status and missing stage on in-progress defects
-- [ ] Doctor reports broken introduced-by or related task references when present
-- [ ] Scaffolded methodology docs describe when to use defects instead of epics or tasks
-- [ ] README documents the defect file location and TUI `d` overlay
-- [ ] Live AGENTS.md Codebase Map is updated only if new modules or responsibilities are added
-- [ ] Tests cover doctor diagnostics for valid defects and each malformed defect case
-- [ ] `make build && make test` passes
+- [x] Doctor reports malformed defect frontmatter
+- [x] Doctor reports invalid defect status and missing stage on in-progress defects
+- [x] Doctor reports broken introduced-by or related task references when present
+- [x] Scaffolded methodology docs describe when to use defects instead of epics or tasks
+- [x] README documents the defect file location and TUI `d` overlay
+- [x] Live AGENTS.md Codebase Map is updated only if new modules or responsibilities are added
+- [x] Tests cover doctor diagnostics for valid defects and each malformed defect case
+- [x] `make build && make test` passes
 
 ## Implementation Plan
 
-- [ ] Add defect validation checks through doctor using the data-layer parser
-- [ ] Add report messages and repair suggestions for defect-specific errors
-- [ ] Update scaffolded methodology documentation with the defect lane
-- [ ] Update README with concise defect workflow usage
-- [ ] Update live Codebase Map if the implementation adds new module responsibilities
-- [ ] Run `make build && make test`
+- [x] Add defect validation checks through doctor using the data-layer parser
+- [x] Add report messages and repair suggestions for defect-specific errors
+- [x] Update scaffolded methodology documentation with the defect lane
+- [x] Update README with concise defect workflow usage
+- [x] Update live Codebase Map if the implementation adds new module responsibilities
+- [x] Run `make build && make test`
 
 ## Context Log
 
@@ -49,4 +48,3 @@ Defects become part of the methodology once the TUI can display them. New projec
 - Files edited: interfaces.go, interfaces_test.go, checks.go, checks_test.go, report.go, repairs.go, templates/project/AGENTS.md, README.md
 - Token estimate: ~18k
 - Quality gates: make build && make test — all pass
-
