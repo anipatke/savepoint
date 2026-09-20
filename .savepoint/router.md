@@ -15,8 +15,8 @@ Read `.savepoint/PRD.md` only for vision changes. Read `.savepoint/Design.md` on
 state: task-building
 release: v2
 epic: E50
-task: E50-release-validation-cutover/T006-record-realistic-trials-and-agent-scenarios
-next_action: Build E50-release-validation-cutover/T006-record-realistic-trials-and-agent-scenarios.
+task: E50-release-validation-cutover/T007-prepare-the-maintainer-controlled-repository-cutover
+next_action: Build E50-release-validation-cutover/T007-prepare-the-maintainer-controlled-repository-cutover.
 ```
 
 ## State → action
