@@ -14,11 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: task
+state: design
 release: R006
 objective: O001
 task: T002
-next_action: Run an independent Check for T002; then obtain T001 clearance and owner completion evidence before reevaluating R006 cutover.
+next_action: Reconcile the runtime V2 gate resolvers and tests with the documented policy: Task Checks are optional and owner-waivable; Full Objective and Release Checks remain mandatory. Then resume T002.
 ```
 
 ## State → action
@@ -27,8 +27,8 @@ next_action: Run an independent Check for T002; then obtain T001 clearance and o
 | --- | --- | --- |
 | `idea` | `savepoint-idea` | Capture intent and boundaries in `.savepoint/Idea.md`. |
 | `design` | `savepoint-design` | Reconcile architecture, guardrails, and Objective plan. |
-| `task` | `savepoint-task` | Execute the active Task within its Context Files and hand it to a fresh Check. |
-| `check` | `savepoint-check` | Independently verify the Task or Objective and record immutable evidence. |
+| `task` | `savepoint-task` | Execute the active Task within its Context Files; choose an optional Task Check or route evidence to the mandatory Full Objective Check. |
+| `check` | `savepoint-check` | Independently verify a requested Task or the mandatory Objective/Release scope and record immutable evidence. |
 
 `REPLAN REQUIRED` is not a fifth state. It routes the current plan back to
 `design` while preserving partial work and the executor's current lifecycle.
@@ -39,6 +39,10 @@ next_action: Run an independent Check for T002; then obtain T001 clearance and o
 - Task `stage` is required only for `in_progress`: `build` → `test` → `audit`.
 - A Task's `done` transition remains owner-authorized; a Check does not silently
   close it.
+- A Task Check is optional and may be skipped only with an explicit owner
+  waiver recorded in the Task evidence; that waiver is not technical `CLEAR`.
+- A Full Objective Check is mandatory before Objective completion, and a
+  Release Check is mandatory whenever a Release exists.
 - Issues are durable follow-up records, not a fourth task column or router
   state. Only `savepoint-check` closes an Issue.
 - Releases are optional delivery boundaries. Their membership and completion

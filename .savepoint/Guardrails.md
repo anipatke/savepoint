@@ -87,7 +87,8 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 | TEST-05 | Required | Bug fixes must include a regression test or an explicit failing scenario that proves the bug. |
 | TEST-06 | Required | "Existing tests cover it" is acceptable only when the exact test file and test case names are recorded. |
 | TEST-07 | Required | Coverage percentage alone does not satisfy evidence for changed behavior. |
-| TEST-08 | Blocker | `make build && make test` must pass before task handoff. |
+| TEST-08 | Blocker | `make build && make test` must pass before Task handoff, whether or not the optional Task Check is requested. |
+| TEST-09 | Required | If an optional Task Check is skipped, Task evidence must carry an explicit owner waiver naming the Task, reason, actor, and time; the waiver never replaces the mandatory Objective or Release Check. |
 
 ### Release And Distribution
 
@@ -121,13 +122,20 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 
 ## Savepoint Enforcement
 
-Savepoint health checks define how these policies are applied:
+Savepoint checks define how these policies are applied:
 
-- Quick: task handoff evidence.
-- Full: epic audit evidence.
-- Deep: release readiness evidence.
+- Task handoff: per-criterion implementation evidence and configured quality
+  gates. An independent Task Check is optional and may be skipped only with
+  the explicit owner waiver required by TEST-09.
+- Full Objective Check: mandatory before Objective closure; it reviews every
+  owned Task, including waived Tasks, plus integration and Design
+  reconciliation.
+- Full Release Check: mandatory whenever a Release exists; it reviews all
+  member Objectives and cross-Objective integration before exact owner
+  acceptance.
 
-Release audit plans map active epics to the rule IDs they must verify. Health checks may fail work only on rules defined here, unmet Savepoint acceptance criteria, missing evidence, or explicit release gates.
+Checks may fail work only on rules defined here, unmet Savepoint acceptance
+criteria, missing evidence, or explicit release gates.
 
 Required waivers must be explicit and documented. Blocker exceptions require direct owner approval.
 

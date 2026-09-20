@@ -32,10 +32,11 @@ undifferentiated file, and never given a fourth home:
 
 1. Lint, typecheck, build, and test commands move into `config.yml`'s
    `quality_gates`.
-2. The universal Quick/Full evidence mechanics move nowhere new — they are
+2. The shared Quick/Full evidence mechanics move nowhere new — they are
    already written once, for every project, in
-   `agent-skills/references/check-method.md`. Do not copy that method's
-   prose into a project file.
+   `agent-skills/references/check-method.md`. Quick is optional for a requested
+   Task Check; Full is mandatory for Objective and Release integration checks.
+   Do not copy that method's prose into a project file.
 3. Whatever remains — project-specific prose describing a manual
    verification workflow that has no home in either of the above — becomes
    one preserved optional procedure file the project references.
@@ -69,6 +70,7 @@ something a Check or an audit should flag as missing.
 
 When a Task needs verification beyond the shared check method and the
 configured gates, it names that in its own `## Technical Verification`
-section. It does not edit `agent-skills/references/check-method.md`,
+section. The Task still records implementation evidence even when its optional
+Task Check is waived. It does not edit `agent-skills/references/check-method.md`,
 `config.yml`'s `quality_gates`, or any other shared policy file to add a
 one-off requirement.

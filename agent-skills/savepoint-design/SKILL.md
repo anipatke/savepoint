@@ -39,6 +39,21 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 9. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
 10. When the next Objective's Tasks are detailed and approved, set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`.
 
+## Verification Contract
+
+Apply this contract to every implementation, not only to migration work:
+
+- Every Task needs implementation evidence and configured quality-gate results.
+- A Task Check is optional. If the owner skips it, record an explicit waiver
+  in the Task evidence naming the Task, reason, actor, and time. The waiver is
+  not technical `CLEAR`, does not waive acceptance criteria or guardrails, and
+  does not satisfy a dependency that explicitly requires `clear`.
+- The Full Objective Check is mandatory before Objective closure. It reviews
+  every owned Task, including waived Tasks, cross-Task integration, and
+  reconciliation against this Design.
+- A Release Check is mandatory whenever a Release exists, and exact owner
+  acceptance of its current Check remains required.
+
 ## Optional Release Boundary
 
 When the owner chose a Release boundary in Idea, define it as a delivery promise that can be navigated across its member Objectives. A Release is still optional: when no Release is useful, create no Release record and continue through Idea → Design → Task → Check with no missing-record error or extra phase.
@@ -125,11 +140,19 @@ Reopening an existing V2 project shows selected work, recorded Check freshness, 
 
 ## User Check
 
-Open a project with a Task awaiting Check; invoke resume as the human; confirm Task/outcome, owner-wait distinction, evidence date, and next action match the board. No automatic command execution or newly written evidence should appear.
+If the owner requests a local Task Check, open a project with a Task awaiting
+that Check; invoke resume as the human; confirm Task/outcome, owner-wait
+distinction, evidence date, and next action match the board. No automatic
+command execution or newly written evidence should appear. If the owner waives
+the local Check, record the waiver in Task evidence and rely on the mandatory
+Full Objective Check for integration.
 
 ## Done When
 
-Correct Task/Objective and next action; stale/unknown evidence is explicit; malformed/missing selection is named; file bytes and mtimes unchanged; required owner validation recorded after technical clearance.
+Correct Task/Objective and next action; stale/unknown evidence is explicit;
+malformed/missing selection is named; file bytes and mtimes unchanged; an
+optional Task Check is either current or explicitly waived; required owner
+validation is recorded after the mandatory integration evidence.
 
 ## Context Files
 

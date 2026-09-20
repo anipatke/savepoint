@@ -10,8 +10,10 @@ full by `savepoint-check`, which owns the Check trigger, scope, evidence mode,
 and output contract. `savepoint-task` and `savepoint-design` reference it but
 do not run it themselves.
 
-Read and apply this method completely for both a Task Check and an Objective
-Check.
+Read and apply this method completely whenever a Check is run. A Task Check is
+optional and runs only when requested or selected by the owner; the Full
+Objective Check is mandatory at Objective closure, and the Full Release Check
+is mandatory whenever a Release exists.
 
 Where this method names `.savepoint/Guardrails.md` or an optional project
 verification procedure, use them when the project has them and skip the
@@ -19,27 +21,43 @@ related step when they are absent; absence is not an Issue.
 
 ## Task Check And Objective Check Depth
 
-A Task Check is focused: one Task's outcome and evidence against its own
-acceptance criteria, plan, and scoped files.
+A Task Check is focused and optional: one Task's outcome and evidence against
+its own acceptance criteria, plan, and scoped files. If the owner skips this
+local Check, the Task evidence must record an explicit waiver naming the Task,
+reason, actor, and time. A waiver is not technical `CLEAR`, does not waive an
+acceptance criterion or guardrail, and does not satisfy a dependency that
+explicitly requires `clear`.
 
 An Objective Check does everything a Task Check does, plus integration across
-the Objective's Tasks and reconciliation against Design. A Task-only clearance
-never substitutes for the Objective's own Check.
+the Objective's Tasks and reconciliation against Design. It is mandatory and
+must inspect every owned Task, including Tasks whose optional Task Check was
+waived. A Task-only clearance never substitutes for the Objective's own Check.
+
+A Release Check is also mandatory whenever a Release exists. It uses Full
+evidence to evaluate every member Objective and cross-Objective integration;
+the owner's acceptance of that exact current Check remains a separate step.
 
 ## Quick And Full Evidence Modes
 
 Both modes apply the method below at different reach:
 
-- **Quick** — run at Task handoff. Scope is the one Task: its acceptance
-  criteria, its scoped files, and directly relevant `.savepoint/Guardrails.md`
-  rules.
-- **Full** — run for an Objective Check. Scope adds every member Task's
-  outcome, cross-Task integration, and reconciliation against Design.
+- **Quick** — run only when the optional Task Check is requested. Scope is the
+  one Task: its acceptance criteria, its scoped files, and directly relevant
+  `.savepoint/Guardrails.md` rules. Quick evidence is never an automatic gate
+  at every Task handoff.
+- **Full** — run for the mandatory Objective Check. Scope adds every member
+  Task's outcome, cross-Task integration, and reconciliation against Design.
+  Use the same Full depth for the mandatory Release Check, extending scope to
+  every member Objective and cross-Objective integration.
 
 Both modes apply `.savepoint/Guardrails.md` when the project has it and skip
 that step when it is absent. Both modes may run an optional project
 verification procedure when the project defines one and skip that step when
 it does not exist. Neither absence is an Issue; it is a skipped step.
+
+Skipping an optional Task Check is not itself an Issue when the owner waiver is
+present. The mandatory Objective Check still evaluates the Task's evidence and
+any material guardrail or integration risk.
 
 ## Establish Scope
 
@@ -254,7 +272,8 @@ Run focused tests for changed behavior and relevant failure paths. Run
 direct type or lint checks when the default gate excludes scoped files. Run
 `git diff --check`, `make build`, and `make test` unless the invoking skill
 names a narrower approved gate. Apply the evidence mode the invoking skill
-requires: Quick for a Task Check, Full for an Objective Check. Treat passing
+requires: Quick only for a requested Task Check, Full for the mandatory
+Objective or Release Check. Treat passing
 tests and gates as supporting evidence, never as a substitute for acceptance
 review.
 

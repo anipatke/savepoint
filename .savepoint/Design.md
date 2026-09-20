@@ -39,7 +39,7 @@ last_audited: v2/E51-first-class-releases
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
-- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C###` record; the executor cannot clear its own work or close an Issue.
+- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Release Check is mandatory whenever a Release exists. The executor cannot clear its own work or close an Issue.
 
 ## 2. Directory layout
 
@@ -83,7 +83,7 @@ copies, not hardcoded strings.
 | **Release**  | Optional `R###` delivery boundary. Membership is derived from Objective references; completion never publishes or deploys. |
 | **Objective**| A durable outcome with an optional Release reference and owned Tasks.                 |
 | **Task**     | Independently buildable work owned by exactly one Objective; requires an implementation plan before build. |
-| **Check**    | Immutable independent evidence for technical clearance, integration, or owner validation. |
+| **Check**    | Immutable independent evidence: optional Quick evidence for a requested Task Check, mandatory Full integration evidence for an Objective, and mandatory Full cross-Objective evidence for a Release. |
 | **Issue**    | Durable follow-up for a defect, drift, guardrail gap, or verification problem; its lifecycle is separate from Task status. |
 | **Sub-task** | Inline checklist item — _evidence of the implementation plan_, not standalone work.    |
 
@@ -103,7 +103,8 @@ Three statuses, with explicit gates and ownership boundaries:
 - Agents may only advance a task into `in_progress`; they must not set `done` or retreat a task to an earlier status.
 - Only the user may set a task to `done` or retreat it from `done` to `in_progress` when follow-up work is required.
 - Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
-- Verification mode: see `config.yml`.
+- Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks; a Release Check remains mandatory whenever a Release exists.
+- This verification contract is the current O001/T002 replan target. The router remains in `design` until the runtime gate resolvers and their tests enforce the same optional-Task / mandatory-Objective-and-Release split; these documents are not evidence that the code has already adopted it.
 
 Issues use `open`, `in_progress`, and `resolved`; `stage` is required only while an Issue is `in_progress`. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
 
@@ -113,7 +114,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 
 - Declared in YAML frontmatter. Task dependencies use `T###` references and Objective dependencies use `O###`; the board transition gate and doctor diagnostics resolve them through `internal/data.ResolveDependency`.
 - Doctor dependency checks detect duplicate task IDs, missing dependencies, and dependency cycles.
-- Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate.
+- Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate. A Task-check waiver does not satisfy a dependency that explicitly requires `clear`; the planner must choose another qualifying evidence path or replan that dependency.
 
 ## 6. CLI surface
 
@@ -135,16 +136,17 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 ## 7. Independent Check workflow
 
 ```
-0. Quality Gates  — Executor runs configured build/test gates before Check handoff.
-1. Check          — Router enters `check` for an active Task or Objective.
-2. Verify         — A fresh checker reads the Task, Design, Guardrails, scoped files, and shared check method, then writes an immutable `C###` record.
-3. Repair         — `NEEDS WORK` records Issues and returns the executor to `stage: build`; a fresh re-check supersedes the prior Check.
-4. Clear          — `CLEAR` is evidence, not automatic ownership; only the user closes a Task or accepts an Objective/Release outcome.
+0. Quality Gates       — Executor runs configured build/test gates before handoff.
+1. Optional Task Check — A fresh checker runs Quick evidence only when the owner requests it; an explicit owner waiver may skip it.
+2. Full Objective Check — A fresh checker must verify every owned Task, integration, and Design reconciliation before Objective closure.
+3. Release Check       — When a Release exists, a fresh checker must verify cross-Objective integration before owner acceptance.
+4. Repair              — `NEEDS WORK` records Issues and returns the executor to `stage: build`; a fresh re-check supersedes the prior Check.
+5. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective/Release outcome.
 ```
 
 - Check records are immutable at `.savepoint/checks/C###-slug.md`; a re-check writes a new record naming the one it supersedes.
 - `savepoint-check` is the only role that can close an Issue or write a Check record; the executor records repair evidence but does not grant clearance.
-- Both Quick Task Checks and Full Objective Checks apply the shared non-triggerable method in `agent-skills/references/check-method.md`.
+- Requested Quick Task Checks and mandatory Full Objective/Release Checks apply the shared non-triggerable method in `agent-skills/references/check-method.md`.
 
 Three layers:
 

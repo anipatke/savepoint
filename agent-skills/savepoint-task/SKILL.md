@@ -7,7 +7,7 @@ description: Executes one Savepoint Task within its planned boundaries when rout
 
 ## Purpose
 
-Build exactly one Task within the boundaries the planner already set, and leave behind a truthful record of what happened. This is the role with the most room to quietly lie: widening scope and calling it necessary, redesigning around an inconvenient plan without saying so, ticking acceptance criteria that were never actually verified, or granting itself clearance. This skill closes those off structurally: it can advance a Task's lifecycle and record evidence, but it can never write the Check that clears that evidence, and a materially invalid plan produces `REPLAN REQUIRED` rather than an improvised rewrite.
+Build exactly one Task within the boundaries the planner already set, and leave behind a truthful record of what happened. This is the role with the most room to quietly lie: widening scope and calling it necessary, redesigning around an inconvenient plan without saying so, ticking acceptance criteria that were never actually verified, or granting itself clearance. This skill closes those off structurally: it can advance a Task's lifecycle and record evidence, but it can never write an optional Task Check or the mandatory Objective Check that evaluates that evidence, and a materially invalid plan produces `REPLAN REQUIRED` rather than an improvised rewrite.
 
 ## Trigger
 
@@ -28,24 +28,25 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 1. Confirm the start is allowed: the Task's own dependencies are satisfied and its owning Objective is ready. A blocked start is reported to the planner, never worked around by starting anyway or substituting a different Task.
 2. Set the Task `status: in_progress` and `stage: build`.
 3. Implement the plan's checklist in scoped order, writing code that follows the `STYLE` guardrail rules where the project defines them.
-4. Advance the lifecycle as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check, and explicitly does not mean it passed.
+4. Advance the lifecycle as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check when one is requested — an optional Task Check or the mandatory Full Objective Check — and explicitly does not mean it passed.
 5. Before editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
 6. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
-7. At handoff, verify every acceptance criterion against a concrete outcome, run `make build && make test`, and record the required technical evidence.
-8. Hand off to a fresh `savepoint-check` session. The executor's own session can never be that Check.
+7. At handoff, verify every acceptance criterion against a concrete outcome, run `make build && make test`, and record the required technical evidence whether or not an optional Task Check is requested.
+8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
 
 ## Write Boundary
 
 This skill may write: scoped implementation for the active Task, recorded evidence (extra reads, per-criterion outcomes, command results, limitations), lifecycle progress (`status` and `stage`), and a replan handoff when one is needed.
 
-It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue, or claim clearance or owner acceptance for its own work. Those are the checker's and owner's authority, not the executor's.
+It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. Those are the checker's and owner's authority, not the executor's.
 
 ## Lifecycle
 
 - **Start:** `planned` → `in_progress` with `stage: build`. Requires satisfied Task dependencies and a ready owning Objective.
-- **Verify implementation:** `stage: build` → `test` → `audit`, recording acceptance-criterion evidence and required command results along the way. `audit` means ready for Check — it is never recorded or described as passed.
+- **Verify implementation:** `stage: build` → `test` → `audit`, recording acceptance-criterion evidence and required command results along the way. `audit` means ready for an optional Task Check or mandatory Objective Check — it is never recorded or described as passed.
 - **Replan:** keep the current `status` and `stage`; set the replan reason with handoff evidence; preserve partial work; stop for the planner.
-- **After a Check:** a `NEEDS WORK` Check resumes repair at `stage: build` within the same Task. A `CLEAR` Check does not close the Task by itself — completion and `status: done` are the checker's or owner's action, never something this skill sets for itself.
+- **After a Task Check:** a `NEEDS WORK` Check resumes repair at `stage: build` within the same Task. A `CLEAR` Check does not close the Task by itself — completion and `status: done` are the owner's action, never something this skill sets for itself.
+- **Without a Task Check:** an explicit owner waiver is recorded in the Task evidence. It waives only the optional local Check; it does not create technical `CLEAR`, satisfy a dependency that explicitly requires `clear`, or replace the mandatory Full Objective Check.
 
 ## Extra Reads
 
@@ -80,16 +81,16 @@ At handoff, the Task's recorded evidence must include:
 - the files read and the files changed, including every logged extra read;
 - stated limitations — anything not verified, or verified only partially.
 
-This evidence is what a fresh `savepoint-check` session will treat as claims to verify, not as proof by itself; see `agent-skills/references/check-method.md` for what that session does with it. Handoff always goes to that fresh session — this skill's own session, having built the Task, can never be the Check that clears it.
+This evidence is what a fresh `savepoint-check` session will treat as claims to verify, not as proof by itself; see `agent-skills/references/check-method.md` for what that session does with it. When an optional Task Check is requested, handoff goes to that fresh session — this skill's own session, having built the Task, can never be that Check. When the owner waives the Task Check, the same evidence is consumed by the mandatory Full Objective Check instead.
 
 ## Rules
 
 - Stay within the active Task's scope; do not widen it and call the extra work necessary without a replan.
 - Do not edit acceptance criteria to match what was built.
-- Do not write a Check record, close an Issue, or claim clearance or owner acceptance for this Task's own work.
+- Do not write a Check record, close an Issue, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work.
 - A blocked start (unsatisfied Task dependency, an owning Objective that is not ready) is reported, never worked around.
 - Every read beyond the Task's Context Files is logged with what was read and why.
 - A materially invalid plan returns `REPLAN REQUIRED` with preserved partial work and unchanged `status`/`stage`; it is never silently redesigned.
 - Treat the `STYLE` guardrail rules as advisory: they shape the code written, but do not block handoff on their own, and this skill references guardrail rule IDs rather than restating rule prose.
-- Handoff always names a fresh `savepoint-check` session as the next step; the executor's own session is never that Check.
+- A requested Task Check always names a fresh `savepoint-check` session as the next step; the executor's own session is never that Check. A waived Task Check routes to the mandatory Full Objective Check.
 - Use `state` only for router phase, Task `status` only for Task lifecycle, and `stage` only when the Task is `in_progress`.

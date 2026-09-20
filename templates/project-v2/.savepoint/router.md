@@ -37,7 +37,7 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 - `idea`: intent and boundary are being defined in `.savepoint/Idea.md`.
 - `design`: `Design.md`, `Guardrails.md`, and the current Objective's Tasks are being kept ready; see the Readiness Gate in `savepoint-design`.
 - `task`: the active Task is being built by `savepoint-task`, within the boundaries the planner already set.
-- `check`: the active Task or Objective is being independently verified by a fresh `savepoint-check` session.
+- `check`: a requested Task or the mandatory Objective/Release scope is being independently verified by a fresh `savepoint-check` session.
 
 ## Terminology
 
@@ -45,3 +45,14 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 - Task `status` is only `planned`, `in_progress`, or `done`.
 - Task `stage` is required when task `status` is `in_progress`: `build` → `test` → `audit`.
 - An Issue is a durable follow-up record entered from any of the four skills' own workflow, not a fifth state; see `agent-skills/references/issue-capture.md`.
+
+## Verification Policy
+
+- Every Task records implementation evidence and configured quality-gate
+  results before handoff.
+- A Task Check is optional. Skipping it requires an explicit owner waiver in
+  the Task evidence; the waiver is not technical `CLEAR`.
+- The Full Objective Check is mandatory and includes every owned Task,
+  including waived Tasks, cross-Task integration, and Design reconciliation.
+- A Release Check is mandatory whenever a Release exists, followed by exact
+  owner acceptance of the current Check.

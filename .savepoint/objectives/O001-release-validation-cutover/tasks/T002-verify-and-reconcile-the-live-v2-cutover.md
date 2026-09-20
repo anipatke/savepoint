@@ -92,6 +92,7 @@ An owner-run apply does not complete E50 by itself. The resulting repository mus
 - 2026-09-20: Distribution gates passed: `make build-all`, `make dist`, `make verify-dist`, and the package test. The repository `make package-check` target reached the npm test but its default npm cache/log directory was not writable in this environment; the equivalent `npm --cache /tmp/savepoint-npm-cache pack --dry-run --ignore-scripts` passed and listed all six platform binaries.
 - 2026-09-20: Re-ran the exact `make package-check` target with `NPM_CONFIG_CACHE=/tmp/savepoint-npm-cache`; npm test and six-platform dry-run packaging both passed.
 - 2026-09-20: Active V2 guidance now names the four-state router, V2 Design boundary, archived V1 source, and legacy-template boundary. `templates/project/AGENTS.md` is explicitly labeled as a V1 migration fixture; `templates/project-v2/` remains the active scaffold. V1 skills remain available for that compatibility path but are not activated by the live router.
+- 2026-09-20: REPLAN REQUIRED. The owner clarified a global V2 gate policy: an individual Task Check is optional and may be explicitly waived for any implementation, while the Full Objective Check (the V2 equivalent of an epic check) is mandatory and Release Checks remain mandatory when a Release exists. Do not create a T001 Task Check under the superseded policy; reconcile the shared gate contract before resuming T002.
 
 ## Replan Required
 

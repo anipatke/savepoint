@@ -25,6 +25,23 @@ Three shared references back these four skills and are never triggered directly:
 
 Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only for architecture readiness.
 
+## Verification Policy
+
+- Every Task still records per-criterion evidence and runs the configured
+  quality gates before handoff.
+- A Task Check is optional, not an automatic implementation gate. If the
+  owner skips the optional independent Task Check, the Task evidence must
+  carry an explicit owner waiver naming the Task, reason, actor, and time.
+  That waiver is not technical `CLEAR` and does not waive any acceptance
+  criterion, guardrail, Objective Check, or Release Check.
+- The Full Objective Check is mandatory before an Objective can close. It is
+  the V2 higher-level integration gate and covers every owned Task, including
+  Tasks whose optional Task Check was waived, plus cross-Task integration and
+  Design reconciliation.
+- A Release Check is mandatory whenever a Release exists. It covers all member
+  Objectives and cross-Objective integration, followed by exact owner
+  acceptance of the current Check.
+
 ## Optional Releases
 
 A Release is an optional delivery boundary, not another public state. Ask for one during Idea only when the owner needs a navigable delivery/package promise across multiple Objectives. Without one, the normal Idea → Design → Task → Check path remains complete and must not report a missing Release record.
@@ -51,15 +68,19 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 ## Implementation
 
-Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget (a Task's own `## Context Files`), `status: in_progress` + `stage: build` setting, per-criterion evidence, and handoff to a fresh `savepoint-check` session.
+Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget (a Task's own `## Context Files`), `status: in_progress` + `stage: build` setting, per-criterion evidence, and the handoff decision between an optional Task Check and the mandatory Full Objective Check.
 
 **Stop. Prompt the user before continuing.** Only the user may mark a Task `status: done` or retreat a Task to an earlier status; only a Check may close an Issue.
 
 ## Check
 
-`savepoint-check` is the only role that can close a Task, an Objective, or an Issue.
+`savepoint-check` is the only role that can write a Check record or close an
+Issue. The owner closes Tasks and accepts Objective/Release outcomes after the
+required evidence exists.
 
-- A Task Check runs at Quick evidence; an Objective Check runs at Full evidence and additionally covers cross-Task integration and reconciliation against `Design.md`.
+- A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
+- A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
+- A Release Check is mandatory whenever a Release exists and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.

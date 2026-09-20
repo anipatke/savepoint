@@ -33,8 +33,10 @@ Savepoint makes those boundaries explicit:
   strict list of Context Files.
 - **Keep policy durable.** Guardrails live beside the project instead of being
   hidden in a prompt or a chat transcript.
-- **Check independently.** A fresh Check verifies the result and returns a
-  simple `CLEAR` or `NEEDS WORK` verdict.
+- **Check at the right level.** A Task Check is optional and may be explicitly
+  waived by the owner. The mandatory Full Objective Check verifies every owned
+  Task and its integration; a Release Check is mandatory whenever a Release
+  exists.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
 - **Use Releases when they help.** A V2 project may add stable `R###` Release
@@ -49,9 +51,12 @@ those things a shared workflow.
 ## The workflow
 
 ```text
-IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  CHECK
-  intent       architecture    bounded      independent
-  & outcome    & guardrails    execution     evidence
+IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  RELEASE CHECK*
+  intent       architecture    bounded      mandatory Full           mandatory Full
+  & outcome    & guardrails    execution     integration              cross-Objective
+                                      ╰─ optional Quick Task Check
+                                         or explicit owner waiver
+                                      *when a Release exists
 ```
 
 ### Idea
@@ -76,10 +81,13 @@ than quietly inventing a new architecture.
 
 ### Check
 
-An independent checker verifies the Task against its acceptance criteria,
-guardrails, tests, and relevant design. A successful check is evidence, not
-just a green command: it explains what was verified and why the result is
-safe to advance.
+An independent checker may run an optional Quick Task Check when the owner
+requests it. If the owner skips that local review, the Task evidence records an
+explicit waiver; the waiver is not technical `CLEAR` and does not waive any
+acceptance criterion or guardrail. Before an Objective closes, a mandatory
+Full Objective Check verifies every owned Task, cross-Task integration, and
+Design reconciliation. When a Release exists, a mandatory Full Release Check
+verifies cross-Objective integration before the owner accepts that exact Check.
 
 ## Quick start
 

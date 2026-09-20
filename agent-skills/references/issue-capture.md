@@ -56,6 +56,10 @@ history:
 
 `type` is descriptive: it names what kind of durable follow-up this is, and it is never sufficient on its own to block a Task. Material blocking comes from a Check recording `NEEDS WORK` against an acceptance criterion or guardrail, not from an Issue's `type`.
 
+An optional Task Check may be absent under an explicit owner waiver; that
+absence is not an Issue and does not waive the mandatory Full Objective Check
+or, when a Release exists, the mandatory Release Check.
+
 ## Search Before Creating
 
 Before allocating an `I###`, look for an existing Issue matching the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed: nothing in Savepoint runs a matching pass for you, so this search is a manual step every capture takes before naming a new ID.
