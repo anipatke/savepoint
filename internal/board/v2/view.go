@@ -383,7 +383,7 @@ func (m Model) hints() string {
 	case !m.sidebarVisible():
 		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail", m.focusedActionText(), "?:help  q:quit")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  r:releases  enter:select  v:detail  i:issues  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  →:cards  r:releases  enter:select  v:detail  i:issues  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
 	default:
 		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
 	}

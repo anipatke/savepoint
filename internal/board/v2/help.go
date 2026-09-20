@@ -21,7 +21,7 @@ func renderHelp(model Model, width, height int) string {
 		styles.ColumnTitleFocused.Render("KEYBOARD HELP"),
 		fitLine(strings.Repeat("─", textWidth), textWidth),
 		helpRow("↑↓ / j k", "move within the focused surface"),
-		helpRow("←→ / h l", "move between columns"),
+		helpRow("←→ / h l", "move between columns, and into/out of Objectives at the edge"),
 		helpRow("tab", "move between Objectives and Tasks"),
 		helpRow("r", "open the Release selector"),
 		helpRow("enter / v", "open the focused record"),

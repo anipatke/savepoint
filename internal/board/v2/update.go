@@ -69,11 +69,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKey dispatches one key to the surface that has focus: an open detail
-// overlay first, then the sidebar, then the columns. Tab is the only key that
-// crosses between the two board surfaces, so the columns' own left/right keep
-// clamping at their ends rather than quietly handing focus away — and while an
-// overlay is open it does not cross at all, because the keys belong to what is
-// on top.
+// overlay first, then the sidebar, then the columns. Tab crosses between the
+// two board surfaces directly, and left/right do the same at the columns'
+// outer edge — left from the Planned column enters the sidebar, and right
+// from the sidebar returns to it — so arrow keys alone can walk every column
+// end to end. While an overlay is open, keys do not cross at all, because
+// they belong to what is on top.
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if m.Help {
@@ -242,10 +243,15 @@ func (m Model) runAction(action BoardAction) tea.Cmd {
 // handleColumnKey moves the card cursor and opens the focused Task's detail.
 // Enter has no other meaning on the columns, so it is the detail key there;
 // v is the same action, and is what the sidebar uses because enter already
-// selects an Objective.
+// selects an Objective. Left from the leftmost column crosses into the
+// sidebar rather than clamping, when the sidebar is on screen to receive it.
 func (m *Model) handleColumnKey(key string) {
 	switch key {
 	case "left", "h":
+		if columnIndex(m.FocusedColumn) == 0 && m.sidebarVisible() {
+			m.focusSidebar()
+			return
+		}
 		m.focusColumn(-1)
 	case "right", "l":
 		m.focusColumn(1)
@@ -374,9 +380,14 @@ func (m *Model) refreshDetail() {
 // handleSidebarKey moves the Objective cursor and applies a selection. Enter
 // selects the row under the cursor and escape clears the selection; both are
 // idempotent, and neither writes anything — a selection recorded in router.md
-// is a different key, in a later task.
+// is a different key, in a later task. Right crosses back into the columns,
+// the mirror of the left key that crossed in from the Planned column.
 func (m *Model) handleSidebarKey(key string) {
 	switch key {
+	case "right", "l":
+		m.SidebarFocused = false
+		m.FocusedColumn = data.ColumnPlanned
+		m.clampFocus()
 	case "up", "k":
 		m.moveObjectiveCursor(-1)
 	case "down", "j":
@@ -401,6 +412,15 @@ func (m *Model) toggleSidebarFocus() {
 		return
 	}
 	m.SidebarFocused = !m.SidebarFocused
+}
+
+// focusSidebar moves focus onto the sidebar, the same guard toggleSidebarFocus
+// applies, for the left-arrow crossing at the Planned column's edge.
+func (m *Model) focusSidebar() {
+	if !m.sidebarVisible() {
+		return
+	}
+	m.SidebarFocused = true
 }
 
 // moveObjectiveCursor walks the sidebar, clamping at both ends rather than

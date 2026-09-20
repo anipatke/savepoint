@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // sidebarBoard opens a board wide enough to carry the sidebar beside the three
@@ -268,6 +269,67 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	// Moving the cursor selects nothing by itself.
 	if atBottom.SelectedObjective != "O003" {
 		t.Errorf("SelectedObjective = %q after moving the cursor, want the selection unchanged", atBottom.SelectedObjective)
+	}
+}
+
+// TestLeftArrowAtPlannedColumnEntersSidebar proves arrow keys alone can reach
+// every column end to end, without Tab: left from the Planned column, the
+// board's leftmost surface, crosses into the sidebar exactly as Tab does.
+func TestLeftArrowAtPlannedColumnEntersSidebar(t *testing.T) {
+	viaTab := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
+	viaLeft := press(t, sidebarBoard(t, writeNavigationProject(t)), "left")
+
+	if !viaLeft.SidebarFocused {
+		t.Fatal("left at the Planned column did not move focus to the sidebar")
+	}
+	if viaLeft.ObjectiveCursor != viaTab.ObjectiveCursor {
+		t.Errorf("ObjectiveCursor = %d via left, want %d as Tab leaves it", viaLeft.ObjectiveCursor, viaTab.ObjectiveCursor)
+	}
+
+	// h is the same key as left.
+	viaH := press(t, sidebarBoard(t, writeNavigationProject(t)), "h")
+	if !viaH.SidebarFocused {
+		t.Error("h at the Planned column did not move focus to the sidebar")
+	}
+
+	// A column right of Planned still clamps rather than crossing.
+	inProgress := press(t, sidebarBoard(t, writeNavigationProject(t)), "right", "left")
+	if inProgress.SidebarFocused {
+		t.Error("left from a column other than Planned crossed into the sidebar")
+	}
+}
+
+// TestRightArrowInSidebarReturnsToColumns is the mirror crossing: right from
+// the sidebar hands focus back to the Planned column, matching the edge left
+// crossed in from.
+func TestRightArrowInSidebarReturnsToColumns(t *testing.T) {
+	inSidebar := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
+
+	back := press(t, inSidebar, "right")
+	if back.SidebarFocused {
+		t.Fatal("right in the sidebar did not return focus to the columns")
+	}
+	if back.FocusedColumn != data.ColumnPlanned {
+		t.Errorf("FocusedColumn = %q after right from the sidebar, want Planned", back.FocusedColumn)
+	}
+
+	// l is the same key as right.
+	viaL := press(t, inSidebar, "l")
+	if viaL.SidebarFocused {
+		t.Error("l in the sidebar did not return focus to the columns")
+	}
+}
+
+// TestNarrowTerminalLeftArrowStaysOnColumns proves the arrow-key crossing
+// follows the same screen guard as Tab: a terminal too narrow for the sidebar
+// leaves left/right clamping at the columns rather than crossing into a
+// surface nothing draws.
+func TestNarrowTerminalLeftArrowStaysOnColumns(t *testing.T) {
+	model := openSizedBoard(t, writeNavigationProject(t), sidebarBreakpoint-1, 40)
+
+	narrow := press(t, model, "left")
+	if narrow.SidebarFocused {
+		t.Error("left focused a sidebar the terminal is too narrow to draw")
 	}
 }
 
