@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // GateResult holds the outcome of a single quality gate.
@@ -33,13 +35,16 @@ func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult 
 		}}
 	}
 
+	return runConfiguredQualityGates(root, cfg)
+}
+
+func runConfiguredQualityGates(root string, cfg *data.Config) []GateResult {
 	timeout := 60 * time.Second
 	if cfg.QualityGates.Timeout != "" {
 		if d, err := time.ParseDuration(cfg.QualityGates.Timeout); err == nil {
 			timeout = d
 		}
 	}
-
 	var results []GateResult
 
 	if cfg.QualityGates.Lint != nil && *cfg.QualityGates.Lint != "" {

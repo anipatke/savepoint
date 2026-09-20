@@ -10,6 +10,8 @@ import (
 const stateBlockStart = "## Current state"
 const stateBlockEnd = "```"
 
+// RouterState is the legacy V1 router projection. It is read only by
+// migration/history compatibility code; live commands decode RouterStateV2.
 type RouterState struct {
 	State      string `yaml:"state"`
 	Release    string `yaml:"release"`

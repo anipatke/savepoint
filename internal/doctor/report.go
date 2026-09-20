@@ -32,7 +32,10 @@ type DiagnosticReport struct {
 	EpicFilter    string
 }
 
-// RunAllChecks runs every doctor check and returns a full report. The
+// RunAllChecks is the compatibility report for migration/history fixtures and
+// legacy doctor unit coverage. Live command execution uses RunV2Checks below;
+// keeping this adapter named and documented prevents an accidental call from
+// looking like the V2 runtime's health boundary. The
 // releases/epics/tasks structural checks below are V1's own directory shape;
 // a V2 project has no releases directory by design and CheckProject already
 // reports its single structural diagnostic (see CheckProject), so those

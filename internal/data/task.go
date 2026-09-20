@@ -42,6 +42,9 @@ type Progress struct {
 	Started bool          `yaml:"started"`
 }
 
+// Task is the legacy V1 task model retained for explicit migration and frozen
+// historical fixtures. Live V2 consumers use TaskV2, whose ownership and
+// evidence fields are strict and identity-keyed.
 type Task struct {
 	ID               string         `yaml:"id"`
 	Title            string         `yaml:"title"`

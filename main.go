@@ -106,18 +106,18 @@ func stripDebugFlag(args []string) ([]string, bool) {
 }
 
 func runDoctorChecks(_ cmd.DoctorOptions) (int, error) {
-	discover := data.NewDiscover()
-	root, err := discover.FindSavepointRoot(".")
+	projectRoot, err := migrate.FindProjectRoot(".")
 	if err != nil {
 		return 2, fmt.Errorf("savepoint root not found: %w", err)
 	}
+	root := filepath.Join(projectRoot, ".savepoint")
 
-	preflight := migrate.PreflightCutover(filepath.Dir(root), migrate.CutoverPreflightOptions{})
+	preflight := migrate.PreflightCutover(projectRoot, migrate.CutoverPreflightOptions{})
 	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
 		return 1, fmt.Errorf("doctor: %s", diagnostic)
 	}
 
-	report := doctor.RunAllChecks(root, "")
+	report := doctor.RunV2Checks(root)
 	fmt.Fprint(os.Stdout, report.Format())
 
 	if report.HasProblems() {
@@ -204,7 +204,7 @@ func runResume(dir string, stdout io.Writer) (int, error) {
 		return 1, fmt.Errorf("resume: %s", diagnostic)
 	}
 
-	project, err := data.LoadProject(savepointRoot)
+	index, err := data.LoadV2Index(savepointRoot)
 	if err != nil {
 		return 1, fmt.Errorf("resume: loading project: %w", err)
 	}
@@ -218,7 +218,7 @@ func runResume(dir string, stdout io.Writer) (int, error) {
 		return 1, fmt.Errorf("resume: reading router: %w", err)
 	}
 
-	next := data.ResolveNext(data.NextInput{Index: project.V2, Router: router})
+	next := data.ResolveNext(data.NextInput{Index: index, Router: router})
 
 	if err := resume.Render(stdout, next); err != nil {
 		return 1, fmt.Errorf("resume: writing output: %w", err)

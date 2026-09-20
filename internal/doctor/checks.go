@@ -184,12 +184,24 @@ func releaseDiagnosticsForProject(project *data.Project) releaseDiagnostics {
 	if project == nil || project.SchemaVersion != data.SchemaVersionV2 || project.V2 == nil || len(project.V2.Releases) == 0 {
 		return releaseDiagnostics{}
 	}
+	return releaseDiagnosticsForIndex(project.Root, project.V2)
+}
+
+// releaseDiagnosticsForIndex is the V2-only form used by the live doctor
+// runtime. It accepts the already loaded index rather than schema-dispatching
+// through data.LoadProject, keeping legacy discovery out of ordinary health
+// checks while the compatibility helper above remains available to historical
+// doctor tests.
+func releaseDiagnosticsForIndex(root string, index *data.V2Index) releaseDiagnostics {
+	if index == nil || len(index.Releases) == 0 {
+		return releaseDiagnostics{}
+	}
 
 	var diagnostics releaseDiagnostics
-	for _, releaseID := range slices.Sorted(maps.Keys(project.V2.Releases)) {
-		release := project.V2.Releases[releaseID]
+	for _, releaseID := range slices.Sorted(maps.Keys(index.Releases)) {
+		release := index.Releases[releaseID]
 		if release.LegacyCompletion != nil {
-			if problem := legacyCompletionProblem(project.Root, release); problem != nil {
+			if problem := legacyCompletionProblem(root, release); problem != nil {
 				diagnostics.Problems = append(diagnostics.Problems, *problem)
 			} else if release.Status == data.ColumnDone {
 				diagnostics.Notes = append(diagnostics.Notes, fmt.Sprintf(
@@ -203,11 +215,11 @@ func releaseDiagnosticsForProject(project *data.Project) releaseDiagnostics {
 			continue
 		}
 
-		decision := data.ResolveReleaseCompletion(project.V2, releaseID)
+		decision := data.ResolveReleaseCompletion(index, releaseID)
 		if decision.Allowed {
 			continue
 		}
-		clearance := data.ResolveClearance(project.V2, releaseID)
+		clearance := data.ResolveClearance(index, releaseID)
 		for _, blocker := range decision.Blockers {
 			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker, clearance.Check))
 		}
@@ -602,12 +614,22 @@ func IssuePostureReport(root string) *IssuePosture {
 	if err != nil || project.SchemaVersion != data.SchemaVersionV2 {
 		return nil
 	}
-	posture := &IssuePosture{
-		StatusCounts: project.V2.IssueStatusCounts(),
-		TypeCounts:   project.V2.IssueTypeCounts(),
+	return issuePostureForIndex(project.V2)
+}
+
+// issuePostureForIndex derives the advisory Issue summary from an already
+// loaded V2 index. The live doctor uses this form so it cannot invoke the V1
+// schema dispatcher merely to count Issues.
+func issuePostureForIndex(index *data.V2Index) *IssuePosture {
+	if index == nil {
+		return nil
 	}
-	for _, id := range slices.Sorted(maps.Keys(project.V2.Issues)) {
-		issue := project.V2.Issues[id]
+	posture := &IssuePosture{
+		StatusCounts: index.IssueStatusCounts(),
+		TypeCounts:   index.IssueTypeCounts(),
+	}
+	for _, id := range slices.Sorted(maps.Keys(index.Issues)) {
+		issue := index.Issues[id]
 		if issue.Status != data.IssueStatusOpen && issue.Status != data.IssueStatusInProgress {
 			continue
 		}

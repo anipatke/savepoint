@@ -77,6 +77,30 @@ func ResolveTarget(dir string) (string, error) {
 	return abs, nil
 }
 
+// FindProjectRoot locates the nearest Savepoint project while walking from
+// start toward the filesystem root. This is the live command counterpart to
+// the legacy data.Discover root helper: it only identifies the project
+// boundary and never discovers or parses V1 records.
+func FindProjectRoot(start string) (string, error) {
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return "", fmt.Errorf("resolve project root: %w", err)
+	}
+
+	for {
+		info, statErr := os.Stat(filepath.Join(dir, ".savepoint"))
+		if statErr == nil && info.IsDir() {
+			return dir, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("%w: %s has no .savepoint directory", ErrTargetNotSavepoint, start)
+		}
+		dir = parent
+	}
+}
+
 // targetWriteabilityProbe is injected in tests so preview tests can prove the
 // write-only preflight is never called. It is deliberately separate from
 // ResolveTarget: resolving a target is a read-only operation shared by

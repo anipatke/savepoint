@@ -10,6 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Parser is the legacy V1 frontmatter reader. It remains available to the
+// explicit migration path and frozen historical fixtures; live V2 consumers
+// use the strict record decoders and ParseV2Document instead.
 type Parser struct{}
 
 func NewParser() *Parser {

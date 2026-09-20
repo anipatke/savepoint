@@ -43,14 +43,11 @@ func writeGuard(root string) (string, bool) {
 }
 
 func freshV2Index(root string) (*data.V2Index, error) {
-	project, err := data.LoadProject(root)
+	index, err := data.LoadV2Index(root)
 	if err != nil {
 		return nil, err
 	}
-	if project.SchemaVersion != data.SchemaVersionV2 || project.V2 == nil {
-		return nil, fmt.Errorf("board write requires a V2 project")
-	}
-	return project.V2, nil
+	return index, nil
 }
 
 // writeOwnerAcceptanceCmd re-reads the project and resolves the completion

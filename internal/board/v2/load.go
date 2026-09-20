@@ -92,7 +92,7 @@ func loadProject(root string) projectLoadedMsg {
 		}}
 	}
 
-	project, err := data.LoadProject(root)
+	index, err := data.LoadV2Index(root)
 	if err != nil {
 		return projectLoadedMsg{Diagnostic: err.Error()}
 	}
@@ -107,11 +107,11 @@ func loadProject(root string) projectLoadedMsg {
 	}
 
 	return projectLoadedMsg{State: ProjectState{
-		Index:       project.V2,
+		Index:       index,
 		Router:      router,
 		RouterMtime: routerInfo.ModTime(),
-		Issues:      issueCatalog(project.V2),
-		Next:        data.ResolveNext(data.NextInput{Index: project.V2, Router: router}),
+		Issues:      issueCatalog(index),
+		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
 	}}
 }
 

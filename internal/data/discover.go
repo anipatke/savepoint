@@ -25,6 +25,9 @@ type TaskInfo struct {
 	Path string
 }
 
+// Discover is the legacy V1 directory walker. It is retained for explicit
+// migration and frozen historical fixtures only; live commands use the V2
+// identity-keyed discovery functions below.
 type Discover struct{}
 
 func NewDiscover() *Discover {
