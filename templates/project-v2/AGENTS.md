@@ -122,3 +122,7 @@ make build && make test
 ## CLI Rules
 
 **Never run `savepoint` commands.** The CLI is for the human. Edit files directly.
+
+## Reporting to the Owner
+
+The Context Log stays technical and precise — it's the record a Check session verifies later. Chat replies to the owner are a different audience: a few plain sentences, no jargon, no file/function dumps unless asked. Say what happened and what's next; leave the mechanism in the Context Log.

@@ -135,6 +135,10 @@ preserved historical fixtures.
 
 **Never run `savepoint` commands.** The CLI is for the human. Edit files directly.
 
+## Reporting to the Owner
+
+The Context Log stays technical and precise — it's the record a Check session verifies later. Chat replies to the owner are a different audience: a few plain sentences, no jargon, no file/function dumps unless asked. Say what happened and what's next; leave the mechanism in the Context Log.
+
 ## V2 Routing
 
 This section records the V2 routing contract for a project whose `config.yml` declares `schema_version: 2`. It is active in this migrated repository; in a legacy V1 scaffold it is not active until migration, while this repository's active table is the four-state table above.
