@@ -20,10 +20,8 @@ import (
 	"github.com/opencode/savepoint/internal/resume"
 )
 
-//go:embed templates/project
-//go:embed all:templates/project/.savepoint
 //go:embed templates/prompts
-var projectTemplates embed.FS
+var promptTemplates embed.FS
 
 //go:embed templates/project-v2
 //go:embed all:templates/project-v2/.savepoint
@@ -127,17 +125,16 @@ func runDoctorChecks(_ cmd.DoctorOptions) (int, error) {
 }
 
 func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) error {
-	subV1, err := fs.Sub(projectTemplates, "templates/project")
-	if err != nil {
-		return fmt.Errorf("cannot load templates: %w", err)
-	}
-
 	subV2, err := fs.Sub(projectTemplatesV2, "templates/project-v2")
 	if err != nil {
 		return fmt.Errorf("cannot load templates: %w", err)
 	}
 
-	report, err := savepointinit.UpgradeProjectAssets(subV1, subV2, opts.Dir, opts.DryRun, opts.Force)
+	// V1 projects are deliberately refused inside UpgradeProjectAssets; the
+	// explicit migrate command is the only path allowed to change their
+	// workflow. The first argument is retained for the internal migration/history
+	// compatibility boundary, but production never embeds or selects V1 assets.
+	report, err := savepointinit.UpgradeProjectAssets(nil, subV2, opts.Dir, opts.DryRun, opts.Force)
 	if err != nil {
 		// A failure part-way through still applied whatever came before it.
 		// Print that work before the error so the user knows what changed.
@@ -256,7 +253,7 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 		return err
 	}
 
-	promptSub, err := fs.Sub(projectTemplates, "templates/prompts")
+	promptSub, err := fs.Sub(promptTemplates, "templates/prompts")
 	if err != nil {
 		return fmt.Errorf("cannot load prompt templates: %w", err)
 	}

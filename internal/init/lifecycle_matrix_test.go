@@ -126,6 +126,7 @@ func TestLifecycleMatrix_fullLoopAcrossProjectKinds(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := c.build(t)
+			before := dirSnapshot(t, dir)
 
 			for _, skill := range retiredV1SkillDirs {
 				_, err := os.Stat(filepath.Join(dir, "agent-skills", skill, "SKILL.md"))
@@ -137,6 +138,16 @@ func TestLifecycleMatrix_fullLoopAcrossProjectKinds(t *testing.T) {
 			report, err := UpgradeProjectAssets(v1Templates, v2Templates, dir, false, false)
 			if err != nil {
 				t.Fatalf("first UpgradeProjectAssets() error = %v", err)
+			}
+			if c.name == "legacy V1 project" {
+				if len(report.Actions) != 1 || report.Actions[0].Action != ActionInfo {
+					t.Fatalf("legacy V1 refusal report = %+v, want one informational entry", report.Actions)
+				}
+				if !strings.Contains(report.Actions[0].Note, "savepoint migrate") {
+					t.Fatalf("legacy V1 refusal note = %q, want migration guidance", report.Actions[0].Note)
+				}
+				assertNoChange(t, dir, before)
+				return
 			}
 
 			retiredCount := 0
@@ -173,7 +184,7 @@ func TestLifecycleMatrix_fullLoopAcrossProjectKinds(t *testing.T) {
 
 			// The second run, against the now-settled project, must be a
 			// true no-op: no content change, no mtime change, on any kind.
-			before := dirSnapshot(t, dir)
+			before = dirSnapshot(t, dir)
 			beforeTimes := mtimeSnapshot(t, dir)
 
 			second, err := UpgradeProjectAssets(v1Templates, v2Templates, dir, false, false)

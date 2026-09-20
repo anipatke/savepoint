@@ -55,10 +55,13 @@ func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
 
 	dir := t.TempDir()
 	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+	if err := os.WriteFile(filepath.Join(dir, ".savepoint", "config.yml"), []byte("schema_version: 2\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// A stale skill in a directory that cannot be written: the walk reaches it
 	// after it has already installed earlier skills.
-	blocked := filepath.Join(dir, "agent-skills", "savepoint-audit-epic")
+	blocked := filepath.Join(dir, "agent-skills", "savepoint-check")
 	mkdirAll(t, blocked)
 	if err := os.WriteFile(filepath.Join(blocked, "SKILL.md"), []byte("# Stale\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -76,10 +79,10 @@ func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
 	if !strings.Contains(result.stdout, "Upgrade Report:") {
 		t.Errorf("stdout = %q, want the partial report", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "failed  agent-skills/savepoint-audit-epic/SKILL.md") {
+	if !strings.Contains(result.stdout, "failed  agent-skills/savepoint-check/SKILL.md") {
 		t.Errorf("stdout = %q, want the failed path named", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "agent-skills/references/audit-method.md") {
+	if !strings.Contains(result.stdout, "agent-skills/references/check-method.md") {
 		t.Errorf("stdout = %q, want the already-applied work named", result.stdout)
 	}
 }
@@ -621,35 +624,20 @@ func TestMainUpgradeAssetsStillWorksAfterMigrateAdded(t *testing.T) {
 	}
 }
 
-func TestMainUpgradeAssetsV1ProjectInstallsV1SkillsAndNamesMigrateRoute(t *testing.T) {
+func TestMainUpgradeAssetsV1ProjectRefusesMutationAndNamesMigrateRoute(t *testing.T) {
 	dir := t.TempDir()
 	mkdirAll(t, filepath.Join(dir, ".savepoint"))
+	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"upgrade-assets", dir}, "")
 	if result.err != nil {
 		t.Fatalf("savepoint upgrade-assets failed: %v\nstderr: %s", result.err, result.stderr)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-draft-prd", "SKILL.md")); err != nil {
-		t.Errorf("V1 skill not installed on a project with no schema_version: %v", err)
-	}
-	for _, skill := range v1OnlySkills {
-		if skill == "savepoint-draft-prd" {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill, "SKILL.md")); err != nil {
-			t.Errorf("V1 skill %s not installed: %v", skill, err)
-		}
-	}
-	for _, skill := range []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"} {
-		if _, err := os.Stat(filepath.Join(dir, "agent-skills", skill)); !os.IsNotExist(err) {
-			t.Errorf("V2 skill %s installed on a V1 project, stat err = %v", skill, err)
-		}
-	}
-
 	if !strings.Contains(result.stdout, "savepoint migrate") {
 		t.Errorf("stdout = %q, want the migrate-route note", result.stdout)
 	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
 func TestMainUpgradeAssetsV2ProjectInstallsOnlyV2Skills(t *testing.T) {

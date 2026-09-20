@@ -43,7 +43,7 @@ const (
 
 // noteMigrateRoute is the informational entry a V1 project's upgrade carries,
 // naming the one command that is allowed to change what a project is.
-const noteMigrateRoute = "run `savepoint migrate` to move this project onto the V2 workflow"
+const noteMigrateRoute = "V1 workflow is read-only here; run `savepoint migrate --dry-run`, review the plan, then `savepoint migrate --apply` before upgrading V2 assets"
 
 // Sidecar suffixes for content upgrade must not silently destroy: the incoming
 // version of a conflicted file, and the previous content of a replaced one.
@@ -153,21 +153,37 @@ func (r *UpgradeReport) Format() string {
 // prove what a project looks like after a failure part-way through an upgrade.
 type assetWriter func(path string, content []byte) error
 
-// UpgradeProjectAssets refreshes a project's assets from the template tree
-// that matches its own declared schema_version: v2Templates for a project
-// that has migrated, v1Templates for one that has not. The version is read
-// through data.ReadSchemaVersion and never written — migrate is the only
-// operation that changes what a project is, and an upgrade that could
-// promote a project to V2 would be a migration wearing a different name.
+// UpgradeProjectAssets refreshes a V2 project's assets from v2Templates. The
+// version is read through data.ReadSchemaVersion and never written — migrate
+// is the only operation that changes what a project is, and an upgrade that
+// could promote a project to V2 would be a migration wearing a different name.
 //
 // A malformed or unsupported schema_version refuses before the tree is ever
 // walked, naming the config path and touching nothing. A legacy V1 project's
-// upgrade proceeds exactly as it always has, with one informational entry
-// added to the report naming savepoint migrate as the route to V2.
+// upgrade is a read-only informational refusal naming savepoint migrate as the
+// route to V2. The v1Templates argument remains only so migration/history
+// tests can keep their explicit compatibility boundary; production passes nil.
 func UpgradeProjectAssets(v1Templates, v2Templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
+	_ = v1Templates
 	absTarget, err := filepath.Abs(targetDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot resolve target directory: %w", err)
+	}
+	if info, err := os.Stat(absTarget); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("target directory %q does not exist", targetDir)
+		}
+		return nil, fmt.Errorf("cannot access %q: %w", targetDir, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("target %q is not a directory", targetDir)
+	}
+	if info, err := os.Stat(filepath.Join(absTarget, ".savepoint")); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("target %q is not a Savepoint project: no .savepoint directory", targetDir)
+		}
+		return nil, fmt.Errorf("cannot check .savepoint directory: %w", err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("target %q is not a Savepoint project: .savepoint is not a directory", targetDir)
 	}
 
 	configPath := filepath.Join(absTarget, ".savepoint", "config.yml")
@@ -176,28 +192,25 @@ func UpgradeProjectAssets(v1Templates, v2Templates fs.FS, targetDir string, dryR
 		return nil, err
 	}
 
-	templates := v1Templates
-	isV2 := version == data.SchemaVersionV2
-	if isV2 {
-		templates = v2Templates
-	}
-
-	// V1-skill retirement is a property of the project's own version, never of
-	// which tree upgradeAssetsFromTree happens to be pointed at in a test, so it
-	// is threaded through here rather than inferred inside the shared core.
-	report, err := upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite, isV2)
-	if err != nil || report == nil {
-		return report, err
-	}
-
-	if !isV2 {
-		report.Actions = append(report.Actions, UpgradeEntry{
+	if version != data.SchemaVersionV2 {
+		// A pending migration has already claimed the project. Surface its
+		// recovery instruction even though the ordinary V1 upgrade refusal below
+		// would otherwise be enough; neither path may touch the project.
+		if !dryRun {
+			if err := refusePendingMigration(absTarget); err != nil {
+				return nil, err
+			}
+		}
+		return &UpgradeReport{Actions: []UpgradeEntry{{
+			Path:   filepath.ToSlash(filepath.Join(".savepoint", "config.yml")),
 			Action: ActionInfo,
 			Note:   noteMigrateRoute,
-		})
+		}}}, nil
 	}
 
-	return report, nil
+	// Retirement is enabled only after the project itself declares V2. It
+	// archives the old triggerable assets before installing the four V2 skills.
+	return upgradeProjectAssets(v2Templates, targetDir, dryRun, force, AtomicWrite, true)
 }
 
 // upgradeAssetsFromTree applies the upgrade policy over one already-selected

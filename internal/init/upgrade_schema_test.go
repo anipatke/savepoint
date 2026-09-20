@@ -148,26 +148,23 @@ func dirDiff(t *testing.T, a, b string) string {
 	return strings.Join(diffs, "\n")
 }
 
-func TestUpgradeProjectAssets_selectsV1TreeWhenNoSchemaVersion(t *testing.T) {
+func TestUpgradeProjectAssets_refusesV1WithoutMutation(t *testing.T) {
 	dir := schemaProject(t, "")
 	v1, v2 := v1v2Templates()
+	before := dirSnapshot(t, dir)
 
 	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-draft-prd", "SKILL.md")); err != nil {
-		t.Errorf("V1 skill not installed: %v", err)
+	if len(report.Actions) != 1 || report.Actions[0].Action != ActionInfo {
+		t.Fatalf("V1 refusal report = %+v, want one informational entry", report.Actions)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-idea", "SKILL.md")); !os.IsNotExist(err) {
-		t.Errorf("V2 skill installed on a V1 project, stat err = %v", err)
+	if !strings.Contains(report.Actions[0].Note, "savepoint migrate") {
+		t.Errorf("V1 refusal note = %q, want migration guidance", report.Actions[0].Note)
 	}
-
-	action, found := actionFor(report, "agent-skills/savepoint-draft-prd/SKILL.md")
-	if !found || action != ActionUpdated {
-		t.Errorf("V1 skill action = %v, found = %v, want updated", action, found)
-	}
+	assertNoChange(t, dir, before)
 }
 
 func TestUpgradeProjectAssets_selectsV2TreeForSchemaVersion2(t *testing.T) {
@@ -388,17 +385,17 @@ func TestUpgradeProjectAssets_secondRunIsNoOp(t *testing.T) {
 	}
 }
 
-// TestUpgradeProjectAssets_v1DispatchMatchesFrozenPreE47Fixture keeps the V1
-// compatibility proof independent of today's upgrade implementation. The
-// migration README is a byte-frozen pre-E47 output: expanding it for V2
-// retirement must not change what a legacy V1 project receives.
-func TestUpgradeProjectAssets_v1DispatchMatchesFrozenPreE47Fixture(t *testing.T) {
-	v1, v2 := v1v2Templates()
+// TestUpgradeAssetsFromTree_preservesFrozenPreE47Fixture keeps the explicit V1
+// compatibility proof independent of production's V2-only schema dispatch.
+// The migration README is a byte-frozen pre-E47 output: expanding it for V2
+// retirement must not change what the retained history path emits.
+func TestUpgradeAssetsFromTree_preservesFrozenPreE47Fixture(t *testing.T) {
+	v1, _ := v1v2Templates()
 	dir := schemaProject(t, "")
 	legacy := "# Old Generic Audit Skill"
 	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(legacyAuditSkillFile)), legacy)
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := upgradeAssetsFromTree(v1, dir, false, false)
 	if err != nil {
 		t.Fatalf("dispatch run error = %v", err)
 	}
@@ -448,9 +445,8 @@ func TestUpgradeProjectAssets_v1DispatchMatchesFrozenPreE47Fixture(t *testing.T)
 }
 
 // TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees proves the
-// pending-migration guard, which lives in the shared single-tree core, still
-// fires when reached through version dispatch — on a legacy project selecting
-// the V1 tree and on a migrated project selecting the V2 tree alike.
+// pending-migration guard fires before either the V1 refusal or the V2 asset
+// walk, so an incomplete operation always owns the project.
 func TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{name: "v1", config: ""},

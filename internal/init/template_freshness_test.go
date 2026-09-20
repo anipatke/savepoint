@@ -151,6 +151,53 @@ func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 	assertContains(t, buildSkill, "legacy task `phase` as parser compatibility only")
 }
 
+func TestV2WorkflowAssetsHaveNoActiveV1Routing(t *testing.T) {
+	root := filepath.Join("..", "..")
+	paths := []string{
+		filepath.Join(root, "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-design", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-task", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-check", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "references", "check-method.md"),
+		filepath.Join(root, "agent-skills", "references", "issue-capture.md"),
+		filepath.Join(root, "agent-skills", "references", "commands-and-procedures.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "check-method.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "issue-capture.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "commands-and-procedures.md"),
+	}
+	forbidden := []string{
+		"pre-implementation",
+		"epic-design",
+		"epic-task-breakdown",
+		"task-building",
+		"audit-pending",
+		"defect-building",
+		"savepoint-draft-prd",
+		"savepoint-system-design",
+		"savepoint-create-task",
+		"savepoint-build-task",
+		"savepoint-audit-epic",
+		"savepoint-audit-task",
+		"savepoint-audit-register",
+		"savepoint-create-defect",
+	}
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read V2 workflow asset %s: %v", path, err)
+		}
+		for _, stale := range forbidden {
+			if strings.Contains(string(content), stale) {
+				t.Errorf("V2 workflow asset %s contains active V1 route %q", path, stale)
+			}
+		}
+	}
+}
+
 func TestProjectConceptTemplateExists(t *testing.T) {
 	root := filepath.Join("..", "..")
 	concept := readTemplate(t, root, "templates", "project", ".savepoint", "Concept.md")

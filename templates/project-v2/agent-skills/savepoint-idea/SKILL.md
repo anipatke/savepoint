@@ -13,7 +13,7 @@ Release is optional planning context, not a required phase. Use it only when the
 
 ## Trigger
 
-Use this skill when router `state` is `idea`. This is a V2 routing state, distinct from the V1 `pre-implementation` phase that `savepoint-draft-prd` still serves; projects on the V1 lifecycle keep using `savepoint-draft-prd` until they migrate.
+Use this skill when router `state` is `idea` in a V2 project. Legacy input is handled by the explicit `savepoint migrate` workflow before this V2 state is available; this skill does not route or maintain a legacy lifecycle.
 
 ## Read
 
