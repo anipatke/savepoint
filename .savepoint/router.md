@@ -16,7 +16,7 @@ state: task-building
 release: v2
 epic: E50
 task: E50-release-validation-cutover/T007-prepare-the-maintainer-controlled-repository-cutover
-next_action: Build E50-release-validation-cutover/T007-prepare-the-maintainer-controlled-repository-cutover.
+next_action: Review E50-release-validation-cutover/T007 handoff; resolve the canonical Release blockers before owner-approved apply.
 ```
 
 ## State → action
