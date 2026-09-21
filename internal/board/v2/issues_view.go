@@ -112,10 +112,14 @@ func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, w
 		return frameIssueColumn(lines, textW, bodyH, status, cursor.accented())
 	}
 
+	// Each item carries its own trailing blank line, so a tile sits apart
+	// from its neighbor by construction; visibleWindow's budget math (which
+	// works entirely off heights) stays correct because the blank line is
+	// counted in the same item's height rather than inserted separately.
 	items := make([]string, len(rows))
 	heights := make([]int, len(rows))
 	for i, row := range rows {
-		items[i] = renderIssueRow(row, textW, cursor.highlights(i))
+		items[i] = renderIssueRow(row, status, textW, cursor.highlights(i)) + "\n"
 		heights[i] = strings.Count(items[i], "\n") + 1
 	}
 
@@ -134,28 +138,46 @@ func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, w
 	return frameIssueColumn(lines, textW, bodyH, status, cursor.accented())
 }
 
-// renderIssueRow spends two lines per Issue rather than truncating everything
-// onto one: a column at a third of the board's width has too little of it
-// for ID, title, type, and severity to survive on a single row the way the
-// unsplit overlay could afford. Status stays off the line entirely — the
-// column it sits in already says that.
-func renderIssueRow(row IssueRow, width int, selected bool) string {
+// issueRowIndent is how far a row's title and badge lines sit from the
+// column edge — lined up under the ID text, which follows a two-cell marker
+// exactly as wide.
+const issueRowIndent = "  "
+
+// renderIssueRow spends several lines per Issue rather than truncating
+// everything onto one: a column at a third of the board's width has too
+// little of it for ID, title, type, and severity to survive on a single row
+// the way the unsplit overlay could afford. It mirrors renderCard's own
+// shape — an ID line, a wrapped title, then a badge line — over an IssueRow
+// instead of a TaskCard. Status stays off it entirely: the column it sits in
+// already says that.
+func renderIssueRow(row IssueRow, status data.IssueStatus, width int, selected bool) string {
 	issue := row.Issue
 	marker := "  "
-	titleStyle := styles.CardMeta
+	idStyle := styles.CardMeta
+	titleStyle := issueRowTitleStyle(status, selected)
 	if selected {
 		marker = "▸ "
-		titleStyle = styles.TaskItemFocused
 	}
-	idLine := titleStyle.Render(xansi.Truncate(marker+issue.ID+"  "+issue.Title, width, "…"))
 
-	meta := string(issue.Type)
-	if issue.Severity != "" {
-		meta += "  severity:" + issue.Severity
+	lines := []string{idStyle.Render(xansi.Truncate(marker+issue.ID, width, "…"))}
+
+	innerWidth := width - len(issueRowIndent)
+	if innerWidth < 1 {
+		innerWidth = 1
 	}
-	metaLine := styles.CardMeta.Render(xansi.Truncate("    "+meta, width, "…"))
+	for _, titleLine := range wrapTitleLines(issue.Title, innerWidth, 2) {
+		lines = append(lines, titleStyle.Render(issueRowIndent+titleLine))
+	}
 
-	return idLine + "\n" + metaLine
+	badges := []Badge{issueTypeBadge(issue.Type)}
+	if severity, ok := issueSeverityBadge(issue.Severity); ok {
+		badges = append(badges, severity)
+	}
+	for _, badgeLine := range renderBadgeLines(badges, innerWidth) {
+		lines = append(lines, issueRowIndent+badgeLine)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // frameIssueColumn draws the column's frame around its lines at exactly the
@@ -169,17 +191,44 @@ func frameIssueColumn(lines []string, textW, bodyH int, status data.IssueStatus,
 		Render(strings.Join(lines, "\n"))
 }
 
-// issueColumnStyle and issueColumnTitleStyle carry the Task board's own
-// grey/orange/green accents over onto open/in_progress/resolved: Open wears
-// the Planned column's grey, Resolved wears Done's green, and In Progress
-// wears the plain focused orange every other column wears.
+// issueRowTitleStyle takes the column's own accent when selected — orange
+// for In Progress, green for Resolved, matching what a selected Task card's
+// title does. Open cannot reuse that pattern outright: a Task card's
+// selected Planned title stays plain white only because the card still gets
+// its own bordered box, which is what actually carries the selection there.
+// An Issue row has no per-row box, so Open's selected title instead takes
+// the same purple the Objective sidebar's cursor already uses for exactly
+// this situation — a plain, unboxed list row that needs its own selection
+// accent distinct from every status color. The two surfaces are never shown
+// at once, so reusing it here does not collide with its sidebar meaning.
+func issueRowTitleStyle(status data.IssueStatus, selected bool) lipgloss.Style {
+	if !selected {
+		return styles.TaskItem
+	}
+	switch status {
+	case data.IssueStatusOpen:
+		return styles.ObjectiveItemFocused
+	case data.IssueStatusResolved:
+		return styles.TaskItemFocusedDone
+	default:
+		return styles.TaskItemFocused
+	}
+}
+
+// issueColumnStyle and issueColumnTitleStyle give each status column one
+// accent that its border, its heading, and its own selected row's title
+// (issueRowTitleStyle) all agree on: Resolved wears Done's green, In
+// Progress wears the plain focused orange every other column wears, and
+// Open wears the same purple the Objective sidebar's panel and cursor wear
+// — not the Planned column's grey a first pass gave it, which left the
+// heading and border out of step with Open's own purple-selected row.
 func issueColumnStyle(status data.IssueStatus, focused bool) lipgloss.Style {
 	if !focused {
 		return styles.ColumnUnfocused
 	}
 	switch status {
 	case data.IssueStatusOpen:
-		return styles.ColumnFocusedPlanned
+		return styles.SidebarPanelFocused
 	case data.IssueStatusResolved:
 		return styles.ColumnFocusedDone
 	default:
@@ -193,7 +242,7 @@ func issueColumnTitleStyle(status data.IssueStatus, focused bool) lipgloss.Style
 	}
 	switch status {
 	case data.IssueStatusOpen:
-		return styles.ColumnTitleFocusedPlanned
+		return styles.SidebarTitleFocused
 	case data.IssueStatusResolved:
 		return styles.ColumnTitleFocusedDone
 	default:

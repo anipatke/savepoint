@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/muesli/termenv"
+	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/styles"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -85,7 +88,7 @@ func TestIssuesListUsesStableIdentityOrderAndShowsRecordedSeverity(t *testing.T)
 		}
 		previous = at
 	}
-	for _, want := range []string{"Filter: ALL", "defect", "open", "severity:high", "A repair is needed"} {
+	for _, want := range []string{"Filter: ALL", "✗ DEFECT", "OPEN (1)", "▲ HIGH", "A repair is needed"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Issues overlay is missing %q:\n%s", want, got)
 		}
@@ -154,6 +157,102 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 // TestIssuesSplitIntoThreeStatusColumns covers the Open/In Progress/Resolved
 // column layout: all three headers with their counts render together, and
 // left/right moves focus between columns while up/down stays inside one.
+// TestIssuesColumnSortsMostSevereFirst covers the severity sort (blocker at
+// the top of a column, cosmetic-or-unrecorded at the bottom) independent of
+// the ID order the Issues were written in — I901 is written last but
+// declares the most severe word, so a stable-ID-only ordering would leave it
+// at the bottom instead of the top.
+func TestIssuesColumnSortsMostSevereFirst(t *testing.T) {
+	root := savepointRoot(t)
+	writeConfig(t, root)
+	writeRouter(t, root, "task", "O001", "T001")
+	writeObjective(t, root, "O001", "Severity ordering", "in_progress")
+	writeTask(t, root, "O001", "T001", "Task carrying follow-ups", "status: planned\n")
+
+	writeBoardIssue(t, root, "I801", "A low-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+severity: low
+`)
+	writeBoardIssue(t, root, "I802", "An item with no severity", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+`)
+	writeBoardIssue(t, root, "I803", "A medium-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+severity: medium
+`)
+	writeBoardIssue(t, root, "I901", "A blocking item written last", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+severity: blocker
+`)
+
+	got := issueScreen(press(t, issueBoard(t, root), "i"))
+	previous := -1
+	for _, id := range []string{"I901", "I803", "I801", "I802"} {
+		at := strings.Index(got, id)
+		if at < 0 {
+			t.Fatalf("Issues overlay is missing %s:\n%s", id, got)
+		}
+		if at < previous {
+			t.Errorf("Issue %s is out of severity order (want blocker, medium, low, unrecorded):\n%s", id, got)
+		}
+		previous = at
+	}
+}
+
+// TestIssueRowTitleStyleGivesEveryColumnItsOwnDistinctSelectionAccent proves
+// a selected row's title always changes color from the plain unselected
+// style — In Progress orange, Resolved green, and Open the sidebar cursor's
+// purple, since Open cannot reuse a Task card's plain-selected-Planned
+// choice: that one stays legible because the card still gets its own
+// bordered box, which an Issue row does not have.
+func TestIssueRowTitleStyleGivesEveryColumnItsOwnDistinctSelectionAccent(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+	sample := "x"
+
+	plain := issueRowTitleStyle(data.IssueStatusOpen, false).Render(sample)
+	for _, status := range []data.IssueStatus{data.IssueStatusOpen, data.IssueStatusInProgress, data.IssueStatusResolved} {
+		if got := issueRowTitleStyle(status, false).Render(sample); got != plain {
+			t.Errorf("unselected %s title = %q, want every column's unselected title to render the same plain style (%q)", status, got, plain)
+		}
+	}
+
+	selected := map[data.IssueStatus]string{
+		data.IssueStatusOpen:       issueRowTitleStyle(data.IssueStatusOpen, true).Render(sample),
+		data.IssueStatusInProgress: issueRowTitleStyle(data.IssueStatusInProgress, true).Render(sample),
+		data.IssueStatusResolved:   issueRowTitleStyle(data.IssueStatusResolved, true).Render(sample),
+	}
+	seen := map[string]data.IssueStatus{plain: ""}
+	for status, rendered := range selected {
+		if rendered == plain {
+			t.Errorf("selected %s title did not change color from the plain unselected style %q", status, plain)
+		}
+		if other, ok := seen[rendered]; ok {
+			t.Errorf("selected %s and %s titles render identically: %q", status, other, rendered)
+		}
+		seen[rendered] = status
+	}
+}
+
+// TestIssueColumnAccentMatchesItsOwnSelectedRow proves a focused column's
+// heading always uses the same color its own selected row's title does —
+// Open's heading must not stay the Planned column's grey while its selected
+// row wears the sidebar's purple; every column wears exactly one accent
+// color, head to row. The heading is bold and the row title is not, so this
+// compares foreground color alone rather than the full rendered style.
+func TestIssueColumnAccentMatchesItsOwnSelectedRow(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	for _, status := range []data.IssueStatus{data.IssueStatusOpen, data.IssueStatusInProgress, data.IssueStatusResolved} {
+		headingColor := issueColumnTitleStyle(status, true).GetForeground()
+		rowColor := issueRowTitleStyle(status, true).GetForeground()
+		if headingColor != rowColor {
+			t.Errorf("%s column heading color = %v, selected row color = %v; want the same accent", status, headingColor, rowColor)
+		}
+	}
+
+	// An unfocused column never carries a status accent at all — only the
+	// column holding board focus does.
+	if got := issueColumnTitleStyle(data.IssueStatusOpen, false); got.Render("x") != styles.ColumnTitle.Render("x") {
+		t.Errorf("unfocused Open heading = %q, want the plain unaccented column title style", got.Render("x"))
+	}
+}
+
 func TestIssuesSplitIntoThreeStatusColumns(t *testing.T) {
 	root := writeIssuesProject(t)
 

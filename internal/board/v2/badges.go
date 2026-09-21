@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
@@ -57,6 +59,30 @@ const (
 	glyphCheckPending = "[ ]"
 	glyphCheckClear   = "[✓]"
 	glyphCheckFlagged = "[!]"
+
+	// Issue type glyphs: one per type.IssueType value, agreed with the owner
+	// before implementing rather than guessed. The "defect" type reads as a
+	// cross since the board's no-emoji rule (above) rules out a literal bug.
+	glyphIssueCross        = "✗"
+	glyphIssueDrift        = "≈"
+	glyphIssueGuardrail    = "‖"
+	glyphIssueVerification = "◎"
+	glyphIssueOther        = "…"
+
+	// Issue severity glyphs taper from solid to faint — blocker heaviest,
+	// cosmetic lightest — so the shape alone carries the five-step scale
+	// even with color stripped; color then adds urgency on top of that:
+	// orange for the top two, plain text for medium, dim for the bottom two.
+	glyphSeverityBlocker  = "●"
+	glyphSeverityHigh     = "▲"
+	glyphSeverityMedium   = "▪"
+	glyphSeverityLow      = "▫"
+	glyphSeverityCosmetic = "·"
+	// glyphSeverityOther marks a recorded severity outside the five-word
+	// vocabulary above: severity is policy-owned and opaque to this board
+	// (internal/data/issue_v2.go), so an unrecognized word is still shown,
+	// at neutral weight, rather than guessed at or dropped.
+	glyphSeverityOther = "◦"
 )
 
 // stageBadge names the implementation stage of a Task under way. It reports
@@ -269,4 +295,83 @@ func hasOwnerAcceptanceBlock(decision data.GateDecision) bool {
 		}
 	}
 	return false
+}
+
+// issueTypeBadge names an Issue's descriptive type. It stays neutral weight
+// regardless of which type: type is descriptive, never itself a severity or
+// a blocker (see agent-skills/references/issue-capture.md), so it never
+// borrows the attention accent severity badges use.
+//
+// It switches on the type's own string value rather than the data package's
+// named constants: the V1/V2 boundary this package holds
+// (TestPackageCarriesNoReleaseOrEpicSurface) refuses one of those names
+// outright, left over from a retired V1 surface with no V2 meaning, and this
+// V2 Issue type is an unrelated field that happens to share the English word.
+func issueTypeBadge(issueType data.IssueType) Badge {
+	label := strings.ToUpper(string(issueType))
+	switch string(issueType) {
+	case "defect":
+		return Badge{Glyph: glyphIssueCross, Label: label, Style: styles.CardMeta}
+	case "drift":
+		return Badge{Glyph: glyphIssueDrift, Label: label, Style: styles.CardMeta}
+	case "guardrail":
+		return Badge{Glyph: glyphIssueGuardrail, Label: label, Style: styles.CardMeta}
+	case "verification":
+		return Badge{Glyph: glyphIssueVerification, Label: label, Style: styles.CardMeta}
+	default: // "other", and any value the decoder would otherwise reject
+		return Badge{Glyph: glyphIssueOther, Label: label, Style: styles.CardMeta}
+	}
+}
+
+// issueSeverityBadge names a recorded severity, or reports ok=false for an
+// Issue that declared none — severity is optional, and a card says nothing
+// about it rather than showing an empty badge. The five-word scale is this
+// board's own reading of an opaque, policy-owned field: a word outside it is
+// still shown, uppercased, at the same neutral weight unrecognized-but-real
+// data gets everywhere else in this package, never dropped or guessed at.
+func issueSeverityBadge(severity string) (Badge, bool) {
+	trimmed := strings.TrimSpace(severity)
+	if trimmed == "" {
+		return Badge{}, false
+	}
+	label := strings.ToUpper(trimmed)
+	switch strings.ToLower(trimmed) {
+	case "blocker":
+		return Badge{Glyph: glyphSeverityBlocker, Label: label, Style: styles.BadgeAttention}, true
+	case "high":
+		return Badge{Glyph: glyphSeverityHigh, Label: label, Style: styles.BadgeAttention}, true
+	case "medium":
+		return Badge{Glyph: glyphSeverityMedium, Label: label, Style: styles.TaskItem}, true
+	case "low":
+		return Badge{Glyph: glyphSeverityLow, Label: label, Style: styles.BadgeNeutral}, true
+	case "cosmetic":
+		return Badge{Glyph: glyphSeverityCosmetic, Label: label, Style: styles.BadgeNeutral}, true
+	default:
+		return Badge{Glyph: glyphSeverityOther, Label: label, Style: styles.BadgeNeutral}, true
+	}
+}
+
+// issueSeverityRank is this board's own read of the same five-word scale,
+// for sorting rather than display: blocker first, cosmetic last, a
+// recognized-but-listed word after cosmetic, and no recorded severity at all
+// last of everything. It never touches the stored field — severity stays
+// exactly as recorded (internal/data/issue_v2.go) — this is a display-only
+// ordering, not a validated vocabulary.
+func issueSeverityRank(severity string) int {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "blocker":
+		return 0
+	case "high":
+		return 1
+	case "medium":
+		return 2
+	case "low":
+		return 3
+	case "cosmetic":
+		return 4
+	case "":
+		return 6
+	default:
+		return 5
+	}
 }

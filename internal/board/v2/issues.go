@@ -203,8 +203,11 @@ func (m Model) filteredIssueRows() []IssueRow {
 }
 
 // groupedIssueRows buckets the scoped, type-filtered rows by status into the
-// three columns the overlay renders, in stable ID order within each bucket,
-// so a project renders the same way twice.
+// three columns the overlay renders, then sorts each bucket most-severe
+// first (issueSeverityRank) so a reader scans blockers before cosmetic
+// follow-ups within a column. The sort is stable, so Issues at the same
+// rank — including every Issue when none records a severity at all — keep
+// the underlying stable ID order, and a project renders the same way twice.
 func (m Model) groupedIssueRows() map[data.IssueStatus][]IssueRow {
 	grouped := map[data.IssueStatus][]IssueRow{
 		data.IssueStatusOpen:       {},
@@ -213,6 +216,13 @@ func (m Model) groupedIssueRows() map[data.IssueStatus][]IssueRow {
 	}
 	for _, row := range m.filteredIssueRows() {
 		grouped[row.Issue.Status] = append(grouped[row.Issue.Status], row)
+	}
+	for status, rows := range grouped {
+		sorted := rows
+		slices.SortStableFunc(sorted, func(a, b IssueRow) int {
+			return issueSeverityRank(a.Issue.Severity) - issueSeverityRank(b.Issue.Severity)
+		})
+		grouped[status] = sorted
 	}
 	return grouped
 }

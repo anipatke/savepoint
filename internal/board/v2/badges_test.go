@@ -246,6 +246,78 @@ func TestBadgesCarryGlyphAndLabelUnderColor(t *testing.T) {
 	}
 }
 
+// issueTypesForBadges is every data.IssueType value the decoder admits, plus
+// one word outside that vocabulary — issueTypeBadge switches on the type's
+// string value rather than the data package's named constants (see its own
+// doc comment), so this proves the fallback still covers a value the decoder
+// itself would reject.
+var issueTypesForBadges = []data.IssueType{"defect", "drift", "guardrail", "verification", "other", "not-a-real-type"}
+
+func TestIssueTypeBadgeCoversEveryTypeDistinctly(t *testing.T) {
+	seen := map[string]data.IssueType{}
+	for _, issueType := range issueTypesForBadges {
+		badge := issueTypeBadge(issueType)
+		if badge.Glyph == "" || badge.Label == "" {
+			t.Errorf("type %q has no glyph or label: %+v", issueType, badge)
+		}
+		if other, ok := seen[badge.Text()]; ok {
+			t.Errorf("types %q and %q both render as %q", issueType, other, badge.Text())
+		}
+		seen[badge.Text()] = issueType
+	}
+}
+
+// issueSeveritiesForBadges is the five-word scale this board reads out of the
+// opaque, policy-owned severity field, plus a word outside that scale and the
+// empty string severity itself allows (internal/data/issue_v2.go).
+var issueSeveritiesForBadges = []string{"blocker", "high", "medium", "low", "cosmetic", "urgent"}
+
+func TestIssueSeverityBadgeCoversTheScaleDistinctlyAndDegradesForUnknown(t *testing.T) {
+	seen := map[string]string{}
+	for _, severity := range issueSeveritiesForBadges {
+		badge, ok := issueSeverityBadge(severity)
+		if !ok {
+			t.Errorf("severity %q reported ok=false, want a badge", severity)
+		}
+		if badge.Label != strings.ToUpper(severity) {
+			t.Errorf("severity %q badge label = %q, want %q", severity, badge.Label, strings.ToUpper(severity))
+		}
+		if other, existing := seen[badge.Text()]; existing {
+			t.Errorf("severities %q and %q both render as %q", severity, other, badge.Text())
+		}
+		seen[badge.Text()] = severity
+	}
+}
+
+func TestIssueSeverityBadgeIsAbsentWhenNoneIsRecorded(t *testing.T) {
+	if _, ok := issueSeverityBadge(""); ok {
+		t.Error("empty severity produced a badge; a card should show none instead")
+	}
+	if _, ok := issueSeverityBadge("   "); ok {
+		t.Error("whitespace-only severity produced a badge; a card should show none instead")
+	}
+}
+
+// TestIssueSeverityRankOrdersBlockerFirstAndUnrecordedLast proves the sort
+// this board applies within an Issues column: blocker first, cosmetic last
+// of the five-word scale, a real word outside that scale ranked after it
+// (still shown, never dropped), and no recorded severity at all ranked last
+// of everything.
+func TestIssueSeverityRankOrdersBlockerFirstAndUnrecordedLast(t *testing.T) {
+	ranked := []string{"blocker", "high", "medium", "low", "cosmetic", "urgent", ""}
+	for i := 1; i < len(ranked); i++ {
+		prev, next := issueSeverityRank(ranked[i-1]), issueSeverityRank(ranked[i])
+		if prev >= next {
+			t.Errorf("issueSeverityRank(%q)=%d is not before issueSeverityRank(%q)=%d", ranked[i-1], prev, ranked[i], next)
+		}
+	}
+	// Case- and whitespace-insensitive: the same word ranks the same
+	// regardless of how the record spelled it.
+	if issueSeverityRank("HIGH") != issueSeverityRank(" high ") {
+		t.Error("issueSeverityRank is not case/whitespace insensitive")
+	}
+}
+
 // allBadges is every badge the vocabulary can produce, for the distinctness and
 // color assertions above.
 func allBadges() []Badge {
