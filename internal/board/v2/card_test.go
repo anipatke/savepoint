@@ -300,3 +300,130 @@ func findCard(grouped map[data.ColumnType][]TaskCard, id string) (TaskCard, bool
 	}
 	return TaskCard{}, false
 }
+
+func TestRenderCardPlannedOmitsCheckBadge(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T001", "Planned task", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+
+	got := renderedText(card, 40, false)
+	if strings.Contains(got, "Check") {
+		t.Errorf("planned card should not render check badge:\n%s", got)
+	}
+
+	inProgressCard := fixtureCard(
+		fixtureTask("T002", "In progress task", data.ColumnInProgress, data.StageBuild),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+	gotInProgress := renderedText(inProgressCard, 40, false)
+	if !strings.Contains(gotInProgress, "[ ] Check") {
+		t.Errorf("in_progress card should render check badge:\n%s", gotInProgress)
+	}
+}
+
+func TestRenderCardPlannedFocusUsesMutedStyling(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	card := fixtureCard(
+		fixtureTask("T001", "Planned task", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+
+	unfocused := renderCard(card, 40, false)
+	focused := renderCard(card, 40, true)
+
+	if lipgloss.Width(unfocused) != lipgloss.Width(focused) {
+		t.Errorf("focused width %d, unfocused width %d", lipgloss.Width(focused), lipgloss.Width(unfocused))
+	}
+	if lipgloss.Height(unfocused) != lipgloss.Height(focused) {
+		t.Errorf("focused height %d, unfocused height %d", lipgloss.Height(focused), lipgloss.Height(unfocused))
+	}
+	// Focused planned card border should not contain orange
+	if strings.Contains(focused, "252;99;35") { // 252;99;35 is #FC6323 in truecolor ANSI
+		t.Errorf("focused planned card should not use orange accent:\n%s", focused)
+	}
+	// Title text color remains unfocused color
+	if !strings.Contains(focused, "Planned task") {
+		t.Errorf("focused planned card missing title:\n%s", focused)
+	}
+}
+
+func TestRenderCardDoneFocusUsesGreenStyling(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	card := fixtureCard(
+		fixtureTask("T001", "Done task", data.ColumnDone, ""),
+		data.Clearance{State: data.ClearanceCurrent},
+		data.GateDecision{},
+	)
+
+	unfocused := renderCard(card, 40, false)
+	focused := renderCard(card, 40, true)
+
+	if lipgloss.Width(unfocused) != lipgloss.Width(focused) {
+		t.Errorf("focused width %d, unfocused width %d", lipgloss.Width(focused), lipgloss.Width(unfocused))
+	}
+	if lipgloss.Height(unfocused) != lipgloss.Height(focused) {
+		t.Errorf("focused height %d, unfocused height %d", lipgloss.Height(focused), lipgloss.Height(unfocused))
+	}
+	// Focused done card should not contain orange
+	if strings.Contains(focused, "252;99;35") {
+		t.Errorf("focused done card should not use orange accent:\n%s", focused)
+	}
+	// Focused done card should contain green (163;198;56) for border and title
+	if !strings.Contains(focused, "163;198;56") {
+		t.Errorf("focused done card should use green accent:\n%s", focused)
+	}
+}
+
+func TestRenderCardTitleWrapsUpToTwoLines(t *testing.T) {
+	shortCard := fixtureCard(
+		fixtureTask("T001", "Short title", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+	shortGot := renderedText(shortCard, 30, false)
+	if strings.Contains(shortGot, "…") {
+		t.Errorf("short card title should not truncate:\n%s", shortGot)
+	}
+
+	wrapCard := fixtureCard(
+		fixtureTask("T002", "Implement user authentication subsystem", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+	wrapGot := renderedText(wrapCard, 30, false)
+	// Outer width 30 -> textW = 30 - 4 = 26
+	// "Implement user" (14) + "authentication" (14) -> 29 > 26
+	// Line 1: "Implement user", Line 2: "authentication subsystem"
+	if !strings.Contains(wrapGot, "Implement user") {
+		t.Errorf("card title missing line 1:\n%s", wrapGot)
+	}
+	if !strings.Contains(wrapGot, "authentication subsystem") {
+		t.Errorf("card title missing line 2:\n%s", wrapGot)
+	}
+	// Height of wrapped card is 1 line taller than short card
+	shortLines := strings.Count(shortGot, "\n") + 1
+	wrapLines := strings.Count(wrapGot, "\n") + 1
+	if wrapLines != shortLines+1 {
+		t.Errorf("wrapLines = %d, shortLines = %d (want difference of 1)", wrapLines, shortLines)
+	}
+
+	longCard := fixtureCard(
+		fixtureTask("T003", "Implement user authentication subsystem with OAuth2 and SAML providers and tokens", data.ColumnPlanned, ""),
+		data.Clearance{State: data.ClearanceMissing},
+		data.GateDecision{Allowed: true},
+	)
+	longGot := renderedText(longCard, 30, false)
+	if !strings.Contains(longGot, "…") {
+		t.Errorf("long card title exceeding two lines should truncate with ellipsis:\n%s", longGot)
+	}
+	longLines := strings.Count(longGot, "\n") + 1
+	if longLines != wrapLines {
+		t.Errorf("longLines = %d, want equal to wrapLines %d (capped at 2 title lines)", longLines, wrapLines)
+	}
+}

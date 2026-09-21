@@ -63,16 +63,37 @@ func TestTaskCheckBadgeWaivedOutranksClearance(t *testing.T) {
 	}
 }
 
-// TestObjectiveCheckBadgeIsTwoNotchOnly proves the Objective badge never
-// reports a waived state: the Full Objective Check is never waivable.
-func TestObjectiveCheckBadgeIsTwoNotchOnly(t *testing.T) {
+// TestObjectiveCheckBadgeIsThreeNotchOnly proves the Objective badge collapses
+// needs_work, stale, and unverified into one "checked, not clear" wording —
+// deliberately simpler than taskCheckBadge's five states, per the owner's
+// call that the extra distinctions are not worth the reader's attention here.
+func TestObjectiveCheckBadgeIsThreeNotchOnly(t *testing.T) {
 	seen := map[string]bool{}
 	for _, state := range clearanceStates {
-		badge := objectiveCheckBadge(state)
+		badge := objectiveCheckBadge(state, false)
 		seen[badge.Text()] = true
 	}
-	if len(seen) != 2 {
-		t.Errorf("objectiveCheckBadge produced %d distinct renderings across every clearance state, want exactly 2 (pending, current)", len(seen))
+	if len(seen) != 3 {
+		t.Errorf("objectiveCheckBadge produced %d distinct renderings across every clearance state, want exactly 3 (missing, needs work, current)", len(seen))
+	}
+}
+
+// TestObjectiveCheckBadgeFoldsExceptionIntoCurrent proves a recorded owner
+// exception reads exactly like a current Check on the compact badge — the
+// row does not carry a fourth "BY EXCEPTION" notch. That fact still lives in
+// the detail overlay's EXCEPTION section; the row only needs to say the
+// Objective is not blocked on its Check anymore.
+func TestObjectiveCheckBadgeFoldsExceptionIntoCurrent(t *testing.T) {
+	current := objectiveCheckBadge(data.ClearanceCurrent, false)
+	byException := objectiveCheckBadge(data.ClearanceNeedsWork, true)
+
+	if byException.Text() != current.Text() {
+		t.Errorf("an Objective accepted by exception reads %q, want the same wording as a current Check %q", byException.Text(), current.Text())
+	}
+
+	needsWork := objectiveCheckBadge(data.ClearanceNeedsWork, false)
+	if byException.Text() == needsWork.Text() {
+		t.Errorf("exception acceptance did not change the badge from plain needs-work: both render as %q", byException.Text())
 	}
 }
 

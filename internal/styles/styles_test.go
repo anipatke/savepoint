@@ -23,6 +23,9 @@ func TestPaletteConstants_present(t *testing.T) {
 	if BorderSubtle == "" {
 		t.Error("BorderSubtle constant is empty")
 	}
+	if BorderPlannedFocused == "" {
+		t.Error("BorderPlannedFocused constant is empty")
+	}
 	if PrimaryText == "" {
 		t.Error("PrimaryText constant is empty")
 	}
@@ -56,6 +59,9 @@ func TestPaletteConstants_256tier(t *testing.T) {
 	if BorderSubtle256 == "" {
 		t.Error("BorderSubtle256 constant is empty")
 	}
+	if BorderPlannedFocused256 == "" {
+		t.Error("BorderPlannedFocused256 constant is empty")
+	}
 	if PrimaryText256 == "" {
 		t.Error("PrimaryText256 constant is empty")
 	}
@@ -88,6 +94,9 @@ func TestPaletteConstants_16tier(t *testing.T) {
 	}
 	if BorderSubtle16 == "" {
 		t.Error("BorderSubtle16 constant is empty")
+	}
+	if BorderPlannedFocused16 == "" {
+		t.Error("BorderPlannedFocused16 constant is empty")
 	}
 	if PrimaryText16 == "" {
 		t.Error("PrimaryText16 constant is empty")
@@ -150,18 +159,20 @@ func TestBadgeStyles_usePaletteAccents(t *testing.T) {
 // card frames carry the same border and the same padding, so only their color
 // differs.
 func TestCardBoxStyles_differOnlyInAccent(t *testing.T) {
-	if CardBox.GetBorderStyle() != CardBoxFocused.GetBorderStyle() {
-		t.Error("CardBox and CardBoxFocused use different borders; focus would change a card's geometry")
-	}
+	for _, focused := range []lipgloss.Style{CardBoxFocused, CardBoxFocusedPlanned, CardBoxFocusedDone} {
+		if CardBox.GetBorderStyle() != focused.GetBorderStyle() {
+			t.Error("CardBox and focused card use different borders; focus would change a card's geometry")
+		}
 
-	topA, rightA, bottomA, leftA := CardBox.GetPadding()
-	topB, rightB, bottomB, leftB := CardBoxFocused.GetPadding()
-	if topA != topB || rightA != rightB || bottomA != bottomB || leftA != leftB {
-		t.Errorf("padding differs: unfocused %d/%d/%d/%d, focused %d/%d/%d/%d", topA, rightA, bottomA, leftA, topB, rightB, bottomB, leftB)
-	}
+		topA, rightA, bottomA, leftA := CardBox.GetPadding()
+		topB, rightB, bottomB, leftB := focused.GetPadding()
+		if topA != topB || rightA != rightB || bottomA != bottomB || leftA != leftB {
+			t.Errorf("padding differs: unfocused %d/%d/%d/%d, focused %d/%d/%d/%d", topA, rightA, bottomA, leftA, topB, rightB, bottomB, leftB)
+		}
 
-	if CardBox.GetBorderTopForeground() == CardBoxFocused.GetBorderTopForeground() {
-		t.Error("CardBox and CardBoxFocused share a border color; focus must be visible")
+		if CardBox.GetBorderTopForeground() == focused.GetBorderTopForeground() {
+			t.Error("CardBox and focused card share a border color; focus must be visible")
+		}
 	}
 }
 

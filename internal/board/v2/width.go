@@ -37,6 +37,74 @@ func truncateCells(text string, width int) string {
 	return xansi.Truncate(text, width, "…")
 }
 
+// wrapTitleLines wraps text into at most maxLines lines, each of terminal
+// cell width at most width. If text fits on a single line, exactly one line
+// is returned without trailing blank lines. If it exceeds maxLines, the final
+// line is truncated with an ellipsis.
+func wrapTitleLines(text string, width int, maxLines int) []string {
+	if maxLines <= 0 || width <= 0 {
+		return nil
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return []string{""}
+	}
+	if xansi.StringWidth(text) <= width {
+		return []string{text}
+	}
+	if maxLines == 1 {
+		return []string{truncateCells(text, width)}
+	}
+
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	var lines []string
+	wordIdx := 0
+
+	for lineNum := 1; lineNum <= maxLines && wordIdx < len(words); lineNum++ {
+		isLastLine := lineNum == maxLines
+		if isLastLine {
+			remaining := strings.Join(words[wordIdx:], " ")
+			if xansi.StringWidth(remaining) <= width {
+				lines = append(lines, remaining)
+			} else {
+				lines = append(lines, truncateCells(remaining, width))
+			}
+			break
+		}
+
+		firstWord := words[wordIdx]
+		if xansi.StringWidth(firstWord) > width {
+			cut := xansi.Truncate(firstWord, width, "")
+			if cut == "" {
+				runes := []rune(firstWord)
+				cut = string(runes[:1])
+			}
+			lines = append(lines, cut)
+			words[wordIdx] = strings.TrimPrefix(firstWord, cut)
+			continue
+		}
+
+		current := firstWord
+		wordIdx++
+		for wordIdx < len(words) {
+			next := words[wordIdx]
+			if xansi.StringWidth(current+" "+next) <= width {
+				current += " " + next
+				wordIdx++
+			} else {
+				break
+			}
+		}
+		lines = append(lines, current)
+	}
+
+	return lines
+}
+
 // fitLine keeps a non-wrapping surface to one terminal row. Content surfaces
 // such as Next and detail deliberately wrap; headers, hints, and status lines
 // use this helper because a focus change must not change their geometry.

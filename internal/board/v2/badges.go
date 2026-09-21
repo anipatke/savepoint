@@ -127,16 +127,43 @@ func taskCheckBadge(clearance data.ClearanceState, waived bool) Badge {
 	}
 }
 
-// objectiveCheckBadge is the same friendly badge for an Objective's own
-// mandatory Full Objective Check: grey "[ ] Check" until it is current,
-// green "[✓] Check" once it is. Unlike a Task's, this one has no waived
-// state — the Full Objective Check is never waivable — so the badge stays a
-// plain two-notch signal.
-func objectiveCheckBadge(clearance data.ClearanceState) Badge {
-	if clearance == data.ClearanceCurrent {
+// objectiveCheckBadge is the Objective sidebar row's one completion-state
+// badge — deliberately the only one. An earlier version of this row carried
+// a second badge ("INTEGRATED" / "NEEDS INTEGRATION") that restated this same
+// clearance fact in different words once every owned Task was done; that was
+// confusing and was removed rather than reconciled; see I012. Do not
+// reintroduce a second badge for Task-completeness — clearance is the one
+// fact this row states about whether an Objective is ready to close, and it
+// states it once.
+//
+// The row deliberately shows only three notches, not the five-state
+// vocabulary taskCheckBadge carries. Savepoint's audience does not need
+// needs_work, stale, and unverified told apart at a glance — all three are
+// "this Objective was checked and is not clear," so they read identically
+// here. Anyone who needs the distinction reads it in the detail overlay's
+// CLEARANCE section (resume.ClearancePhrase), which still states the exact
+// recorded reason. Do not re-expand this badge to five states; that was
+// tried and explicitly walked back for being over the reader's head.
+//
+// byException folds an owner-recorded exception into the same green tick a
+// current Check gets, rather than into its own "BY EXCEPTION" notch. The
+// reasoning an owner accepted, and the fact that a re-check was skipped for
+// it, are durable and already recorded — Evidence.Exception, read by the
+// detail overlay's EXCEPTION section — but they are not information the
+// compact row needs to flag. An owner who chose to accept the findings and
+// move on gets the same clean "checked" signal a clear Check does; anyone
+// who wants to know why opens the detail. Do not add a fourth notch for this
+// without a fresh product decision — it was deliberately cut once already.
+func objectiveCheckBadge(clearance data.ClearanceState, byException bool) Badge {
+	if byException || clearance == data.ClearanceCurrent {
 		return Badge{Glyph: glyphCheckClear, Label: "Check", Style: styles.BadgeClear}
 	}
-	return Badge{Glyph: glyphCheckPending, Label: "Check", Style: styles.BadgeNeutral}
+	if clearance == data.ClearanceMissing {
+		return Badge{Glyph: glyphCheckPending, Label: "Check", Style: styles.BadgeNeutral}
+	}
+	// needs_work, stale, and unverified: checked, not clear, collapsed to one
+	// wording on purpose (see doc comment above).
+	return Badge{Glyph: glyphCheckFlagged, Label: "Check (needs work)", Style: styles.BadgeAttention}
 }
 
 // completionBadge names how a done Task reached done. A recorded exception or
@@ -161,26 +188,6 @@ func completionBadge(clearance data.ClearanceState, byException, byWaiver bool) 
 // reader learns one phrase for one fact.
 func exceptionBadge() Badge {
 	return Badge{Glyph: glyphOwner, Label: "BY EXCEPTION", Style: styles.BadgeAttention}
-}
-
-// objectiveIntegrationBadge names where an Objective stands once every Task it
-// owns is done. An Objective reaches done only when its Tasks meet completion
-// rules *and* its own integration Check is current, so finished Tasks alone are
-// reported as work still to do rather than as a finished Objective — otherwise
-// that state is invisible, because every column looks complete.
-//
-// It reports ok=false for an Objective whose Tasks are not all done: there is
-// no integration question to answer yet, and the clearance badge already states
-// what has been recorded.
-func objectiveIntegrationBadge(tasksComplete bool, clearance data.ClearanceState) (Badge, bool) {
-	switch {
-	case !tasksComplete:
-		return Badge{}, false
-	case clearance == data.ClearanceCurrent:
-		return Badge{Glyph: glyphClear, Label: "INTEGRATED", Style: styles.BadgeClear}, true
-	default:
-		return Badge{Glyph: glyphAttention, Label: "NEEDS INTEGRATION", Style: styles.BadgeAttention}, true
-	}
 }
 
 // objectiveWaitBadge names one unsatisfied Objective dependency, read from the

@@ -1,8 +1,15 @@
 ---
 id: O001
 title: 'E50: Release evaluated V2 and retire transitional runtime'
-status: planned
+status: done
 release: R006
+exception:
+    requirements: [I016, I017]
+    reason: >-
+        Owner accepted the repairs recorded for I016 (rollback snapshot recreated at a durable location, verified by checksum) and I017 (circular T002 acceptance criterion reworded to a provable, non-circular form) without requiring a fresh Full Objective Check session. This is owner-accepted completion by exception, not a new CLEAR result — C905's NEEDS WORK verdict itself is unchanged and remains the record of what was found. R006's own mandatory Release Check is unaffected by this exception and still must run and pass separately before the Release itself can close.
+    owner: ani
+    recorded_at: '2026-09-21T19:10:00Z'
+    check: C905
 ---
 ## Migrated from V1
 
@@ -78,3 +85,8 @@ Reference: `.savepoint/releases/v2/v2-Design.md`.
 ## Open decisions
 
 None. The live repository apply is intentionally reserved for an explicit maintainer action after E51 re-audit and all pre-cutover E50 evidence pass.
+
+## Context Log
+
+- 2026-09-21: C905 (Full Objective Check) recorded `NEEDS WORK`, citing I016 (rollback snapshot absent) and I017 (circular T002 acceptance criterion). Both repaired with recorded evidence in T001/T002 Context Logs and `repair_attempted` history entries on I016/I017 — see those files for detail.
+- 2026-09-21: Owner recorded an `exception` against C905 (`requirements: [I016, I017]`) accepting the repaired state without a fresh Full Objective Check session. Per `ResolveObjectiveCompletion`, this grants O001 completion `AllowedByException` under owner authority — explicitly not a new `CLEAR` result; C905's `NEEDS WORK` verdict stands unchanged as the record of what was found. R006's own mandatory Release Check is a separate gate and still must run and pass before R006 can close.

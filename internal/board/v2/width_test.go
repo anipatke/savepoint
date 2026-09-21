@@ -123,3 +123,55 @@ func TestFullBrowseAndReloadLeaveProjectUntouched(t *testing.T) {
 		}
 	}
 }
+
+func TestWrapTitleLines(t *testing.T) {
+	// Zero / negative limits
+	if wrapTitleLines("hello", 10, 0) != nil {
+		t.Error("maxLines 0 should return nil")
+	}
+	if wrapTitleLines("hello", 0, 2) != nil {
+		t.Error("width 0 should return nil")
+	}
+	if got := wrapTitleLines("", 10, 2); len(got) != 1 || got[0] != "" {
+		t.Errorf("empty text should return [\"\"], got %v", got)
+	}
+
+	// Fits on one line
+	got := wrapTitleLines("Short text", 20, 2)
+	if len(got) != 1 || got[0] != "Short text" {
+		t.Errorf("single-line text wrapped unexpectedly: %v", got)
+	}
+
+	// Wraps across two lines cleanly at word boundary
+	got = wrapTitleLines("The quick brown fox jumps", 15, 2)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %v", len(got), got)
+	}
+	if got[0] != "The quick brown" {
+		t.Errorf("line 1 = %q, want %q", got[0], "The quick brown")
+	}
+	if got[1] != "fox jumps" {
+		t.Errorf("line 2 = %q, want %q", got[1], "fox jumps")
+	}
+
+	// Exceeds two lines, truncates line two with ellipsis
+	got = wrapTitleLines("The quick brown fox jumps over the lazy dog repeatedly", 15, 2)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %v", len(got), got)
+	}
+	if got[0] != "The quick brown" {
+		t.Errorf("line 1 = %q, want %q", got[0], "The quick brown")
+	}
+	if !strings.HasSuffix(got[1], "…") {
+		t.Errorf("line 2 = %q, want suffix '…'", got[1])
+	}
+
+	// Very long word exceeding width across two lines
+	got = wrapTitleLines("Supercalifragilisticexpialidocious", 10, 2)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 lines for long word, got %d: %v", len(got), got)
+	}
+	if !strings.HasSuffix(got[1], "…") {
+		t.Errorf("line 2 = %q, want suffix '…'", got[1])
+	}
+}

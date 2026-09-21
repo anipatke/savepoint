@@ -76,7 +76,7 @@ func detailLines(detail RecordDetail, width int) []string {
 	}
 
 	waived := detail.Evidence != nil && detail.Evidence.CheckWaiver != nil
-	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived), width)...)
+	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived, detail.ByException), width)...)
 	if detail.Kind == DetailRelease {
 		lines = append(lines, detailSection("RELEASE READINESS", releaseReadinessLines(detail), width)...)
 		lines = append(lines, detailSection("OWNER VALIDATION", releaseOwnerValidationLines(detail), width)...)
@@ -250,9 +250,16 @@ func detailSection(heading string, body []string, width int) []string {
 // inspects a Check. waived is meaningful only for a Task detail — an
 // Objective's Check is never waivable — and reads whether the record's own
 // Evidence carries a CheckWaiver, the same fact the card badge reads off
-// GateDecision.AllowedByWaiver while the Task is still open.
-func clearanceLines(kind DetailKind, clearance data.Clearance, waived bool) []string {
-	badge := objectiveCheckBadge(clearance.State)
+// GateDecision.AllowedByWaiver while the Task is still open. byException is
+// meaningful only for an Objective detail, and only changes the badge
+// (objectiveCheckBadge folds it to a plain green tick, matching the sidebar
+// row); the sentence below the badge still states the true clearance state,
+// and the EXCEPTION section further down still names the recorded owner,
+// Check, and reason in full — nothing here hides that an exception was
+// used, only the compact badge collapses it into the same signal a passed
+// Check gives.
+func clearanceLines(kind DetailKind, clearance data.Clearance, waived, byException bool) []string {
+	badge := objectiveCheckBadge(clearance.State, byException)
 	if kind == DetailTask {
 		badge = taskCheckBadge(clearance.State, waived)
 	}

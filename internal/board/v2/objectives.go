@@ -56,6 +56,12 @@ type ObjectiveRow struct {
 	// has one without the other is exactly the state the sidebar exists to make
 	// visible.
 	TasksComplete bool
+	// ByException is true when a recorded owner exception against the
+	// Objective's latest Check grants ResolveObjectiveCompletion's Allowed
+	// result despite clearance not being current. It is never true merely
+	// because clearance is current — that is a passed Check, not an
+	// exception.
+	ByException bool
 	// Waits are the Objective's own declared dependencies that
 	// ResolveObjectiveDependency reports unsatisfied, in declared order.
 	Waits []data.ObjectiveDependencyBlock
@@ -90,6 +96,7 @@ func objectiveRowsForRelease(index *data.V2Index, releaseID string) []ObjectiveR
 			Objective:     objective,
 			Clearance:     data.ResolveClearance(index, id),
 			TasksComplete: ownedTasksComplete(index, id),
+			ByException:   data.ResolveObjectiveCompletion(index, id).AllowedByException,
 			Waits:         unsatisfiedObjectiveWaits(index, objective),
 		})
 	}
@@ -174,15 +181,21 @@ func taskIDsInReleaseView(index *data.V2Index, releaseID, objectiveID string) []
 	return index.ObjectiveTasks[objectiveID]
 }
 
-// badges is the row's state line: how the Objective's own integration stands
-// once its Tasks are finished, its clearance, and each Objective it waits on.
-// Every badge comes from the one mapping in badges.go.
+// badges is the row's state line: the Objective's own Check state, and each
+// Objective it waits on. Every badge comes from the one mapping in badges.go.
+//
+// This is deliberately one completion-state badge, not two. An earlier
+// version also carried objectiveIntegrationBadge ("INTEGRATED" / "NEEDS
+// INTEGRATION"), which — once every owned Task was done — restated the exact
+// same clearance.State the Check badge already showed, in different and
+// more alarming-sounding words. That duplication was flagged (I012) and
+// removed rather than patched: objectiveCheckBadge alone, with byException
+// folded in, is now this row's whole answer to "is this Objective ready to
+// close." TasksComplete stays on ObjectiveRow because callers besides this
+// method may still need "are the owned Tasks done" as its own fact; it is no
+// longer read here.
 func (r ObjectiveRow) badges() []Badge {
-	var badges []Badge
-	if badge, ok := objectiveIntegrationBadge(r.TasksComplete, r.Clearance.State); ok {
-		badges = append(badges, badge)
-	}
-	badges = append(badges, objectiveCheckBadge(r.Clearance.State))
+	badges := []Badge{objectiveCheckBadge(r.Clearance.State, r.ByException)}
 	for _, wait := range r.Waits {
 		badges = append(badges, objectiveWaitBadge(wait))
 	}
@@ -264,9 +277,9 @@ func sidebarStyle(focused bool) lipgloss.Style {
 }
 
 // renderObjectiveRow draws one row: its markers and O### identity, the human
-// title its author wrote, the status its record records, and its badges. Every
-// line is truncated to the row's width rather than wrapped, so a long title
-// costs one line here and not three.
+// title its author wrote, the status its record records, and its badges. The
+// title wraps across up to two lines before truncating so the whole title can
+// be read, while subsequent lines are indented past the marker column.
 func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) string {
 	textW := width - rowMarkerCells
 	if textW < 4 {
@@ -281,14 +294,40 @@ func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) stri
 		style = styles.SidebarSelected
 	}
 
-	lines := []string{
-		style.Render(rowMarkers(selected, cursor) + xansi.Truncate(row.ID()+" "+row.Objective.Title, textW, "…")),
-		styles.CardMeta.Render(indent(xansi.Truncate(string(row.Objective.Status), textW, "…"))),
+	titleLines := wrapTitleLines(row.ID()+" "+row.Objective.Title, textW, 2)
+	var lines []string
+	if len(titleLines) > 0 {
+		lines = append(lines, style.Render(rowMarkers(selected, cursor)+titleLines[0]))
+		for _, line := range titleLines[1:] {
+			lines = append(lines, style.Render(indent(line)))
+		}
+	} else {
+		lines = append(lines, style.Render(rowMarkers(selected, cursor)))
 	}
+
+	lines = append(lines, styles.CardMeta.Render(indent(xansi.Truncate(objectiveStatusLabel(row.Objective.Status), textW, "…"))))
 	for _, line := range renderBadgeLines(row.badges(), textW) {
 		lines = append(lines, indent(line))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// objectiveStatusLabel is the one place an Objective's recorded Status
+// becomes owner-facing text (I013): the row shows "Planned", "In Progress",
+// and "Done" rather than the raw frontmatter values, which stay
+// `planned`/`in_progress`/`done` in every record and resolver untouched. A
+// status outside those three reports itself rather than a guess.
+func objectiveStatusLabel(status data.ColumnType) string {
+	switch status {
+	case data.ColumnPlanned:
+		return "Planned"
+	case data.ColumnInProgress:
+		return "In Progress"
+	case data.ColumnDone:
+		return "Done"
+	default:
+		return string(status)
+	}
 }
 
 // rowMarkers is the fixed-width cursor and selection column. Both glyphs keep

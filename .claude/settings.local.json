@@ -43,7 +43,11 @@
       "Read(//home/user/.claude/**)",
       "Bash(/usr/bin/bash /home/user/.claude/statusline-command.sh)",
       "Bash(gofmt -w internal/data/check_v2.go)",
-      "Bash(gofmt -l internal/data/)"
+      "Bash(gofmt -l internal/data/)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(find / -maxdepth 3 -iname \"*savepoint-cutover*\")",
+      "Read(//home/user/code/savepoint-cutover-backups/0e7c9ed/**)",
+      "Bash(sha256sum repository.bundle worktree.tar NOTE.md)"
     ]
   }
 }

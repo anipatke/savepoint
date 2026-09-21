@@ -21,7 +21,7 @@ import (
 // at.
 func sidebarBoard(t *testing.T, root string) Model {
 	t.Helper()
-	return openSizedBoard(t, root, 130, 48)
+	return openSizedBoard(t, root, 130, 56)
 }
 
 // sidebarLines returns the rendered board's lines with their ANSI stripped,
@@ -71,7 +71,7 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 		previous = at
 	}
 
-	for _, want := range []string{"Finished and in", "done", "in_progress", "planned"} {
+	for _, want := range []string{"Finished and", "Done", "In Progress", "Planned"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("sidebar is missing %q, which every row must carry:\n%s", want, got)
 		}
@@ -79,42 +79,77 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 }
 
 // TestSidebarShowsEachObjectivesOwnCheckBadge proves the sidebar's Check badge
-// is the deliberately simple two-notch signal objectiveCheckBadge defines: a
-// current Check reads "[✓] Check", and every other clearance state — missing,
-// needs_work, unknown, and stale alike — reads the same grey "[ ] Check"
-// rather than the fuller five-state vocabulary a Task card's badge carries.
-// The Full Objective Check is never waivable, so there is no third notch here.
+// is the deliberately simple three-notch signal objectiveCheckBadge defines:
+// a current Check reads "[✓] Check"; a never-checked Objective reads grey
+// "[ ] Check"; and needs_work, unknown, and stale alike collapse into the
+// same "[!] Check (needs work)" rather than the fuller five-state vocabulary
+// a Task card's badge carries. The Full Objective Check is never waivable, so
+// there is no separate waived notch here.
 func TestSidebarShowsEachObjectivesOwnCheckBadge(t *testing.T) {
 	got := sidebarText(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	// O001 current; O002/O003 missing, O004 needs work, O005 unknown, O006
-	// stale all fold into the same "not yet" badge.
+	// O001 current; O002/O003 missing; O004 needs_work, O005 unknown, O006
+	// stale all fold into the same "checked, not clear" badge.
 	if !strings.Contains(got, "[✓] Check") {
 		t.Errorf("sidebar does not show a current Objective as checked:\n%s", got)
 	}
-	if count := strings.Count(got, "[ ] Check"); count != 5 {
-		t.Errorf("sidebar shows %d Objectives as not-yet-checked, want 5 (missing, needs_work, unknown, and stale all read the same):\n%s", count, got)
+	if count := strings.Count(got, "[ ] Check"); count != 2 {
+		t.Errorf("sidebar shows %d Objectives as never checked, want 2 (O002, O003):\n%s", count, got)
+	}
+	// The label wraps across two lines at this column width ("Check (needs" /
+	// "work)"), so this counts the badge's flagged glyph rather than the full
+	// contiguous label text.
+	if count := strings.Count(got, "[!]"); count != 3 {
+		t.Errorf("sidebar shows %d Objectives as checked-not-clear, want 3 (needs_work, unknown, and stale all read the same):\n%s", count, got)
 	}
 }
 
 // TestSidebarSeparatesFinishedTasksFromAFinishedObjective is the state the
 // sidebar exists to make visible: an Objective whose every Task is done but
-// whose own integration Check is not current looks finished in the columns and
-// must not look finished here.
+// which has never had its own Check reads differently from one whose Check is
+// current, and finished Tasks alone are never enough to read as checked. This
+// used to be a second badge ("INTEGRATED" / "NEEDS INTEGRATION") that just
+// restated the Check badge in scarier words (I012); it is gone, and the Check
+// badge alone carries this distinction now.
 func TestSidebarSeparatesFinishedTasksFromAFinishedObjective(t *testing.T) {
 	rows := sidebarLines(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	integrated := rowsFor(rows, "O001")
-	waiting := rowsFor(rows, "O002")
+	checked := rowsFor(rows, "O001")
+	neverChecked := rowsFor(rows, "O002")
 
-	if !strings.Contains(integrated, "✓ INTEGRATED") {
-		t.Errorf("an Objective whose Tasks are done and whose integration is current does not read as integrated:\n%s", integrated)
+	if !strings.Contains(checked, "[✓] Check") {
+		t.Errorf("an Objective whose Tasks are done and whose Check is current does not read as checked:\n%s", checked)
 	}
-	if !strings.Contains(waiting, "⚠ NEEDS INTEGRATION") {
-		t.Errorf("an Objective whose Tasks are done but whose integration is not current does not say so:\n%s", waiting)
+	if !strings.Contains(neverChecked, "[ ] Check") {
+		t.Errorf("an Objective whose Tasks are done but which has never been checked does not say so:\n%s", neverChecked)
 	}
-	if strings.Contains(waiting, "✓ INTEGRATED") {
-		t.Errorf("an uncleared Objective reads as integrated:\n%s", waiting)
+	if strings.Contains(neverChecked, "[✓] Check") {
+		t.Errorf("an unchecked Objective reads as checked:\n%s", neverChecked)
+	}
+	for _, retired := range []string{"INTEGRATED", "NEEDS INTEGRATION"} {
+		if strings.Contains(checked+neverChecked, retired) {
+			t.Errorf("sidebar still renders the retired %q wording:\n%s\n%s", retired, checked, neverChecked)
+		}
+	}
+}
+
+// TestObjectiveRowBadgesFoldExceptionIntoCheck proves ObjectiveRow.badges()
+// wires ByException into objectiveCheckBadge rather than leaving it unread: a
+// row whose owner accepted an exception against a not-current Check shows the
+// same "[✓] Check" a clear Check gets, not the not-clear badge its raw
+// clearance state alone would produce.
+func TestObjectiveRowBadgesFoldExceptionIntoCheck(t *testing.T) {
+	row := ObjectiveRow{
+		Objective:   &data.ObjectiveV2{ID: "O001", Title: "Accepted with a known gap", Status: "in_progress"},
+		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
+		ByException: true,
+	}
+	badges := row.badges()
+	if len(badges) != 1 {
+		t.Fatalf("badges() = %d entries, want exactly 1 (the Check badge, no waits)", len(badges))
+	}
+	if got := badges[0].Text(); got != "[✓] Check" {
+		t.Errorf("badge = %q, want an exception-accepted row to read exactly like a current Check", got)
 	}
 }
 
@@ -377,16 +412,45 @@ func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
 			t.Errorf("sidebar line is %d cells wide, past the %d it has: %q", lipgloss.Width(line), sidebarWidth, line)
 		}
 	}
-	// A title wider than the sidebar costs one line, truncated, not three.
+	// A title wider than the sidebar wraps across up to two lines so the whole title can be read.
 	full := strings.Join(sidebarLines(t, sidebarBoard(t, writeNavigationProject(t))), "\n")
 	if !strings.Contains(full, "O006") {
 		t.Fatalf("the last Objective is not on screen, so nothing here proves how its title renders:\n%s", full)
 	}
-	if strings.Contains(full, "Integration has gone stale") {
-		t.Errorf("a title longer than the sidebar wrapped instead of truncating:\n%s", full)
+	if !strings.Contains(full, "Integration has") || !strings.Contains(full, "gone stale") {
+		t.Errorf("a title longer than one line should wrap across two lines:\n%s", full)
 	}
-	if !strings.Contains(full, "…") {
-		t.Errorf("no title was truncated, so the width rule is untested:\n%s", full)
+}
+
+func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
+	shortRow := ObjectiveRow{
+		Objective: &data.ObjectiveV2{ID: "O001", Title: "Short", Status: "planned"},
+		Clearance: data.Clearance{State: data.ClearanceMissing},
+	}
+	shortText := xansi.Strip(renderObjectiveRow(shortRow, 28, false, false))
+	if strings.Contains(shortText, "…") {
+		t.Errorf("short objective title should not be truncated:\n%s", shortText)
+	}
+
+	twoLineRow := ObjectiveRow{
+		Objective: &data.ObjectiveV2{ID: "O002", Title: "Implement user authentication subsystem", Status: "in_progress"},
+		Clearance: data.Clearance{State: data.ClearanceMissing},
+	}
+	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, 28, false, false))
+	if !strings.Contains(twoLineText, "Implement user") {
+		t.Errorf("two-line objective title missing line 1:\n%s", twoLineText)
+	}
+	if !strings.Contains(twoLineText, "subsystem") {
+		t.Errorf("two-line objective title missing line 2:\n%s", twoLineText)
+	}
+
+	longRow := ObjectiveRow{
+		Objective: &data.ObjectiveV2{ID: "O003", Title: "Implement user authentication and authorization subsystem with multi factor security and token lifecycle management", Status: "in_progress"},
+		Clearance: data.Clearance{State: data.ClearanceMissing},
+	}
+	longText := xansi.Strip(renderObjectiveRow(longRow, 28, false, false))
+	if !strings.Contains(longText, "…") {
+		t.Errorf("objective title exceeding two lines should truncate with ellipsis:\n%s", longText)
 	}
 }
 

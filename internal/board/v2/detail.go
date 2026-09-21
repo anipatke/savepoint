@@ -105,9 +105,17 @@ type RecordDetail struct {
 	LegacyCompletion  *data.LegacyCompletionReference
 
 	Clearance data.Clearance
-	Evidence  *data.Evidence
-	Checks    []CheckEntry
-	Issues    []*data.IssueV2
+	// ByException is true only for an Objective whose latest completion
+	// decision is allowed despite clearance not being current — the same
+	// resolver call ObjectiveRow.ByException uses, so the badge this detail's
+	// CLEARANCE section shows (via objectiveCheckBadge) always agrees with the
+	// sidebar row for the same Objective. Always false for a Task or Release
+	// detail: a Task's exception is its own separate badge, not folded into
+	// its Check badge, so this field carries no meaning there.
+	ByException bool
+	Evidence    *data.Evidence
+	Checks      []CheckEntry
+	Issues      []*data.IssueV2
 }
 
 // newTaskDetail resolves the detail for one Task. It returns ok=false for an ID
@@ -154,14 +162,15 @@ func newObjectiveDetail(index *data.V2Index, objectiveID string) (RecordDetail, 
 	}
 
 	detail := RecordDetail{
-		Kind:      DetailObjective,
-		ID:        objective.ID,
-		Title:     objective.Title,
-		Status:    objective.Status,
-		Body:      objective.Source.Body,
-		Clearance: data.ResolveClearance(index, objective.ID),
-		Evidence:  objective.Evidence,
-		Checks:    checkHistory(index, objective.ID),
+		Kind:        DetailObjective,
+		ID:          objective.ID,
+		Title:       objective.Title,
+		Status:      objective.Status,
+		Body:        objective.Source.Body,
+		Clearance:   data.ResolveClearance(index, objective.ID),
+		ByException: data.ResolveObjectiveCompletion(index, objectiveID).AllowedByException,
+		Evidence:    objective.Evidence,
+		Checks:      checkHistory(index, objective.ID),
 	}
 
 	// Ownership is index.ObjectiveTasks' answer, built from each Task's own

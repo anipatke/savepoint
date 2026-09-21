@@ -115,7 +115,9 @@ func (c TaskCard) badges() []Badge {
 	if c.Task.Status == data.ColumnDone {
 		badges = append(badges, completionBadge(c.Clearance.State, c.ByException, c.ByWaiver))
 	}
-	badges = append(badges, taskCheckBadge(c.Clearance.State, c.ByWaiver))
+	if c.Task.Status != data.ColumnPlanned {
+		badges = append(badges, taskCheckBadge(c.Clearance.State, c.ByWaiver))
+	}
 	for _, blocker := range c.Decision.Blockers {
 		if badge, ok := blockerBadge(blocker); ok {
 			badges = append(badges, badge)
@@ -144,14 +146,16 @@ func renderCard(card TaskCard, width int, focused bool) string {
 	}
 
 	identity := styles.CardMeta.Render(xansi.Truncate(card.Task.ID, textW, "…"))
-	title := titleStyle(focused).Render(truncateCells(card.Task.Title, textW))
-
-	lines := []string{identity, title}
+	lines := []string{identity}
+	tStyle := titleStyle(card.Task.Status, focused)
+	for _, titleLine := range wrapTitleLines(card.Task.Title, textW, 2) {
+		lines = append(lines, tStyle.Render(titleLine))
+	}
 	if badges := renderBadgeLines(card.badges(), textW); len(badges) > 0 {
 		lines = append(lines, badges...)
 	}
 
-	return cardStyle(focused).Width(textW + paddingCells).Render(strings.Join(lines, "\n"))
+	return cardStyle(card.Task.Status, focused).Width(textW + paddingCells).Render(strings.Join(lines, "\n"))
 }
 
 // renderBadgeLines packs badges onto as few lines as fit within width, so a
@@ -181,15 +185,27 @@ func renderBadgeLines(badges []Badge, width int) []string {
 // changes, the geometry does not. Both styles carry identical padding and
 // border sides, so a focused card occupies exactly the cells an unfocused one
 // does (the visual identity treats a layout that moves under focus as a bug).
-func cardStyle(focused bool) lipgloss.Style {
+func cardStyle(status data.ColumnType, focused bool) lipgloss.Style {
 	if focused {
+		if status == data.ColumnPlanned {
+			return styles.CardBoxFocusedPlanned
+		}
+		if status == data.ColumnDone {
+			return styles.CardBoxFocusedDone
+		}
 		return styles.CardBoxFocused
 	}
 	return styles.CardBox
 }
 
-func titleStyle(focused bool) lipgloss.Style {
+func titleStyle(status data.ColumnType, focused bool) lipgloss.Style {
 	if focused {
+		if status == data.ColumnPlanned {
+			return styles.TaskItem
+		}
+		if status == data.ColumnDone {
+			return styles.TaskItemFocusedDone
+		}
 		return styles.TaskItemFocused
 	}
 	return styles.TaskItem

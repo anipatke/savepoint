@@ -23,6 +23,29 @@ var issueFilterOrder = []data.IssueType{
 	"other",
 }
 
+// issueColumnLabels is the three-column vocabulary the Issues overlay always
+// renders in, keyed by the recorded Issue status it counts — the same
+// grey/orange/green accents the Task board wears for planned/in-progress/done,
+// carried over onto open/in_progress/resolved so the two surfaces read as one
+// color language.
+var issueColumnLabels = []struct {
+	Label  string
+	Status data.IssueStatus
+}{
+	{"OPEN", data.IssueStatusOpen},
+	{"IN PROGRESS", data.IssueStatusInProgress},
+	{"RESOLVED", data.IssueStatusResolved},
+}
+
+func issueColumnIndex(status data.IssueStatus) int {
+	for i, column := range issueColumnLabels {
+		if column.Status == status {
+			return i
+		}
+	}
+	return -1
+}
+
 // IssueLink is a resolved reference shown by an Issue detail. The loader
 // settles its label once, so the renderer never looks through the index.
 type IssueLink struct {
@@ -68,18 +91,19 @@ type issueOrigin struct {
 	FocusedCard     int
 }
 
-// IssueOverlay is the read-only Issues surface: one filter, one list cursor,
-// optional detail, and a stack for duplicate-target navigation.
+// IssueOverlay is the read-only Issues surface: one type filter, one status
+// column in focus, one cursor inside it, optional detail, and a stack for
+// duplicate-target navigation.
 type IssueOverlay struct {
-	Filter       data.IssueType
-	Cursor       int
-	SelectedID   string
-	Offset       int
-	Detail       *IssueDetail
-	DetailOffset int
-	DetailStack  []*IssueDetail
-	ScopedTask   string
-	Origin       issueOrigin
+	Filter        data.IssueType
+	FocusedStatus data.IssueStatus
+	Cursor        int
+	SelectedID    string
+	Detail        *IssueDetail
+	DetailOffset  int
+	DetailStack   []*IssueDetail
+	ScopedTask    string
+	Origin        issueOrigin
 }
 
 // issueCatalog resolves every Issue and the two scoped link directions needed
@@ -178,6 +202,30 @@ func (m Model) filteredIssueRows() []IssueRow {
 	return filtered
 }
 
+// groupedIssueRows buckets the scoped, type-filtered rows by status into the
+// three columns the overlay renders, in stable ID order within each bucket,
+// so a project renders the same way twice.
+func (m Model) groupedIssueRows() map[data.IssueStatus][]IssueRow {
+	grouped := map[data.IssueStatus][]IssueRow{
+		data.IssueStatusOpen:       {},
+		data.IssueStatusInProgress: {},
+		data.IssueStatusResolved:   {},
+	}
+	for _, row := range m.filteredIssueRows() {
+		grouped[row.Issue.Status] = append(grouped[row.Issue.Status], row)
+	}
+	return grouped
+}
+
+// focusedIssueRows is the rows of whichever status column is focused — the
+// only rows a list-mode key (cursor move, enter) ever acts on.
+func (m Model) focusedIssueRows() []IssueRow {
+	if m.Issues == nil {
+		return nil
+	}
+	return m.groupedIssueRows()[m.Issues.FocusedStatus]
+}
+
 func issueFilterLabel(filter data.IssueType) string {
 	if filter == "" {
 		return "ALL"
@@ -190,7 +238,8 @@ func (m *Model) openIssues(taskID string) {
 		return
 	}
 	m.Issues = &IssueOverlay{
-		ScopedTask: taskID,
+		ScopedTask:    taskID,
+		FocusedStatus: data.IssueStatusOpen,
 		Origin: issueOrigin{
 			SidebarFocused:  m.SidebarFocused,
 			ObjectiveCursor: m.ObjectiveCursor,
@@ -215,24 +264,44 @@ func (m *Model) closeIssues() {
 	m.clampFocus()
 }
 
+// clampIssueCursor keeps the overlay showing a real row. If the previously
+// selected Issue still exists anywhere in view — even under a different
+// status now, say a Check just resolved it — focus follows it to that
+// column; otherwise the cursor is clamped inside whatever the focused status
+// column holds. This is the restore path: it runs on open and after a
+// reload, never on a reader's own left/right column choice.
 func (m *Model) clampIssueCursor() {
 	if m.Issues == nil {
 		return
 	}
-	rows := m.filteredIssueRows()
+	if issueColumnIndex(m.Issues.FocusedStatus) < 0 {
+		m.Issues.FocusedStatus = data.IssueStatusOpen
+	}
+	if m.Issues.SelectedID != "" {
+		grouped := m.groupedIssueRows()
+		for _, column := range issueColumnLabels {
+			for i, row := range grouped[column.Status] {
+				if row.Issue.ID == m.Issues.SelectedID {
+					m.Issues.FocusedStatus = column.Status
+					m.Issues.Cursor = i
+					return
+				}
+			}
+		}
+	}
+	m.clampIssueCursorToStatus()
+}
+
+// clampIssueCursorToStatus clamps the cursor inside the focused status
+// column alone, without searching other columns for SelectedID — the reader
+// just chose this column or this filter, so a match elsewhere must never
+// pull focus back to where it was.
+func (m *Model) clampIssueCursorToStatus() {
+	rows := m.focusedIssueRows()
 	if len(rows) == 0 {
 		m.Issues.Cursor = 0
 		m.Issues.SelectedID = ""
-		m.Issues.Offset = 0
 		return
-	}
-	if m.Issues.SelectedID != "" {
-		for i, row := range rows {
-			if row.Issue.ID == m.Issues.SelectedID {
-				m.Issues.Cursor = i
-				return
-			}
-		}
 	}
 	if m.Issues.Cursor < 0 {
 		m.Issues.Cursor = 0
@@ -247,13 +316,30 @@ func (m *Model) moveIssueCursor(delta int) {
 	if m.Issues == nil {
 		return
 	}
-	rows := m.filteredIssueRows()
+	rows := m.focusedIssueRows()
 	next := m.Issues.Cursor + delta
 	if next < 0 || next >= len(rows) {
 		return
 	}
 	m.Issues.Cursor = next
 	m.Issues.SelectedID = rows[next].Issue.ID
+}
+
+// focusIssueStatus moves the focused column left or right, clamping at both
+// ends rather than wrapping, and re-clamps the cursor into the column it
+// lands on without moving it to the top — the same left/right feel the Task
+// board's own columns already have.
+func (m *Model) focusIssueStatus(delta int) {
+	if m.Issues == nil {
+		return
+	}
+	current := issueColumnIndex(m.Issues.FocusedStatus)
+	next := current + delta
+	if next < 0 || next >= len(issueColumnLabels) {
+		return
+	}
+	m.Issues.FocusedStatus = issueColumnLabels[next].Status
+	m.clampIssueCursorToStatus()
 }
 
 func (m *Model) cycleIssueFilter() {
@@ -269,16 +355,14 @@ func (m *Model) cycleIssueFilter() {
 	}
 	m.Issues.Filter = issueFilterOrder[(current+1)%len(issueFilterOrder)]
 	m.Issues.Cursor = 0
-	m.Issues.SelectedID = ""
-	m.Issues.Offset = 0
-	m.clampIssueCursor()
+	m.clampIssueCursorToStatus()
 }
 
 func (m *Model) openSelectedIssue() {
-	if m.Issues == nil || len(m.filteredIssueRows()) == 0 {
+	if m.Issues == nil {
 		return
 	}
-	rows := m.filteredIssueRows()
+	rows := m.focusedIssueRows()
 	if m.Issues.Cursor < 0 || m.Issues.Cursor >= len(rows) {
 		return
 	}
@@ -319,45 +403,30 @@ func (m *Model) openDuplicateTarget() {
 	m.Issues.DetailOffset = 0
 }
 
+// scrollIssues and clampIssueScroll only ever move the Issue detail's own
+// scroll offset: the list beneath it has no scroll offset of its own, since
+// each status column's visible window follows its cursor exactly as a Task
+// column's does.
 func (m *Model) scrollIssues(delta int) {
-	if m.Issues == nil {
+	if m.Issues == nil || m.Issues.Detail == nil {
 		return
 	}
-	if m.Issues.Detail != nil {
-		_, height := m.detailViewport()
-		limit := issueDetailScrollLimit(*m.Issues.Detail, m.terminalWidth(), height)
-		next := m.Issues.DetailOffset + delta
-		if next >= 0 && next <= limit {
-			m.Issues.DetailOffset = next
-		}
-		return
-	}
-	rows := m.filteredIssueRows()
-	limit := len(rows) - 1
-	next := m.Issues.Offset + delta
+	_, height := m.detailViewport()
+	limit := issueDetailScrollLimit(*m.Issues.Detail, m.terminalWidth(), height)
+	next := m.Issues.DetailOffset + delta
 	if next >= 0 && next <= limit {
-		m.Issues.Offset = next
+		m.Issues.DetailOffset = next
 	}
 }
 
 func (m *Model) clampIssueScroll() {
-	if m.Issues == nil {
+	if m.Issues == nil || m.Issues.Detail == nil {
 		return
 	}
-	if m.Issues.Detail != nil {
-		_, height := m.detailViewport()
-		limit := issueDetailScrollLimit(*m.Issues.Detail, m.terminalWidth(), height)
-		if m.Issues.DetailOffset > limit {
-			m.Issues.DetailOffset = limit
-		}
-		return
-	}
-	rows := m.filteredIssueRows()
-	if m.Issues.Offset >= len(rows) {
-		m.Issues.Offset = len(rows) - 1
-	}
-	if m.Issues.Offset < 0 {
-		m.Issues.Offset = 0
+	_, height := m.detailViewport()
+	limit := issueDetailScrollLimit(*m.Issues.Detail, m.terminalWidth(), height)
+	if m.Issues.DetailOffset > limit {
+		m.Issues.DetailOffset = limit
 	}
 }
 
@@ -379,6 +448,10 @@ func (m *Model) handleIssuesKey(key string) {
 		return
 	}
 	switch key {
+	case "left", "h":
+		m.focusIssueStatus(-1)
+	case "right", "l":
+		m.focusIssueStatus(1)
 	case "up", "k":
 		m.moveIssueCursor(-1)
 	case "down", "j":

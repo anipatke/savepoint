@@ -55,7 +55,13 @@ func renderColumn(label string, cards []TaskCard, width, height int, cursor colu
 
 	header := fmt.Sprintf("%s (%d)", label, len(cards))
 	if cursor.accented() {
-		header = styles.ColumnTitleFocused.Render(header)
+		if isPlannedColumn(label) {
+			header = styles.ColumnTitleFocusedPlanned.Render(header)
+		} else if isDoneColumn(label) {
+			header = styles.ColumnTitleFocusedDone.Render(header)
+		} else {
+			header = styles.ColumnTitleFocused.Render(header)
+		}
 	} else {
 		header = styles.ColumnTitle.Render(header)
 	}
@@ -63,7 +69,7 @@ func renderColumn(label string, cards []TaskCard, width, height int, cursor colu
 
 	if len(cards) == 0 {
 		lines = append(lines, styles.CardMeta.Render("(empty)"))
-		return frameColumn(lines, textW, bodyH, cursor.accented())
+		return frameColumn(lines, textW, bodyH, cursor.accented(), label)
 	}
 
 	rendered := make([]string, len(cards))
@@ -87,14 +93,14 @@ func renderColumn(label string, cards []TaskCard, width, height int, cursor colu
 		lines = append(lines, scrollIndicator("↓", len(cards)-end, "more"))
 	}
 
-	return frameColumn(lines, textW, bodyH, cursor.accented())
+	return frameColumn(lines, textW, bodyH, cursor.accented(), label)
 }
 
 // frameColumn draws the column's frame around its lines at exactly the height
 // it was budgeted: Height fills a short column out and MaxHeight clips one
 // whose last card would otherwise push past the bottom of the board.
-func frameColumn(lines []string, textW, bodyH int, focused bool) string {
-	return columnStyle(focused).
+func frameColumn(lines []string, textW, bodyH int, focused bool, label ...string) string {
+	return columnStyle(focused, label...).
 		Width(textW + paddingCells).
 		Height(bodyH).
 		MaxHeight(bodyH + borderCells).
@@ -175,11 +181,27 @@ func columnBodyHeight(height int) int {
 
 // columnStyle is the column frame in two accents. Like the card frame, the two
 // differ in color only: same border, same padding, same width.
-func columnStyle(focused bool) lipgloss.Style {
+func columnStyle(focused bool, label ...string) lipgloss.Style {
 	if focused {
+		if len(label) > 0 {
+			if isPlannedColumn(label[0]) {
+				return styles.ColumnFocusedPlanned
+			}
+			if isDoneColumn(label[0]) {
+				return styles.ColumnFocusedDone
+			}
+		}
 		return styles.ColumnFocused
 	}
 	return styles.ColumnUnfocused
+}
+
+func isPlannedColumn(label string) bool {
+	return strings.HasPrefix(label, "PLANNED")
+}
+
+func isDoneColumn(label string) bool {
+	return strings.HasPrefix(label, "DONE")
 }
 
 func scrollIndicator(arrow string, count int, suffix string) string {

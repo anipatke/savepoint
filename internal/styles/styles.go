@@ -7,15 +7,16 @@ func color(hex, ansi256, ansi string) lipgloss.CompleteColor {
 }
 
 var (
-	clrOrange      = color(AtariOrange, AtariOrange256, AtariOrange16)
-	clrText        = color(PrimaryText, PrimaryText256, PrimaryText16)
-	clrBorder      = color(BorderSubtle, BorderSubtle256, BorderSubtle16)
-	clrSurface     = color(Surface2, Surface2256, Surface216) // intentionally black
-	clrSurfaceDark = color(Surface, Surface256, Surface16)    // intentionally black
-	clrGreen       = color(NPPGreen, NPPGreen256, NPPGreen16)
-	clrPurple      = color(VibePurple, VibePurple256, VibePurple16)
-	clrWhite       = color(White, White256, White16)
-	clrDim         = color(Dim, Dim256, Dim16)
+	clrOrange         = color(AtariOrange, AtariOrange256, AtariOrange16)
+	clrText           = color(PrimaryText, PrimaryText256, PrimaryText16)
+	clrBorder         = color(BorderSubtle, BorderSubtle256, BorderSubtle16)
+	clrBorderPlanned  = color(BorderPlannedFocused, BorderPlannedFocused256, BorderPlannedFocused16)
+	clrSurface        = color(Surface2, Surface2256, Surface216) // intentionally black
+	clrSurfaceDark    = color(Surface, Surface256, Surface16)    // intentionally black
+	clrGreen          = color(NPPGreen, NPPGreen256, NPPGreen16)
+	clrPurple         = color(VibePurple, VibePurple256, VibePurple16)
+	clrWhite          = color(White, White256, White16)
+	clrDim            = color(Dim, Dim256, Dim16)
 )
 
 var boxBorder = lipgloss.NormalBorder()
@@ -49,6 +50,16 @@ var (
 			BorderForeground(clrOrange).
 			Padding(0, 1)
 
+	ColumnFocusedPlanned = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrBorderPlanned).
+				Padding(0, 1)
+
+	ColumnFocusedDone = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrGreen).
+				Padding(0, 1)
+
 	ColumnTitle = lipgloss.NewStyle().
 			Foreground(clrText).
 			Bold(true)
@@ -57,11 +68,22 @@ var (
 				Foreground(clrOrange).
 				Bold(true)
 
+	ColumnTitleFocusedPlanned = lipgloss.NewStyle().
+					Foreground(clrBorderPlanned).
+					Bold(true)
+
+	ColumnTitleFocusedDone = lipgloss.NewStyle().
+					Foreground(clrGreen).
+					Bold(true)
+
 	TaskItem = lipgloss.NewStyle().
 			Foreground(clrText)
 
 	TaskItemFocused = lipgloss.NewStyle().
 			Foreground(clrOrange)
+
+	TaskItemFocusedDone = lipgloss.NewStyle().
+				Foreground(clrGreen)
 
 	StatusBar = lipgloss.NewStyle().
 			Foreground(clrText)
@@ -119,6 +141,16 @@ var (
 			BorderStyle(boxBorder).
 			BorderForeground(clrOrange).
 			Padding(0, 1)
+
+	CardBoxFocusedPlanned = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrBorderPlanned).
+				Padding(0, 1)
+
+	CardBoxFocusedDone = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrGreen).
+				Padding(0, 1)
 
 	CardMeta        = lipgloss.NewStyle().Foreground(clrDim)
 	ScrollIndicator = lipgloss.NewStyle().

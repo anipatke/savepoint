@@ -33,8 +33,11 @@ func TestActionsOnlyExposeOwnerAuthorityAndSelection(t *testing.T) {
 	}
 	actions := actionsForRecord(loaded.State.Index, actionTarget{Kind: DetailTask, ID: "T005"})
 	action, ok := actionForKey(actions, exceptionCloseKey)
-	if !ok || !strings.Contains(action.Label, "ship the known gap") {
-		t.Fatalf("exception actions = %+v, want an owner action naming the exception", actions)
+	if !ok || action.Label != "complete by exception" {
+		t.Fatalf("exception actions = %+v, want a short owner action label, not the exception's own reason text (that belongs in the detail overlay, not the footer)", actions)
+	}
+	if strings.Contains(action.Label, "ship the known gap") {
+		t.Fatalf("exception action label = %q, leaked the recorded reason text into what must stay a short footer hint", action.Label)
 	}
 
 	if actions := actionsForRecord(loaded.State.Index, actionTarget{Kind: DetailTask, ID: "T001"}); len(actions) != 0 {

@@ -126,7 +126,10 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 		}
 	}
 
-	accepted := press(t, model, "esc", "down", "down", "enter")
+	// I001 is Open; I003 (accepted) is the first of three Resolved rows, so
+	// reaching it crosses into the Resolved column rather than scrolling down
+	// a single shared list.
+	accepted := press(t, model, "esc", "right", "right", "enter")
 	acceptedText := issueScreen(accepted)
 	if !strings.Contains(acceptedText, "Disposition: accepted") || !strings.Contains(acceptedText, "Not proof of repair") {
 		t.Errorf("accepted disposition is not distinct from repair proof:\n%s", acceptedText)
@@ -141,10 +144,39 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 	if !strings.Contains(issueScreen(toCanonical), "ID: I001") {
 		t.Errorf("duplicate navigation did not open the canonical Issue:\n%s", issueScreen(toCanonical))
 	}
-	verified := press(t, issueBoard(t, root), "i", "down", "down", "down", "down", "enter")
+	verified := press(t, issueBoard(t, root), "i", "right", "right", "down", "down", "enter")
 	verifiedText := issueScreen(verified)
 	if !strings.Contains(verifiedText, "Disposition: verified") || !strings.Contains(verifiedText, "Proof: Check C001") {
 		t.Errorf("verified disposition does not show its proof Check:\n%s", verifiedText)
+	}
+}
+
+// TestIssuesSplitIntoThreeStatusColumns covers the Open/In Progress/Resolved
+// column layout: all three headers with their counts render together, and
+// left/right moves focus between columns while up/down stays inside one.
+func TestIssuesSplitIntoThreeStatusColumns(t *testing.T) {
+	root := writeIssuesProject(t)
+
+	got := issueScreen(press(t, issueBoard(t, root), "i"))
+	for _, want := range []string{"OPEN (1)", "IN PROGRESS (1)", "RESOLVED (3)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Issues overlay is missing column header %q:\n%s", want, got)
+		}
+	}
+
+	toInProgress := press(t, issueBoard(t, root), "i", "right", "enter")
+	if !strings.Contains(issueScreen(toInProgress), "ID: I002") {
+		t.Errorf("right did not focus the In Progress column:\n%s", issueScreen(toInProgress))
+	}
+
+	toResolved := press(t, issueBoard(t, root), "i", "right", "right", "down", "enter")
+	if !strings.Contains(issueScreen(toResolved), "ID: I004") {
+		t.Errorf("right right down did not reach the second Resolved row:\n%s", issueScreen(toResolved))
+	}
+
+	back := press(t, toResolved, "esc", "left", "left", "enter")
+	if !strings.Contains(issueScreen(back), "ID: I001") {
+		t.Errorf("left left did not return focus to the Open column:\n%s", issueScreen(back))
 	}
 }
 

@@ -109,11 +109,16 @@ func recordDecision(index *data.V2Index, target actionTarget) (data.GateDecision
 	}
 }
 
+// exceptionLabel stays a short, fixed phrase regardless of the exception's
+// own reason text: the footer is keys only (see focusedActionText), and an
+// owner-authored reason is unbounded prose that belongs in the record's
+// detail overlay (resume.ExceptionPhrase), not crammed into a single hint
+// line shown at every idle moment.
 func exceptionLabel(exception *data.Exception) string {
 	if exception == nil {
 		return "complete by recorded exception"
 	}
-	return "complete by exception: " + exception.Reason
+	return "complete by exception"
 }
 
 // refusalTemplates is the one source for gate refusal copy. Detail is filled

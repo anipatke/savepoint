@@ -14,11 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: check
+state: design
 release: R006
 objective: O001
 task: none
-next_action: "Owner waived T002's optional Task Check (check_waiver recorded in T002's frontmatter); its evidence now routes straight to O001's mandatory Full Objective Check. Two owner-only steps remain: mark T002 status: done, and run a fresh independent savepoint-check session for O001's Full Objective Check before R006 can clear."
+next_action: "C905 found NEEDS WORK: restore durable verified rollback material for I016 and replan E50's circular Release-cutover criterion for I017 before a fresh Full Objective Check."
 ```
 
 ## State → action

@@ -202,7 +202,7 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 
 	rendered := map[string]string{}
 	for _, c := range cases {
-		got := strings.Join(clearanceLines(DetailTask, c.clearance, false), " ")
+		got := strings.Join(clearanceLines(DetailTask, c.clearance, false, false), " ")
 		requireContains(t, got, c.wantParts...)
 		for name, other := range rendered {
 			if other == got {

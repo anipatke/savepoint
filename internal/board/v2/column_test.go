@@ -138,3 +138,29 @@ func TestVisibleWindowKeepsTheFocusedCardVisible(t *testing.T) {
 		t.Errorf("window = [%d,%d), want the one oversized card rendered anyway", start, end)
 	}
 }
+
+func TestRenderColumnPlannedFocusUsesPlannedAccent(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+	cards := manyCards(2)
+
+	focusedPlanned := renderColumn("PLANNED", cards, 34, 20, columnCursor{Holds: true, Focused: true})
+	// Focused planned column should not use orange accent (RGB 252, 99, 35)
+	if strings.Contains(focusedPlanned, "252;99;35") {
+		t.Errorf("focused planned column should not use orange accent:\n%s", focusedPlanned)
+	}
+
+	focusedInProgress := renderColumn("IN PROGRESS", cards, 34, 20, columnCursor{Holds: true, Focused: true})
+	// Focused in_progress column should use orange accent
+	if !strings.Contains(focusedInProgress, "252;99;35") {
+		t.Errorf("focused in_progress column should use orange accent:\n%s", focusedInProgress)
+	}
+
+	focusedDone := renderColumn("DONE", cards, 34, 20, columnCursor{Holds: true, Focused: true})
+	// Focused done column should use green accent (RGB 164, 198, 57) and not orange
+	if strings.Contains(focusedDone, "252;99;35") {
+		t.Errorf("focused done column should not use orange accent:\n%s", focusedDone)
+	}
+	if !strings.Contains(focusedDone, "163;198;56") {
+		t.Errorf("focused done column should use green accent (163;198;56):\n%s", focusedDone)
+	}
+}
