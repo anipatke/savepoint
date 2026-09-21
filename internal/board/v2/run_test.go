@@ -71,7 +71,17 @@ func TestRunWithoutTTYIncludesTitlesBadgesAndIssueSummary(t *testing.T) {
 	got := stdout.String()
 	for _, want := range []string{
 		"Rechecked after the first run found problems",
-		"[◆ CHECK  [✓] Check",
+		// T002 is at audit with a current, clear Check and nothing else
+		// outstanding: just the stage badge, no completion-outcome badge —
+		// that vocabulary belongs to the Done column (see
+		// TaskCard.showsReviewOutcome).
+		"[◆ CHECK]",
+		"Waiting on the owner to accept",
+		// T006 is at audit with the same current, clear Check but owner
+		// sign-off still outstanding: the owner blocker is the actionable
+		// fact, shown alone rather than beside a "checked and clear" badge
+		// that would read as a contradiction.
+		"[◆ CHECK  ! AWAITS OWNER]",
 		"Issues: 1 — 1 defect",
 	} {
 		if !strings.Contains(got, want) {

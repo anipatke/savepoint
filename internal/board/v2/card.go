@@ -103,31 +103,53 @@ func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string
 	return grouped
 }
 
-// badges is the card's state line: stage, how a done Task closed, clearance,
-// and every blocker that is not already stated by the clearance badge. The
-// order is fixed so a reader learns one shape.
+// badges is the card's state line: stage, one review outcome, and every
+// blocker that is not already stated by that outcome. The order is fixed so
+// a reader learns one shape. Completion is the Done column's own fact and is
+// never repeated here (see O012, taskReviewOutcomeBadge).
 func (c TaskCard) badges() []Badge {
 	var badges []Badge
 
 	if badge, ok := stageBadge(c.Task.Status, c.Task.Stage); ok {
 		badges = append(badges, badge)
 	}
-	if c.Task.Status == data.ColumnDone {
-		badges = append(badges, completionBadge(c.Clearance.State, c.ByException, c.ByWaiver))
-	}
-	if c.Task.Status != data.ColumnPlanned {
-		badges = append(badges, taskCheckBadge(c.Clearance.State, c.ByWaiver))
+	if c.showsReviewOutcome() {
+		badges = append(badges, taskReviewOutcomeBadge(c.Clearance.State, c.ByWaiver, c.ByException))
 	}
 	for _, blocker := range c.Decision.Blockers {
 		if badge, ok := blockerBadge(blocker); ok {
 			badges = append(badges, badge)
 		}
 	}
-	if c.ByException && c.Task.Status != data.ColumnDone {
-		badges = append(badges, exceptionBadge())
-	}
 
 	return badges
+}
+
+// showsReviewOutcome reports whether this card's one review-outcome badge
+// carries a fact worth a cell. A Task that is still open — at any stage,
+// including audit — states its review outcome only when the outcome is
+// itself the actionable fact: a NEEDS WORK Check, a stale/unknown REVIEW, or
+// an owner's own recorded waiver or exception. "Checked and clear" and "not
+// checked yet" are completion-outcome vocabulary, not action items: they
+// belong to the Done column, which is where a Task's review history is
+// actually reported. Showing "[✓] CHECK" on an open card either restates
+// what the stage badge already implies (not checked yet) or, worse, reads as
+// an "all clear" sitting next to a blocker that says otherwise — a current
+// Check awaiting owner sign-off is not a contradiction in the data, but it
+// reads as one on the card, so it is left unsaid until there is nothing left
+// to say. Done always shows its outcome — that is its whole review history —
+// and Planned never does, since nothing has happened yet to report.
+func (c TaskCard) showsReviewOutcome() bool {
+	switch c.Task.Status {
+	case data.ColumnPlanned:
+		return false
+	case data.ColumnDone:
+		return true
+	}
+	if c.ByWaiver || c.ByException {
+		return true
+	}
+	return reviewOutcomeIsActionable(c.Clearance.State)
 }
 
 // renderCard draws one card at the given outer width: its T### identity, the

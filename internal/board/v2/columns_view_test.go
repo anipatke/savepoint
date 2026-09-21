@@ -34,12 +34,30 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		"Being built right now",
 		"Done and cleared",
 		"▣ BUILD", "◇ TEST", "◆ CHECK",
-		"[ ] Check", "[!] Check (needs work)", "[✓] Check",
-		"→ WAITS T001", "⚠ REPLAN", "! OWNER",
-		"✓ DONE", "! BY EXCEPTION", "⚠ DONE",
+		"[!] NEEDS WORK", "[✓] CHECK",
+		"→ WAITS T001", "⚠ REPLAN", "! AWAITS OWNER",
+		"[!] REVIEW", "[✓] OWNER ACCEPTED",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("board is missing %q:\n%s", want, got)
+		}
+	}
+
+	// This fixture's build- and test-stage Tasks (T003, T004) have never been
+	// checked, so their review outcome is suppressed rather than shown as an
+	// unearned "[ ] CHECK" — see TaskCard.showsReviewOutcome. The pending
+	// "[ ] CHECK" rendering itself is covered where it still belongs, at
+	// audit stage: TestRenderCardAuditAlwaysShowsCheckBadgeEvenWhenMissing.
+	if strings.Contains(got, "[ ] CHECK") {
+		t.Errorf("board shows an unearned pending check badge on a build/test-stage card:\n%s", got)
+	}
+
+	// The retired completion vocabulary O012 removes from Task cards must
+	// never reappear: the Done column carries completion, and one review
+	// outcome badge carries the rest.
+	for _, retired := range []string{"✓ DONE", "⚠ DONE", "BY EXCEPTION", "BY WAIVER", "Check (stale)", "Check (unverified)"} {
+		if strings.Contains(got, retired) {
+			t.Errorf("board still carries the retired badge %q:\n%s", retired, got)
 		}
 	}
 }

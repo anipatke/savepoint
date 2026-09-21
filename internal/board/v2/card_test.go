@@ -68,7 +68,7 @@ func TestRenderCardReadsOnlyResolvedValues(t *testing.T) {
 
 	got := renderedText(card, 44, false)
 
-	for _, want := range []string{"CHECK", "Check (stale)", "WAITS T999", "OWNER"} {
+	for _, want := range []string{"[!] REVIEW", "WAITS T999", "OWNER"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("card missing %q:\n%s", want, got)
 		}
@@ -86,12 +86,16 @@ func TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates(t *testing.T) {
 
 	got := renderedText(card, 44, false)
 
-	if count := strings.Count(got, "needs work"); count != 1 {
-		t.Errorf("card states \"needs work\" %d times, want exactly one:\n%s", count, got)
+	if count := strings.Count(got, "NEEDS WORK"); count != 1 {
+		t.Errorf("card states \"NEEDS WORK\" %d times, want exactly one:\n%s", count, got)
 	}
 }
 
-func TestRenderCardDistinguishesDoneByException(t *testing.T) {
+// TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge proves O012's
+// retired vocabulary — "DONE", "BY EXCEPTION", "BY WAIVER", "Check (stale)" —
+// never appears on a Done card, and that a Done card's own review outcome
+// still tells an ordinary close, a stale one, and an owner-accepted one apart.
+func TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge(t *testing.T) {
 	ordinary := fixtureCard(
 		fixtureTask("T020", "Closed the ordinary way", data.ColumnDone, ""),
 		data.Clearance{State: data.ClearanceCurrent},
@@ -112,17 +116,46 @@ func TestRenderCardDistinguishesDoneByException(t *testing.T) {
 	exceptionText := renderedText(exception, 44, false)
 	staleText := renderedText(stale, 44, false)
 
-	if !strings.Contains(ordinaryText, "✓ DONE") {
-		t.Errorf("an ordinary done card does not read as finished:\n%s", ordinaryText)
+	if !strings.Contains(ordinaryText, "[✓] CHECK") {
+		t.Errorf("an ordinary done card does not read as checked:\n%s", ordinaryText)
 	}
-	if !strings.Contains(exceptionText, "BY EXCEPTION") {
-		t.Errorf("a done-by-exception card does not name the exception:\n%s", exceptionText)
+	if !strings.Contains(exceptionText, "[✓] OWNER ACCEPTED") {
+		t.Errorf("a done-by-exception card does not name the owner's acceptance:\n%s", exceptionText)
 	}
-	if strings.Contains(exceptionText, "✓ DONE") {
-		t.Errorf("a done-by-exception card reads as an ordinary done:\n%s", exceptionText)
+	if !strings.Contains(staleText, "[!] REVIEW") {
+		t.Errorf("a stale done card does not read as needing review:\n%s", staleText)
 	}
-	if !strings.Contains(staleText, "⚠ DONE") || !strings.Contains(staleText, "Check (stale)") {
-		t.Errorf("a stale done card does not read as needing attention:\n%s", staleText)
+	for _, text := range []struct {
+		name, got string
+	}{{"ordinary", ordinaryText}, {"exception", exceptionText}, {"stale", staleText}} {
+		for _, retired := range []string{"✓ DONE", "⚠ DONE", "BY EXCEPTION", "BY WAIVER", "Check (stale)"} {
+			if strings.Contains(text.got, retired) {
+				t.Errorf("%s done card still carries the retired badge %q:\n%s", text.name, retired, text.got)
+			}
+		}
+	}
+}
+
+// TestRenderCardOpenExceptionOmitsTheOwnerBlockerItResolved proves an open
+// Task allowed by a recorded exception shows "[✓] OWNER ACCEPTED" alone, with
+// no separate "OWNER" blocker badge alongside it — matching
+// data.ResolveTaskCompletion, which reports an exception-allowed decision
+// with no Blockers at all, never the owner-acceptance blocker it overrode.
+func TestRenderCardOpenExceptionOmitsTheOwnerBlockerItResolved(t *testing.T) {
+	card := TaskCard{
+		Task:        fixtureTask("T023", "Owner accepted the risk while still open", data.ColumnInProgress, data.StageAudit),
+		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
+		Decision:    data.GateDecision{Allowed: true, Actor: data.ActorRoleOwner, AllowedByException: true},
+		ByException: true,
+	}
+
+	got := renderedText(card, 44, false)
+
+	if !strings.Contains(got, "[✓] OWNER ACCEPTED") {
+		t.Errorf("open exception card does not show OWNER ACCEPTED:\n%s", got)
+	}
+	if strings.Contains(got, "! OWNER") {
+		t.Errorf("open exception card still shows the owner blocker its exception resolved:\n%s", got)
 	}
 }
 
@@ -309,18 +342,95 @@ func TestRenderCardPlannedOmitsCheckBadge(t *testing.T) {
 	)
 
 	got := renderedText(card, 40, false)
-	if strings.Contains(got, "Check") {
+	if strings.Contains(got, "CHECK") {
 		t.Errorf("planned card should not render check badge:\n%s", got)
 	}
+}
 
-	inProgressCard := fixtureCard(
-		fixtureTask("T002", "In progress task", data.ColumnInProgress, data.StageBuild),
-		data.Clearance{State: data.ClearanceMissing},
-		data.GateDecision{Allowed: true},
+// TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable proves an open
+// Task — at build, test, or audit stage alike — carries no "[ ] CHECK" or
+// "[✓] CHECK" badge: "not checked yet" and "checked and clear" are
+// completion-outcome vocabulary that belongs to the Done column (see
+// TaskCard.showsReviewOutcome), not an open card, where it would either
+// restate the stage badge or, worse, read as "all clear" beside a blocker
+// that says otherwise.
+func TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		stage     data.ProgressStage
+		clearance data.ClearanceState
+	}{
+		{"build, nothing recorded", data.StageBuild, data.ClearanceMissing},
+		{"test, nothing recorded", data.StageTest, data.ClearanceMissing},
+		{"audit, nothing recorded", data.StageAudit, data.ClearanceMissing},
+		{"audit, checked and clear", data.StageAudit, data.ClearanceCurrent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			card := fixtureCard(
+				fixtureTask("T002", "In progress task", data.ColumnInProgress, test.stage),
+				data.Clearance{State: test.clearance},
+				data.GateDecision{Allowed: true},
+			)
+			got := renderedText(card, 40, false)
+			// "◆ CHECK" is the audit stage badge's own label, present
+			// whenever stage is audit regardless of outcome; only the
+			// bracketed review-outcome forms are what this test forbids.
+			for _, retired := range []string{"[ ] CHECK", "[✓] CHECK"} {
+				if strings.Contains(got, retired) {
+					t.Errorf("%s: should not render %q:\n%s", test.name, retired, got)
+				}
+			}
+		})
+	}
+}
+
+// TestRenderCardInProgressStillShowsAnActionableOutcome proves the
+// suppression above is narrow: a Task a NEEDS WORK Check sent back to build
+// for repair, or whose clearance has otherwise gone stale, still shows that
+// outcome at any stage — only the "nothing to report" cases (not yet
+// checked, or checked and clear) are hidden on an open card.
+func TestRenderCardInProgressStillShowsAnActionableOutcome(t *testing.T) {
+	needsWork := renderedText(fixtureCard(
+		fixtureTask("T003", "Sent back to build for repair", data.ColumnInProgress, data.StageBuild),
+		data.Clearance{State: data.ClearanceNeedsWork},
+		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockClearanceNeedsWork}}},
+	), 44, false)
+	if !strings.Contains(needsWork, "[!] NEEDS WORK") {
+		t.Errorf("build-stage repair card does not show its real outcome:\n%s", needsWork)
+	}
+
+	stale := renderedText(fixtureCard(
+		fixtureTask("T004", "Testing again after clearance went stale", data.ColumnInProgress, data.StageTest),
+		data.Clearance{State: data.ClearanceStale},
+		data.GateDecision{},
+	), 44, false)
+	if !strings.Contains(stale, "[!] REVIEW") {
+		t.Errorf("test-stage card with stale clearance does not show its real outcome:\n%s", stale)
+	}
+}
+
+// TestRenderCardCurrentCheckAwaitingOwnerShowsOnlyTheOwnerBlocker is the
+// concrete case that motivated the rule above: a Task at audit with a
+// current, clear Check but still requiring owner sign-off used to show
+// "[✓] CHECK" right next to the "AWAITS OWNER" blocker, reading as a
+// contradiction — checked and clear, yet still blocked. The Check outcome is
+// completion vocabulary for the Done column; while owner sign-off is
+// outstanding, the blocker alone is the actionable fact.
+func TestRenderCardCurrentCheckAwaitingOwnerShowsOnlyTheOwnerBlocker(t *testing.T) {
+	card := fixtureCard(
+		fixtureTask("T006", "At audit and waiting on the owner", data.ColumnInProgress, data.StageAudit),
+		data.Clearance{State: data.ClearanceCurrent},
+		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockOwnerAcceptance}}},
 	)
-	gotInProgress := renderedText(inProgressCard, 40, false)
-	if !strings.Contains(gotInProgress, "[ ] Check") {
-		t.Errorf("in_progress card should render check badge:\n%s", gotInProgress)
+	got := renderedText(card, 44, false)
+
+	// "◆ CHECK" is the audit stage badge's own label; only the bracketed
+	// review-outcome form is what a current-and-clear Check must not add.
+	if strings.Contains(got, "[✓] CHECK") {
+		t.Errorf("card should not also show the completed-check outcome while owner sign-off is outstanding:\n%s", got)
+	}
+	if !strings.Contains(got, "AWAITS OWNER") {
+		t.Errorf("card is missing the owner blocker:\n%s", got)
 	}
 }
 

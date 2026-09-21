@@ -14,11 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: design
+state: task
 release: R006
-objective: O001
-task: none
-next_action: "C905 found NEEDS WORK: restore durable verified rollback material for I016 and replan E50's circular Release-cutover criterion for I017 before a fresh Full Objective Check."
+objective: O012
+task: T004
+next_action: "T003 is done (owner-waived Task Check). T005 is at stage: audit — its O900 fixture refresh is implemented and technically verified; ready for the User Check (open O900 in the board) or an owner waiver, either of which clears its depends_on for T004. T004 remains blocked until T005 is clear, then reconciles active documentation before O012's mandatory Full Objective Check."
 ```
 
 ## State → action

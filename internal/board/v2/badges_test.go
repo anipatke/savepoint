@@ -34,6 +34,28 @@ var blockerKinds = []data.GateBlockKind{
 	data.GateBlockInvalidState,
 }
 
+// taskReviewOutcomeCases is every path taskReviewOutcomeBadge's precedence
+// covers, paired with the exact card text O012 fixes: owner risk acceptance
+// (exception) first, an owner's recorded Check waiver second, and the
+// resolved clearance state otherwise, with stale and unknown folded into one
+// "REVIEW" wording.
+var taskReviewOutcomeCases = []struct {
+	name      string
+	clearance data.ClearanceState
+	waived    bool
+	exception bool
+	want      string
+}{
+	{"missing", data.ClearanceMissing, false, false, "[ ] CHECK"},
+	{"current", data.ClearanceCurrent, false, false, "[✓] CHECK"},
+	{"needs_work", data.ClearanceNeedsWork, false, false, "[!] NEEDS WORK"},
+	{"stale", data.ClearanceStale, false, false, "[!] REVIEW"},
+	{"unknown", data.ClearanceUnknown, false, false, "[!] REVIEW"},
+	{"waived", data.ClearanceMissing, true, false, "[✓] WAIVED"},
+	{"owner accepted", data.ClearanceNeedsWork, false, true, "[✓] OWNER ACCEPTED"},
+	{"owner accepted outranks waived", data.ClearanceMissing, true, true, "[✓] OWNER ACCEPTED"},
+}
+
 func TestTaskCheckBadgeRendersEveryStateDistinctly(t *testing.T) {
 	seen := map[string]data.ClearanceState{}
 	for _, state := range clearanceStates {
@@ -131,14 +153,14 @@ func TestStageBadgeIsPresentOnlyWhileInProgress(t *testing.T) {
 
 // TestBlockerBadgeCoversEveryKind proves the mapping has an answer for every
 // blocker kind: wording for the ones only it can state, and a deliberate
-// silence for the clearance kinds the clearance badge already states.
+// silence for the clearance kinds — checker_authority included — the review
+// outcome badge already states (see taskReviewOutcomeBadge).
 func TestBlockerBadgeCoversEveryKind(t *testing.T) {
 	stated := map[data.GateBlockKind]bool{
 		data.GateBlockReplan:              true,
 		data.GateBlockDependency:          true,
 		data.GateBlockObjectiveDependency: true,
 		data.GateBlockOwnerAcceptance:     true,
-		data.GateBlockCheckerAuthority:    true,
 	}
 
 	seen := map[string]data.GateBlockKind{}
@@ -188,29 +210,43 @@ func TestBlockerBadgeNamesTheWaitTarget(t *testing.T) {
 	}
 }
 
-func TestCompletionBadgeDistinguishesExceptionAndStaleFromFinished(t *testing.T) {
-	finished := completionBadge(data.ClearanceCurrent, false, false)
-	byException := completionBadge(data.ClearanceCurrent, true, false)
-	byWaiver := completionBadge(data.ClearanceMissing, false, true)
-	stale := completionBadge(data.ClearanceStale, false, false)
+// TestTaskReviewOutcomeBadgeRendersEveryPathAtExactText proves every path
+// O012's Done When names renders exactly the fixed text, whether the Task is
+// still open or already done — completion never changes the wording, since
+// the Done column carries that fact instead (see card.go's badges()).
+func TestTaskReviewOutcomeBadgeRendersEveryPathAtExactText(t *testing.T) {
+	for _, test := range taskReviewOutcomeCases {
+		t.Run(test.name, func(t *testing.T) {
+			got := taskReviewOutcomeBadge(test.clearance, test.waived, test.exception).Text()
+			if got != test.want {
+				t.Errorf("taskReviewOutcomeBadge(%q, waived=%v, exception=%v) = %q, want %q",
+					test.clearance, test.waived, test.exception, got, test.want)
+			}
+		})
+	}
+}
 
-	if finished.Text() == byException.Text() {
-		t.Errorf("a done Task and one done by exception both render as %q", finished.Text())
+// TestTaskReviewOutcomeBadgeStaysDistinctAcrossThePrecedenceLadder proves the
+// eight cases above never collapse two different facts into the same text,
+// except the two collisions the design deliberately intends: "stale" and
+// "unknown" both fold into "REVIEW" (see taskReviewOutcomeBadge), and "owner
+// accepted outranks waived" is the same fact as "owner accepted" under a
+// different clearance.
+func TestTaskReviewOutcomeBadgeStaysDistinctAcrossThePrecedenceLadder(t *testing.T) {
+	deliberateDuplicate := map[string]bool{
+		"unknown":                        true,
+		"owner accepted outranks waived": true,
 	}
-	if finished.Text() == byWaiver.Text() {
-		t.Errorf("a done Task and one done by waiver both render as %q", finished.Text())
-	}
-	if byException.Text() == byWaiver.Text() {
-		t.Errorf("a done-by-exception Task and a done-by-waiver one both render as %q", byException.Text())
-	}
-	if finished.Text() == stale.Text() {
-		t.Errorf("a cleared done Task and a stale one both render as %q", finished.Text())
-	}
-	if finished.Glyph == stale.Glyph {
-		t.Errorf("stale done reuses the finished glyph %q; it must read as needing attention", stale.Glyph)
-	}
-	if byException.Text() != exceptionBadge().Text() {
-		t.Errorf("a closed exception reads %q and an open one %q; they name the same fact", byException.Text(), exceptionBadge().Text())
+	seen := map[string]string{}
+	for _, test := range taskReviewOutcomeCases {
+		got := taskReviewOutcomeBadge(test.clearance, test.waived, test.exception).Text()
+		if deliberateDuplicate[test.name] {
+			continue
+		}
+		if other, ok := seen[got]; ok {
+			t.Errorf("cases %q and %q both render as %q", test.name, other, got)
+		}
+		seen[got] = test.name
 	}
 }
 
@@ -321,7 +357,7 @@ func TestIssueSeverityRankOrdersBlockerFirstAndUnrecordedLast(t *testing.T) {
 // allBadges is every badge the vocabulary can produce, for the distinctness and
 // color assertions above.
 func allBadges() []Badge {
-	badges := []Badge{exceptionBadge()}
+	var badges []Badge
 	for _, stage := range []data.ProgressStage{data.StageBuild, data.StageTest, data.StageAudit} {
 		if badge, ok := stageBadge(data.ColumnInProgress, stage); ok {
 			badges = append(badges, badge)
@@ -342,11 +378,20 @@ func allBadges() []Badge {
 			badges = append(badges, badge)
 		}
 	}
-	badges = append(badges,
-		completionBadge(data.ClearanceCurrent, false, false),
-		completionBadge(data.ClearanceStale, false, false),
-		completionBadge(data.ClearanceMissing, false, true),
-	)
+	// taskReviewOutcomeBadge's "unknown" and "owner accepted outranks waived"
+	// cases are deliberately excluded: each renders identical text to another
+	// case by design — "unknown" folds into "stale"'s "REVIEW", and "owner
+	// accepted outranks waived" repeats "owner accepted"'s text under a
+	// different clearance — which
+	// TestTaskReviewOutcomeBadgeStaysDistinctAcrossThePrecedenceLadder already
+	// covers on its own.
+	skipDuplicate := map[string]bool{"unknown": true, "owner accepted outranks waived": true}
+	for _, test := range taskReviewOutcomeCases {
+		if skipDuplicate[test.name] {
+			continue
+		}
+		badges = append(badges, taskReviewOutcomeBadge(test.clearance, test.waived, test.exception))
+	}
 	return badges
 }
 

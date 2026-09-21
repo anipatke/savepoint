@@ -46,8 +46,6 @@ const (
 	glyphBuild     = "▣"
 	glyphTest      = "◇"
 	glyphAudit     = "◆"
-	glyphClear     = "✓"
-	glyphUnknown   = "?"
 	glyphAttention = "⚠"
 	glyphWaiting   = "→"
 	glyphOwner     = "!"
@@ -192,28 +190,41 @@ func objectiveCheckBadge(clearance data.ClearanceState, byException bool) Badge 
 	return Badge{Glyph: glyphCheckFlagged, Label: "Check (needs work)", Style: styles.BadgeAttention}
 }
 
-// completionBadge names how a done Task reached done. A recorded exception or
-// waiver reads differently from an ordinary close, and a close whose
-// clearance is no longer current reads as needing attention rather than as
-// finished — every distinction the release design requires to be visible.
-func completionBadge(clearance data.ClearanceState, byException, byWaiver bool) Badge {
+// taskReviewOutcomeBadge is the one review-outcome badge a non-planned Task
+// card shows. It replaces the separate completion-plus-Check composition an
+// earlier version carried (completionBadge, exceptionBadge — see O012):
+// completion is now the Done column's own fact, so this badge states review
+// standing alone, at fixed precedence — an owner's recorded risk acceptance
+// (exception) first, an owner's recorded Check waiver second, and the
+// resolved clearance state otherwise — so one card never prints two
+// competing review outcomes. Stale and unknown clearance collapse to the
+// same "REVIEW" wording a checker-authority failure gets (see blockerBadge):
+// both mean the same thing to a reader — this needs an independent look —
+// and the exact reason remains available off the card, in the detail
+// overlay's CLEARANCE section. Waiver and owner-accepted risk keep the same
+// green "clear" accent a passing Check gets, per the palette rule that green
+// means an outcome accepted for the Task; only the label tells them apart,
+// deliberately, since Savepoint's data layer never treats either as
+// technical clearance (internal/data/gate_v2.go, evidence_v2.go).
+func taskReviewOutcomeBadge(clearance data.ClearanceState, waived, byException bool) Badge {
 	switch {
 	case byException:
-		return Badge{Glyph: glyphOwner, Label: "BY EXCEPTION", Style: styles.BadgeAttention}
-	case byWaiver:
-		return Badge{Glyph: glyphCheckFlagged, Label: "BY WAIVER", Style: styles.BadgeAttention}
-	case clearance == data.ClearanceCurrent:
-		return Badge{Glyph: glyphClear, Label: "DONE", Style: styles.BadgeClear}
-	default:
-		return Badge{Glyph: glyphAttention, Label: "DONE", Style: styles.BadgeAttention}
+		return Badge{Glyph: glyphCheckClear, Label: "OWNER ACCEPTED", Style: styles.BadgeClear}
+	case waived:
+		return Badge{Glyph: glyphCheckClear, Label: "WAIVED", Style: styles.BadgeClear}
 	}
-}
-
-// exceptionBadge names a completion a recorded exception allows for a Task
-// still open. It is the same wording completionBadge gives a closed one, so a
-// reader learns one phrase for one fact.
-func exceptionBadge() Badge {
-	return Badge{Glyph: glyphOwner, Label: "BY EXCEPTION", Style: styles.BadgeAttention}
+	switch clearance {
+	case data.ClearanceCurrent:
+		return Badge{Glyph: glyphCheckClear, Label: "CHECK", Style: styles.BadgeClear}
+	case data.ClearanceNeedsWork:
+		return Badge{Glyph: glyphCheckFlagged, Label: "NEEDS WORK", Style: styles.BadgeAttention}
+	case data.ClearanceStale, data.ClearanceUnknown:
+		return Badge{Glyph: glyphCheckFlagged, Label: "REVIEW", Style: styles.BadgeAttention}
+	default:
+		// ClearanceMissing: no Check has been requested yet, and no waiver is
+		// recorded either — still mid-build, nothing to flag.
+		return Badge{Glyph: glyphCheckPending, Label: "CHECK", Style: styles.BadgeNeutral}
+	}
 }
 
 // objectiveWaitBadge names one unsatisfied Objective dependency, read from the
@@ -225,10 +236,12 @@ func objectiveWaitBadge(block data.ObjectiveDependencyBlock) Badge {
 
 // blockerBadge names one unmet requirement from a gate decision.
 //
-// It reports ok=false for the clearance blockers — missing, needs_work, stale,
-// unknown — because clearanceBadge already states exactly those, from the same
-// resolved value; showing both would print the same fact twice in two
-// wordings. Every other blocker kind is a fact no other badge carries.
+// It reports ok=false for the clearance blockers — missing, needs_work,
+// stale, unknown, and checker_authority — because taskReviewOutcomeBadge
+// already states exactly those, from the same resolved clearance value
+// (stale, unknown, and a checker-authority failure all read as the card's
+// one "REVIEW" outcome); showing both would print the same fact twice in
+// two wordings. Every other blocker kind is a fact no other badge carries.
 func blockerBadge(blocker data.GateBlocker) (Badge, bool) {
 	switch blocker.Kind {
 	case data.GateBlockReplan:
@@ -238,13 +251,12 @@ func blockerBadge(blocker data.GateBlocker) (Badge, bool) {
 	case data.GateBlockObjectiveDependency:
 		return Badge{Glyph: glyphWaiting, Label: waitLabel("OBJECTIVE WAITS", objectiveDependencyTarget(blocker)), Style: styles.BadgeWaiting}, true
 	case data.GateBlockOwnerAcceptance:
-		return Badge{Glyph: glyphOwner, Label: "OWNER", Style: styles.BadgeAttention}, true
-	case data.GateBlockCheckerAuthority:
-		return Badge{Glyph: glyphUnknown, Label: "CHECKER", Style: styles.BadgeAttention}, true
+		return Badge{Glyph: glyphOwner, Label: "AWAITS OWNER", Style: styles.BadgeAttention}, true
 	default:
-		// The clearance kinds, and GateBlockInvalidState, which names a
-		// recorded status/stage combination the strict V2 decoder cannot
-		// admit and a card therefore cannot be showing.
+		// The clearance kinds, GateBlockCheckerAuthority (folded into the
+		// review outcome's "REVIEW" wording), and GateBlockInvalidState,
+		// which names a recorded status/stage combination the strict V2
+		// decoder cannot admit and a card therefore cannot be showing.
 		return Badge{}, false
 	}
 }
@@ -286,6 +298,21 @@ func clearanceIsCurrent(clearance data.Clearance) bool {
 // Space's completion write in io.go.
 func clearanceIsMissing(clearance data.Clearance) bool {
 	return clearance.State == data.ClearanceMissing
+}
+
+// reviewOutcomeIsActionable reports whether a clearance state is itself the
+// fact a still-open Task's card needs to state. NEEDS WORK and the
+// stale/unknown REVIEW fold are real attention items a reader cannot infer
+// from the stage badge alone; ClearanceCurrent and ClearanceMissing are
+// completion-outcome vocabulary that belongs to the Done column instead (see
+// TaskCard.showsReviewOutcome in card.go).
+func reviewOutcomeIsActionable(state data.ClearanceState) bool {
+	switch state {
+	case data.ClearanceNeedsWork, data.ClearanceStale, data.ClearanceUnknown:
+		return true
+	default:
+		return false
+	}
 }
 
 func hasOwnerAcceptanceBlock(decision data.GateDecision) bool {
