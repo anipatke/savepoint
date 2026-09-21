@@ -14,11 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: task
-release: R006
+state: check
+release: none
 objective: O012
-task: T004
-next_action: "T003 is done (owner-waived Task Check). T005 is at stage: audit — its O900 fixture refresh is implemented and technically verified; ready for the User Check (open O900 in the board) or an owner waiver, either of which clears its depends_on for T004. T004 remains blocked until T005 is clear, then reconciles active documentation before O012's mandatory Full Objective Check."
+task: none
+next_action: "T003, T004, and T005 are all done (each by owner-waived Task Check). O012's mandatory Full Objective Check is ready to run: a fresh savepoint-check session verifies the T003 card renderer, the T004 documentation reconciliation, and the T005 O900 fixture refresh together, plus cross-Task integration and Design.md reconciliation, before the owner can close O012."
 ```
 
 ## State → action
