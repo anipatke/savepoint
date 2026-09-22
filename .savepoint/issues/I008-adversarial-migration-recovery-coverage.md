@@ -2,7 +2,7 @@
 id: I008
 title: Migration recovery lacks the complete adversarial integration matrix
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,23 @@ source:
         session: .savepoint/releases/v2/defects/D009-adversarial-migration-recovery-coverage.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: user-review-20260922}
+    at: "2026-09-22T09:13:35Z"
+    reason: >-
+        Owner accepts the residual migration-recovery risk because Savepoint has one
+        user, this repository's V1-to-V2 cutover is complete, and ordinary operation is
+        now V2-only. Building the full interruption and cross-platform matrix is not
+        proportionate to the remaining legacy migration exposure.
+history:
+    - at: "2026-09-22T09:13:35Z"
+      actor: {role: owner, session: user-review-20260922}
+      kind: owner_decision
+      note: >-
+          Accepted the residual legacy migration risk without a repair or technical
+          CLEAR; the completed single-user cutover does not justify the requested
+          adversarial recovery matrix.
 ---
 ## Migrated from V1
 
@@ -77,4 +94,6 @@ platform jobs, or document the supported boundary with harness evidence.
 
 ## Resolution Notes
 
-Pending.
+Resolved by explicit owner acceptance. This is a risk waiver, not a repair or
+technical `CLEAR`. The decision is based on the completed single-user cutover
+and V2-only ordinary operation.

@@ -2,7 +2,7 @@
 id: I004
 title: Unknown gate blockers fall back to NextDependency
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,21 @@ source:
         session: .savepoint/releases/v2/defects/D005-unknown-gate-blocker-fails-closed.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: user-review-20260922}
+    at: "2026-09-22T09:11:47Z"
+    reason: >-
+        Owner accepts the residual risk for the current V2 release because strict
+        decoding makes the unknown-blocker fallback effectively unreachable. Revisit
+        this decision when adding a blocker kind or next changing the Next resolver.
+history:
+    - at: "2026-09-22T09:11:47Z"
+      actor: {role: owner, session: user-review-20260922}
+      kind: owner_decision
+      note: >-
+          Accepted the current release risk without a repair or technical CLEAR;
+          collision with a future blocker kind remains an explicit revisit trigger.
 ---
 ## Migrated from V1
 
@@ -64,4 +79,6 @@ verifies the fail-closed result at each rendering surface.
 
 ## Resolution Notes
 
-Pending.
+Resolved by explicit owner acceptance. This is a risk waiver, not a repair or
+technical `CLEAR`. The waiver expires when a new blocker kind is introduced or
+the Next resolver is next changed.

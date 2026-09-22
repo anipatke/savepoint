@@ -2,7 +2,7 @@
 id: I011
 title: Committed Windows Zone.Identifier artifact is not ignored
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,21 @@ source:
         session: .savepoint/releases/v2/defects/D012-ignore-zone-identifier-artifacts.md
     at: "2026-09-20T05:03:29Z"
 severity: low
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: user-review-20260922}
+    at: "2026-09-22T09:11:47Z"
+    reason: >-
+        Owner accepts the archived Zone.Identifier artifact as a non-blocking
+        observation. It is confined to byte-preserved V1 history and does not affect
+        V2 runtime behavior; removing it would conflict with archive preservation.
+history:
+    - at: "2026-09-22T09:11:47Z"
+      actor: {role: owner, session: user-review-20260922}
+      kind: owner_decision
+      note: >-
+          Reclassified the archived metadata file as a non-blocking observation and
+          accepted it without a repair or technical CLEAR.
 ---
 ## Migrated from V1
 
@@ -56,4 +71,5 @@ the tracked-file list is clean and unrelated ignore rules are unchanged.
 
 ## Resolution Notes
 
-Pending.
+Resolved by explicit owner acceptance after reclassification as a non-blocking
+archive observation. This is not a repair or technical `CLEAR`.

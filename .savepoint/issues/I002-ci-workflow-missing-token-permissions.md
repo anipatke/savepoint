@@ -2,7 +2,7 @@
 id: I002
 title: CI workflow grants GITHUB_TOKEN default permissions instead of least privilege
 type: defect
-status: in_progress
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,20 @@ source:
         session: .savepoint/releases/v2/defects/D003-ci-workflow-missing-token-permissions.md
     at: "2026-09-20T05:03:29Z"
 severity: medium
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: owner-2026-09-22
+    at: "2026-09-22T09:12:41Z"
+    reason: "Owner accepts I002 as resolved after the fix reached master, code-scanning alert #1 became fixed, and post-merge CI passed."
+history:
+    - at: "2026-09-22T09:12:41Z"
+      actor:
+          role: owner
+          session: owner-2026-09-22
+      kind: owner_decision
+      note: "Owner accepted I002 after the fix reached master, code-scanning alert #1 became fixed, and post-merge CI passed."
 ---
 ## Migrated from V1
 

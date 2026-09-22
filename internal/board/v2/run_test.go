@@ -71,13 +71,13 @@ func TestRunWithoutTTYIncludesTitlesBadgesAndIssueSummary(t *testing.T) {
 	got := stdout.String()
 	for _, want := range []string{
 		"Rechecked after the first run found problems",
-		// T002 is at audit with a current, clear Check and nothing else
+		// T002 is at stored audit (displayed CHECK) with a current, clear Check and nothing else
 		// outstanding: just the stage badge, no completion-outcome badge —
 		// that vocabulary belongs to the Done column (see
 		// TaskCard.showsReviewOutcome).
 		"[◆ CHECK]",
 		"Waiting on the owner to accept",
-		// T006 is at audit with the same current, clear Check but owner
+		// T006 is at stored audit (displayed CHECK) with the same current, clear Check but owner
 		// sign-off still outstanding: the owner blocker is the actionable
 		// fact, shown alone rather than beside a "checked and clear" badge
 		// that would read as a contradiction.
@@ -86,6 +86,26 @@ func TestRunWithoutTTYIncludesTitlesBadgesAndIssueSummary(t *testing.T) {
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("plain output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunWithoutTTYRendersTheCompleteO900OutcomeSpread(t *testing.T) {
+	root := writeO900OutcomeProject(t)
+	var stdout bytes.Buffer
+
+	if err := Run(Options{Root: root, ObjectiveFilter: "O900", Stdout: &stdout, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	got := stdout.String()
+	for _, want := range []string{
+		"PLANNED      4", "IN PROGRESS  4", "DONE         4",
+		"[ ] CHECK", "[✓] CHECK", "[!] NEEDS WORK", "[!] REVIEW",
+		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T001", "REPLAN", "AWAITS OWNER",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("plain O900-equivalent output missing %q:\n%s", want, got)
 		}
 	}
 }

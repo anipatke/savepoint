@@ -3,6 +3,13 @@ id: O012
 title: Make Task cards easier to scan
 status: in_progress
 release: R006
+last_check: C907
+freshness:
+  state: current
+  check: C907
+  assessed_by: {role: checker, session: o012-recheck-20260922}
+  assessed_at: '2026-09-22T10:00:27Z'
+  basis: C907 reran the focused O900 matrix and build over the post-repair files and confirmed the completed full-suite evidence remained applicable.
 ---
 
 # O012: Make Task cards easier to scan

@@ -2,7 +2,7 @@
 id: I014
 title: Done column and task card focus accent should be green not orange
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor:
@@ -10,6 +10,16 @@ source:
     session: user-review
   at: '2026-09-20T21:36:36Z'
 severity: low
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: user-request
+  at: '2026-09-22T09:18:44Z'
+  reason: >-
+    Owner waived an independent Check and accepted I014 as resolved based on
+    the repair evidence recorded by the implementing task; this is not a
+    technical CLEAR verdict.
 history:
   - at: '2026-09-20T21:36:36Z'
     actor:
@@ -23,6 +33,14 @@ history:
       session: user-request
     kind: repair_attempted
     note: Added ColumnFocusedDone, ColumnTitleFocusedDone, CardBoxFocusedDone, and TaskItemFocusedDone with green accent; updated column and card rendering and tests
+  - at: '2026-09-22T09:18:44Z'
+    actor:
+      role: owner
+      session: user-request
+    kind: owner_decision
+    note: >-
+      Owner waived independent verification and accepted I014 as resolved based
+      on the repair evidence from the implementing task.
 ---
 
 # I014: Done column and task card focus accent should be green not orange

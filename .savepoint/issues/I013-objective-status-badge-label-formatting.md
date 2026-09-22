@@ -2,7 +2,7 @@
 id: I013
 title: Objective status labels should be human-readable (Planned, In Progress, Done)
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor:
@@ -10,6 +10,16 @@ source:
     session: user-review
   at: '2026-09-20T21:24:55Z'
 severity: low
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: user-request
+  at: '2026-09-22T09:17:35Z'
+  reason: >-
+    Owner waived an independent Check and accepted I013 as resolved based on
+    the repair evidence recorded by the implementing task; this is not a
+    technical CLEAR verdict.
 history:
   - at: '2026-09-20T21:24:55Z'
     actor:
@@ -27,6 +37,14 @@ history:
       Progress/Done for the sidebar row's status line; frontmatter and resolvers
       unchanged. Bundled in the same pass as I012's badge consolidation since both
       touched renderObjectiveRow.
+  - at: '2026-09-22T09:17:35Z'
+    actor:
+      role: owner
+      session: user-request
+    kind: owner_decision
+    note: >-
+      Owner waived independent verification and accepted I013 as resolved based
+      on the repair evidence from the implementing task.
 ---
 
 # I013: Objective status labels should be human-readable (Planned, In Progress, Done)
@@ -60,4 +78,6 @@ This is a presentation/label change only: internal canonical constants and YAML 
    - `renderObjectiveRow` now renders `objectiveStatusLabel(row.Objective.Status)` instead of stringifying the raw record field. No frontmatter, resolver, or storage value changed.
 2. Tests: `internal/board/v2/objectives_test.go` (`TestSidebarListsEveryObjectiveInOrder` updated to assert `Done`/`In Progress`/`Planned`).
 
-Not closing this Issue — per the project's role boundary only `savepoint-check` verifies repair evidence and closes an Issue.
+The implementing task did not close this Issue. It was subsequently resolved by
+owner acceptance with an independent Check waived; this is not a technical
+`CLEAR` verdict.

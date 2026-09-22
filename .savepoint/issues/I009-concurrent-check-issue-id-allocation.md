@@ -2,7 +2,7 @@
 id: I009
 title: Concurrent Check and Issue creation has no reload-and-retry contract
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,21 @@ source:
         session: .savepoint/releases/v2/defects/D010-concurrent-check-issue-id-allocation.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: user-review-20260922}
+    at: "2026-09-22T09:11:47Z"
+    reason: >-
+        Owner accepts the retry and operator-UX limitation because create-only
+        publication prevents overwrite and preserves existing planning data when
+        concurrent creators allocate the same ID.
+history:
+    - at: "2026-09-22T09:11:47Z"
+      actor: {role: owner, session: user-review-20260922}
+      kind: owner_decision
+      note: >-
+          Accepted the residual concurrent-creation failure mode without a repair or
+          technical CLEAR; the losing writer may still need a manual reload and retry.
 ---
 ## Migrated from V1
 
@@ -67,4 +82,6 @@ losing caller can reload and succeed with the next ID.
 
 ## Resolution Notes
 
-Pending.
+Resolved by explicit owner acceptance. This is a risk waiver, not a repair or
+technical `CLEAR`; create-only publication remains the containment against data
+overwrite.

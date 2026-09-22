@@ -18,7 +18,7 @@ state: check
 release: none
 objective: O012
 task: none
-next_action: "T003, T004, and T005 are all done (each by owner-waived Task Check). O012's mandatory Full Objective Check is ready to run: a fresh savepoint-check session verifies the T003 card renderer, the T004 documentation reconciliation, and the T005 O900 fixture refresh together, plus cross-Task integration and Design.md reconciliation, before the owner can close O012."
+next_action: "C907 supersedes C906 and records current CLEAR Full Objective evidence for O012; I018 is resolved. O012 is ready for the owner's separate closure decision. I019-I024 remain open follow-up Issues outside C907's frozen repair scope."
 ```
 
 ## State → action

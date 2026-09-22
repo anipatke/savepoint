@@ -253,6 +253,40 @@ func TestGroupTaskCardsGroupsByRecordedStatus(t *testing.T) {
 	}
 }
 
+func TestO900OutcomeSpreadRendersEveryOutcomeAndBlockerOnCards(t *testing.T) {
+	root := writeO900OutcomeProject(t)
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("O900-equivalent fixture did not load: %s", loaded.Diagnostic)
+	}
+
+	grouped := groupTaskCardsFor(loaded.State.Index, "O900")
+	for column, want := range map[data.ColumnType]int{
+		data.ColumnPlanned: 4, data.ColumnInProgress: 4, data.ColumnDone: 4,
+	} {
+		if got := len(grouped[column]); got != want {
+			t.Errorf("%s column has %d cards, want %d", column, got, want)
+		}
+	}
+
+	var rendered strings.Builder
+	for _, column := range []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, data.ColumnDone} {
+		for _, card := range grouped[column] {
+			rendered.WriteString(renderedText(card, 48, false))
+			rendered.WriteByte('\n')
+		}
+	}
+	got := rendered.String()
+	for _, want := range []string{
+		"[ ] CHECK", "[✓] CHECK", "[!] NEEDS WORK", "[!] REVIEW",
+		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T001", "REPLAN", "AWAITS OWNER",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("interactive cards missing %q:\n%s", want, got)
+		}
+	}
+}
+
 // TestGroupTaskCardsResolvesTheSameDecisionTheProjectionDoes proves a card and
 // the Next area cannot disagree: for the Task the projection selected, the
 // card's decision is the decision the projection carried.
@@ -348,7 +382,7 @@ func TestRenderCardPlannedOmitsCheckBadge(t *testing.T) {
 }
 
 // TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable proves an open
-// Task — at build, test, or audit stage alike — carries no "[ ] CHECK" or
+// Task — at build, test, or stored audit (displayed CHECK) stage alike — carries no "[ ] CHECK" or
 // "[✓] CHECK" badge: "not checked yet" and "checked and clear" are
 // completion-outcome vocabulary that belongs to the Done column (see
 // TaskCard.showsReviewOutcome), not an open card, where it would either
@@ -372,8 +406,8 @@ func TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable(t *testing.T) {
 				data.GateDecision{Allowed: true},
 			)
 			got := renderedText(card, 40, false)
-			// "◆ CHECK" is the audit stage badge's own label, present
-			// whenever stage is audit regardless of outcome; only the
+			// "◆ CHECK" is the stored audit stage's displayed label, present
+			// whenever that stage is recorded regardless of outcome; only the
 			// bracketed review-outcome forms are what this test forbids.
 			for _, retired := range []string{"[ ] CHECK", "[✓] CHECK"} {
 				if strings.Contains(got, retired) {
@@ -410,7 +444,8 @@ func TestRenderCardInProgressStillShowsAnActionableOutcome(t *testing.T) {
 }
 
 // TestRenderCardCurrentCheckAwaitingOwnerShowsOnlyTheOwnerBlocker is the
-// concrete case that motivated the rule above: a Task at audit with a
+// concrete case that motivated the rule above: a Task at stored audit
+// (displayed CHECK) with a
 // current, clear Check but still requiring owner sign-off used to show
 // "[✓] CHECK" right next to the "AWAITS OWNER" blocker, reading as a
 // contradiction — checked and clear, yet still blocked. The Check outcome is
@@ -424,7 +459,7 @@ func TestRenderCardCurrentCheckAwaitingOwnerShowsOnlyTheOwnerBlocker(t *testing.
 	)
 	got := renderedText(card, 44, false)
 
-	// "◆ CHECK" is the audit stage badge's own label; only the bracketed
+	// "◆ CHECK" is the stored audit stage's displayed label; only the bracketed
 	// review-outcome form is what a current-and-clear Check must not add.
 	if strings.Contains(got, "[✓] CHECK") {
 		t.Errorf("card should not also show the completed-check outcome while owner sign-off is outstanding:\n%s", got)

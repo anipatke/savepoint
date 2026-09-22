@@ -2,7 +2,7 @@
 id: I010
 title: Stale router selection needs one cross-surface real-UX regression gate
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,21 @@ source:
         session: .savepoint/releases/v2/defects/D011-stale-router-selection-cross-surface-gate.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: user-review-20260922}
+    at: "2026-09-22T09:11:47Z"
+    reason: >-
+        Owner accepts the absence of one combined cross-surface regression fixture.
+        The shipped behavior already has focused coverage, so the remaining request is
+        treated as a non-blocking test observation rather than a current defect.
+history:
+    - at: "2026-09-22T09:11:47Z"
+      actor: {role: owner, session: user-review-20260922}
+      kind: owner_decision
+      note: >-
+          Reclassified the missing combined regression gate as a non-blocking
+          observation and accepted it without a repair or technical CLEAR.
 ---
 ## Migrated from V1
 
@@ -69,4 +84,5 @@ a substitute selection.
 
 ## Resolution Notes
 
-Pending.
+Resolved by explicit owner acceptance after reclassification as a non-blocking
+test observation. This is not a repair or technical `CLEAR`.

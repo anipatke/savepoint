@@ -163,6 +163,56 @@ func writeBadgeProject(t *testing.T) string {
 	return root
 }
 
+// writeO900OutcomeProject mirrors the disposable O900 spread in a temporary
+// project so regressions cannot silently drop one of its retained outcomes or
+// blockers. Four Tasks land in each lifecycle column, matching the live
+// fixture without reading or writing the repository's real project files.
+func writeO900OutcomeProject(t *testing.T) string {
+	t.Helper()
+	root := savepointRoot(t)
+	writeConfig(t, root)
+	writeRouter(t, root, "task", "O900", "T005")
+	writeObjective(t, root, "O900", "O900 outcome spread", "in_progress")
+
+	writeTask(t, root, "O900", "T001", "Planned and ready", "status: planned\n")
+	writeTask(t, root, "O900", "T002", "Planned and waiting",
+		"status: planned\ndepends_on:\n  - {task: T001, requires: clear}\n")
+	writeTask(t, root, "O900", "T003", "Planned spare one", "status: planned\n")
+	writeTask(t, root, "O900", "T004", "Planned spare two", "status: planned\n")
+
+	writeTask(t, root, "O900", "T005", "Build needs review",
+		"status: in_progress\nstage: build\nlast_check: C005\n"+staleFreshness("C005"))
+	writeTask(t, root, "O900", "T006", "Test was replanned",
+		"status: in_progress\nstage: test\nreplan:\n  reason: \"fixture plan changed\"\n"+
+			"  recorded_by: {role: planner, session: board-fixture}\n  recorded_at: 2026-01-01T00:00:00Z\n")
+	writeCheck(t, root, "C007", "task", "T007", "NEEDS WORK")
+	writeTask(t, root, "O900", "T007", "Check needs work",
+		"status: in_progress\nstage: audit\nlast_check: C007\n")
+	writeCheck(t, root, "C008", "task", "T008", "CLEAR")
+	writeTask(t, root, "O900", "T008", "Check awaits owner",
+		"status: in_progress\nstage: audit\nlast_check: C008\n"+currentFreshness("C008")+
+			"owner_validation:\n  required: true\n")
+
+	writeTask(t, root, "O900", "T009", "Done with Check pending", "status: done\n")
+	writeCheck(t, root, "C010", "task", "T010", "CLEAR")
+	writeTask(t, root, "O900", "T010", "Done and checked",
+		"status: done\nlast_check: C010\n"+currentFreshness("C010"))
+	writeCheck(t, root, "C011", "task", "T011", "NEEDS WORK")
+	writeTask(t, root, "O900", "T011", "Done, owner accepted",
+		"status: done\nlast_check: C011\nexception:\n  requirements: [\"TEST-01\"]\n"+
+			"  reason: \"fixture accepted the known gap\"\n  owner: \"the owner\"\n"+
+			"  recorded_at: 2026-01-03T00:00:00Z\n  check: C011\n")
+	writeTask(t, root, "O900", "T012", "Done, owner waived the Check",
+		"status: done\ncheck_waiver:\n  task: T012\n"+
+			"  reason: \"fixture owner waived the optional Task Check\"\n"+
+			"  actor: {role: owner, session: board-fixture}\n"+
+			"  recorded_at: 2026-01-03T00:00:00Z\n")
+
+	// C005 is deliberately stale, so the open build card renders REVIEW.
+	writeCheck(t, root, "C005", "task", "T005", "CLEAR")
+	return root
+}
+
 // staleFreshness is an assessment that names its Check but no longer calls it
 // current, which is what ResolveClearance reads as stale.
 func staleFreshness(check string) string {

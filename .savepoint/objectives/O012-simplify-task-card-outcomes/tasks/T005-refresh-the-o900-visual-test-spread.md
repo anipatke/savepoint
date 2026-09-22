@@ -39,9 +39,10 @@ explicitly disposable and required to be removed before R006 closes.
   the simplified Task-card outcomes.
 - Its twelve Tasks preserve their existing IDs, O900 ownership, and useful
   planned/in-progress/done column spread.
-- The fixture provides an unambiguous example for each outcome: T903 has no
-  Check, T907 has a current clear Check, T905 has a current needs-work Check,
-  T909 needs review, T910 has an owner waiver, and T908 is owner accepted.
+- The fixture provides an unambiguous example for each outcome: a Done Task
+  has no Check, T907 has a current clear Check, T905 has a current needs-work
+  Check, T909 needs review, T910 has an owner waiver, and T908 is owner
+  accepted.
 - T901 still demonstrates a wait blocker, T904 a replan blocker, and T906 an
   owner blocker, independently from the outcome badge.
 - Fixture titles and descriptions use the retained vocabulary rather than
@@ -159,7 +160,10 @@ locating the actual paths rather than a REPLAN.
 - Unambiguous example per outcome — confirmed by rendering actual card
   badges through `groupTaskCardsFor` + `TaskCard.badges()` (the real
   production path, not a re-implementation):
-  - T903 → `[ ] CHECK` (no Check)
+  - T903 was intended to demonstrate `[ ] CHECK`, but as an in-progress build
+    Task the final open-card rule correctly rendered only `BUILD`. I018 records
+    this stale claim; T009 remediates it with a supported Done/no-Check fixture
+    role and durable regression coverage while this completed Task stays done.
   - T907 → `[✓] CHECK` (current clear Check)
   - T905 → `[!] NEEDS WORK`
   - T909 → `[!] REVIEW` (stale clearance collapsed)

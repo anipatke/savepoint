@@ -2,7 +2,7 @@
 id: I015
 title: Allow up to two lines for task card and objective card titles
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor:
@@ -10,6 +10,16 @@ source:
     session: user-review
   at: '2026-09-20T21:38:00Z'
 severity: low
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: user-request
+  at: '2026-09-22T09:18:44Z'
+  reason: >-
+    Owner waived an independent Check and accepted I015 as resolved based on
+    the repair evidence recorded by the implementing task; this is not a
+    technical CLEAR verdict.
 history:
   - at: '2026-09-20T21:38:00Z'
     actor:
@@ -23,6 +33,14 @@ history:
       session: user-request
     kind: repair_attempted
     note: Implemented wrapTitleLines, updated renderCard and renderObjectiveRow to wrap titles up to two lines before truncating, and added tests
+  - at: '2026-09-22T09:18:44Z'
+    actor:
+      role: owner
+      session: user-request
+    kind: owner_decision
+    note: >-
+      Owner waived independent verification and accepted I015 as resolved based
+      on the repair evidence from the implementing task.
 ---
 
 # I015: Allow up to two lines for task card and objective card titles
