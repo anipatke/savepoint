@@ -2,7 +2,7 @@
 id: I005
 title: Check guidance requires explicit reviewed evidence while runtime treats it as optional
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,13 @@ source:
         session: .savepoint/releases/v2/defects/D006-clear-evidence-invariant-undecided.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: owner-request-2026-09-22
+    at: "2026-09-22T08:46:43Z"
+    reason: Owner accepted the implemented contract without an independent proof Check.
 ---
 ## Migrated from V1
 
@@ -71,4 +78,4 @@ Implementation records the confirmed contract: `reviewed` is optional scope
 metadata, including for `CLEAR`; technical clearance comes from independent
 checker provenance and current freshness. The decoder, resolver comments,
 workflow guidance, scaffold guidance, and regression tests now state and cover
-that contract. Status remains open pending an independent Check of this repair.
+that contract. The owner accepted closure without an independent proof Check.
