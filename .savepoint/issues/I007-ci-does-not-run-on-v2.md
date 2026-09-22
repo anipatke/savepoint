@@ -2,7 +2,7 @@
 id: I007
 title: CI workflow does not trigger on the active v2 branch
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,20 @@ source:
         session: .savepoint/releases/v2/defects/D008-ci-does-not-run-on-v2.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: owner-request-2026-09-22
+    at: "2026-09-22T09:01:43Z"
+    reason: Owner accepted the implemented CI trigger fix without an independent proof Check.
+history:
+    - at: "2026-09-22T09:01:43Z"
+      actor:
+          role: owner
+          session: owner-request-2026-09-22
+      kind: owner_decision
+      note: Owner accepted I007 as resolved after v2 was added to both branch filters and make ci passed.
 ---
 ## Migrated from V1
 
@@ -62,4 +76,5 @@ arrives red.
 
 ## Resolution Notes
 
-Pending.
+Owner accepted the resolution after adding `v2` to both CI branch filters and
+passing `make ci`.
