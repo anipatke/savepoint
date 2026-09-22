@@ -2,17 +2,46 @@
 id: I022
 title: Hyphenate every numbered V2 record identity
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T09:48:33Z'
 severity: high
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T00:05:00Z'
+  reason: >-
+    Superseded by O018 (hyphenate-numbered-record-identities), which now owns
+    the design and repair. Owner override: closing this Issue as redundant
+    rather than leaving it open in parallel with the Objective that carries
+    it.
 history:
   - at: '2026-09-22T09:48:33Z'
     actor: {role: owner, session: user}
     kind: observed
     note: Numbered identities such as O015 and T012 are harder to scan than O-015 and T-012; adopt the hyphenated form for every active numbered record type and migrate this project.
+  - at: '2026-09-22T00:00:00Z'
+    actor: {role: planner, session: o018-design-20260922}
+    kind: deferred
+    note: >-
+      Repair spans the identity grammar and every generator/consumer in
+      internal/data, a new interruption-safe V2->V2 migration tool, fresh-init
+      templates, skills, and this repository's entire active V2 graph — too
+      broad for an inline repair. Carried into O018
+      (hyphenate-numbered-record-identities), which plans the shared grammar,
+      the migration tool, and the repository migration itself (including
+      renaming this Issue to I-022 as the migration's own final step). This
+      Issue stays open until O018's Full Objective Check verifies the repair.
+  - at: '2026-09-22T00:05:00Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner override: close this Issue now (status resolved, disposition
+      accepted) rather than leaving it open in parallel with O018, which
+      already owns the design and repair. Not a technical closure — O018's
+      own Full Objective Check still proves the repair.
 ---
 
 # I022: Hyphenate every numbered V2 record identity
