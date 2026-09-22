@@ -2,17 +2,27 @@
 id: I024
 title: Task planning can reuse an existing global ID
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: planner, session: task-id-collision-review-20260922}
   at: '2026-09-22T09:56:33Z'
 severity: high
+resolution:
+  disposition: escalated
+  actor: {role: planner, session: i024-allocation-design-20260923}
+  at: '2026-09-22T21:27:36Z'
+  reason: Owner directed promotion of the deterministic Task allocation repair into Objective O019.
+escalated_to: O019
 history:
   - at: '2026-09-22T09:56:33Z'
     actor: {role: planner, session: task-id-collision-review-20260922}
     kind: observed
     note: I018 remediation allocated T006 by scanning only O012, colliding with O013's existing T006 and making strict V2 reload fail until the Task was renamed T009.
+  - at: '2026-09-22T21:27:36Z'
+    actor: {role: planner, session: i024-allocation-design-20260923}
+    kind: escalated
+    note: Owner directed promotion to O019 for deterministic, never-reused Task allocation; O019's mandatory Full Objective Check and owner acceptance now carry the repair proof.
 ---
 
 # I024: Task planning can reuse an existing global ID
