@@ -1526,6 +1526,72 @@ func TestWriteV2Record_resolvesDiscoveredRelativePathFromProjectRoot(t *testing.
 	}
 }
 
+func TestResolveV2SourcePath_confinesPathsToProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	inside := filepath.Join(root, "objectives", "O001", "Objective.md")
+
+	tests := []struct {
+		name    string
+		path    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "relative inside",
+			path: "objectives/O001/Objective.md",
+			want: inside,
+		},
+		{
+			name:    "relative escape",
+			path:    filepath.Join("..", "outside.md"),
+			wantErr: true,
+		},
+		{
+			name: "absolute inside",
+			path: inside,
+			want: inside,
+		},
+		{
+			name:    "absolute outside",
+			path:    filepath.Join(root, "..", "outside.md"),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveV2SourcePath(V2SourceDocument{
+				Path:        tt.path,
+				ProjectRoot: root,
+			})
+			if tt.wantErr {
+				if !errors.Is(err, ErrV2UnsafePath) {
+					t.Fatalf("resolveV2SourcePath() error = %v, want ErrV2UnsafePath", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveV2SourcePath() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("resolveV2SourcePath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveV2SourcePath_allowsAbsolutePathWithoutProjectRoot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "record.md")
+
+	got, err := resolveV2SourcePath(V2SourceDocument{Path: path})
+	if err != nil {
+		t.Fatalf("resolveV2SourcePath() error = %v", err)
+	}
+	if got != path {
+		t.Errorf("resolveV2SourcePath() = %q, want %q", got, path)
+	}
+}
+
 func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *testing.T) {
 	root := t.TempDir()
 	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")

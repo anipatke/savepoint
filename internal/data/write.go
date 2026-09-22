@@ -395,7 +395,7 @@ func resolveV2SourcePath(source V2SourceDocument) (string, error) {
 	if source.Path == "" {
 		return "", fmt.Errorf("%w: empty V2 source path", ErrV2UnsafePath)
 	}
-	if filepath.IsAbs(source.Path) || source.ProjectRoot == "" {
+	if source.ProjectRoot == "" {
 		return filepath.Clean(source.Path), nil
 	}
 
@@ -404,10 +404,13 @@ func resolveV2SourcePath(source V2SourceDocument) (string, error) {
 		return "", fmt.Errorf("resolve V2 project root %q: %w", source.ProjectRoot, err)
 	}
 	root = filepath.Clean(root)
-	path := filepath.Clean(filepath.Join(root, source.Path))
+	path := filepath.Clean(source.Path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return "", fmt.Errorf("resolve V2 source %s: %w", source.Path, err)
+		return "", fmt.Errorf("%w: %s escapes project root", ErrV2UnsafePath, source.Path)
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("%w: %s escapes project root", ErrV2UnsafePath, source.Path)

@@ -2,7 +2,7 @@
 id: I006
 title: Absolute V2 source paths bypass project-root containment
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,37 @@ source:
         session: .savepoint/releases/v2/defects/D007-absolute-v2-source-path-containment.md
     at: "2026-09-20T05:03:29Z"
 severity: high
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: user-request
+    at: "2026-09-22T08:08:00Z"
+    reason: >-
+        Owner reviewed the containment repair and passing focused and full test
+        evidence, and accepted the Issue as resolved without an independent
+        savepoint-check session. This is not a technical CLEAR.
+history:
+    - at: "2026-09-22T08:08:00Z"
+      actor:
+          role: executor
+          session: user-request
+      kind: repair_attempted
+      note: >-
+          Updated internal/data/write.go so absolute V2 source paths are
+          normalized and checked against ProjectRoot with ErrV2UnsafePath on
+          escape; added inside, outside, relative-escape, and empty-root
+          regression coverage in internal/data/write_test.go. Focused tests
+          and make build && make test pass.
+    - at: "2026-09-22T08:08:00Z"
+      actor:
+          role: owner
+          session: user-request
+      kind: owner_decision
+      note: >-
+          Owner requested that the repaired Issue be moved to resolved and
+          accepted the repair evidence directly rather than commissioning an
+          independent savepoint-check verification.
 ---
 ## Migrated from V1
 
