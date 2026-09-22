@@ -2,12 +2,20 @@
 id: I027
 title: Frontmatter parse errors reach the repo before anything catches them
 type: guardrail
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T00:00:00Z'
 severity: medium
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T00:00:03Z'
+  reason: >-
+    Owner accepts the local pre-commit hook plus `make install-hooks` as
+    sufficient as-is: Python hook stays, no CI enforcement, no new
+    Guardrails rule. Owner decision, not a Check-verified closure.
 history:
   - at: '2026-09-22T00:00:00Z'
     actor: {role: owner, session: user}
@@ -38,6 +46,14 @@ history:
       environment regardless of request; the owner runs it per clone.
       Local hook copy at .git/hooks/pre-commit from the prior repair still
       works standalone until `make install-hooks` is run.
+  - at: '2026-09-22T00:00:03Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner closes this Issue now (status resolved, disposition accepted)
+      without an independent Check: the hook works as tested, and the open
+      Proof Needed questions (Go rewrite, CI enforcement, a new Guardrails
+      rule) are explicitly not being pursued at this time.
 ---
 
 # I027: Frontmatter parse errors reach the repo before anything catches them
