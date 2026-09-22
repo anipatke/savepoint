@@ -2,20 +2,52 @@
 id: I026
 title: Add an owner waiver action for Objective Checks
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T10:01:43Z'
 severity: high
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T00:00:00Z'
+  reason: >-
+    Superseded by O017 (owner-accept-objective-check-gap), which now owns the
+    design and repair. Owner override: closing this Issue as redundant rather
+    than leaving it open in parallel with the Objective that carries it.
 history:
   - at: '2026-09-22T10:01:43Z'
     actor: {role: owner, session: user}
     kind: observed
     note: The board needs an explicit owner action that can waive an Objective Check instead of requiring the owner to edit evidence manually or remain blocked.
+  - at: '2026-09-22T00:00:00Z'
+    actor: {role: owner, session: user}
+    kind: deferred
+    note: >-
+      Design review found the repair spans the evidence schema, three gate
+      resolvers, board UI, doctor/resume rendering, and doc reconciliation —
+      too broad for this Issue's Proof Needed alone. Carried into O017
+      (owner-accept-objective-check-gap), which plans a single Accept action
+      covering two distinct owner-acceptance kinds: a Check that ran and left
+      issues unresolved, and an Objective with no Check at all. This Issue
+      stays open until O017's Full Objective Check verifies the repair.
+  - at: '2026-09-22T00:00:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner override: close this Issue now (status resolved, disposition
+      accepted) rather than leaving it open in parallel with O017, which
+      already owns the design and repair. Not a technical closure — O017's
+      own Full Objective Check still proves the repair.
 ---
 
 # I026: Add an owner waiver action for Objective Checks
+
+**Resolved — superseded by O017** (owner override, disposition `accepted`).
+The design decision and scope below are now owned by
+`.savepoint/objectives/O017-owner-accept-objective-check-gap/Objective.md`;
+this Issue record is kept for history only.
 
 ## Summary
 

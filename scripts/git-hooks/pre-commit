@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Validates YAML frontmatter on every staged .savepoint/**/*.md file before
+# a commit is allowed. Catches a missing/duplicated closing "---" delimiter
+# or malformed YAML — the class of edit that otherwise only surfaces later
+# as a board/doctor parse error (see I027).
+set -euo pipefail
+
+files=$(git diff --cached --name-only --diff-filter=ACM -- '.savepoint/**/*.md' || true)
+
+if [ -z "$files" ]; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+checker="$repo_root/scripts/git-hooks/check_frontmatter.py"
+
+fail=0
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  if ! git show ":$file" | python3 "$checker" "$file"; then
+    fail=1
+  fi
+done <<< "$files"
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: fix frontmatter errors above before committing" >&2
+  exit 1
+fi

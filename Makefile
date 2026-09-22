@@ -1,4 +1,4 @@
-.PHONY: build test run clean build-linux build-darwin build-windows build-all build-npm dist verify-dist package-check smoke-test ci
+.PHONY: build test run clean build-linux build-darwin build-windows build-all build-npm dist verify-dist package-check smoke-test ci install-hooks
 
 VERSION ?=
 
@@ -42,3 +42,6 @@ smoke-test:
 	go run ./internal/buildtool -version "$(VERSION)" smoke-test
 
 ci: test build dist package-check
+
+install-hooks:
+	git config core.hooksPath scripts/git-hooks
