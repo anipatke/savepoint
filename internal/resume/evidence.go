@@ -50,7 +50,9 @@ func ReleaseIdentityLines(next data.Next) []string {
 // date, and recorded basis when a freshness assessment exists. A nil
 // clearance reports that no clearance was resolved for this rung, which
 // happens when a Task or Objective is allowed to proceed without one (e.g.
-// a planned Task with no evidence to speak of yet).
+// a planned Task with no evidence to speak of yet). It intentionally reports
+// the result and freshness authority only: Check.Reviewed is optional scope
+// metadata, not a separate requirement for technical CLEAR.
 //
 // It is exported so a detail surface reporting one record's clearance says
 // exactly what the Next area and `savepoint resume` say about the same

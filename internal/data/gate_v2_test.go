@@ -82,6 +82,41 @@ func TestResolveClearance_currentWhenFreshnessNamesLatestCheckAsCurrent(t *testi
 	}
 }
 
+func TestResolveClearance_reviewedBasisDoesNotAffectCurrentClearance(t *testing.T) {
+	cases := []struct {
+		name     string
+		reviewed *ReviewedBasis
+	}{
+		{name: "absent"},
+		{name: "empty", reviewed: &ReviewedBasis{Files: []string{}, Dependencies: []string{}}},
+		{name: "substantive", reviewed: &ReviewedBasis{
+			BaseCommit: "abc123", HeadCommit: "def456",
+			Files: []string{"internal/data/check_v2.go"}, Dependencies: []string{"go.mod"},
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			check := mustCheck(index, "C001", "T001", CheckResultClear)
+			check.Reviewed = tc.reviewed
+			index.Tasks["T001"] = &TaskV2{
+				ID: "T001", Objective: "O001",
+				Evidence: &Evidence{Freshness: &Freshness{
+					State: FreshnessCurrent, Check: "C001",
+					AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-2"},
+					Basis:      "re-read the diff",
+				}},
+			}
+
+			got := ResolveClearance(index, "T001")
+			if got.State != ClearanceCurrent {
+				t.Fatalf("ResolveClearance() = %+v, want current with %s reviewed basis", got, tc.name)
+			}
+		})
+	}
+}
+
 func TestResolveClearance_staleWhenFreshnessNamesADifferentCheck(t *testing.T) {
 	index := newV2TestIndex()
 	mustCheck(index, "C001", "T001", CheckResultClear)

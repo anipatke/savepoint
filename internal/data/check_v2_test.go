@@ -102,6 +102,27 @@ checked_at: '2026-09-14T00:00:00Z'
 	}
 }
 
+func TestDecodeCheckV2_clearAllowsAbsentReviewed(t *testing.T) {
+	content := `---
+id: C003
+scope: {kind: task, id: T001}
+result: CLEAR
+checked_by: {role: checker, session: review-001}
+executed_session: build-001
+checked_at: '2026-09-14T00:00:00Z'
+---
+
+# Check`
+
+	check, err := DecodeCheckV2("test.md", content)
+	if err != nil {
+		t.Fatalf("DecodeCheckV2() error = %v", err)
+	}
+	if check.Reviewed != nil {
+		t.Fatalf("Reviewed = %+v, want nil: absent review scope is valid for CLEAR", check.Reviewed)
+	}
+}
+
 func TestDecodeCheckV2_executedSessionValidation(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -130,7 +151,7 @@ func TestDecodeCheckV2_executedSessionValidation(t *testing.T) {
 	}
 }
 
-func TestDecodeCheckV2_reviewedEmptyEntriesStayAbsent(t *testing.T) {
+func TestDecodeCheckV2_clearAllowsExplicitlyEmptyReviewed(t *testing.T) {
 	content := `---
 id: C002
 scope: {kind: task, id: T001}

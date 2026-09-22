@@ -44,7 +44,10 @@ type Clearance struct {
 // latest Check and evidence already loaded there. targetID may name a Task,
 // Objective, or Release; all three share the same evidence shape. It returns a
 // decision for every reachable state rather than an error: a target with no
-// evidence and no Check resolves to missing, never a failure.
+// evidence and no Check resolves to missing, never a failure. Check.Reviewed
+// is optional scope metadata and is deliberately not consulted here; CLEAR is
+// established by the Check's independent checker provenance and current
+// freshness assessment.
 func ResolveClearance(index *V2Index, targetID string) Clearance {
 	latestCheckID := index.LatestCheck[targetID]
 	if latestCheckID == "" {

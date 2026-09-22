@@ -70,7 +70,17 @@ issues: []
 supersedes: null
 ```
 
-`reviewed.files` and `reviewed.dependencies` are populated with real path or content-hash entries, or explicit absent entries — never left implicit. `issues` lists the `I###` references this run opened. `supersedes` names the prior `C###` this run replaces, or stays empty on a first run. The record body carries outcome coverage, test and command results, negative and boundary probes, applicable Guardrails, owner validation still needed, and nonblocking observations.
+`reviewed` is optional scope metadata, including for a `CLEAR` Check; omit the
+whole block when there is no review scope metadata to record. When the block is
+present, `reviewed.files` and `reviewed.dependencies` use real path or
+content-hash entries, or explicit `[]` when that category is absent. This
+metadata does not establish technical clearance: `CLEAR` depends on the
+independent checker recorded on the Check and a current freshness assessment.
+`issues` lists the `I###` references this run opened. `supersedes` names the
+prior `C###` this run replaces, or stays empty on a first run. The record body
+carries outcome coverage, test and command results, negative and boundary
+probes, applicable Guardrails, owner validation still needed, and nonblocking
+observations.
 
 Each run writes a new record with a new `C###`. A recheck never edits the superseded record; it sets its own `supersedes` and leaves the prior run intact as history.
 

@@ -57,10 +57,12 @@ type Actor struct {
 	Session string
 }
 
-// ReviewedBasis is the recorded scope an evaluation actually covered. An
-// absent block, or an absent field within a present block, is decoded as
-// absent rather than healed into an empty-but-passing default: absence is a
-// fact about what evidence exists, not a value to paper over.
+// ReviewedBasis is optional scope metadata describing what an evaluation
+// actually covered. An absent block, or an absent field within a present
+// block, is decoded as absent rather than healed into an empty-but-passing
+// default: absence is a fact about what evidence exists, not a value to paper
+// over. It is not part of the CLEAR gate; independent checker provenance and
+// current freshness establish technical clearance.
 type ReviewedBasis struct {
 	BaseCommit   string
 	HeadCommit   string
@@ -123,11 +125,12 @@ type checkV2Frontmatter struct {
 // and a parseable checked_at timestamp. A CLEAR Check must be recorded by a
 // checker; other roles may record NEEDS WORK evidence, but cannot author a
 // clearance-capable result. It also requires the non-empty execution session
-// that produced the work under review. reviewed, issues, and supersedes are optional;
-// when present they are validated for shape only — reviewed's fields are
-// recorded as given, issues are I### references with no Issue lookup, and
-// supersedes is a C### reference resolved later against the full index, not
-// here.
+// that produced the work under review. reviewed is optional scope metadata,
+// including for CLEAR, and does not participate in clearance resolution;
+// issues and supersedes are optional too. When present, these fields are
+// validated for shape only — reviewed's fields are recorded as given, issues
+// are I### references with no Issue lookup, and supersedes is a C### reference
+// resolved later against the full index, not here.
 func DecodeCheckV2(path, content string) (*CheckV2, error) {
 	doc, err := ParseV2Document(path, content)
 	if err != nil {

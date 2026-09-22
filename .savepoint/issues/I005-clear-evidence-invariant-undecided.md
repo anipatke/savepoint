@@ -1,6 +1,6 @@
 ---
 id: I005
-title: CLEAR Checks do not define whether reviewed evidence is required
+title: Check guidance requires explicit reviewed evidence while runtime treats it as optional
 type: defect
 status: open
 source:
@@ -67,4 +67,8 @@ cover absent, empty, and substantive reviewed evidence.
 
 ## Resolution Notes
 
-Pending.
+Implementation records the confirmed contract: `reviewed` is optional scope
+metadata, including for `CLEAR`; technical clearance comes from independent
+checker provenance and current freshness. The decoder, resolver comments,
+workflow guidance, scaffold guidance, and regression tests now state and cover
+that contract. Status remains open pending an independent Check of this repair.
