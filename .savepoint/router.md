@@ -16,9 +16,9 @@ canonical workflow source; this router records state and next action only.
 ```yaml
 state: task
 release: none
-objective: O013
-task: T006
-next_action: "O012 is closed (owner decision, C907 CLEAR; I025/I020 repaired directly and stay open for independent Check). That unblocks O013's objective dependency, so T006 is now ready to execute with savepoint-task. I019-I024 remain open follow-up Issues."
+objective: O016
+task: T013
+next_action: "O016 design and T013-T016 plan confirmed by the owner. Execute T013 measurement and gate-selection research with savepoint-task; no production test changes in T013."
 ```
 
 ## State → action

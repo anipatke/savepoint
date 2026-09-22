@@ -43,6 +43,30 @@ the evidence behind this Objective.
 - CI reports package/test timing so a regression in the fast or full budget is
   visible and attributable rather than discovered through agent wait time.
 
+## Confirmed Verification Policy
+
+- Ordinary Task handoff requires a successful build and fast repository gate.
+- Migration and platform-sensitive changes also require a fresh full gate at
+  Task handoff. CI and every Full Objective or Release Check require the full
+  gate. The full gate includes host-platform tests and cross-build checks; CI
+  additionally runs the Windows tests on Windows.
+- Focused package tests support iteration but do not replace the fast handoff
+  gate.
+- The two-second focused, fifteen-second fast, and forty-five-second full
+  targets are measured goals on a recorded warm machine. Timing regressions
+  are reported with attribution, not encoded as flaky test timeouts.
+- After a metadata-only correction, an unchanged full-gate result may remain
+  current only if code, tests, fixtures, and gate definitions are unchanged.
+  Evidence names the original run, the correction, and the unchanged inputs.
+  Any relevant input change requires a fresh full run.
+
+## Design Confirmation
+
+The owner confirmed the verification policy, Windows coverage, and T013-T016
+implementation sequence on 2026-09-22 at 21:51 UTC. The confirmed plan begins
+with measurement and gate selection; implementation decisions that measurement
+cannot settle return to design rather than silently changing these boundaries.
+
 ## Architectural Considerations
 
 - Coverage ownership remains with the existing package tests; splitting gates

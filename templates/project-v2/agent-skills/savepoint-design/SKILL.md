@@ -31,13 +31,14 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 1. Read the router, the Idea when present, Design, Guardrails, and the current Objective.
 2. Update `Design.md` to describe implemented reality, and `Guardrails.md` to hold durable project constraints; keep Objective deltas as the record of planned change until reconciliation.
 3. Keep exactly one Objective active. Objectives beyond it stay named outcomes with Boundaries — no detailed Tasks.
-4. Before detailing an Objective's Tasks, check the readiness gate below. Do not detail Tasks for an Objective that is not ready.
-5. When the implementation approach for a piece of work is unknown, write a bounded research Task with a named decision deliverable instead of a confident plan the executor will discover is fiction.
-6. Split any Task that carries multiple unrelated outcomes or an unresolved architectural decision into separate Tasks.
-7. When an executor returns `REPLAN REQUIRED`, treat it as re-entry here: reassess Design, Guardrails, or the Objective as needed, then resume from step 3.
-8. Route product choices to the owner instead of inferring them. Technical readiness — settled interfaces, scoped constraints, known dependencies, a verification approach — does not require the owner to review code.
-9. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
-10. When the next Objective's Tasks are detailed and approved, set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`.
+4. Before detailing an Objective's Tasks, inspect its stated requirements against Idea, Design, Guardrails, dependencies, and targeted evidence. Ask the owner about material product or verification choices that are missing, ambiguous, or contradictory; do not fill those gaps by assumption. Summarize the proposed outcome, success conditions, boundaries, and key technical decisions in plain language, and obtain the owner's explicit design confirmation. Record confirmed decisions in the Objective. Then apply the readiness gate below; do not detail Tasks for an unconfirmed or unready Objective.
+5. After confirmation, detail the implementation Tasks and present the plan for owner review before routing to execution. A confirmed Objective design is not approval to implement or to mark a Task done.
+6. When the implementation approach for a piece of work is unknown, write a bounded research Task with a named decision deliverable instead of a confident plan the executor will discover is fiction.
+7. Split any Task that carries multiple unrelated outcomes or an unresolved architectural decision into separate Tasks.
+8. When an executor returns `REPLAN REQUIRED`, treat it as re-entry here: reassess Design, Guardrails, or the Objective as needed, then resume from step 3.
+9. Route product choices to the owner instead of inferring them. Technical readiness — settled interfaces, scoped constraints, known dependencies, a verification approach — does not require the owner to review code, but the Objective design and material requirements still require explicit owner confirmation before Task detailing.
+10. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
+11. When the next Objective's Tasks are detailed and approved, set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`.
 
 ## Verification Contract
 
@@ -227,7 +228,7 @@ closure this skill performs.
 
 ## Readiness Gate
 
-Detail an Objective's Tasks only when all of the following are settled:
+Detail an Objective's Tasks only after the owner confirms its design and all of the following are settled:
 
 - Interfaces and data ownership for the work are settled, not still open questions.
 - Constraints on the work are scoped, not open-ended.
