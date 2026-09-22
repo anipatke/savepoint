@@ -1,7 +1,7 @@
 ---
 id: O012
 title: Make Task cards easier to scan
-status: in_progress
+status: done
 release: R006
 last_check: C907
 freshness:
@@ -90,3 +90,13 @@ vocabulary that preserves accountability while making the board easier to scan.
   evidence rather than this Objective's documentation authority. O900 is the
   disposable live UI fixture and may be refreshed only to visualise this
   Objective's card outcomes.
+
+## Closure
+
+Closed `done` by explicit owner decision on 2026-09-22. Every owned Task
+(T003, T004, T005, T009) is done, and clearance is current on C907's CLEAR
+Full Objective Check — no gate blocker required an exception here. I025
+(footer key hints) and I020 (reload diagnostic footer duplication) were
+repaired directly after C907 and touch some of the same board files; both
+remain separate, open Issues pending independent Check verification, and
+the owner chose to close O012 now rather than wait on that recheck.
