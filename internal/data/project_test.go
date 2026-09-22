@@ -374,7 +374,8 @@ func TestLoadV2Index_checkOrderingAcrossC999C1000Boundary(t *testing.T) {
 	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
 	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
 	writeV2CheckFixture(t, root, "C999-older.md", "C999", "task", "T001")
-	writeV2CheckFixture(t, root, "C1000-newer.md", "C1000", "task", "T001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C1000-newer.md"),
+		"---\nid: C1000\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C999\n---\n\n# Check\n")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -407,6 +408,47 @@ func TestLoadV2Index_checkOrderingAcrossC999C1000Boundary(t *testing.T) {
 	t001.Stage = StageAudit
 	if decision := ResolveTaskCompletion(index, "T001"); !decision.Allowed {
 		t.Fatalf("ResolveTaskCompletion(T001) = %+v, want allowed from latest C1000", decision)
+	}
+	next := ResolveNext(NextInput{
+		Index:  index,
+		Router: &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"},
+	})
+	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T001" {
+		t.Fatalf("ResolveNext() = %+v, want execute T001 from latest C1000", next)
+	}
+}
+
+func TestLoadV2Index_checkSupersedesMultipleHeads(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
+	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2CheckFixture(t, root, "C003-stray.md", "C003", "task", "T001")
+
+	_, err := LoadV2Index(root)
+	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
+		t.Fatalf("LoadV2Index() error = %v, want ErrV2CheckSupersedesConflict", err)
+	}
+	if !strings.Contains(err.Error(), "C003") || !strings.Contains(err.Error(), "C002") {
+		t.Fatalf("LoadV2Index() error = %v, want the stray head and required predecessor named", err)
+	}
+}
+
+func TestLoadV2Index_checkSupersedesOrderMismatch(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
+	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
+		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C003\n---\n\n# Check\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C003-rerun.md"),
+		"---\nid: C003\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-16T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+
+	_, err := LoadV2Index(root)
+	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
+		t.Fatalf("LoadV2Index() error = %v, want ErrV2CheckSupersedesConflict", err)
 	}
 }
 

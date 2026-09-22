@@ -476,8 +476,11 @@ func checkScopeTargetExists(index *V2Index, scope CheckScope) bool {
 // validateCheckSupersedesChains validates, for every Check with a
 // supersedes reference: the target Check exists, it shares the same scope,
 // no two Checks supersede the same target, and the resulting graph has no
-// cycle. ids is the sorted Check ID order indexChecks already computed, so
-// diagnostics and cycle discovery stay deterministic across runs.
+// cycle. It also requires each scope's numeric Check order to be one linear
+// supersession chain, so LatestCheck cannot select a head unrelated to the
+// explicit supersedes history. ids is the sorted Check ID order indexChecks
+// already computed, so diagnostics and cycle discovery stay deterministic
+// across runs.
 func validateCheckSupersedesChains(index *V2Index, ids []string) error {
 	edges := make(map[string][]string, len(ids))
 	supersededBy := make(map[string]string, len(ids))
@@ -505,5 +508,22 @@ func validateCheckSupersedesChains(index *V2Index, ids []string) error {
 	if cycle := findV2Cycle(ids, edges); cycle != nil {
 		return fmt.Errorf("%w: check supersedes cycle %s", ErrV2CheckSupersedesConflict, describeV2Cycle(cycle, func(id string) string { return index.Checks[id].Source.Path }))
 	}
+
+	for _, targetID := range slices.Sorted(maps.Keys(index.ScopeChecks)) {
+		checkIDs := index.ScopeChecks[targetID]
+		first := index.Checks[checkIDs[0]]
+		if first.Supersedes != "" {
+			return fmt.Errorf("%w: checks for scope %s are not an ID-ordered chain: first check %s supersedes %s", ErrV2CheckSupersedesConflict, targetID, first.ID, first.Supersedes)
+		}
+
+		for i := 1; i < len(checkIDs); i++ {
+			check := index.Checks[checkIDs[i]]
+			want := checkIDs[i-1]
+			if check.Supersedes != want {
+				return fmt.Errorf("%w: checks for scope %s are not an ID-ordered chain: check %s supersedes %s, want %s", ErrV2CheckSupersedesConflict, targetID, check.ID, check.Supersedes, want)
+			}
+		}
+	}
+
 	return nil
 }

@@ -2,7 +2,7 @@
 id: I003
 title: LatestCheck can disagree with explicit Check supersession
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,29 @@ source:
         session: .savepoint/releases/v2/defects/D004-latest-check-supersedes-semantics.md
     at: "2026-09-20T05:03:29Z"
 severity: blocker
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: user-request
+    at: "2026-09-22T08:17:26Z"
+    reason: >-
+        Owner reviewed the supersession repair and passing focused and full test
+        evidence, and accepted the Issue as resolved without an independent
+        savepoint-check session. This is not a technical CLEAR.
+history:
+    - at: "2026-09-22T08:15:38Z"
+      actor:
+          role: executor
+          session: codex-i003-repair-20260922
+      kind: repair_attempted
+      note: "Load validation now rejects multi-head and non-ID-ordered Check supersession; regression coverage exercises the valid chain through clearance, dependency, completion, and Next. Focused data tests, make build, and make test passed."
+    - at: "2026-09-22T08:17:26Z"
+      actor:
+          role: owner
+          session: user-request
+      kind: owner_decision
+      note: "Owner requested that the repaired Issue be moved to resolved and accepted the repair evidence directly rather than commissioning an independent savepoint-check verification."
 ---
 ## Migrated from V1
 
