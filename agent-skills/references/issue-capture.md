@@ -90,5 +90,5 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 Default: fix it directly and record repair evidence in the Issue's own
 history (`kind: repair_attempted`), leaving the Issue open for the checker.
-Escalate to a new Task in an Objective only when the repair itself needs
-planning — an open Design decision, or work spanning multiple Objectives.
+Escalate only when the repair itself needs planning — an open Design
+decision, or work spanning multiple Objectives — where the repair becomes a new, bounded Task in an Objective instead of an inline edit.

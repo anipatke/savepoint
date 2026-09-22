@@ -721,6 +721,22 @@ func TestSavepointTaskSkillFreshCheckHandoff(t *testing.T) {
 	}
 }
 
+func TestSavepointTaskSkillObjectiveCheckNeedsWorkDoesNotRetreatDoneTasks(t *testing.T) {
+	for tree, root := range v2SkillRoots() {
+		path := filepath.Join(root, "savepoint-task", "SKILL.md")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: read %s: %v", tree, path, err)
+			continue
+		}
+		content := string(data)
+
+		if !strings.Contains(content, "never retreats a Task that is already `done`") {
+			t.Errorf("%s: %s does not state an Objective/Release Check's NEEDS WORK never retreats a done Task", tree, path)
+		}
+	}
+}
+
 func TestSavepointTaskSkillStyleAdvisoryRule(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		path := filepath.Join(root, "savepoint-task", "SKILL.md")
@@ -999,8 +1015,11 @@ func TestSavepointCheckSkillNeedsWorkPath(t *testing.T) {
 		if !strings.Contains(content, "hand remediation back to the executor or planner") {
 			t.Errorf("%s: %s does not hand NEEDS WORK remediation back to executor or planner", tree, path)
 		}
-		if !strings.Contains(content, "resumes at `stage: build` inside the same Task") {
-			t.Errorf("%s: %s does not state the executor resumes at stage: build inside the same Task", tree, path)
+		if !strings.Contains(content, "A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task") {
+			t.Errorf("%s: %s does not state a Task Check's NEEDS WORK resumes the executor at stage: build inside that same Task", tree, path)
+		}
+		if !strings.Contains(content, "must not retreat a Task that is already `done`") && !strings.Contains(content, "must never retreat a Task that is already `done`") {
+			t.Errorf("%s: %s does not state an Objective/Release Check's NEEDS WORK must not retreat a done Task", tree, path)
 		}
 	}
 }

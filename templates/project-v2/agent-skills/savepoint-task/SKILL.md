@@ -46,6 +46,7 @@ It must never: edit the Task's acceptance criteria to match what was actually bu
 - **Verify implementation:** `stage: build` → `test` → `audit`, recording acceptance-criterion evidence and required command results along the way. `audit` means ready for an optional Task Check or mandatory Objective Check — it is never recorded or described as passed.
 - **Replan:** keep the current `status` and `stage`; set the replan reason with handoff evidence; preserve partial work; stop for the planner.
 - **After a Task Check:** a `NEEDS WORK` Check resumes repair at `stage: build` within the same Task. A `CLEAR` Check does not close the Task by itself — completion and `status: done` are the owner's action, never something this skill sets for itself.
+- **After a mandatory Objective or Release Check:** a `NEEDS WORK` result never retreats a Task that is already `done` — its recorded Issue links to the Objective, and remediation is a new or newly selected Task planned and executed under that Objective like any other Task.
 - **Without a Task Check:** an explicit owner waiver is recorded in the Task evidence. It waives only the optional local Check; it does not create technical `CLEAR` or replace the mandatory Full Objective Check. It does satisfy a downstream Task dependency that requires `clear` — never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
 ## Extra Reads

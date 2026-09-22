@@ -35,7 +35,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design; a Release Check uses `scope.kind: release` to evaluate integration across all member Objectives.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check or Release Check.
 4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C###` and names the run it replaces in `supersedes`.
-5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. The executor resumes at `stage: build` inside the same Task.
+5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective or Release Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is new or newly selected work linked to the Objective and the recorded Issue, and every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective/Release outcome.
 7. Record advisory observations, including `STYLE` guardrail findings, as non-blocking; do not let them change the result.
 8. Stop. Do not repair implementation, rewrite acceptance criteria, or update Design as part of this run.
@@ -111,7 +111,7 @@ verifying its proof.
 - Every Check run is a new immutable `C###` record; a recheck sets `supersedes` and never edits a prior run.
 - Apply Quick evidence only for a requested Task Check. Apply Full evidence for the mandatory Objective Check and Release Check; an Objective Check additionally covers cross-Task integration and Design reconciliation, and a Task-only Check never substitutes for either mandatory integration gate.
 - Apply the Release Check scope when `scope.kind: release`: inspect all member Objectives and their cross-Objective integration, then reuse ordinary Issues and hand owner acceptance back to the owner.
-- A `NEEDS WORK` result records Issues and hands remediation to the executor or planner; the executor resumes at `stage: build` inside the same Task.
+- A `NEEDS WORK` result records Issues and hands remediation to the executor or planner. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task; an Objective or Release Check's `NEEDS WORK` instead routes remediation to new or newly selected work linked to the Objective and Issue, and must never retreat a Task that is already `done`.
 - Apply the closure rules above exactly; do not use stale, unknown, or missing clearance to satisfy an invoked Task Check or a mandatory Objective/Release Check, and do not treat a Task-check waiver or other exception as a `CLEAR` result.
 - Treat advisory observations, including `STYLE` guardrail rules, as non-blocking; record them, but never let them change the result on their own.
 - Use `state` only for router phase, Task `status` only for Task lifecycle, and `stage` only when the Task is `in_progress`.

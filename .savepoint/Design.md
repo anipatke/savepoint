@@ -141,7 +141,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 1. Optional Task Check — A fresh checker runs Quick evidence only when the owner requests it; an explicit owner waiver may skip it.
 2. Full Objective Check — A fresh checker must verify every owned Task, integration, and Design reconciliation before Objective closure.
 3. Release Check       — When a Release exists, a fresh checker must verify cross-Objective integration before owner acceptance.
-4. Repair              — `NEEDS WORK` records Issues and returns the executor to `stage: build`; a fresh re-check supersedes the prior Check.
+4. Repair              — `NEEDS WORK` records Issues; a Task Check returns the executor to `stage: build` within that Task, while an Objective/Release Check routes repair to new or newly selected work linked to the Objective without retreating a completed Task; a fresh re-check supersedes the prior Check.
 5. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective/Release outcome.
 ```
 

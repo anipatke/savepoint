@@ -14,6 +14,10 @@ history:
     actor: {role: owner, session: user}
     kind: observed
     note: The owner rejected the workflow requirement to retreat a completed Task before repairing an Objective Check finding; completed Tasks must remain closed and remediation must be represented as new work linked to the Objective and Issue.
+  - at: '2026-09-22T00:00:00Z'
+    actor: {role: executor, session: v2-chat}
+    kind: repair_attempted
+    note: Split repair routing by Check scope in agent-skills/savepoint-check/SKILL.md (workflow step 5 and Rules), its byte-identical templates/project-v2 copy (TPL-01), agent-skills/savepoint-task/SKILL.md (new "After a mandatory Objective or Release Check" lifecycle line, mirrored to its templates/project-v2 copy), and .savepoint/Design.md Section 7 step 4 — a Task Check's NEEDS WORK still resumes stage:build inside that Task, but an Objective/Release Check's NEEDS WORK now routes to new or newly selected work linked to the Objective without retreating a done Task. Added TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDoneTasks in internal/data/objective_gate_v2_test.go proving ResolveObjectiveCompletion already blocks on NEEDS WORK and unblocks on a fresh superseding CLEAR Check while owned Tasks remain done throughout — the gate resolvers required no code change, only the skill/Design instruction text did. Also updated internal/init/agent_skills_test.go's doc-consistency assertions (TestSavepointCheckSkillNeedsWorkPath, new TestSavepointTaskSkillObjectiveCheckNeedsWorkDoesNotRetreatDoneTasks) to match the new split-routing wording. `go build ./...`, `go vet ./...`, and `go test ./...` pass except a pre-existing, unrelated failure, since repaired separately as I028 — TestSharedIssueCaptureRoleBoundariesAndRepairRouting expected agent-skills/references/issue-capture.md to contain the phrase "becomes a new, bounded Task in an Objective", which was absent on this branch before and after this repair (verified via git stash) — out of scope for this Issue and not touched here.
 ---
 
 # I019: Objective Check repair must not require reopening completed Tasks

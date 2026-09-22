@@ -410,6 +410,44 @@ func TestResolveTaskCompletion_unchangedByObjectiveGate(t *testing.T) {
 	}
 }
 
+func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDoneTasks(t *testing.T) {
+	// I019: an Objective Check's NEEDS WORK must be repairable and rechecked
+	// without retreating a Task that is already done. ResolveObjectiveCompletion
+	// only ever reads Task status; it never requires flipping it back to
+	// in_progress to unblock on a fresh, superseding Check.
+	index := newV2TestIndex()
+	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
+	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O001", Status: ColumnDone}
+	index.ObjectiveTasks["O001"] = []string{"T001", "T002"}
+
+	mustObjectiveCheck(index, "C001", "O001", CheckResultNeedsWork)
+	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
+
+	got := ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed {
+		t.Fatalf("Allowed = true, want false (objective check recorded NEEDS WORK)")
+	}
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
+		t.Fatalf("Blockers = %+v, want one GateBlockClearanceNeedsWork", got.Blockers)
+	}
+	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+		t.Fatalf("owned tasks changed status while only the objective check was NEEDS WORK")
+	}
+
+	// Repair is recorded as a fresh, superseding objective Check rather than by
+	// touching either Task.
+	mustObjectiveCheck(index, "C002", "O001", CheckResultClear)
+	index.Objectives["O001"] = mustCurrentObjective("O001", "C002", nil)
+
+	got = ResolveObjectiveCompletion(index, "O001")
+	if !got.Allowed {
+		t.Fatalf("Allowed = false, want true after the recheck cleared, blockers = %+v", got.Blockers)
+	}
+	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+		t.Fatalf("owned tasks changed status during repair and recheck, want both to remain done throughout")
+	}
+}
+
 func TestInspectObjectiveConsistency_ignoresObjectivesNotDone(t *testing.T) {
 	index := newV2TestIndex()
 	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
