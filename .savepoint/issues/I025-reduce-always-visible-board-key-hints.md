@@ -2,12 +2,17 @@
 id: I025
 title: Reduce the always-visible board key hints
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T10:01:43Z'
 severity: medium
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T11:16:02Z'
+  reason: Owner explicitly accepted the remaining risk and requested this Issue be marked resolved.
 history:
   - at: '2026-09-22T10:01:43Z'
     actor: {role: owner, session: user}
@@ -21,6 +26,10 @@ history:
     actor: {role: executor, session: i025-remediation-20260922}
     kind: repair_attempted
     note: "Repaired directly per the owner decision above: immediate up/down selection (moveObjectiveCursor now calls selectObjective; enter:select removed from handler and footer), Tab removed everywhere (key handler, toggleSidebarFocus, footer hints, Help row), the canonical hint gated on Issues.Detail.DuplicateTarget != nil, the dead I:task issues hint removed, and r:releases/v:detail/enter:detail/esc:clear hidden via new releaseHint/detailHint/clearObjectiveHint helpers (backed by a new hasDetailTarget bounds check shared with detailUnderCursor) whenever they would be no-ops. Help's closing line now reads esc/q:close rather than q:quit, matching that esc and q both only close Help there. Files changed: internal/board/v2/view.go, update.go, help.go, plus existing tests updated for the new tab-free/immediate-select navigation and a new footer_test.go covering each suppression rule. go build, go vet, go test ./internal/board/v2/..., git diff --check, make build, and make test all pass. The Issue remains open for independent Check verification."
+  - at: '2026-09-22T11:16:02Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: Owner accepted the remaining risk and requested this Issue be marked resolved; no technical CLEAR is implied.
 ---
 
 # I025: Reduce the always-visible board key hints

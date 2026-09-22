@@ -2,12 +2,17 @@
 id: I021
 title: Widen the Objective sidebar by about twenty percent
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T09:47:13Z'
 severity: low
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T11:16:02Z'
+  reason: Owner explicitly accepted the remaining risk and requested this Issue be marked resolved.
 history:
   - at: '2026-09-22T09:47:13Z'
     actor: {role: owner, session: user}
@@ -17,6 +22,10 @@ history:
     actor: {role: executor, session: codex}
     kind: repair_attempted
     note: Widened the sidebar to 34 cells, moved its content-width breakpoint to 124 so Task columns remain 30 cells wide at the boundary, added responsive width coverage, and passed the focused V2 tests plus git diff --check, make build, and make test. Independent Check remains required.
+  - at: '2026-09-22T11:16:02Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: Owner accepted the remaining risk and requested this Issue be marked resolved; no technical CLEAR is implied.
 ---
 
 # I021: Widen the Objective sidebar by about twenty percent
