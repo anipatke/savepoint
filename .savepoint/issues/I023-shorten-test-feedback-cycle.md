@@ -13,9 +13,20 @@ history:
     actor: {role: owner, session: user}
     kind: observed
     note: Local and agent test cycles are taking far too long; the repeated full-suite wait is disrupting ordinary implementation and review work.
+  - at: '2026-09-22T10:09:15Z'
+    actor: {role: planner, session: o016-fast-test-feedback}
+    kind: observed
+    note: Planned O016 as the bounded Objective for measurement, fast/full gates, migration-test consolidation, safe parallelism, evidence reuse, and timing visibility.
+  - at: '2026-09-22T10:11:38Z'
+    actor: {role: owner, session: user}
+    kind: deferred
+    note: Defer implementation and verified closure to O016; keep I023 open until that Objective supplies repair evidence and a Check verifies it.
 ---
 
 # I023: Shorten the repository test feedback cycle
+
+Planned remediation Objective: O016 — Make test feedback fast without
+weakening verification.
 
 ## Summary
 
