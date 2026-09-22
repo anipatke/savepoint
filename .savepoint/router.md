@@ -18,7 +18,7 @@ state: check
 release: none
 objective: O012
 task: none
-next_action: "C907 supersedes C906 and records current CLEAR Full Objective evidence for O012; I018 is resolved. O012 is ready for the owner's separate closure decision. I019-I024 remain open follow-up Issues outside C907's frozen repair scope."
+next_action: "I025 and I020 were repaired directly (no Task) and carry repair evidence, both still open pending an independent Check alongside O012's C907 scope. I019, I021-I024 remain open. O012's owner closure should wait for that recheck."
 ```
 
 ## State → action

@@ -17,6 +17,10 @@ history:
     actor: {role: owner, session: user}
     kind: owner_decision
     note: Objective navigation selects immediately on up/down, Tab is removed as a surface-focus shortcut, p remains a separate persisted router-selection action, and duplicate-Issue navigation is conditional rather than always advertised.
+  - at: '2026-09-22T11:15:00Z'
+    actor: {role: executor, session: i025-remediation-20260922}
+    kind: repair_attempted
+    note: "Repaired directly per the owner decision above: immediate up/down selection (moveObjectiveCursor now calls selectObjective; enter:select removed from handler and footer), Tab removed everywhere (key handler, toggleSidebarFocus, footer hints, Help row), the canonical hint gated on Issues.Detail.DuplicateTarget != nil, the dead I:task issues hint removed, and r:releases/v:detail/enter:detail/esc:clear hidden via new releaseHint/detailHint/clearObjectiveHint helpers (backed by a new hasDetailTarget bounds check shared with detailUnderCursor) whenever they would be no-ops. Help's closing line now reads esc/q:close rather than q:quit, matching that esc and q both only close Help there. Files changed: internal/board/v2/view.go, update.go, help.go, plus existing tests updated for the new tab-free/immediate-select navigation and a new footer_test.go covering each suppression rule. go build, go vet, go test ./internal/board/v2/..., git diff --check, make build, and make test all pass. The Issue remains open for independent Check verification."
 ---
 
 # I025: Reduce the always-visible board key hints

@@ -122,7 +122,7 @@ func TestFullBrowseAndReloadLeaveProjectUntouched(t *testing.T) {
 	// Visit the sidebar, every Issues filter, both detail surfaces, help, and a
 	// reload. These are all read operations; only the explicit owner action keys
 	// are allowed to reach the write commands.
-	model = press(t, model, "tab", "down", "enter", "v", "down", "esc", "tab")
+	model = press(t, model, "left", "down", "v", "down", "esc", "right")
 	model = press(t, model, "i")
 	for range issueFilterOrder {
 		model = press(t, model, "f")

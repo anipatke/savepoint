@@ -192,7 +192,7 @@ func TestSelectionFiltersColumnsByRecordedOwnership(t *testing.T) {
 
 	// Selecting O001 from the sidebar filters to its Tasks — and T004, whose
 	// file sits in O001's directory, is not one of them.
-	model = press(t, model, "tab", "up", "up", "enter")
+	model = press(t, model, "left", "up", "up")
 	if model.SelectedObjective != "O001" {
 		t.Fatalf("SelectedObjective = %q after selecting the first row, want O001", model.SelectedObjective)
 	}
@@ -202,7 +202,7 @@ func TestSelectionFiltersColumnsByRecordedOwnership(t *testing.T) {
 }
 
 func TestNoSelectionShowsEveryTaskInTheProject(t *testing.T) {
-	model := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab", "esc")
+	model := press(t, sidebarBoard(t, writeNavigationProject(t)), "left", "esc")
 
 	if model.SelectedObjective != "" {
 		t.Fatalf("SelectedObjective = %q after clearing, want nothing selected", model.SelectedObjective)
@@ -274,12 +274,14 @@ func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 }
 
 // TestSidebarNavigationClampsAndIsIdempotent covers the cursor: it moves, it
-// stops at both ends, and a repeated press at an end changes nothing at all.
+// stops at both ends, it applies the row it lands on as the selection
+// immediately — the V1 interaction, with no separate enter:select step — and
+// a repeated press at an end changes nothing at all.
 func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
-	model := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
+	model := press(t, sidebarBoard(t, writeNavigationProject(t)), "left")
 
 	if !model.SidebarFocused {
-		t.Fatal("tab did not move focus to the sidebar")
+		t.Fatal("left did not move focus to the sidebar")
 	}
 	if model.ObjectiveCursor != 2 {
 		t.Fatalf("ObjectiveCursor = %d, want the row holding the selected O003", model.ObjectiveCursor)
@@ -292,6 +294,9 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	if press(t, atTop, "up").View() != atTop.View() {
 		t.Error("pressing up at the first Objective changed the board")
 	}
+	if atTop.SelectedObjective != "O001" {
+		t.Errorf("SelectedObjective = %q at the top row, want up to have applied it immediately", atTop.SelectedObjective)
+	}
 
 	atBottom := press(t, model, "down", "down", "down", "down", "down", "down")
 	if atBottom.ObjectiveCursor != 5 {
@@ -301,24 +306,23 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 		t.Error("pressing down at the last Objective changed the board")
 	}
 
-	// Moving the cursor selects nothing by itself.
-	if atBottom.SelectedObjective != "O003" {
-		t.Errorf("SelectedObjective = %q after moving the cursor, want the selection unchanged", atBottom.SelectedObjective)
+	// Moving the cursor applies the row it lands on, immediately.
+	if atBottom.SelectedObjective != "O006" {
+		t.Errorf("SelectedObjective = %q after moving the cursor, want it to follow the cursor to the last row", atBottom.SelectedObjective)
 	}
 }
 
 // TestLeftArrowAtPlannedColumnEntersSidebar proves arrow keys alone can reach
-// every column end to end, without Tab: left from the Planned column, the
-// board's leftmost surface, crosses into the sidebar exactly as Tab does.
+// every column end to end: left from the Planned column, the board's
+// leftmost surface, crosses into the sidebar.
 func TestLeftArrowAtPlannedColumnEntersSidebar(t *testing.T) {
-	viaTab := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
 	viaLeft := press(t, sidebarBoard(t, writeNavigationProject(t)), "left")
 
 	if !viaLeft.SidebarFocused {
 		t.Fatal("left at the Planned column did not move focus to the sidebar")
 	}
-	if viaLeft.ObjectiveCursor != viaTab.ObjectiveCursor {
-		t.Errorf("ObjectiveCursor = %d via left, want %d as Tab leaves it", viaLeft.ObjectiveCursor, viaTab.ObjectiveCursor)
+	if viaLeft.ObjectiveCursor != 2 {
+		t.Errorf("ObjectiveCursor = %d via left, want the row holding the router's selected O003", viaLeft.ObjectiveCursor)
 	}
 
 	// h is the same key as left.
@@ -338,7 +342,7 @@ func TestLeftArrowAtPlannedColumnEntersSidebar(t *testing.T) {
 // the sidebar hands focus back to the Planned column, matching the edge left
 // crossed in from.
 func TestRightArrowInSidebarReturnsToColumns(t *testing.T) {
-	inSidebar := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
+	inSidebar := press(t, sidebarBoard(t, writeNavigationProject(t)), "left")
 
 	back := press(t, inSidebar, "right")
 	if back.SidebarFocused {
@@ -356,9 +360,9 @@ func TestRightArrowInSidebarReturnsToColumns(t *testing.T) {
 }
 
 // TestNarrowTerminalLeftArrowStaysOnColumns proves the arrow-key crossing
-// follows the same screen guard as Tab: a terminal too narrow for the sidebar
-// leaves left/right clamping at the columns rather than crossing into a
-// surface nothing draws.
+// follows the same screen guard the sidebar itself does: a terminal too
+// narrow for the sidebar leaves left/right clamping at the columns rather
+// than crossing into a surface nothing draws.
 func TestNarrowTerminalLeftArrowStaysOnColumns(t *testing.T) {
 	model := openSizedBoard(t, writeNavigationProject(t), sidebarBreakpoint-1, 40)
 
@@ -372,7 +376,7 @@ func TestNarrowTerminalLeftArrowStaysOnColumns(t *testing.T) {
 // a reloaded list lands somewhere that renders.
 func TestSidebarSurvivesAReloadThatShortensTheList(t *testing.T) {
 	root := writeNavigationProject(t)
-	model := press(t, sidebarBoard(t, root), "tab", "down", "down", "down")
+	model := press(t, sidebarBoard(t, root), "left", "down", "down", "down")
 	if model.ObjectiveCursor != 5 {
 		t.Fatalf("ObjectiveCursor = %d, want the last row", model.ObjectiveCursor)
 	}
@@ -469,8 +473,8 @@ func TestEmptyProjectRendersAnEmptySidebar(t *testing.T) {
 			t.Errorf("an empty project's sidebar reads as broken, containing %q:\n%s", forbidden, got)
 		}
 	}
-	// Moving and selecting over an empty list is a no-op, not a panic.
-	empty := press(t, model, "tab", "down", "enter", "up", "enter")
+	// Moving over an empty list is a no-op, not a panic.
+	empty := press(t, model, "left", "down", "up")
 	if empty.SelectedObjective != "" || empty.ObjectiveCursor != 0 {
 		t.Errorf("navigating an empty sidebar selected %q at cursor %d", empty.SelectedObjective, empty.ObjectiveCursor)
 	}
@@ -484,7 +488,7 @@ func TestFocusChangesAccentsNotGeometry(t *testing.T) {
 	model := sidebarBoard(t, writeNavigationProject(t))
 
 	columns := model.View()
-	sidebar := press(t, model, "tab").View()
+	sidebar := press(t, model, "left").View()
 
 	if lipgloss.Width(columns) != lipgloss.Width(sidebar) {
 		t.Errorf("width with the sidebar focused = %d, with the columns focused = %d", lipgloss.Width(sidebar), lipgloss.Width(columns))
@@ -522,22 +526,22 @@ func TestNarrowTerminalOffersNoSidebarFocus(t *testing.T) {
 		t.Fatalf("a terminal below the sidebar breakpoint drew one:\n%s", xansi.Strip(model.View()))
 	}
 
-	narrow := press(t, model, "tab")
+	narrow := press(t, model, "left")
 	if narrow.SidebarFocused {
-		t.Error("tab focused a sidebar the terminal is too narrow to draw")
+		t.Error("left focused a sidebar the terminal is too narrow to draw")
 	}
 
 	// A terminal that shrinks while the sidebar has focus hands it back.
-	wide := press(t, sidebarBoard(t, writeNavigationProject(t)), "tab")
+	wide := press(t, sidebarBoard(t, writeNavigationProject(t)), "left")
 	shrunk, _ := wide.Update(tea.WindowSizeMsg{Width: sidebarBreakpoint - 1, Height: 40})
 	if shrunk.(Model).SidebarFocused {
 		t.Error("focus stayed on the sidebar after the terminal shrank past the breakpoint")
 	}
 	if narrow.View() != model.View() {
-		t.Error("tab changed a board with no sidebar on it")
+		t.Error("left changed a board with no sidebar on it")
 	}
-	if strings.Contains(xansi.Strip(narrow.View()), "tab:") {
-		t.Error("a board with no sidebar offers the key that would focus it")
+	if strings.Contains(xansi.Strip(narrow.View()), "tab") {
+		t.Error("a board with no sidebar offers a Tab key that no longer exists")
 	}
 }
 
@@ -551,8 +555,8 @@ func TestNavigationWritesNothingToTheProject(t *testing.T) {
 	before := snapshotProject(t, root)
 
 	model = press(t, model,
-		"tab", "down", "down", "enter", "up", "up", "up", "enter",
-		"esc", "tab", "right", "down", "left", "tab", "down", "enter")
+		"left", "down", "down", "up", "up", "up",
+		"esc", "right", "down", "left", "down")
 	_ = model.View()
 
 	after := snapshotProject(t, root)

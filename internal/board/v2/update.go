@@ -69,12 +69,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKey dispatches one key to the surface that has focus: an open detail
-// overlay first, then the sidebar, then the columns. Tab crosses between the
-// two board surfaces directly, and left/right do the same at the columns'
-// outer edge — left from the Planned column enters the sidebar, and right
-// from the sidebar returns to it — so arrow keys alone can walk every column
-// end to end. While an overlay is open, keys do not cross at all, because
-// they belong to what is on top.
+// overlay first, then the sidebar, then the columns. Surface focus is
+// arrow-driven only — left from the Planned column enters the sidebar, and
+// right from the sidebar returns to it — so arrow keys alone can walk every
+// column end to end without a separate Tab key. While an overlay is open,
+// keys do not cross at all, because they belong to what is on top.
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if m.Help {
@@ -116,10 +115,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if key == "tab" || key == "shift+tab" {
-		m.toggleSidebarFocus()
-		return m, nil
-	}
 	if !m.SidebarFocused {
 		if key == " " || key == "backspace" {
 			if taskID := m.focusedTaskID(); taskID != "" {
@@ -302,24 +297,31 @@ func (m *Model) openDetail() {
 	m.DetailOffset = 0
 }
 
-// detailUnderCursor resolves the record the cursor is on, or reports that there
-// is none — an empty column, an Objective-less project, or a project held back
-// by a pending migration, none of which has a record to open.
-func (m Model) detailUnderCursor() (RecordDetail, bool) {
+// hasDetailTarget reports whether the surface holding focus has a record
+// under its cursor at all — an empty column, an Objective-less project, or a
+// project held back by a pending migration, none of which has one. The
+// footer's detail hint asks this before ever offering the key.
+func (m Model) hasDetailTarget() bool {
 	if m.State.Index == nil {
+		return false
+	}
+	if m.SidebarFocused {
+		return m.ObjectiveCursor >= 0 && m.ObjectiveCursor < len(m.Objectives)
+	}
+	cards := m.Cards[m.FocusedColumn]
+	return m.FocusedCard >= 0 && m.FocusedCard < len(cards)
+}
+
+// detailUnderCursor resolves the record the cursor is on, or reports that there
+// is none, per hasDetailTarget.
+func (m Model) detailUnderCursor() (RecordDetail, bool) {
+	if !m.hasDetailTarget() {
 		return RecordDetail{}, false
 	}
 	if m.SidebarFocused {
-		if m.ObjectiveCursor < 0 || m.ObjectiveCursor >= len(m.Objectives) {
-			return RecordDetail{}, false
-		}
 		return newObjectiveDetail(m.State.Index, m.Objectives[m.ObjectiveCursor].ID())
 	}
-
 	cards := m.Cards[m.FocusedColumn]
-	if m.FocusedCard < 0 || m.FocusedCard >= len(cards) {
-		return RecordDetail{}, false
-	}
 	return newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
 }
 
@@ -377,11 +379,12 @@ func (m *Model) refreshDetail() {
 	m.clampDetailScroll()
 }
 
-// handleSidebarKey moves the Objective cursor and applies a selection. Enter
-// selects the row under the cursor and escape clears the selection; both are
-// idempotent, and neither writes anything — a selection recorded in router.md
-// is a different key, in a later task. Right crosses back into the columns,
-// the mirror of the left key that crossed in from the Planned column.
+// handleSidebarKey moves the Objective cursor, applying the new selection
+// immediately — there is no separate select step — and escape clears the
+// selection; both are idempotent, and neither writes anything — a selection
+// recorded in router.md is a different key, in a later task. Right crosses
+// back into the columns, the mirror of the left key that crossed in from the
+// Planned column.
 func (m *Model) handleSidebarKey(key string) {
 	switch key {
 	case "right", "l":
@@ -392,10 +395,6 @@ func (m *Model) handleSidebarKey(key string) {
 		m.moveObjectiveCursor(-1)
 	case "down", "j":
 		m.moveObjectiveCursor(1)
-	case "enter":
-		if m.ObjectiveCursor < len(m.Objectives) {
-			m.selectObjective(m.Objectives[m.ObjectiveCursor].ID())
-		}
 	case "v":
 		m.openDetail()
 	case "i":
@@ -405,17 +404,9 @@ func (m *Model) handleSidebarKey(key string) {
 	}
 }
 
-// toggleSidebarFocus moves focus between the two surfaces, and refuses to move
-// it into a sidebar the current terminal is too narrow to draw.
-func (m *Model) toggleSidebarFocus() {
-	if !m.SidebarFocused && !m.sidebarVisible() {
-		return
-	}
-	m.SidebarFocused = !m.SidebarFocused
-}
-
-// focusSidebar moves focus onto the sidebar, the same guard toggleSidebarFocus
-// applies, for the left-arrow crossing at the Planned column's edge.
+// focusSidebar moves focus onto the sidebar, for the left-arrow crossing at
+// the Planned column's edge, refusing to move it into a sidebar the current
+// terminal is too narrow to draw.
 func (m *Model) focusSidebar() {
 	if !m.sidebarVisible() {
 		return
@@ -424,13 +415,16 @@ func (m *Model) focusSidebar() {
 }
 
 // moveObjectiveCursor walks the sidebar, clamping at both ends rather than
-// wrapping, so a repeated press at either end changes nothing.
+// wrapping so a repeated press at either end changes nothing, and applies
+// the row it lands on as the selection immediately — the V1 interaction,
+// with no separate enter:select step.
 func (m *Model) moveObjectiveCursor(delta int) {
 	next := m.ObjectiveCursor + delta
 	if next < 0 || next >= len(m.Objectives) {
 		return
 	}
 	m.ObjectiveCursor = next
+	m.selectObjective(m.Objectives[next].ID())
 }
 
 // selectObjective filters the columns to the Tasks objectiveID owns, or to the

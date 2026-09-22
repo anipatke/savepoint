@@ -366,27 +366,63 @@ func columnLabel(status data.ColumnType) string {
 	return columnLabels[0].Label
 }
 
-// hints name the keys that exist on the surface holding focus. A terminal too
-// narrow to draw the sidebar is not offered the key that would focus it.
+// hints name the keys that exist on the surface holding focus, and only the
+// ones actually available right now: a terminal too narrow to draw the
+// sidebar is not offered the key that would focus it, a Release selector is
+// not offered when no Release exists, opening a record is not offered on an
+// empty surface, and clearing the Objective filter is not offered when
+// nothing is selected. The full key map, including keys omitted here,
+// remains in Help.
 func (m Model) hints() string {
 	switch {
 	case m.Help:
-		return "esc:close help  q:quit"
+		// esc and q both only close Help here; neither reaches the global quit.
+		return "esc/q:close"
 	case m.ReleaseOverlay:
 		return "↑↓ / j k:release  enter:select  v:detail  esc/q:cancel"
 	case m.Issues != nil && m.Issues.Detail != nil:
-		return "↑↓:scroll  enter:canonical  esc:back  q:quit"
+		if m.Issues.Detail.DuplicateTarget != nil {
+			return "↑↓:scroll  enter:canonical  esc:back  q:quit"
+		}
+		return "↑↓:scroll  esc:back  q:quit"
 	case m.Issues != nil:
-		return "↑↓:issues  f:filter  enter:open  I:task issues  esc:close  q:quit"
+		return "↑↓:issues  f:filter  enter:open  esc:close  q:quit"
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  →:cards  r:releases  enter:select  v:detail  i:issues  esc:clear  tab:cards", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  →:cards", m.releaseHint(), m.detailHint("v:detail"), "i:issues", m.clearObjectiveHint(), m.focusedActionText(), "?:help  q:quit")
 	default:
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  r:releases  enter:detail  tab:objectives", m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
 	}
+}
+
+// releaseHint offers the Release selector only when a Release actually
+// exists to select.
+func (m Model) releaseHint() string {
+	if len(m.Releases) == 0 {
+		return ""
+	}
+	return "r:releases"
+}
+
+// detailHint offers opening a record only when the focused surface actually
+// has one under its cursor.
+func (m Model) detailHint(label string) string {
+	if !m.hasDetailTarget() {
+		return ""
+	}
+	return label
+}
+
+// clearObjectiveHint offers clearing the Objective filter only when one is
+// currently selected.
+func (m Model) clearObjectiveHint() string {
+	if m.SelectedObjective == "" {
+		return ""
+	}
+	return "esc:clear"
 }
 
 func joinHints(parts ...string) string {

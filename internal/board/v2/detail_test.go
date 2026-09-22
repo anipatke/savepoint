@@ -27,11 +27,11 @@ func openTaskDetail(t *testing.T, root, taskID string) Model {
 	return press(t, focusTask(t, openSizedBoard(t, root, 130, 72), taskID), "enter")
 }
 
-// openObjectiveDetail does the same from the sidebar, where enter already
-// selects and v is the detail key.
+// openObjectiveDetail does the same from the sidebar, where v is the detail
+// key.
 func openObjectiveDetail(t *testing.T, root, objectiveID string) Model {
 	t.Helper()
-	model := press(t, openSizedBoard(t, root, 130, 72), "tab")
+	model := press(t, openSizedBoard(t, root, 130, 72), "left")
 	return press(t, focusObjective(t, model, objectiveID), "v")
 }
 
@@ -329,7 +329,7 @@ func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 		t.Error("closing the overlay did not return the board to the surface it was opened over")
 	}
 
-	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 130, 72), "tab"), "O002")
+	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 130, 72), "left"), "O002")
 	closed := press(t, fromSidebar, "v", "esc")
 	if !closed.SidebarFocused || closed.ObjectiveCursor != fromSidebar.ObjectiveCursor {
 		t.Errorf("closing left the sidebar cursor at %d (focused %v), want %d on the sidebar",
@@ -342,17 +342,18 @@ func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 }
 
 // While an overlay is open the keys belong to it: esc closes it rather than
-// clearing the sidebar's selection, and tab does not move focus behind it.
+// clearing the sidebar's selection, and a surface-crossing arrow key does not
+// move focus behind it.
 func TestTheOpenOverlayHoldsTheKeys(t *testing.T) {
-	model := press(t, openSizedBoard(t, writeEvidenceProject(t), 120, 44), "tab", "enter", "v")
+	model := press(t, openSizedBoard(t, writeEvidenceProject(t), 120, 44), "left", "v")
 	if model.Detail == nil {
 		t.Fatal("v did not open the Objective detail")
 	}
 	selected := model.SelectedObjective
 
-	tabbed := press(t, model, "tab")
-	if tabbed.Detail == nil || tabbed.SidebarFocused != model.SidebarFocused {
-		t.Error("tab moved focus behind the open overlay")
+	crossed := press(t, model, "right")
+	if crossed.Detail == nil || crossed.SidebarFocused != model.SidebarFocused {
+		t.Error("right moved focus behind the open overlay")
 	}
 
 	closed := press(t, model, "esc")
@@ -402,7 +403,9 @@ func TestOpeningScrollingAndClosingADetailWritesNothing(t *testing.T) {
 	before := snapshotTree(t, root)
 
 	model := focusTask(t, openSizedBoard(t, root, 100, 20), "T002")
-	model = press(t, model, "enter", "down", "down", "up", "esc", "tab", "v", "down", "esc")
+	model = press(t, model, "enter", "down", "down", "up", "esc")
+	model.SidebarFocused = true
+	model = press(t, model, "v", "down", "esc")
 
 	if model.Detail != nil {
 		t.Fatal("the key sequence left an overlay open")
@@ -490,7 +493,7 @@ func TestReloadRefreshesAnOpenDetailAndClosesADeletedOne(t *testing.T) {
 func TestTheDetailKeyOverAnEmptyProjectOpensNothing(t *testing.T) {
 	model := openSizedBoard(t, writeEmptyProjectFromTemplate(t), 100, 30)
 
-	pressed := press(t, model, "enter", "tab", "v")
+	pressed := press(t, model, "enter", "left", "v")
 	if pressed.Detail != nil {
 		t.Error("the detail key opened an overlay over a project with no records")
 	}

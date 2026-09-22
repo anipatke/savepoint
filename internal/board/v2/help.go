@@ -22,7 +22,6 @@ func renderHelp(model Model, width, height int) string {
 		fitLine(strings.Repeat("─", textWidth), textWidth),
 		helpRow("↑↓ / j k", "move within the focused surface"),
 		helpRow("←→ / h l", "move between columns, and into/out of Objectives at the edge"),
-		helpRow("tab", "move between Objectives and Tasks"),
 		helpRow("r", "open the Release selector"),
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
@@ -48,7 +47,7 @@ func renderHelp(model Model, width, height int) string {
 		}
 	}
 
-	lines = append(lines, "", styles.CardMeta.Render("Executor and checker work belongs to their sessions."), styles.CardMeta.Render("esc:close  q:quit"))
+	lines = append(lines, "", styles.CardMeta.Render("Executor and checker work belongs to their sessions."), styles.CardMeta.Render("esc/q:close"))
 	return lipgloss.NewStyle().Width(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }
 
