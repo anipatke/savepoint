@@ -313,6 +313,11 @@ func issueDetailLines(detail IssueDetail, width int) []string {
 			if detail.DuplicateTarget != nil {
 				lines = append(lines, issueField(width, "Canonical", detail.DuplicateTarget.ID+" — "+detail.DuplicateTarget.Label))
 			}
+		case data.IssueDispositionEscalated:
+			lines = append(lines, issueLine(width, "Not proof of repair; this points to the Objective the repair was promoted into."))
+			if detail.EscalationTarget != nil {
+				lines = append(lines, issueField(width, "Objective", detail.EscalationTarget.ID+" — "+detail.EscalationTarget.Label))
+			}
 		}
 		lines = append(lines, issueField(width, "Actor", resume.ActorLabel(resolution.Actor)))
 		lines = append(lines, issueField(width, "Time", resolution.At.Format(detailTimeFormat)))

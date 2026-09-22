@@ -1201,7 +1201,9 @@ func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
 			"executor** reports repair evidence on an Issue without closing it",
 			"checker** verifies the proof and closes the Issue",
 			"owner** decides acceptance",
-			"becomes a new, bounded Task in an Objective",
+			"planner** (`savepoint-design`) closes an Issue with disposition `escalated`",
+			"becomes a new, bounded Task",
+			"within an existing Objective is not an escalation",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state role/routing phrase %q", tree, path, phrase)

@@ -763,6 +763,7 @@ type v2IssueFixture struct {
 	checks      []string
 	resolution  string // optional raw resolution frontmatter block
 	duplicateOf string
+	escalatedTo string
 	history     string // optional raw history frontmatter list
 }
 
@@ -788,6 +789,9 @@ func writeV2LinkedIssueFixture(t *testing.T, root string, fixture v2IssueFixture
 	}
 	if fixture.duplicateOf != "" {
 		content += "duplicate_of: " + fixture.duplicateOf + "\n"
+	}
+	if fixture.escalatedTo != "" {
+		content += "escalated_to: " + fixture.escalatedTo + "\n"
 	}
 	if fixture.history != "" {
 		content += "history: " + fixture.history + "\n"
@@ -1245,6 +1249,92 @@ func TestLoadV2Index_issueDuplicateResolutionValid(t *testing.T) {
 	}
 	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionDuplicate {
 		t.Errorf("Resolution = %+v, want duplicate", index.Issues["I001"].Resolution)
+	}
+}
+
+// TestLoadV2Index_issueEscalatedResolutionObligations proves escalated
+// closure requires a planner actor and escalated_to naming the Objective, and
+// must not name a proof Check, because escalation proves nothing itself.
+func TestLoadV2Index_issueEscalatedResolutionObligations(t *testing.T) {
+	tests := []struct {
+		name        string
+		resolution  string
+		escalatedTo string
+	}{
+		{
+			name:        "names a proof check",
+			resolution:  "{disposition: escalated, check: C001, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
+			escalatedTo: "O001",
+		},
+		{
+			name:        "missing escalated_to",
+			resolution:  "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted}",
+			escalatedTo: "",
+		},
+		{
+			name:        "non-planner actor",
+			resolution:  "{disposition: escalated, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
+			escalatedTo: "O001",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeV2LinkedProject(t, root)
+			writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
+				fileName: "I001-alpha.md", id: "I001", status: "resolved",
+				resolution: tt.resolution, escalatedTo: tt.escalatedTo,
+			})
+
+			_, err := LoadV2Index(root)
+			if !errors.Is(err, ErrV2IssueResolutionFieldMismatch) {
+				t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueResolutionFieldMismatch", err)
+			}
+		})
+	}
+}
+
+// TestLoadV2Index_issueEscalatedResolutionValid proves a planner actor with
+// escalated_to naming an existing Objective and no named proof Check closes
+// the Issue as escalated.
+func TestLoadV2Index_issueEscalatedResolutionValid(t *testing.T) {
+	root := t.TempDir()
+	writeV2LinkedProject(t, root)
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
+		fileName: "I001-alpha.md", id: "I001", status: "resolved", escalatedTo: "O001",
+		resolution: "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
+	})
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionEscalated {
+		t.Errorf("Resolution = %+v, want escalated", index.Issues["I001"].Resolution)
+	}
+	if index.Issues["I001"].EscalatedTo != "O001" {
+		t.Errorf("Issues[I001].EscalatedTo = %q, want O001", index.Issues["I001"].EscalatedTo)
+	}
+}
+
+// TestLoadV2Index_issueEscalatedToMissingTarget proves escalated_to must name
+// an Objective that actually exists.
+func TestLoadV2Index_issueEscalatedToMissingTarget(t *testing.T) {
+	root := t.TempDir()
+	writeV2LinkedProject(t, root)
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
+		fileName: "I001-alpha.md", id: "I001", status: "resolved", escalatedTo: "O999",
+		resolution: "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted}",
+	})
+
+	_, err := LoadV2Index(root)
+	if !errors.Is(err, ErrV2IssueMissingEscalationTarget) {
+		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingEscalationTarget", err)
+	}
+	if !strings.Contains(err.Error(), "I001") || !strings.Contains(err.Error(), "O999") {
+		t.Errorf("LoadV2Index() error = %v, want both the issue and its missing target named", err)
 	}
 }
 

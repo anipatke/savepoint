@@ -544,6 +544,8 @@ func v2DiagnosticName(err error) string {
 		return "v2-check-immutable"
 	case errors.Is(err, data.ErrV2IssueMissingDuplicateTarget):
 		return "v2-issue-missing-duplicate-target"
+	case errors.Is(err, data.ErrV2IssueMissingEscalationTarget):
+		return "v2-issue-missing-escalation-target"
 	case errors.Is(err, data.ErrV2IssueSelfDuplicate):
 		return "v2-issue-self-duplicate"
 	case errors.Is(err, data.ErrV2IssueDuplicateCycle):

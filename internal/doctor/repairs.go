@@ -220,6 +220,8 @@ func V2ProblemRepair(name string) string {
 		return "Fix the named Issue field in the record's frontmatter — type, status, source, resolution, and history each have a fixed vocabulary"
 	case "v2-issue-missing-duplicate-target":
 		return "Set duplicate_of to an existing I### Issue id, or remove the field"
+	case "v2-issue-missing-escalation-target":
+		return "Set escalated_to to an existing O### Objective id, or remove the field"
 	case "v2-issue-self-duplicate":
 		return "Remove the Issue's own id from its duplicate_of field, or point it at a different canonical Issue"
 	case "v2-issue-duplicate-cycle":
@@ -237,7 +239,7 @@ func V2ProblemRepair(name string) string {
 	case "v2-issue-resolution-unusable-proof":
 		return "Point resolution.check at a Check that recorded CLEAR and is listed in the Issue's checks field"
 	case "v2-issue-resolution-field-mismatch":
-		return "Fix the resolution field for its disposition: accepted needs an owner actor and reason and no proof check; duplicate needs duplicate_of and no proof check"
+		return "Fix the resolution field for its disposition: accepted needs an owner actor and reason and no proof check; duplicate needs duplicate_of and no proof check; escalated needs a planner actor, escalated_to, and no proof check"
 	case "v2-issue-already-exists":
 		return "Choose a different Issue id or file path — an existing Issue record cannot be overwritten by create"
 	case "v2-issue-history-not-append-only":

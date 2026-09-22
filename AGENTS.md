@@ -53,7 +53,7 @@ contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue.
+- Only `savepoint-check` may write a Check record or close an Issue, except that `savepoint-design` retires an Issue immediately, with disposition `escalated`, the moment it promotes that Issue's repair into a new Objective.
 
 ## Issue Capture
 
@@ -61,7 +61,7 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 - Issues live at `.savepoint/issues/I###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence on an Issue without closing it; only `savepoint-check` verifies the proof and closes it.
+- The executor reports repair evidence on an Issue without closing it; only `savepoint-check` verifies the proof and closes it. The one exception: when an Issue's repair is promoted into a new Objective, `savepoint-design` retires the Issue immediately with disposition `escalated` — see `agent-skills/references/issue-capture.md`.
 
 ## Implementation
 

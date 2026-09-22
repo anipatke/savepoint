@@ -2,12 +2,18 @@
 id: I023
 title: Shorten the repository test feedback cycle
 type: verification
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T09:54:20Z'
 severity: high
+resolution:
+  disposition: escalated
+  actor: {role: planner, session: i023-escalation-20260922}
+  at: '2026-09-22T00:00:00Z'
+  reason: Repair promoted into Objective O016; under the new escalation rule the Issue retires immediately rather than staying open for a later Check.
+escalated_to: O016
 history:
   - at: '2026-09-22T09:54:20Z'
     actor: {role: owner, session: user}
@@ -21,6 +27,14 @@ history:
     actor: {role: owner, session: user}
     kind: deferred
     note: Defer implementation and verified closure to O016; keep I023 open until that Objective supplies repair evidence and a Check verifies it.
+  - at: '2026-09-22T00:00:00Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: New rule adopted — when an Issue's repair is promoted into an Objective, the Issue retires immediately (disposition escalated) instead of staying open for a later Check. Supersedes the prior deferred entry's plan to keep I023 open until O016 completes.
+  - at: '2026-09-22T00:00:00Z'
+    actor: {role: planner, session: i023-escalation-20260922}
+    kind: escalated
+    note: Retired under the new rule; repair is tracked as O016 going forward. O016's own mandatory Full Objective Check and owner acceptance are the proof, not a recheck of this Issue.
 ---
 
 # I023: Shorten the repository test feedback cycle

@@ -173,6 +173,10 @@ func LoadV2Index(root string) (*V2Index, error) {
 		return nil, err
 	}
 
+	if err := validateIssueEscalationTargets(index); err != nil {
+		return nil, err
+	}
+
 	if err := validateIssueLinkTargets(index); err != nil {
 		return nil, err
 	}
@@ -322,6 +326,25 @@ func validateIssueDuplicateGraph(index *V2Index) error {
 
 	if cycle := findV2Cycle(ids, edges); cycle != nil {
 		return fmt.Errorf("%w: issue duplicate_of cycle %s", ErrV2IssueDuplicateCycle, describeV2Cycle(cycle, func(id string) string { return index.Issues[id].Source.Path }))
+	}
+	return nil
+}
+
+// validateIssueEscalationTargets validates every escalated_to reference by
+// global ID: the named Objective must exist. Unlike duplicate_of, no cycle is
+// possible here — Issue and Objective are different record families — so this
+// is an existence check only. It walks Issue IDs in sorted order so a project
+// with more than one dangling reference reports the same one first on every
+// run.
+func validateIssueEscalationTargets(index *V2Index) error {
+	for _, id := range slices.Sorted(maps.Keys(index.Issues)) {
+		issue := index.Issues[id]
+		if issue.EscalatedTo == "" {
+			continue
+		}
+		if _, ok := index.Objectives[issue.EscalatedTo]; !ok {
+			return fmt.Errorf("%w: %s: issue %s escalates to missing objective %s", ErrV2IssueMissingEscalationTarget, issue.Source.Path, id, issue.EscalatedTo)
+		}
 	}
 	return nil
 }

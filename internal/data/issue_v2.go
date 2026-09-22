@@ -67,17 +67,19 @@ type IssueOrigin struct {
 	At    time.Time
 }
 
-// IssueDisposition is how a resolved Issue was closed. The three dispositions
+// IssueDisposition is how a resolved Issue was closed. The four dispositions
 // carry different obligations — verified is repair with proof, accepted is an
-// owner decision that is not repair, and duplicate points at a canonical
-// Issue and proves nothing — which is why closure cannot be claimed by
-// setting a status alone.
+// owner decision that is not repair, duplicate points at a canonical Issue
+// and proves nothing, and escalated points at the Objective the repair was
+// promoted into and proves nothing itself either — which is why closure
+// cannot be claimed by setting a status alone.
 type IssueDisposition string
 
 const (
 	IssueDispositionVerified  IssueDisposition = "verified"
 	IssueDispositionAccepted  IssueDisposition = "accepted"
 	IssueDispositionDuplicate IssueDisposition = "duplicate"
+	IssueDispositionEscalated IssueDisposition = "escalated"
 )
 
 // IssueResolution is the decoded resolution block. Decoding validates its
@@ -102,6 +104,7 @@ const (
 	IssueHistoryDeferred        IssueHistoryKind = "deferred"
 	IssueHistoryReopened        IssueHistoryKind = "reopened"
 	IssueHistoryOwnerDecision   IssueHistoryKind = "owner_decision"
+	IssueHistoryEscalated       IssueHistoryKind = "escalated"
 )
 
 // IssueHistoryEntry is one dated, attributed entry in an Issue's append-only
@@ -141,6 +144,10 @@ type IssueV2 struct {
 	Severity    string
 	Resolution  *IssueResolution
 	DuplicateOf string // optional I### reference to the canonical Issue
+	// EscalatedTo is the optional O### reference naming the Objective this
+	// Issue's repair was promoted into. It is populated only on an escalated
+	// resolution, mirroring DuplicateOf's shape for a different target family.
+	EscalatedTo string
 	History     []IssueHistoryEntry
 	Source      V2SourceDocument
 }
@@ -187,6 +194,7 @@ type issueV2Frontmatter struct {
 	Severity     string                      `yaml:"severity,omitempty"`
 	Resolution   *issueResolutionFrontmatter `yaml:"resolution,omitempty"`
 	DuplicateOf  string                      `yaml:"duplicate_of,omitempty"`
+	EscalatedTo  string                      `yaml:"escalated_to,omitempty"`
 	History      []issueHistoryFrontmatter   `yaml:"history,omitempty"`
 }
 
@@ -260,6 +268,10 @@ func DecodeIssueV2(path, content string) (*IssueV2, error) {
 		return nil, fmt.Errorf("%w: %s: issue %s duplicate_of %q must match I plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.DuplicateOf)
 	}
 
+	if fields.EscalatedTo != "" && !objectiveIDPattern.MatchString(fields.EscalatedTo) {
+		return nil, fmt.Errorf("%w: %s: issue %s escalated_to %q must match O plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.EscalatedTo)
+	}
+
 	history, err := decodeIssueHistory(path, fields.ID, fields.History)
 	if err != nil {
 		return nil, err
@@ -277,6 +289,7 @@ func DecodeIssueV2(path, content string) (*IssueV2, error) {
 		Severity:     fields.Severity,
 		Resolution:   resolution,
 		DuplicateOf:  fields.DuplicateOf,
+		EscalatedTo:  fields.EscalatedTo,
 		History:      history,
 		Source:       doc,
 	}, nil
@@ -394,9 +407,9 @@ func decodeIssueResolution(path, id string, raw *issueResolutionFrontmatter) (*I
 	}
 	disposition := IssueDisposition(raw.Disposition)
 	switch disposition {
-	case IssueDispositionVerified, IssueDispositionAccepted, IssueDispositionDuplicate:
+	case IssueDispositionVerified, IssueDispositionAccepted, IssueDispositionDuplicate, IssueDispositionEscalated:
 	default:
-		return nil, fmt.Errorf("%w: %s: issue %s resolution.disposition %q; use verified, accepted, or duplicate", ErrV2IssueMalformed, path, id, raw.Disposition)
+		return nil, fmt.Errorf("%w: %s: issue %s resolution.disposition %q; use verified, accepted, duplicate, or escalated", ErrV2IssueMalformed, path, id, raw.Disposition)
 	}
 
 	if raw.Check != "" && !checkIDPatternV2.MatchString(raw.Check) {
@@ -438,9 +451,9 @@ func decodeIssueHistory(path, id string, raw []issueHistoryFrontmatter) ([]Issue
 		kind := IssueHistoryKind(entry.Kind)
 		switch kind {
 		case IssueHistoryObserved, IssueHistoryRepairAttempted, IssueHistoryRechecked,
-			IssueHistoryDeferred, IssueHistoryReopened, IssueHistoryOwnerDecision:
+			IssueHistoryDeferred, IssueHistoryReopened, IssueHistoryOwnerDecision, IssueHistoryEscalated:
 		default:
-			return nil, fmt.Errorf("%w: %s: issue %s %s.kind %q; use observed, repair_attempted, rechecked, deferred, reopened, or owner_decision", ErrV2IssueMalformed, path, id, field, entry.Kind)
+			return nil, fmt.Errorf("%w: %s: issue %s %s.kind %q; use observed, repair_attempted, rechecked, deferred, reopened, owner_decision, or escalated", ErrV2IssueMalformed, path, id, field, entry.Kind)
 		}
 
 		at, err := decodeV2Timestamp(ErrV2IssueMalformed, path, "issue", id, field+".at", entry.At)
@@ -500,13 +513,15 @@ func validateIssueResolutionObligations(index *V2Index) error {
 
 // validateIssueDispositionObligations enforces the proof obligation specific
 // to issue's disposition. Decoding already guarantees the disposition is one
-// of the three known values.
+// of the four known values.
 func validateIssueDispositionObligations(index *V2Index, issue *IssueV2) error {
 	switch issue.Resolution.Disposition {
 	case IssueDispositionVerified:
 		return validateVerifiedResolution(index, issue)
 	case IssueDispositionAccepted:
 		return validateAcceptedResolution(issue)
+	case IssueDispositionEscalated:
+		return validateEscalatedResolution(issue)
 	default: // IssueDispositionDuplicate
 		return validateDuplicateResolution(issue)
 	}
@@ -563,6 +578,27 @@ func validateDuplicateResolution(issue *IssueV2) error {
 	}
 	if issue.DuplicateOf == "" {
 		return fmt.Errorf("%w: %s: issue %s duplicate resolution requires duplicate_of naming the canonical issue", ErrV2IssueResolutionFieldMismatch, issue.Source.Path, issue.ID)
+	}
+	return nil
+}
+
+// validateEscalatedResolution requires escalated_to to name the Objective the
+// repair was promoted into and a planner actor, and refuses a named proof
+// Check: escalation retires the Issue the moment its repair becomes tracked
+// Objective work, so it proves nothing itself — the Objective's own Check and
+// owner acceptance carry that proof later. escalated_to's existence is
+// validated once for every Issue by validateIssueEscalationTargets, not
+// repeated here.
+func validateEscalatedResolution(issue *IssueV2) error {
+	resolution := issue.Resolution
+	if resolution.Check != "" {
+		return fmt.Errorf("%w: %s: issue %s escalated resolution names proof check %s; escalation is not repair", ErrV2IssueResolutionFieldMismatch, issue.Source.Path, issue.ID, resolution.Check)
+	}
+	if issue.EscalatedTo == "" {
+		return fmt.Errorf("%w: %s: issue %s escalated resolution requires escalated_to naming the objective", ErrV2IssueResolutionFieldMismatch, issue.Source.Path, issue.ID)
+	}
+	if resolution.Actor.Role != ActorRolePlanner {
+		return fmt.Errorf("%w: %s: issue %s escalated resolution requires a planner actor", ErrV2IssueResolutionFieldMismatch, issue.Source.Path, issue.ID)
 	}
 	return nil
 }

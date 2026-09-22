@@ -1339,8 +1339,9 @@ func nextV2IssueID(index *V2Index) string {
 	return fmt.Sprintf("I%03d", next)
 }
 
-// WriteIssueV2 patches only the status, resolution, duplicate_of, tasks,
-// checks, and severity fields of a V2 Issue record's frontmatter to match
+// WriteIssueV2 patches only the status, resolution, duplicate_of,
+// escalated_to, tasks, checks, and severity fields of a V2 Issue record's
+// frontmatter to match
 // issue's in-memory fields, preserving every other YAML key, unknown field,
 // and the authored Markdown body unchanged. History is never touched here —
 // it has its own append-only path in WriteIssueHistoryV2. The patched
@@ -1377,6 +1378,7 @@ func issueManagedPatches(issue *IssueV2) ([]v2FieldPatch, error) {
 		{Key: "status", Value: string(issue.Status)},
 		resolutionPatch,
 		issueScalarV2Patch("duplicate_of", issue.DuplicateOf),
+		issueScalarV2Patch("escalated_to", issue.EscalatedTo),
 		tasksPatch,
 		checksPatch,
 		issueScalarV2Patch("severity", issue.Severity),

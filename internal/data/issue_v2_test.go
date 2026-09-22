@@ -415,7 +415,7 @@ func TestDecodeIssueV2_resolutionShape(t *testing.T) {
 // disposition decodes here. The proof obligations each one carries are
 // cross-record rules resolved against the full index, not decoding rules.
 func TestDecodeIssueV2_resolutionDispositionsDecodeAsShape(t *testing.T) {
-	for _, disposition := range []IssueDisposition{IssueDispositionVerified, IssueDispositionAccepted, IssueDispositionDuplicate} {
+	for _, disposition := range []IssueDisposition{IssueDispositionVerified, IssueDispositionAccepted, IssueDispositionDuplicate, IssueDispositionEscalated} {
 		resolution := "{disposition: " + string(disposition) + ", actor: {role: checker, session: s}, at: '2026-09-16T00:00:00Z', reason: closed}"
 		issue, err := DecodeIssueV2("test.md", issueFixture(map[string]string{
 			"status":     "resolved",
@@ -476,7 +476,7 @@ func TestDecodeIssueV2_historyDiagnosticNamesTheEntry(t *testing.T) {
 func TestDecodeIssueV2_historyKinds(t *testing.T) {
 	kinds := []IssueHistoryKind{
 		IssueHistoryObserved, IssueHistoryRepairAttempted, IssueHistoryRechecked,
-		IssueHistoryDeferred, IssueHistoryReopened, IssueHistoryOwnerDecision,
+		IssueHistoryDeferred, IssueHistoryReopened, IssueHistoryOwnerDecision, IssueHistoryEscalated,
 	}
 
 	for _, kind := range kinds {

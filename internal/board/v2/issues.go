@@ -75,11 +75,12 @@ type IssueCatalog struct {
 // IssueDetail is a fully resolved, read-only Issue overlay value. Body and
 // history are carried exactly as recorded; the view only formats them.
 type IssueDetail struct {
-	Issue           *data.IssueV2
-	Tasks           []IssueLink
-	Checks          []IssueLink
-	GuardrailIDs    []string
-	DuplicateTarget *IssueLink
+	Issue            *data.IssueV2
+	Tasks            []IssueLink
+	Checks           []IssueLink
+	GuardrailIDs     []string
+	DuplicateTarget  *IssueLink
+	EscalationTarget *IssueLink
 }
 
 // issueOrigin records the board cursor the Issues overlay replaces, so close
@@ -489,6 +490,11 @@ func (m Model) issueDetail(id string) (IssueDetail, bool) {
 	if row.Issue.DuplicateOf != "" {
 		if target, exists := m.State.Issues.ByID[row.Issue.DuplicateOf]; exists {
 			detail.DuplicateTarget = &IssueLink{ID: target.Issue.ID, Label: target.Issue.Title}
+		}
+	}
+	if row.Issue.EscalatedTo != "" && m.State.Index != nil {
+		if target, exists := m.State.Index.Objectives[row.Issue.EscalatedTo]; exists {
+			detail.EscalationTarget = &IssueLink{ID: target.ID, Label: target.Title}
 		}
 	}
 	return detail, true
