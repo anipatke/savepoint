@@ -57,6 +57,28 @@ func TestNarrowBoardCollapsesInDefinedOrder(t *testing.T) {
 	}
 }
 
+func TestSidebarBreakpointKeepsTaskColumnsReadable(t *testing.T) {
+	root := writeBadgeProject(t)
+	outerAtBreakpoint := sidebarBreakpoint + boardMarginX*2
+
+	visible := openSizedBoard(t, root, outerAtBreakpoint, 32)
+	visibleText := xansi.Strip(visible.View())
+	if !strings.Contains(visibleText, sidebarTitle) {
+		t.Fatalf("sidebar is hidden at its content-width breakpoint %d:\n%s", sidebarBreakpoint, visibleText)
+	}
+	if got := columnWidth(sidebarBreakpoint); got != 30 {
+		t.Errorf("Task column width at the sidebar breakpoint = %d, want 30", got)
+	}
+	assertSurfaceFits(t, "visible sidebar", visible.View(), outerAtBreakpoint)
+
+	narrow := openSizedBoard(t, root, outerAtBreakpoint-1, 32)
+	narrowText := xansi.Strip(narrow.View())
+	if strings.Contains(narrowText, sidebarTitle) {
+		t.Errorf("sidebar remains visible one cell below its content-width breakpoint:\n%s", narrowText)
+	}
+	assertSurfaceFits(t, "collapsed sidebar", narrow.View(), outerAtBreakpoint-1)
+}
+
 func TestEveryV2SurfaceFitsNarrowWidths(t *testing.T) {
 	root := writeEvidenceProject(t)
 	for _, width := range []int{20, 24, 32, compactBoardBreakpoint - 1, compactBoardBreakpoint, 80, 120} {

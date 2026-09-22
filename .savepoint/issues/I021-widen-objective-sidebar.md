@@ -13,6 +13,10 @@ history:
     actor: {role: owner, session: user}
     kind: observed
     note: The Objective column feels too narrow; widen it by approximately twenty percent while preserving the board's responsive layout.
+  - at: '2026-09-22T10:45:07Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: Widened the sidebar to 34 cells, moved its content-width breakpoint to 124 so Task columns remain 30 cells wide at the boundary, added responsive width coverage, and passed the focused V2 tests plus git diff --check, make build, and make test. Independent Check remains required.
 ---
 
 # I021: Widen the Objective sidebar by about twenty percent

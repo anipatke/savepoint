@@ -19,10 +19,10 @@ const (
 	// exists. Reserving it here — and only at a width where three columns still
 	// fit beside it — keeps column geometry from moving when the sidebar
 	// arrives.
-	sidebarWidth = 28
+	sidebarWidth = 34
 	// sidebarBreakpoint is the narrowest terminal that carries the sidebar
-	// alongside three columns.
-	sidebarBreakpoint = 120
+	// alongside three columns at their existing 30-cell width.
+	sidebarBreakpoint = 124
 
 	// minColumnHeight is the shortest column the board will draw rather than
 	// give the columns no room at all.

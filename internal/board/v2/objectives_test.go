@@ -417,7 +417,7 @@ func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
 	if !strings.Contains(full, "O006") {
 		t.Fatalf("the last Objective is not on screen, so nothing here proves how its title renders:\n%s", full)
 	}
-	if !strings.Contains(full, "Integration has") || !strings.Contains(full, "gone stale") {
+	if !strings.Contains(full, "Integration has gone") || !strings.Contains(full, "stale") {
 		t.Errorf("a title longer than one line should wrap across two lines:\n%s", full)
 	}
 }
@@ -427,7 +427,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 		Objective: &data.ObjectiveV2{ID: "O001", Title: "Short", Status: "planned"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
-	shortText := xansi.Strip(renderObjectiveRow(shortRow, 28, false, false))
+	shortText := xansi.Strip(renderObjectiveRow(shortRow, sidebarWidth, false, false))
 	if strings.Contains(shortText, "…") {
 		t.Errorf("short objective title should not be truncated:\n%s", shortText)
 	}
@@ -436,7 +436,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 		Objective: &data.ObjectiveV2{ID: "O002", Title: "Implement user authentication subsystem", Status: "in_progress"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
-	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, 28, false, false))
+	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, sidebarWidth, false, false))
 	if !strings.Contains(twoLineText, "Implement user") {
 		t.Errorf("two-line objective title missing line 1:\n%s", twoLineText)
 	}
