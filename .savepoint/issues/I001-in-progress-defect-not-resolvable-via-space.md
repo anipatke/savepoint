@@ -2,7 +2,7 @@
 id: I001
 title: Board defect overlay cannot resolve an in_progress defect; space is a dead-end no-op
 type: defect
-status: open
+status: resolved
 source:
     kind: migration
     actor:
@@ -10,6 +10,20 @@ source:
         session: .savepoint/releases/v1.2/defects/D016-in-progress-defect-not-resolvable-via-space.md
     at: "2026-09-20T05:03:29Z"
 severity: medium
+resolution:
+    disposition: accepted
+    actor:
+        role: owner
+        session: codex-owner-20260922
+    at: "2026-09-22T09:10:06Z"
+    reason: Current implementation already resolves in-progress defects through Space; owner accepts closure of the stale migrated record while O015 generalizes board-managed Issue resolution.
+history:
+    - at: "2026-09-22T09:10:06Z"
+      actor:
+          role: owner
+          session: codex-owner-20260922
+      kind: owner_decision
+      note: Accepted closure because the migrated defect is stale; O015 carries the generalized Issues-panel lifecycle work.
 ---
 ## Migrated from V1
 
@@ -102,14 +116,18 @@ change, matches "only the user marks resolved").
 
 ## Acceptance Criteria
 
-- [ ] `space` on an `in_progress` defect writes `status: resolved` and removes
+- [x] `space` on an `in_progress` defect writes `status: resolved` and removes
       the `stage` field.
-- [ ] The missing-path guard, "already resolved" message, and invalid-status
+- [x] The missing-path guard, "already resolved" message, and invalid-status
       default are preserved.
-- [ ] A test asserts `in_progress` + `space` → `resolved` (replacing the old
+- [x] A test asserts `in_progress` + `space` → `resolved` (replacing the old
       no-op test).
-- [ ] No regression to resolving an `open` defect via space.
+- [x] No regression to resolving an `open` defect via space.
 
 ## Resolution Notes
 
-Pending.
+Owner accepted closure on 2026-09-22 after confirming the current V1
+compatibility implementation resolves an `in_progress` defect through Space,
+clears `stage`, preserves the established guard branches, and retains Open
+defect resolution coverage. O015 carries the generalized V2 Issues-panel
+lifecycle and superseded-disposition work.
