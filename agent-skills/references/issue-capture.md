@@ -70,7 +70,7 @@ Before allocating an `I###`, look for an existing Issue matching the same sympto
 A resolved Issue records exactly one disposition:
 
 - **verified** — the Issue was repaired, and the repair is proven by a Check that recorded `CLEAR`.
-- **accepted** — an explicit owner decision to accept the risk. This is an owner decision, not a repair, and it proves nothing.
+- **accepted** — an explicit owner decision to close the Issue, including after visual inspection. Record the reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective or Release Check. An agent may record the owner's exact decision but may not infer acceptance.
 - **duplicate** — the same problem as another, canonical Issue. It names that Issue and proves nothing itself.
 - **escalated** — the Issue's repair was promoted into a tracked Objective. It names that Objective in `escalated_to` and proves nothing itself; the Objective's own mandatory Check and owner acceptance carry the proof from here, not a later re-verification of this Issue.
 
@@ -78,7 +78,7 @@ Reopening a recurring problem reuses the same `I###` with new, dated evidence ra
 
 ## Escalation Retires The Issue
 
-When an Issue's repair becomes a new Objective — not a Task inside the current Objective, but an Objective of its own — retire the Issue immediately rather than leaving it open until that Objective's work is later verified: set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O###, actor: {role: planner, ...}, ...}`, and append a `kind: escalated` history entry naming the Objective. This is the one case where closing an Issue does not require proof at closure time — the promoted Objective carries its own mandatory Full Objective Check and owner acceptance, which is the proof that was previously asked of the Issue. `savepoint-design` performs this closure at the moment it plans the remediation Objective; it is the sole exception to the checker-only closure rule below.
+When an Issue's repair becomes a new Objective — not a Task inside the current Objective, but an Objective of its own — retire the Issue immediately rather than leaving it open until that Objective's work is later verified: set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O###, actor: {role: planner, ...}, ...}`, and append a `kind: escalated` history entry naming the Objective. Escalation does not require Check proof at closure time: the promoted Objective carries its own mandatory Full Objective Check and owner acceptance. An owner-directed `accepted` resolution also closes without Check proof, while making no technical clearance claim. `savepoint-design` performs this closure at the moment it plans the remediation Objective; owner-directed `accepted` closure is the other path that needs no Check proof.
 
 ## History Is Append-Only
 
@@ -88,15 +88,15 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 ## Role Boundaries
 
-- The **executor** reports repair evidence on an Issue without closing it.
-- The **checker** verifies the proof and closes the Issue.
-- The **owner** decides acceptance.
-- The **planner** (`savepoint-design`) closes an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective — see Escalation Retires The Issue above. This is the sole exception to checker-only closure.
+- The **executor** reports repair evidence without independently closing the Issue; it may record an explicit owner-directed `accepted` closure.
+- The **checker** verifies Check proof and closes the Issue as `verified`; it may also resolve a confirmed duplicate.
+- The **owner** may close the Issue as `accepted` through an explicit decision with reason, actor, and time. An agent records that decision only when directly instructed, without claiming technical `CLEAR`.
+- The **planner** (`savepoint-design`) closes an Issue as `escalated` at the moment it promotes the repair into a new Objective — see Escalation Retires The Issue above.
 
 ## Out-Of-Scope Repair
 
 Default: fix it directly and record repair evidence in the Issue's own
-history (`kind: repair_attempted`), leaving the Issue open for the checker.
+history (`kind: repair_attempted`), leaving the Issue open for a checker or an explicit owner acceptance decision.
 Escalate only when the repair itself needs planning — an open Design
 decision, or work spanning multiple Objectives — where the repair becomes a
 new Objective of its own. When that happens, retire the Issue immediately

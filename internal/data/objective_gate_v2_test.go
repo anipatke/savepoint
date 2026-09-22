@@ -434,11 +434,44 @@ func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDone
 		t.Fatalf("owned tasks changed status while only the objective check was NEEDS WORK")
 	}
 
-	// Repair is recorded as a fresh, superseding objective Check rather than by
-	// touching either Task.
+	// The finding becomes new work under the same Objective. The two
+	// completed Tasks are historical work and must not be reopened.
+	index.Tasks["T003"] = &TaskV2{ID: "T003", Objective: "O001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O001"] = append(index.ObjectiveTasks["O001"], "T003")
+	got = ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockInvalidState {
+		t.Fatalf("new remediation Task must block Objective completion, got %+v", got)
+	}
+	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+		t.Fatal("adding remediation work reopened a completed Task")
+	}
+
+	// Finishing remediation alone cannot override the failed Check. A fresh,
+	// superseding CLEAR Check is still required.
+	index.Tasks["T003"].Status = ColumnDone
+	got = ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
+		t.Fatalf("repair without recheck must remain blocked, got %+v", got)
+	}
 	mustObjectiveCheck(index, "C002", "O001", CheckResultClear)
 	index.Objectives["O001"] = mustCurrentObjective("O001", "C002", nil)
+	index.Issues = map[string]*IssueV2{"I001": {ID: "I001", Status: IssueStatusOpen}}
+	index.CheckIssues = map[string][]string{"C002": {"I001"}}
 
+	got = ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved || got.Blockers[0].Issue != "I001" {
+		t.Fatalf("current CLEAR Check with unresolved material Issue must block, got %+v", got)
+	}
+	index.Objectives["O001"].Evidence.Exception = &Exception{
+		Requirements: []string{"other-requirement"}, Reason: "accepted separate risk",
+		Owner: "owner-1", Check: "C002",
+	}
+	got = ResolveObjectiveCompletion(index, "O001")
+	if got.Allowed || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved {
+		t.Fatalf("unrelated Objective exception must not accept an open Issue, got %+v", got)
+	}
+	index.Objectives["O001"].Evidence.Exception = nil
+	index.Issues["I001"].Status = IssueStatusResolved
 	got = ResolveObjectiveCompletion(index, "O001")
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true after the recheck cleared, blockers = %+v", got.Blockers)

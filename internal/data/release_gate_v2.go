@@ -116,7 +116,7 @@ func resolveReleaseCompletionForRecord(index *V2Index, release *ReleaseV2) GateD
 
 	exception := applicableException(release.Evidence, clearance.Check)
 	exceptionUsed := false
-	for _, issueID := range releaseCheckIssueIDs(index, clearance.Check) {
+	for _, issueID := range checkIssueIDs(index, clearance.Check) {
 		issue := index.Issues[issueID]
 		if issue == nil || issue.Status == IssueStatusResolved {
 			continue
@@ -151,11 +151,11 @@ func resolveReleaseCompletionForRecord(index *V2Index, release *ReleaseV2) GateD
 	return GateDecision{Allowed: true, Actor: ActorRoleChecker}
 }
 
-// releaseCheckIssueIDs reads the indexed Check-to-Issue links and falls back
+// checkIssueIDs reads the indexed Check-to-Issue links and falls back
 // to the immutable Check's own list for hand-built unit indexes. A loaded
 // project always uses the index map, whose links have already passed the
 // pairing and target validation gates.
-func releaseCheckIssueIDs(index *V2Index, checkID string) []string {
+func checkIssueIDs(index *V2Index, checkID string) []string {
 	ids := make(map[string]struct{})
 	for _, issueID := range index.CheckIssues[checkID] {
 		ids[issueID] = struct{}{}

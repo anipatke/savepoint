@@ -38,7 +38,7 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 
 This skill may write: scoped implementation for the active Task, recorded evidence (extra reads, per-criterion outcomes, command results, limitations), lifecycle progress (`status` and `stage`), and a replan handoff when one is needed.
 
-It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. Those are the checker's and owner's authority, not the executor's.
+It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue on its own, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. It may record an explicit owner instruction to close an Issue as `accepted`; that is the owner's decision, not executor clearance.
 
 ## Lifecycle
 
@@ -70,8 +70,8 @@ Enter Issue capture as an entry from this workflow when implementation hits a
 defect, drift, or guardrail gap that is not the work this Task owns. Record it
 as an Issue rather than expanding scope or repairing it silently; see
 `agent-skills/references/issue-capture.md` for the artifact template and
-rules. This skill may add evidence to an Issue; only `savepoint-check` may
-close one.
+rules. This skill may add evidence to an Issue; it may record an explicit owner
+`accepted` closure but cannot infer acceptance or close one as `verified`.
 
 ## Evidence And Handoff
 
@@ -88,7 +88,7 @@ This evidence is what a fresh `savepoint-check` session will treat as claims to 
 
 - Stay within the active Task's scope; do not widen it and call the extra work necessary without a replan.
 - Do not edit acceptance criteria to match what was built.
-- Do not write a Check record, close an Issue, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work.
+- Do not write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work. Record an `accepted` Issue closure only on explicit owner instruction.
 - A blocked start (unsatisfied Task dependency, an owning Objective that is not ready) is reported, never worked around.
 - Every read beyond the Task's Context Files is logged with what was read and why.
 - A materially invalid plan returns `REPLAN REQUIRED` with preserved partial work and unchanged `status`/`stage`; it is never silently redesigned.

@@ -1173,7 +1173,7 @@ func TestSharedIssueCaptureDispositionsAndHistory(t *testing.T) {
 
 		for _, phrase := range []string{
 			"proven by a Check that recorded `CLEAR`",
-			"owner decision, not a repair, and it proves nothing",
+			"owner decision, not a `CLEAR` Check or independent proof",
 			"names that Issue and proves nothing itself",
 			"reuses the same `I###` with new, dated evidence",
 			"{at, actor, kind, note, check}",
@@ -1198,10 +1198,10 @@ func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
 		content := string(data)
 
 		for _, phrase := range []string{
-			"executor** reports repair evidence on an Issue without closing it",
-			"checker** verifies the proof and closes the Issue",
-			"owner** decides acceptance",
-			"planner** (`savepoint-design`) closes an Issue with disposition `escalated`",
+			"executor** reports repair evidence without independently closing the Issue",
+			"checker** verifies Check proof and closes the Issue as `verified`",
+			"owner** may close the Issue as `accepted`",
+			"planner** (`savepoint-design`) closes an Issue as `escalated`",
 			"becomes a new, bounded Task",
 			"within an existing Objective is not an escalation",
 		} {
@@ -1248,8 +1248,8 @@ func TestSharedIssueCaptureLiveAndTemplateMatch(t *testing.T) {
 // reference's identical role-boundary prose.
 var issueCaptureEntrySkills = map[string]string{
 	"savepoint-design": "may read and reference an Issue; it\ndoes not close one",
-	"savepoint-task":   "may add evidence to an Issue; only `savepoint-check` may\nclose one",
-	"savepoint-check":  "is the one role that may close an Issue, after\nverifying its proof",
+	"savepoint-task":   "may add evidence to an Issue; it may record an explicit owner\n`accepted` closure",
+	"savepoint-check":  "may close an Issue as `verified` after\nverifying Check proof",
 }
 
 func TestWorkingSkillsNameIssueCaptureEntry(t *testing.T) {

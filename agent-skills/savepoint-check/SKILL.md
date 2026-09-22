@@ -7,7 +7,7 @@ description: Runs an independent, fresh-session Check on an explicitly requested
 
 ## Purpose
 
-Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate, and a Release Check is mandatory whenever a Release exists. This is the only role that can write those verdicts or close Issues, so its authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective or Release completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
+Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate, and a Release Check is mandatory whenever a Release exists. This is the only role that can write those verdicts or close Issues as `verified`; the owner may explicitly close an Issue as `accepted`. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective or Release completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
 
 ## Trigger
 
@@ -89,7 +89,7 @@ Each run writes a new record with a new `C###`. A recheck never edits the supers
 - A checker may complete a technical Task's optional Check — one with no `owner_validation.required` — once its clearance is current and no unexcepted material blocker remains; only the owner may set the Task's `status: done`.
 - A Task with no requested Task Check may be owner-closed only when its implementation evidence is complete and an explicit Task-check waiver names the Task, reason, actor, and time. The waiver skips only the optional local Check: it is not technical `CLEAR`, and it does not waive any acceptance criterion, guardrail, Objective Check, or Release Check. It satisfies a downstream Task dependency that requires `clear` — the owner's own completion decision stands in there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
 - A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count.
-- An Objective closes only after every Task it owns is done and the mandatory Objective integration Check is current, with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
+- An Objective closes only after every Task it owns is done, the mandatory Objective integration Check is current, and every material Issue linked to that current Check is resolved (including explicit owner acceptance recorded as an Issue resolution), with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
 - A Release Check is mandatory whenever a Release exists. It reviews cross-Objective integration for `R###`, reuses ordinary Issues for material findings, and does not invent a parallel release audit. Release `done` requires at least one member Objective, every member Objective complete, current CLEAR integration evidence, resolved or explicitly excepted material Issues, and the owner's acceptance of that exact current Check. The checker never supplies that acceptance, and Release `done` does not mean published or deployed.
 - A record lacking sufficient scope or evidence cannot support completion. Stale or unknown freshness blocks normal completion; it is never waived through by re-asserting "current" without a fresh assessment.
 - A recorded owner exception can grant completion despite an unmet requirement, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance, and it applies only to the Check it names.
@@ -100,8 +100,8 @@ Enter Issue capture as an entry from this workflow when a Check finds
 something that blocks the verdict. A `NEEDS WORK` Check records the Issues it
 finds; see `agent-skills/references/issue-capture.md` for the artifact
 template and rules. A failed Release Check creates or reuses ordinary Issues;
-it does not create release-only findings. This skill is the one role that may close an Issue, after
-verifying its proof.
+it does not create release-only findings. This skill may close an Issue as `verified` after
+verifying Check proof. The owner may close an Issue as `accepted` by an explicit decision recorded with reason, actor, and time; that does not create a `CLEAR` Check.
 
 ## Rules
 

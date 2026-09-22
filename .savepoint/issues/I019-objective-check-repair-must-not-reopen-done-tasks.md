@@ -2,13 +2,18 @@
 id: I019
 title: Objective Check repair must not require reopening completed Tasks
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T09:36:11Z'
 checks: [C906]
 severity: high
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T21:13:35Z'
+  reason: Owner directed closure after visual inspection and waived an independent Issue Check; this accepts the repair without claiming technical CLEAR.
 history:
   - at: '2026-09-22T09:36:11Z'
     actor: {role: owner, session: user}
@@ -18,6 +23,18 @@ history:
     actor: {role: executor, session: v2-chat}
     kind: repair_attempted
     note: Split repair routing by Check scope in agent-skills/savepoint-check/SKILL.md (workflow step 5 and Rules), its byte-identical templates/project-v2 copy (TPL-01), agent-skills/savepoint-task/SKILL.md (new "After a mandatory Objective or Release Check" lifecycle line, mirrored to its templates/project-v2 copy), and .savepoint/Design.md Section 7 step 4 — a Task Check's NEEDS WORK still resumes stage:build inside that Task, but an Objective/Release Check's NEEDS WORK now routes to new or newly selected work linked to the Objective without retreating a done Task. Added TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDoneTasks in internal/data/objective_gate_v2_test.go proving ResolveObjectiveCompletion already blocks on NEEDS WORK and unblocks on a fresh superseding CLEAR Check while owned Tasks remain done throughout — the gate resolvers required no code change, only the skill/Design instruction text did. Also updated internal/init/agent_skills_test.go's doc-consistency assertions (TestSavepointCheckSkillNeedsWorkPath, new TestSavepointTaskSkillObjectiveCheckNeedsWorkDoesNotRetreatDoneTasks) to match the new split-routing wording. `go build ./...`, `go vet ./...`, and `go test ./...` pass except a pre-existing, unrelated failure, since repaired separately as I028 — TestSharedIssueCaptureRoleBoundariesAndRepairRouting expected agent-skills/references/issue-capture.md to contain the phrase "becomes a new, bounded Task in an Objective", which was absent on this branch before and after this repair (verified via git stash) — out of scope for this Issue and not touched here.
+  - at: '2026-09-22T20:52:28Z'
+    actor: {role: executor, session: codex-i019}
+    kind: repair_attempted
+    note: Recorded the implementation plan and extended the Objective completion regression to add a remediation Task while prior Tasks remain done, require a superseding CLEAR Check, and block closure until a material Issue linked to that current Check is resolved. ResolveObjectiveCompletion now enforces that Issue blocker and refuses an unrelated Objective exception; the Check skill, V2 scaffold copy, and Design describe the same closure rule. Renamed the shared Check-to-Issue helper for Objective and Release use. Focused regression and affected package tests passed. make build passed; make test failed only in TestIntegration_InstallDependencies because WSL resolved Windows npm from a UNC path. make build and go test ./... -skip '^TestIntegration_InstallDependencies$' passed. git diff --check passed. Fresh independent Check is still required; I019 remains open.
+  - at: '2026-09-22T21:07:20Z'
+    actor: {role: executor, session: codex-i019}
+    kind: repair_attempted
+    note: Reran the complete configured quality gate with Linux Node v22.22.2 and npm 10.9.7 prepended to the WSL PATH. make test completed successfully across all packages, including internal/init's npm integration test and internal/migrate. The prior failure was caused by the command session resolving Windows npm; no test was skipped in this run. I019 remains open pending a fresh independent savepoint-check session.
+  - at: '2026-09-22T21:13:35Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: Owner explicitly directed I019 closure after visual inspection, waived a separate Issue Check, and accepted the implemented repair. The full make build and make test gates passed; this accepted disposition is not an independent technical CLEAR.
 ---
 
 # I019: Objective Check repair must not require reopening completed Tasks
@@ -62,3 +79,14 @@ have to reopen old Tasks merely to satisfy the agent router.
   rechecked while all previously completed Tasks remain `done`.
 - Confirm Objective closure still requires every linked material Issue to be
   resolved or explicitly accepted and a fresh current `CLEAR` Objective Check.
+
+## Implementation Plan
+
+1. Preserve the scope-specific repair instructions in the Check and Task skills, Design, and V2 scaffold copies. Keep completed Tasks closed; route an Objective finding to a new or newly selected Task under that Objective, linked through the Issue's `tasks` and `checks` lists.
+2. Extend the Objective completion regression to exercise a new remediation Task after `NEEDS WORK`: the Objective remains blocked while it is unfinished, then requires a fresh current `CLEAR` Check after repair. Assert the original Tasks remain `done` at every step.
+3. Enforce resolution of material Issues linked to the current Objective Check in the canonical Objective completion gate, alongside owned Task completion and current clearance. A checker may verify the Issue, or the owner may explicitly accept it; a direct Objective link in the Issue schema is outside I019.
+4. Run build and test gates and append repair evidence here. A fresh independent Check can close the Issue as `verified`; an explicit owner decision can instead close it as `accepted` without claiming technical `CLEAR`.
+
+## Owner Disposition
+
+The owner directed an `accepted` resolution after visual inspection and waived a separate independent Issue Check. This closes I019 by owner decision and does not record technical `CLEAR` or replace any mandatory Objective or Release Check.

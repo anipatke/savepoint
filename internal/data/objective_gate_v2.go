@@ -16,8 +16,10 @@ import (
 // superseded Check does not satisfy it. When clearance would otherwise block
 // completion, a recorded exception naming the Objective's current latest
 // Check grants completion by exception under owner authority instead —
-// never as a CLEAR result or current clearance. An unfinished owned Task is
-// not excusable by exception: cross-Task repair goes back through Tasks, and
+// never as a CLEAR result or current clearance. Material Issues linked to
+// the current Objective Check must be resolved; an Objective exception does
+// not silently accept an open Issue. An unfinished owned Task is not
+// excusable by exception: cross-Task repair goes back through Tasks, and
 // no Objective Check ever closes a Task.
 func ResolveObjectiveCompletion(index *V2Index, objectiveID string) GateDecision {
 	objective, ok := index.Objectives[objectiveID]
@@ -61,10 +63,31 @@ func ResolveObjectiveCompletion(index *V2Index, objectiveID string) GateDecision
 		}
 	}
 
+	unresolvedIssue := false
+	if clearance.State == ClearanceCurrent {
+		for _, issueID := range checkIssueIDs(index, clearance.Check) {
+			issue := index.Issues[issueID]
+			if issue == nil || issue.Status == IssueStatusResolved {
+				continue
+			}
+			unresolvedIssue = true
+			blockers = append(blockers, GateBlocker{
+				Kind:   GateBlockObjectiveIssueUnresolved,
+				Issue:  issueID,
+				Detail: fmt.Sprintf("material Issue %s linked to Objective Check %s remains %s", issueID, clearance.Check, issue.Status),
+			})
+		}
+	}
+
 	if len(blockers) == 0 {
 		return GateDecision{Allowed: true, Actor: ActorRoleChecker}
 	}
 
+	// An Objective exception cannot silently accept a still-open material Issue.
+	// Owner acceptance of that Issue is recorded as its resolution.
+	if unresolvedIssue {
+		return GateDecision{Blockers: blockers}
+	}
 	if exception := applicableException(objective.Evidence, index.LatestCheck[objectiveID]); exception != nil {
 		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
 	}

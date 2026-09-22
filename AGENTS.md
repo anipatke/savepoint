@@ -53,7 +53,7 @@ contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue, except that `savepoint-design` retires an Issue immediately, with disposition `escalated`, the moment it promotes that Issue's repair into a new Objective.
+- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may close an Issue as `accepted` through an explicit decision with reason, actor, and time; an agent may record that exact decision but may not infer it. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
@@ -61,7 +61,7 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 - Issues live at `.savepoint/issues/I###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence on an Issue without closing it; only `savepoint-check` verifies the proof and closes it. The one exception: when an Issue's repair is promoted into a new Objective, `savepoint-design` retires the Issue immediately with disposition `escalated` — see `agent-skills/references/issue-capture.md`.
+- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may direct an `accepted` closure after visual inspection without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
 
 ## Implementation
 
@@ -72,8 +72,10 @@ Follow the active skill for execution. During `task`, the canonical flow is `sav
 ## Check
 
 `savepoint-check` is the only role that can write a Check record or close an
-Issue. The owner closes Tasks and accepts Objective/Release outcomes after the
-required evidence exists.
+Issue as `verified`. The owner may explicitly close an Issue as `accepted`
+without a Check; this does not claim technical `CLEAR` or waive a mandatory
+Objective or Release Check. The owner closes Tasks and accepts
+Objective/Release outcomes after the required evidence exists.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.

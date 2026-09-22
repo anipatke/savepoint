@@ -44,7 +44,7 @@ next_action: "O012 is closed (owner decision, C907 CLEAR; I025/I020 repaired dir
 - A Full Objective Check is mandatory before Objective completion, and a
   Release Check is mandatory whenever a Release exists.
 - Issues are durable follow-up records, not a fourth task column or router
-  state. Only `savepoint-check` closes an Issue.
+  state. A checker closes a proven Issue as `verified`; the owner may explicitly close one as `accepted`, and the planner may close a promoted Issue as `escalated`.
 - Releases are optional delivery boundaries. Their membership and completion
   are derived by `internal/data`; they do not publish, deploy, tag, or create
   changelogs.

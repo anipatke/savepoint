@@ -56,7 +56,7 @@ When an owner opts in, Design gives the Release a stable `R###` identity and an 
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue.
+- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may close an Issue as `accepted` through an explicit decision with reason, actor, and time; an agent may record that exact decision but may not infer it. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
@@ -70,13 +70,15 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget (a Task's own `## Context Files`), `status: in_progress` + `stage: build` setting, per-criterion evidence, and the handoff decision between an optional Task Check and the mandatory Full Objective Check.
 
-**Stop. Prompt the user before continuing.** Only the user may mark a Task `status: done` or retreat a Task to an earlier status; only a Check may close an Issue.
+**Stop. Prompt the user before continuing.** Only the user may mark a Task `status: done` or retreat a Task to an earlier status. An explicit owner decision may close an Issue as `accepted` without a Check; that decision does not waive a mandatory Objective or Release Check.
 
 ## Check
 
 `savepoint-check` is the only role that can write a Check record or close an
-Issue. The owner closes Tasks and accepts Objective/Release outcomes after the
-required evidence exists.
+Issue as `verified`. The owner may explicitly close an Issue as `accepted`
+without a Check; this does not claim technical `CLEAR` or waive a mandatory
+Objective or Release Check. The owner closes Tasks and accepts
+Objective/Release outcomes after the required evidence exists.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.

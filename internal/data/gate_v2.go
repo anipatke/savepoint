@@ -163,6 +163,9 @@ const (
 	// GateBlockReleaseObjectiveIncomplete means one member Objective did not
 	// satisfy its existing completion decision.
 	GateBlockReleaseObjectiveIncomplete GateBlockKind = "release_objective_incomplete"
+	// GateBlockObjectiveIssueUnresolved means a material Issue linked to the
+	// current Objective Check is still open or in progress.
+	GateBlockObjectiveIssueUnresolved GateBlockKind = "objective_issue_unresolved"
 	// GateBlockReleaseIssueUnresolved means a material Issue linked to the
 	// current Release Check is still open or in progress.
 	GateBlockReleaseIssueUnresolved GateBlockKind = "release_issue_unresolved"
