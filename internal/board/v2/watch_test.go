@@ -206,8 +206,15 @@ func TestFailedReloadKeepsLastGoodBoardAndRecovers(t *testing.T) {
 	if after.State.Index.Tasks["T001"].Title != goodTitle {
 		t.Errorf("last good title = %q, want %q", after.State.Index.Tasks["T001"].Title, goodTitle)
 	}
-	if after.ReloadDiagnostic == "" || !strings.Contains(after.View(), "missing required field title") {
-		t.Errorf("View() does not show the failed reload diagnostic:\n%s", after.View())
+	view := after.View()
+	if after.ReloadDiagnostic == "" || !strings.Contains(view, "missing required field title") {
+		t.Errorf("View() does not show the failed reload diagnostic:\n%s", view)
+	}
+	if got := strings.Count(view, "missing required field title"); got != 1 {
+		t.Errorf("failed reload diagnostic appears %d times in View(); want exactly once:\n%s", got, view)
+	}
+	if strings.Contains(after.StatusMessage, "missing required field title") {
+		t.Errorf("StatusMessage repeats the failed reload diagnostic: %q", after.StatusMessage)
 	}
 
 	writeTask(t, root, "O001", "T001", "Recovered title", "status: planned\n")

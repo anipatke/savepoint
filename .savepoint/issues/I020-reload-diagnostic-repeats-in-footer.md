@@ -2,17 +2,30 @@
 id: I020
 title: Reload diagnostic repeats in the footer
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
   at: '2026-09-22T09:45:29Z'
 severity: medium
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-22T10:35:05Z'
+  reason: Owner accepted the completed repair and its focused regression, build, and full test evidence.
 history:
   - at: '2026-09-22T09:45:29Z'
     actor: {role: owner, session: user}
     kind: observed
     note: A failed board reload displays the same long structural diagnostic in both the RELOAD banner and the footer status line; the owner requested that it be removed from the footer.
+  - at: '2026-09-22T10:33:58Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: Removed the failed-reload diagnostic assignment to StatusMessage, added a regression assertion that the diagnostic renders exactly once, and passed the focused test, git diff --check, make build, and make test. The Issue remains open for independent Check verification.
+  - at: '2026-09-22T10:35:05Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: Owner accepted I020 as resolved based on the recorded repair and verification evidence.
 ---
 
 # I020: Reload diagnostic repeats in the footer

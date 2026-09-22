@@ -541,7 +541,6 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Failed() {
 		if wasLoaded {
 			m.ReloadDiagnostic = msg.Diagnostic
-			m.StatusMessage = "Reload failed: " + msg.Diagnostic
 			return m, nil
 		}
 		m.Diagnostic = msg.Diagnostic
