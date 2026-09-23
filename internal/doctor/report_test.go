@@ -86,7 +86,7 @@ func TestDiagnosticReport_MigrationOperationIncompleteIsAProblemAndWritesNothing
 	if err := os.MkdirAll(root, 0755); err != nil {
 		t.Fatal(err)
 	}
-	entries := []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}
+	entries := []migrate.JournalEntry{{Path: "objectives/O-001.md", Action: migrate.ActionCreate}}
 	if _, err := migrate.CreateOperation(projectDir, "op-9", nil, entries, time.Now()); err != nil {
 		t.Fatalf("CreateOperation() error = %v", err)
 	}
@@ -155,11 +155,11 @@ func TestDiagnosticReport_HistoricalReleaseIsNotCurrentClear(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
 	archivePath := filepath.Join(root, "archive", "v1", "R001-PRD.md")
 	testutil.WriteFile(t, archivePath, "historical release bytes\n")
-	writeV2Release(t, root, "R001-history", "R001", "done",
+	writeV2Release(t, root, "R-001-history", "R-001", "done",
 		"legacy_completion:\n  source_path: .savepoint/releases/v1/v1-PRD.md\n  archive_path: archive/v1/R001-PRD.md\n  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
-	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-member", "Objective.md"),
-		"---\nid: O001\ntitle: \"Member\"\nstatus: done\nrelease: R001\nfreshness: {state: current, check: C001, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
-	writeV2Check(t, root, "C001", "{kind: objective, id: O001}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-member", "Objective.md"),
+		"---\nid: O-001\ntitle: \"Member\"\nstatus: done\nrelease: R-001\nfreshness: {state: current, check: C-001, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+	writeV2Check(t, root, "C-001", "{kind: objective, id: O-001}", "CLEAR", "")
 
 	report := RunAllChecks(root, "")
 	if len(report.Releases) != 0 {
@@ -179,10 +179,10 @@ func TestDiagnosticReport_HistoricalReleaseIsNotCurrentClear(t *testing.T) {
 func TestDiagnosticReport_DanglingHistoricalArchiveIsProblem(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Release(t, root, "R001-history", "R001", "done",
+	writeV2Release(t, root, "R-001-history", "R-001", "done",
 		"legacy_completion:\n  source_path: .savepoint/releases/v1/v1-PRD.md\n  archive_path: archive/v1/missing.md\n  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
-	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-member", "Objective.md"),
-		"---\nid: O001\ntitle: \"Member\"\nstatus: done\nrelease: R001\n---\n\n# Member\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-member", "Objective.md"),
+		"---\nid: O-001\ntitle: \"Member\"\nstatus: done\nrelease: R-001\n---\n\n# Member\n")
 
 	problems := CheckReleaseReadiness(root)
 	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-release-legacy-dangling]") {
@@ -287,8 +287,8 @@ func TestDiagnosticReport_IssuePostureAdvisoryOnlyOnV1Project(t *testing.T) {
 func TestDiagnosticReport_IssuePostureCountsInPlainOutput(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	testutil.WriteFile(t, filepath.Join(root, "issues", "I001-flaky.md"),
-		"---\nid: I001\ntitle: \"Flaky\"\ntype: defect\nstatus: open\n"+
+	testutil.WriteFile(t, filepath.Join(root, "issues", "I-001-flaky.md"),
+		"---\nid: I-001\ntitle: \"Flaky\"\ntype: defect\nstatus: open\n"+
 			"source: {kind: report, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
 
 	report := RunAllChecks(root, "")
@@ -312,20 +312,20 @@ func writeCompleteV2Project(t *testing.T, root string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\nquality_gates:\n  lint: null\n  typecheck: null\n  build: null\n  test: null\ntheme: {}\n")
 	testutil.WriteFile(t, filepath.Join(root, "router.md"),
-		"## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nnext_action: \"build it\"\n```\n")
-	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
-	writeV2Task(t, root, "O001-ship", "T001-write.md", "T001", "Write it", "O001")
+		"## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"build it\"\n```\n")
+	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
+	writeV2Task(t, root, "O-001-ship", "T-001-write.md", "T-001", "Write it", "O-001")
 }
 
 // TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound proves a
 // complete V2 project whose only finding is an open Issue is reported ALL
 // CLEAN: the Issue is advisory, listed by name, type, and status under
 // Pending Semantic Review, and never makes the project structurally unsound
-// (E48 T006).
+// (E48 T-006).
 func TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound(t *testing.T) {
 	root := t.TempDir()
 	writeCompleteV2Project(t, root)
-	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
 	report := RunAllChecks(root, "")
 	if report.HasProblems() {
@@ -337,7 +337,7 @@ func TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound(t *testing.T) 
 	if !strings.Contains(output, "ALL CLEAN") {
 		t.Errorf("report.Format() should say ALL CLEAN for an advisory-only backlog, got:\n%s", output)
 	}
-	wants := []string{"Pending Semantic Review", "I001", "defect issue, status open"}
+	wants := []string{"Pending Semantic Review", "I-001", "defect issue, status open"}
 	for _, want := range wants {
 		if !strings.Contains(output, want) {
 			t.Errorf("report.Format() missing %q, got:\n%s", want, output)
@@ -351,28 +351,28 @@ func TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound(t *testing.T) 
 // malformed record (a Task's own owner-acceptance evidence disagrees with
 // itself), a missing-evidence target (a done Task with no Check ever
 // recorded), and an advisory open Issue. The first two must make the
-// project structurally unsound; the Issue must not (E48 T007).
+// project structurally unsound; the Issue must not (E48 T-007).
 func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Objective(t, root, "O001-ship", "O001", "Ship it")
+	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
 
-	// T001: done, no Check ever recorded — missing evidence.
-	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
+	// T-001: done, no Check ever recorded — missing evidence.
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-alpha.md"),
+		"---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
 
-	// T002: owner accepted C002, but C003 has since superseded it as the
+	// T-002: owner accepted C-002, but C-003 has since superseded it as the
 	// latest Check — the record's own fields disagree, so this is malformed
 	// data, not missing evidence.
-	writeV2Check(t, root, "C002", "{kind: task, id: T002}", "CLEAR", "")
-	writeV2Check(t, root, "C003", "{kind: task, id: T002}", "CLEAR", "C002")
-	testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-ship", "tasks", "T002-beta.md"),
-		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: audit\n"+
-			"freshness: {state: current, check: C003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: rechecked}\n"+
-			"owner_validation: {required: true, accepted_check: C002, accepted_by: {role: owner, session: owner-1}}\n"+
+	writeV2Check(t, root, "C-002", "{kind: task, id: T-002}", "CLEAR", "")
+	writeV2Check(t, root, "C-003", "{kind: task, id: T-002}", "CLEAR", "C-002")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-002-beta.md"),
+		"---\nid: T-002\ntitle: \"Beta\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: audit\n"+
+			"freshness: {state: current, check: C-003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: rechecked}\n"+
+			"owner_validation: {required: true, accepted_check: C-002, accepted_by: {role: owner, session: owner-1}}\n"+
 			"---\n\n# Beta\n")
 
-	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
 	report := RunAllChecks(root, "")
 	findings := report.HealthFindings()
@@ -389,7 +389,7 @@ func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *te
 				sawMissingEvidence = true
 			}
 		case HealthPendingReview:
-			if f.File == "I001" {
+			if f.File == "I-001" {
 				sawPendingReview = true
 			}
 		}
@@ -401,7 +401,7 @@ func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *te
 		t.Errorf("HealthFindings() = %+v, want a HealthMissingEvidence finding naming the missing clearance", findings)
 	}
 	if !sawPendingReview {
-		t.Errorf("HealthFindings() = %+v, want a HealthPendingReview finding for Issue I001", findings)
+		t.Errorf("HealthFindings() = %+v, want a HealthPendingReview finding for Issue I-001", findings)
 	}
 
 	if !report.HasProblems() {
@@ -426,7 +426,7 @@ func TestDiagnosticReport_FullRunWritesNothing(t *testing.T) {
 	projectDir := t.TempDir()
 	root := filepath.Join(projectDir, ".savepoint")
 	writeCompleteV2Project(t, root)
-	writeV2Issue(t, root, "I001-flaky.md", "I001", "open", "defect", "")
+	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
 	before := listFiles(t, projectDir)
 	report := RunAllChecks(root, "")
@@ -447,7 +447,7 @@ func writeReportProject(t *testing.T, root string) {
 	t.Helper()
 	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
 	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
-		Slug:      "T001-task",
+		Slug:      "T-001-task",
 		Status:    "planned",
 		Objective: "Task",
 	})

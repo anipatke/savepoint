@@ -26,10 +26,10 @@ last_audited: v2/E51-first-class-releases
   - Anything that breaks these bounds violates the wedge.
 - **Go data-reader boundary:** `internal/data` owns Savepoint file parsing and discovery for the Go implementation: Objective/Task/Check/Issue/Release models, markdown YAML extraction, V2 router state parsing, config/theme defaults, identity-keyed record discovery, lifecycle validation/defaulting, write-time status validation, and boundary error sentinels.
 - **V2 evidence and identity boundary:** `internal/data` strictly loads identity-keyed Objective, Task, Check, Issue, and Release records through confined paths, preserves authored record content on managed writes, resolves numeric Check history and freshness, and owns canonical dependency, lifecycle, authority, acceptance, exception, and replan decisions. `internal/doctor` reports the same structural and evidence diagnostics without rewriting project files.
-- **V2 follow-up and integration boundary:** `internal/data` owns the mutable Issue family and bidirectional Check/Issue/Task links, while Objective and Release completion remain derived from owned work, independent integration evidence, material Issue posture, and exact owner acceptance. `internal/doctor`, `internal/board/v2`, and `internal/resume` report those decisions without duplicating policy. Issue resolution carries four dispositions — `verified` (Check-proven repair), `accepted` (owner risk decision), `duplicate` (points at a canonical Issue), and `escalated` (points at the Objective, `escalated_to: O###`, the repair was promoted into) — each with its own proof obligation enforced by `internal/data`. Owner acceptance may close an Issue directly as `accepted` without a Check and without claiming technical `CLEAR`. Escalation is the Issue closure the planning workflow performs directly rather than `savepoint-check`: `savepoint-design` retires an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective, since that Objective's own mandatory Full Objective Check and owner acceptance become the proof.
+- **V2 follow-up and integration boundary:** `internal/data` owns the mutable Issue family and bidirectional Check/Issue/Task links, while Objective and Release completion remain derived from owned work, independent integration evidence, material Issue posture, and exact owner acceptance. `internal/doctor`, `internal/board/v2`, and `internal/resume` report those decisions without duplicating policy. Issue resolution carries four dispositions — `verified` (Check-proven repair), `accepted` (owner risk decision), `duplicate` (points at a canonical Issue), and `escalated` (points at the Objective, `escalated_to: O-###`, the repair was promoted into) — each with its own proof obligation enforced by `internal/data`. Owner acceptance may close an Issue directly as `accepted` without a Check and without claiming technical `CLEAR`. Escalation is the Issue closure the planning workflow performs directly rather than `savepoint-check`: `savepoint-design` retires an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective, since that Objective's own mandatory Full Objective Check and owner acceptance become the proof.
 - **V2 agent workflow assets:** The four active skills and three non-triggerable shared references are byte-identical between the live and V2 scaffold trees. Task `planned_by` provenance and Check `executed_session` provenance are strict typed fields; the decoder rejects a Check that claims the executor and checker were the same session.
 - **Configured build gate:** established in E46. `quality_gates.build` is decoded by `internal/data` and executed by `internal/doctor` after typecheck and before test, using the existing timeout and result-reporting path.
-- **V2 Release boundary:** Optional `R###` Release records preserve a delivery promise, derive member Objectives from `release: R###`, resolve completion through Release-scoped Checks, material Issues, and exact owner acceptance, and expose one project-level cutover composition for E50. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
+- **V2 Release boundary:** Optional `R-###` Release records preserve a delivery promise, derive member Objectives from `release: R-###`, resolve completion through Release-scoped Checks, material Issues, and exact owner acceptance, and expose one project-level cutover composition for E50. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
 - **Template assets** live under `templates/project-v2/` for the active workflow and `templates/project/` for legacy V1 upgrades.
 - **Init command** (`savepoint init`) validates targets and scaffolds `templates/project-v2/`, including the four V2 skills, Idea/Design/Guardrails/router files, and schema version 2. Existing user content is preserved through the managed-guide boundary.
 - **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned V2 skills and shared references with provenance and recoverable writes; migration history and project records remain untouched.
@@ -39,7 +39,7 @@ last_audited: v2/E51-first-class-releases
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
-- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Release Check is mandatory whenever a Release exists. The executor cannot clear its own work or infer Issue acceptance; it may record the owner's explicit `accepted` decision.
+- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C-###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Release Check is mandatory whenever a Release exists. The executor cannot clear its own work or infer Issue acceptance; it may record the owner's explicit `accepted` decision.
 - **Board-recorded Task-check waivers**: pressing Space on the V2 board to complete a Task at stage check that has no recorded Check at all (`ClearanceMissing`) is itself the explicit owner action TEST-09 requires — only a human at the interactive keyboard reaches that key, never an agent. The board auto-records the `check_waiver` block (task, reason, `actor: {role: owner, session: board-owner}`, time) in the same write that sets the Task done, rather than requiring the owner to hand-write that fact first. This never applies when a Check was actually recorded and found a problem (`needs_work`, `stale`, `unverified`): that result stands, and completion stays refused.
 
 ## 2. Directory layout
@@ -54,12 +54,12 @@ last_audited: v2/E51-first-class-releases
     ├── Guardrails.md               ← durable engineering policy
     ├── router.md                   ← V2 state and next action
     ├── config.yml                  ← schema_version, theme, quality gates
-    ├── releases/                   ← optional first-class R### records
-    │   └── R###-slug/Release.md
+    ├── releases/                   ← optional first-class R-### records
+    │   └── R-###-slug/Release.md
     ├── objectives/                 ← Objective records and owned Tasks
-    │   └── O###-slug/
+    │   └── O-###-slug/
     │       ├── Objective.md
-    │       └── tasks/T###-slug.md
+    │       └── tasks/T-###-slug.md
     ├── checks/                     ← immutable independent evidence
     ├── issues/                     ← durable follow-up records
     ├── archive/v1/                 ← byte-preserved historical source
@@ -67,7 +67,7 @@ last_audited: v2/E51-first-class-releases
 ```
 
 Release records are optional first-class V2 delivery boundaries:
-Objective membership is derived from each Objective's `release: R###` field,
+Objective membership is derived from each Objective's `release: R-###` field,
 and Release completion does not publish, deploy, tag, or generate changelogs.
 
 AGENTS.md at root is the active cross-vendor guide. Design.md in `.savepoint/`
@@ -81,7 +81,7 @@ copies, not hardcoded strings.
 
 | Level        | Definition                                                                             |
 | ------------ | -------------------------------------------------------------------------------------- |
-| **Release**  | Optional `R###` delivery boundary. Membership is derived from Objective references; completion never publishes or deploys. |
+| **Release**  | Optional `R-###` delivery boundary. Membership is derived from Objective references; completion never publishes or deploys. |
 | **Objective**| A durable outcome with an optional Release reference and owned Tasks.                 |
 | **Task**     | Independently buildable work owned by exactly one Objective; requires an implementation plan before build. |
 | **Check**    | Immutable independent evidence: optional Quick evidence for a requested Task Check, mandatory Full integration evidence for an Objective, and mandatory Full cross-Objective evidence for a Release. |
@@ -113,7 +113,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 
 ## 5. Dependencies
 
-- Declared in YAML frontmatter. Task dependencies use `T###` references and Objective dependencies use `O###`; the board transition gate and doctor diagnostics resolve them through `internal/data.ResolveDependency`.
+- Declared in YAML frontmatter. Task dependencies use `T-###` references and Objective dependencies use `O-###`; the board transition gate and doctor diagnostics resolve them through `internal/data.ResolveDependency`.
 - Doctor dependency checks detect duplicate task IDs, missing dependencies, and dependency cycles.
 - Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate. A Task-check waiver satisfies a Task dependency that requires `clear` — the waiver is the owner's own completion decision, standing in for "clear" there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
@@ -145,7 +145,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 5. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective/Release outcome.
 ```
 
-- Check records are immutable at `.savepoint/checks/C###-slug.md`; a re-check writes a new record naming the one it supersedes.
+- Check records are immutable at `.savepoint/checks/C-###-slug.md`; a re-check writes a new record naming the one it supersedes.
 - `savepoint-check` alone writes Check records and closes proven Issues as `verified`; the owner may close an Issue as `accepted` after visual inspection with reason, actor, and time. The executor may record only the owner's explicit decision and does not grant technical clearance.
 - Requested Quick Task Checks and mandatory Full Objective/Release Checks apply the shared non-triggerable method in `agent-skills/references/check-method.md`.
 
@@ -165,7 +165,7 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Release selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. The selected Objective and Task are filtered from the identity-keyed index. The Next area is a one-line glance at the shared `data.Next` projection's own Task or Objective — its lifecycle word (Build/Test/Check, Planned, or Done; never "Audit"), its identity, and its title — and nothing more; the TUI panel and the deterministic non-TTY plain table render that same one line, so piping the board and looking at it still agree with each other. The rung label, per-criterion evidence, owner-wait/exception/dependency wording, and the action sentence remain `savepoint resume`'s narrative (`internal/resume`) and the record's own detail overlay, both unchanged, both still read from the same resolvers — board and resume are intentionally no longer required to render identical wording for that fuller detail; the board is a glance, resume is the report.
 
-**Task-card review outcome (O012):** each non-planned Task card shows at most one review-outcome badge — `[ ] CHECK`, `[✓] CHECK`, `[!] NEEDS WORK`, `[!] REVIEW` (stale/unknown clearance and a checker-authority gate failure fold into this one label), `[✓] WAIVED`, or `[✓] OWNER ACCEPTED` — at fixed precedence (an owner-accepted exception first, an owner Check waiver second, resolved clearance otherwise), so a card never states two competing outcomes. Completion is the Done column's own fact now: the retired `✓ DONE`, `⚠ DONE`, `BY WAIVER`, and `BY EXCEPTION` badges no longer appear. An open Task's card states the outcome only when it is itself actionable (`NEEDS WORK` or the `REVIEW` fold) or the Task carries an owner's own waiver/exception; `ClearanceCurrent` and `ClearanceMissing` read as Done-column vocabulary instead. Waiver and owner-accepted risk keep the same green accent a current Check gets but stay distinct labels — neither is independent technical clearance, and neither replaces the mandatory Objective or Release Check; `internal/data` still owns every underlying clearance, waiver, and exception decision (Section 1). This is presentation only.
+**Task-card review outcome (O-012):** each non-planned Task card shows at most one review-outcome badge — `[ ] CHECK`, `[✓] CHECK`, `[!] NEEDS WORK`, `[!] REVIEW` (stale/unknown clearance and a checker-authority gate failure fold into this one label), `[✓] WAIVED`, or `[✓] OWNER ACCEPTED` — at fixed precedence (an owner-accepted exception first, an owner Check waiver second, resolved clearance otherwise), so a card never states two competing outcomes. Completion is the Done column's own fact now: the retired `✓ DONE`, `⚠ DONE`, `BY WAIVER`, and `BY EXCEPTION` badges no longer appear. An open Task's card states the outcome only when it is itself actionable (`NEEDS WORK` or the `REVIEW` fold) or the Task carries an owner's own waiver/exception; `ClearanceCurrent` and `ClearanceMissing` read as Done-column vocabulary instead. Waiver and owner-accepted risk keep the same green accent a current Check gets but stay distinct labels — neither is independent technical clearance, and neither replaces the mandatory Objective or Release Check; `internal/data` still owns every underlying clearance, waiver, and exception decision (Section 1). This is presentation only.
 
 **Visual guardrail:** the terminal board intentionally uses one black background for Background, Surface, and Surface 2. Do not restore subtly different dark panel fills; depth should come from spacing, dividers, glyphs, and focused Atari Orange borders.
 
@@ -187,7 +187,7 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 ## 10. Release versioning (PRDs)
 
-- First-class Releases use stable `R###` identities with a title, outcome,
+- First-class Releases use stable `R-###` identities with a title, outcome,
   success conditions, optional scoped Check evidence, material Issue links, and
   exact owner acceptance. Membership is derived from `Objective.release`.
 - Historical `v1`/`v2` PRDs remain in `.savepoint/archive/v1/` and are not

@@ -73,7 +73,7 @@ func (r ObjectiveRow) ID() string {
 }
 
 // objectiveRows resolves every Objective in index into a sidebar row, in
-// ascending O### order so a project renders the same way twice. Every value on
+// ascending O-### order so a project renders the same way twice. Every value on
 // a row comes from a resolver or from the record itself.
 func objectiveRows(index *data.V2Index) []ObjectiveRow {
 	return objectiveRowsForRelease(index, "")
@@ -188,7 +188,7 @@ func taskIDsInReleaseView(index *data.V2Index, releaseID, objectiveID string) []
 // version also carried objectiveIntegrationBadge ("INTEGRATED" / "NEEDS
 // INTEGRATION"), which — once every owned Task was done — restated the exact
 // same clearance.State the Check badge already showed, in different and
-// more alarming-sounding words. That duplication was flagged (I012) and
+// more alarming-sounding words. That duplication was flagged (I-012) and
 // removed rather than patched: objectiveCheckBadge alone, with byException
 // folded in, is now this row's whole answer to "is this Objective ready to
 // close." TasksComplete stays on ObjectiveRow because callers besides this
@@ -276,7 +276,7 @@ func sidebarStyle(focused bool) lipgloss.Style {
 	return styles.ColumnUnfocused
 }
 
-// renderObjectiveRow draws one row: its markers and O### identity, the human
+// renderObjectiveRow draws one row: its markers and O-### identity, the human
 // title its author wrote, the status its record records, and its badges. The
 // title wraps across up to two lines before truncating so the whole title can
 // be read, while subsequent lines are indented past the marker column.
@@ -313,7 +313,7 @@ func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) stri
 }
 
 // objectiveStatusLabel is the one place an Objective's recorded Status
-// becomes owner-facing text (I013): the row shows "Planned", "In Progress",
+// becomes owner-facing text (I-013): the row shows "Planned", "In Progress",
 // and "Done" rather than the raw frontmatter values, which stay
 // `planned`/`in_progress`/`done` in every record and resolver untouched. A
 // status outside those three reports itself rather than a guess.

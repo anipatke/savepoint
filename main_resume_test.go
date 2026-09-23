@@ -20,11 +20,11 @@ func writeResumeV2Project(t *testing.T, root string) {
 	t.Helper()
 	savepointDir := filepath.Join(root, ".savepoint")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "config.yml"), "schema_version: 2\n")
-	testutil.WriteFile(t, filepath.Join(savepointDir, "router.md"), resumeRouterV2Content("task", "O001", "T001", "Build T001."))
-	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O001-first", "Objective.md"),
-		"---\nid: O001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
-	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O001-first", "tasks", "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Do the thing\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
+	testutil.WriteFile(t, filepath.Join(savepointDir, "router.md"), resumeRouterV2Content("task", "O-001", "T-001", "Build T-001."))
+	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "Objective.md"),
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
+	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "tasks", "T-001-alpha.md"),
+		"---\nid: T-001\ntitle: \"Do the thing\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
 }
 
 func resumeRouterV2Content(state, objective, task, nextAction string) string {
@@ -41,10 +41,10 @@ func TestMainResumeV2ProjectRendersAndExitsZero(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("savepoint resume failed: %v\nstderr: %s", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "Task: T001 — Do the thing") {
+	if !strings.Contains(result.stdout, "Task: T-001 — Do the thing") {
 		t.Errorf("stdout = %q, want the selected Task named", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "Next action: Start Task T001.") {
+	if !strings.Contains(result.stdout, "Next action: Start Task T-001.") {
 		t.Errorf("stdout = %q, want the next action", result.stdout)
 	}
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
@@ -97,7 +97,7 @@ func TestMainResumeNotASavepointProject(t *testing.T) {
 func TestMainResumeMalformedRouter(t *testing.T) {
 	dir := t.TempDir()
 	writeResumeV2Project(t, dir)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("bogus", "O001", "T001", "Build T001."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("bogus", "O-001", "T-001", "Build T-001."))
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"resume", dir}, "")
@@ -116,12 +116,12 @@ func TestMainResumeIndexFailsToLoad(t *testing.T) {
 	savepointDir := filepath.Join(dir, ".savepoint")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "config.yml"), "schema_version: 2\n")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "router.md"), resumeRouterV2Content("idea", "none", "none", ""))
-	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O001-first", "Objective.md"),
-		"---\nid: O001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
+	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "Objective.md"),
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
 	// A Task missing its required title fails DecodeTaskV2, so the whole
 	// index load fails closed rather than loading a project short one Task.
-	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O001-first", "tasks", "T001-alpha.md"),
-		"---\nid: T001\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Untitled\n")
+	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "tasks", "T-001-alpha.md"),
+		"---\nid: T-001\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Untitled\n")
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"resume", dir}, "")
@@ -138,7 +138,7 @@ func TestMainResumeIndexFailsToLoad(t *testing.T) {
 func TestMainResumeUnresolvableSelectionStillExitsZero(t *testing.T) {
 	dir := t.TempDir()
 	writeResumeV2Project(t, dir)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O001", "T999", "Build T999."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O-001", "T-999", "Build T-999."))
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"resume", dir}, "")
@@ -146,7 +146,7 @@ func TestMainResumeUnresolvableSelectionStillExitsZero(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("savepoint resume over an unresolvable selection failed: %v\nstderr: %s", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "Selection: The router names task T999") {
+	if !strings.Contains(result.stdout, "Selection: The router names task T-999") {
 		t.Fatalf("stdout = %q, want the selection diagnostic named", result.stdout)
 	}
 	if !strings.Contains(result.stdout, "Next action:") {

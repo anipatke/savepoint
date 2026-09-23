@@ -144,7 +144,7 @@ func AuditValidationRepair(code data.AuditValidationCode) string {
 	case data.AuditEpicRefMissing:
 		return "Fix the epics entry to name an existing epic (E## or full epic id), or remove the entry"
 	case data.AuditTaskRefMissing:
-		return "Fix the tasks entry to name an existing task (T### or epic/task id), or remove the entry"
+		return "Fix the tasks entry to name an existing task (T-### or epic/task id), or remove the entry"
 	case data.AuditDefectRefMissing:
 		return "Fix the defects entry to name an existing defect id, or remove the entry"
 	case data.AuditDuplicateRefMissing:
@@ -167,17 +167,17 @@ func V2ProblemRepair(name string) string {
 	case "v2-missing-field":
 		return "Add the missing required field named in the diagnostic to the record's frontmatter"
 	case "v2-invalid-id":
-		return "Set the record's id or reference to a valid family identity: O### (Objective), T### (Task), C### (Check), or I### (Issue reference), each with at least three digits"
+		return "Set the record's id or reference to a valid family identity: O-### (Objective), T-### (Task), C-### (Check), or I-### (Issue reference), each with at least three digits"
 	case "v2-release-invalid-id":
-		return "Set the Release's id to a valid R### identity with at least three digits"
+		return "Set the Release's id to a valid R-### identity with at least three digits"
 	case "v2-invalid-ownership":
-		return "Set the Task's objective field to exactly one existing O### Objective id"
+		return "Set the Task's objective field to exactly one existing O-### Objective id"
 	case "v2-invalid-lifecycle":
 		return "Set status (and stage while status is in_progress) to a supported V2 lifecycle value"
 	case "v2-invalid-dependency":
-		return "Fix the depends_on entry: task must be a T### id and requires must be clear or accepted"
+		return "Fix the depends_on entry: task must be a T-### id and requires must be clear or accepted"
 	case "v2-invalid-release-reference":
-		return "Set the Objective's release field to an existing R### Release, or remove it for an unassigned Objective"
+		return "Set the Objective's release field to an existing R-### Release, or remove it for an unassigned Objective"
 	case "v2-duplicate-id":
 		return "Rename one of the two records reporting the same id so each global id is declared once"
 	case "v2-path-mismatch":
@@ -185,9 +185,9 @@ func V2ProblemRepair(name string) string {
 	case "v2-unsafe-path":
 		return "Remove the symlink or case-aliasing path reported in the diagnostic; V2 records must resolve inside the project root"
 	case "v2-missing-owner":
-		return "Create the referenced O### Objective, or fix the Task's objective field to reference one that exists"
+		return "Create the referenced O-### Objective, or fix the Task's objective field to reference one that exists"
 	case "v2-missing-release":
-		return "Create the referenced R### Release, or remove or correct the Objective's release field"
+		return "Create the referenced R-### Release, or remove or correct the Objective's release field"
 	case "v2-release-missing-section":
 		return "Add the missing required Release body section: Outcome, Why, Success Conditions, or Boundaries"
 	case "v2-release-legacy-malformed":
@@ -219,9 +219,9 @@ func V2ProblemRepair(name string) string {
 	case "v2-issue-malformed":
 		return "Fix the named Issue field in the record's frontmatter — type, status, source, resolution, and history each have a fixed vocabulary"
 	case "v2-issue-missing-duplicate-target":
-		return "Set duplicate_of to an existing I### Issue id, or remove the field"
+		return "Set duplicate_of to an existing I-### Issue id, or remove the field"
 	case "v2-issue-missing-escalation-target":
-		return "Set escalated_to to an existing O### Objective id, or remove the field"
+		return "Set escalated_to to an existing O-### Objective id, or remove the field"
 	case "v2-issue-self-duplicate":
 		return "Remove the Issue's own id from its duplicate_of field, or point it at a different canonical Issue"
 	case "v2-issue-duplicate-cycle":
@@ -235,7 +235,7 @@ func V2ProblemRepair(name string) string {
 	case "v2-issue-resolution-not-allowed":
 		return "Remove the resolution block, or set the Issue's status to resolved"
 	case "v2-issue-resolution-missing-proof":
-		return "Set resolution.check to an existing, CLEAR C### Check that appears in the Issue's checks field"
+		return "Set resolution.check to an existing, CLEAR C-### Check that appears in the Issue's checks field"
 	case "v2-issue-resolution-unusable-proof":
 		return "Point resolution.check at a Check that recorded CLEAR and is listed in the Issue's checks field"
 	case "v2-issue-resolution-field-mismatch":

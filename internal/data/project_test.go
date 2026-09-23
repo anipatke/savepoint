@@ -128,11 +128,11 @@ func TestLoadProjectV1DiscoveryUnchanged(t *testing.T) {
 
 func TestLoadV2Index_valid(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O002-second", "O002", "Second objective", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
-	writeV2TaskFixture(t, root, "O002-second", "T003-gamma.md", "T003", "Gamma", "O002")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-002-beta.md", "T-002", "Beta", "O-001")
+	writeV2TaskFixture(t, root, "O-002-second", "T-003-gamma.md", "T-003", "Gamma", "O-002")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -143,12 +143,12 @@ func TestLoadV2Index_valid(t *testing.T) {
 		t.Fatalf("LoadV2Index() Objectives = %d, Tasks = %d, want 2, 3", len(index.Objectives), len(index.Tasks))
 	}
 
-	owned := index.ObjectiveTasks["O001"]
-	if len(owned) != 2 || owned[0] != "T001" || owned[1] != "T002" {
-		t.Errorf("ObjectiveTasks[O001] = %v, want [T001 T002] in sorted order", owned)
+	owned := index.ObjectiveTasks["O-001"]
+	if len(owned) != 2 || owned[0] != "T-001" || owned[1] != "T-002" {
+		t.Errorf("ObjectiveTasks[O-001] = %v, want [T-001 T-002] in sorted order", owned)
 	}
-	if got := index.ObjectiveTasks["O002"]; len(got) != 1 || got[0] != "T003" {
-		t.Errorf("ObjectiveTasks[O002] = %v, want [T003]", got)
+	if got := index.ObjectiveTasks["O-002"]; len(got) != 1 || got[0] != "T-003" {
+		t.Errorf("ObjectiveTasks[O-002] = %v, want [T-003]", got)
 	}
 }
 
@@ -169,27 +169,27 @@ func TestLoadV2Index_emptyProject(t *testing.T) {
 // the Task file is filed under a different Objective's tasks/ directory.
 func TestLoadV2Index_movedTaskRetainsOwnership(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O002-second", "O002", "Second objective")
-	writeV2TaskFixture(t, root, "O002-second", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	writeV2TaskFixture(t, root, "O-002-second", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 
-	if got := index.ObjectiveTasks["O001"]; len(got) != 1 || got[0] != "T001" {
-		t.Errorf("ObjectiveTasks[O001] = %v, want [T001] despite the file living under O002-second/tasks", got)
+	if got := index.ObjectiveTasks["O-001"]; len(got) != 1 || got[0] != "T-001" {
+		t.Errorf("ObjectiveTasks[O-001] = %v, want [T-001] despite the file living under O-002-second/tasks", got)
 	}
-	if len(index.ObjectiveTasks["O002"]) != 0 {
-		t.Errorf("ObjectiveTasks[O002] = %v, want empty: the containing directory does not grant ownership", index.ObjectiveTasks["O002"])
+	if len(index.ObjectiveTasks["O-002"]) != 0 {
+		t.Errorf("ObjectiveTasks[O-002] = %v, want empty: the containing directory does not grant ownership", index.ObjectiveTasks["O-002"])
 	}
 }
 
 func TestLoadV2Index_missingOwner(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O999")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-999")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2MissingOwner) {
@@ -199,27 +199,27 @@ func TestLoadV2Index_missingOwner(t *testing.T) {
 
 // TestLoadV2Index_integratedProjectScenario combines the behaviors E42's
 // tasks proved in isolation into one project, as the completed-epic
-// boundary: distinct human titles vs O###/T### identity, valid Objectives
+// boundary: distinct human titles vs O-###/T-### identity, valid Objectives
 // and Tasks, a Task moved to a different Objective's tasks/ directory that
 // still resolves ownership from its own field, unknown frontmatter content
 // surviving the full discover-then-decode path, and deterministic
 // (repeat-run-stable) indexing.
 func TestLoadV2Index_integratedProjectScenario(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-ship", "O001", "Ship the thing")
-	writeV2ObjectiveFixture(t, root, "O002-polish", "O002", "Polish the thing")
-	writeV2TaskFixture(t, root, "O001-ship", "T001-write-code.md", "T001", "Write the code", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-ship", "O-001", "Ship the thing")
+	writeV2ObjectiveFixture(t, root, "O-002-polish", "O-002", "Polish the thing")
+	writeV2TaskFixture(t, root, "O-001-ship", "T-001-write-code.md", "T-001", "Write the code", "O-001")
 
-	// T002 carries unknown top-level and nested-mapping fields; the source
+	// T-002 carries unknown top-level and nested-mapping fields; the source
 	// document must retain them even though DecodeTaskV2 projects only the
 	// typed fields it knows about.
-	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-ship", v2TasksDirName, "T002-review-code.md"),
-		"---\nid: T002\ntitle: \"Review the code\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\nnotes: kept for reviewers\nmetadata:\n  reviewer:\n    name: sam\n---\n\n# Review the code\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-ship", v2TasksDirName, "T-002-review-code.md"),
+		"---\nid: T-002\ntitle: \"Review the code\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\nnotes: kept for reviewers\nmetadata:\n  reviewer:\n    name: sam\n---\n\n# Review the code\n")
 
-	// T003 is owned by O002 but filed under O001's tasks/ directory: a moved
+	// T-003 is owned by O-002 but filed under O-001's tasks/ directory: a moved
 	// Task whose ownership must come from its own objective field, not its
 	// containing directory.
-	writeV2TaskFixture(t, root, "O001-ship", "T003-ship-it.md", "T003", "Ship it", "O002")
+	writeV2TaskFixture(t, root, "O-001-ship", "T-003-ship-it.md", "T-003", "Ship it", "O-002")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -236,28 +236,28 @@ func TestLoadV2Index_integratedProjectScenario(t *testing.T) {
 		}
 	}
 
-	if got := index.ObjectiveTasks["O001"]; len(got) != 2 || got[0] != "T001" || got[1] != "T002" {
-		t.Errorf("ObjectiveTasks[O001] = %v, want [T001 T002]", got)
+	if got := index.ObjectiveTasks["O-001"]; len(got) != 2 || got[0] != "T-001" || got[1] != "T-002" {
+		t.Errorf("ObjectiveTasks[O-001] = %v, want [T-001 T-002]", got)
 	}
-	if got := index.ObjectiveTasks["O002"]; len(got) != 1 || got[0] != "T003" {
-		t.Errorf("ObjectiveTasks[O002] = %v, want [T003] despite T003's file living under O001-ship/tasks", got)
+	if got := index.ObjectiveTasks["O-002"]; len(got) != 1 || got[0] != "T-003" {
+		t.Errorf("ObjectiveTasks[O-002] = %v, want [T-003] despite T-003's file living under O-001-ship/tasks", got)
 	}
 
-	t2 := index.Tasks["T002"]
+	t2 := index.Tasks["T-002"]
 	t2Mapping := t2.Source.Frontmatter.Content[0]
 	if notes, ok := mappingFieldValue(t2Mapping, "notes"); !ok || notes != "kept for reviewers" {
-		t.Errorf("T002 preserved notes field = %q, ok = %v, want \"kept for reviewers\", true", notes, ok)
+		t.Errorf("T-002 preserved notes field = %q, ok = %v, want \"kept for reviewers\", true", notes, ok)
 	}
 	metadataNode := findMappingChild(t2Mapping, "metadata")
 	if metadataNode == nil {
-		t.Fatal("T002 lost its unknown nested metadata field")
+		t.Fatal("T-002 lost its unknown nested metadata field")
 	}
 	reviewerNode := findMappingChild(metadataNode, "reviewer")
 	if reviewerNode == nil {
-		t.Fatal("T002 lost its unknown nested metadata.reviewer field")
+		t.Fatal("T-002 lost its unknown nested metadata.reviewer field")
 	}
 	if name, ok := mappingFieldValue(reviewerNode, "name"); !ok || name != "sam" {
-		t.Errorf("T002 preserved metadata.reviewer.name = %q, ok = %v, want \"sam\", true", name, ok)
+		t.Errorf("T-002 preserved metadata.reviewer.name = %q, ok = %v, want \"sam\", true", name, ok)
 	}
 
 	reindex, err := LoadV2Index(root)
@@ -286,11 +286,11 @@ func findMappingChild(mapping *yaml.Node, key string) *yaml.Node {
 // in-memory graph algorithm covered directly in dependency_test.go.
 func TestLoadV2Index_taskCycleFromDisk(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T002}]\n---\n\n# Alpha\n")
-	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T002-beta.md"),
-		"---\nid: T002\ntitle: \"Beta\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T001}]\n---\n\n# Beta\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-001-alpha.md"),
+		"---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T-002}]\n---\n\n# Alpha\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-002-beta.md"),
+		"---\nid: T-002\ntitle: \"Beta\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\ndepends_on: [{task: T-001}]\n---\n\n# Beta\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2DependencyCycle) {
@@ -300,30 +300,30 @@ func TestLoadV2Index_taskCycleFromDisk(t *testing.T) {
 
 func TestLoadV2Index_checksValid(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 
-	if len(index.Checks) != 1 || index.Checks["C001"] == nil {
-		t.Fatalf("Checks = %+v, want C001", index.Checks)
+	if len(index.Checks) != 1 || index.Checks["C-001"] == nil {
+		t.Fatalf("Checks = %+v, want C-001", index.Checks)
 	}
-	if got := index.ScopeChecks["T001"]; len(got) != 1 || got[0] != "C001" {
-		t.Errorf("ScopeChecks[T001] = %v, want [C001]", got)
+	if got := index.ScopeChecks["T-001"]; len(got) != 1 || got[0] != "C-001" {
+		t.Errorf("ScopeChecks[T-001] = %v, want [C-001]", got)
 	}
-	if got := index.LatestCheck["T001"]; got != "C001" {
-		t.Errorf("LatestCheck[T001] = %q, want C001", got)
+	if got := index.LatestCheck["T-001"]; got != "C-001" {
+		t.Errorf("LatestCheck[T-001] = %q, want C-001", got)
 	}
 }
 
 func TestLoadV2Index_checksAbsentDirLoadsEmpty(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -336,7 +336,7 @@ func TestLoadV2Index_checksAbsentDirLoadsEmpty(t *testing.T) {
 
 func TestLoadV2Index_checkMissingScopeTarget(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T999")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-999")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckMissingScopeTarget) {
@@ -349,102 +349,102 @@ func TestLoadV2Index_checkMissingScopeTarget(t *testing.T) {
 // individually addressable by ID.
 func TestLoadV2Index_checkSupersedesChain(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 
-	if got := index.ScopeChecks["T001"]; len(got) != 2 || got[0] != "C001" || got[1] != "C002" {
-		t.Errorf("ScopeChecks[T001] = %v, want [C001 C002]", got)
+	if got := index.ScopeChecks["T-001"]; len(got) != 2 || got[0] != "C-001" || got[1] != "C-002" {
+		t.Errorf("ScopeChecks[T-001] = %v, want [C-001 C-002]", got)
 	}
-	if got := index.LatestCheck["T001"]; got != "C002" {
-		t.Errorf("LatestCheck[T001] = %q, want C002", got)
+	if got := index.LatestCheck["T-001"]; got != "C-002" {
+		t.Errorf("LatestCheck[T-001] = %q, want C-002", got)
 	}
 }
 
 func TestLoadV2Index_checkOrderingAcrossC999C1000Boundary(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
-	writeV2CheckFixture(t, root, "C999-older.md", "C999", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C1000-newer.md"),
-		"---\nid: C1000\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C999\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-002-beta.md", "T-002", "Beta", "O-001")
+	writeV2CheckFixture(t, root, "C-999-older.md", "C-999", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-1000-newer.md"),
+		"---\nid: C-1000\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-999\n---\n\n# Check\n")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if got := index.ScopeChecks["T001"]; len(got) != 2 || got[0] != "C999" || got[1] != "C1000" {
-		t.Fatalf("ScopeChecks[T001] = %v, want [C999 C1000] in numeric order", got)
+	if got := index.ScopeChecks["T-001"]; len(got) != 2 || got[0] != "C-999" || got[1] != "C-1000" {
+		t.Fatalf("ScopeChecks[T-001] = %v, want [C-999 C-1000] in numeric order", got)
 	}
-	if got := index.LatestCheck["T001"]; got != "C1000" {
-		t.Fatalf("LatestCheck[T001] = %q, want C1000", got)
+	if got := index.LatestCheck["T-001"]; got != "C-1000" {
+		t.Fatalf("LatestCheck[T-001] = %q, want C-1000", got)
 	}
 
-	t001 := index.Tasks["T001"]
+	t001 := index.Tasks["T-001"]
 	t001.Evidence = &Evidence{Freshness: &Freshness{
-		State: FreshnessCurrent, Check: "C1000",
+		State: FreshnessCurrent, Check: "C-1000",
 		AssessedBy: Actor{Role: ActorRoleChecker, Session: "checker-1"},
 		Basis:      "reviewed the newer check",
 	}}
 	t001.Status = ColumnDone
-	if got := ResolveClearance(index, "T001"); got.State != ClearanceCurrent || got.Check != "C1000" {
-		t.Fatalf("ResolveClearance(T001) = %+v, want current/C1000", got)
+	if got := ResolveClearance(index, "T-001"); got.State != ClearanceCurrent || got.Check != "C-1000" {
+		t.Fatalf("ResolveClearance(T-001) = %+v, want current/C-1000", got)
 	}
-	index.Tasks["T002"].Status = ColumnPlanned
-	index.Tasks["T002"].DependsOn = []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}}
-	if dependency := ResolveTaskDependencyV2(index, index.Tasks["T002"].DependsOn[0]); !dependency.Satisfied {
-		t.Fatalf("ResolveTaskDependencyV2(T002 -> T001) = %+v, want satisfied", dependency)
+	index.Tasks["T-002"].Status = ColumnPlanned
+	index.Tasks["T-002"].DependsOn = []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}}
+	if dependency := ResolveTaskDependencyV2(index, index.Tasks["T-002"].DependsOn[0]); !dependency.Satisfied {
+		t.Fatalf("ResolveTaskDependencyV2(T-002 -> T-001) = %+v, want satisfied", dependency)
 	}
 
 	t001.Status = ColumnInProgress
 	t001.Stage = StageAudit
-	if decision := ResolveTaskCompletion(index, "T001"); !decision.Allowed {
-		t.Fatalf("ResolveTaskCompletion(T001) = %+v, want allowed from latest C1000", decision)
+	if decision := ResolveTaskCompletion(index, "T-001"); !decision.Allowed {
+		t.Fatalf("ResolveTaskCompletion(T-001) = %+v, want allowed from latest C-1000", decision)
 	}
 	next := ResolveNext(NextInput{
 		Index:  index,
-		Router: &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"},
+		Router: &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"},
 	})
-	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("ResolveNext() = %+v, want execute T001 from latest C1000", next)
+	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("ResolveNext() = %+v, want execute T-001 from latest C-1000", next)
 	}
 }
 
 func TestLoadV2Index_checkSupersedesMultipleHeads(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
-	writeV2CheckFixture(t, root, "C003-stray.md", "C003", "task", "T001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
+	writeV2CheckFixture(t, root, "C-003-stray.md", "C-003", "task", "T-001")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2CheckSupersedesConflict", err)
 	}
-	if !strings.Contains(err.Error(), "C003") || !strings.Contains(err.Error(), "C002") {
+	if !strings.Contains(err.Error(), "C-003") || !strings.Contains(err.Error(), "C-002") {
 		t.Fatalf("LoadV2Index() error = %v, want the stray head and required predecessor named", err)
 	}
 }
 
 func TestLoadV2Index_checkSupersedesOrderMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C003\n---\n\n# Check\n")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C003-rerun.md"),
-		"---\nid: C003\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-16T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-003\n---\n\n# Check\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-003-rerun.md"),
+		"---\nid: C-003\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-16T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -454,10 +454,10 @@ func TestLoadV2Index_checkSupersedesOrderMismatch(t *testing.T) {
 
 func TestLoadV2Index_checkSupersedesMissingTarget(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C999\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-999\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckMissingReference) {
@@ -467,12 +467,12 @@ func TestLoadV2Index_checkSupersedesMissingTarget(t *testing.T) {
 
 func TestLoadV2Index_checkSupersedesScopeMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T002}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-002-beta.md", "T-002", "Beta", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-002}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -484,13 +484,13 @@ func TestLoadV2Index_checkSupersedesScopeMismatch(t *testing.T) {
 // target Check is rejected, not silently treated as two valid chain heads.
 func TestLoadV2Index_checkSupersedesFork(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C003-also-rerun.md"),
-		"---\nid: C003\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T01:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-003-also-rerun.md"),
+		"---\nid: C-003\nscope: {kind: task, id: T-001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-3}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T01:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -500,12 +500,12 @@ func TestLoadV2Index_checkSupersedesFork(t *testing.T) {
 
 func TestLoadV2Index_checkSupersedesCycle(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C001-first.md"),
-		"---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\nsupersedes: C002\n---\n\n# Check\n")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-second.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-001-first.md"),
+		"---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\nsupersedes: C-002\n---\n\n# Check\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-second.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2CheckSupersedesConflict) {
@@ -515,8 +515,8 @@ func TestLoadV2Index_checkSupersedesCycle(t *testing.T) {
 
 func TestLoadV2Index_checkDeterministicDiagnosticOrder(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T998")
-	writeV2CheckFixture(t, root, "C002-second.md", "C002", "task", "T999")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-998")
+	writeV2CheckFixture(t, root, "C-002-second.md", "C-002", "task", "T-999")
 
 	_, err1 := LoadV2Index(root)
 	_, err2 := LoadV2Index(root)
@@ -533,14 +533,14 @@ func TestLoadV2Index_checkDeterministicDiagnosticOrder(t *testing.T) {
 // a Task record all resolve against Checks discovered in the same index.
 func TestLoadV2Index_evidenceReferencesResolve(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-		"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+
-			"last_check: C001\n"+
-			"freshness: {state: current, check: C001, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-15T00:00:00Z', basis: reviewed}\n"+
-			"owner_validation: {required: true, accepted_check: C001, accepted_by: {role: owner, session: owner-1}}\n"+
-			"exception: {requirements: [TEST-08], reason: waived, owner: ani, recorded_at: '2026-09-15T00:00:00Z', check: C001}\n"+
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-001-alpha.md"),
+		"---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+
+			"last_check: C-001\n"+
+			"freshness: {state: current, check: C-001, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-15T00:00:00Z', basis: reviewed}\n"+
+			"owner_validation: {required: true, accepted_check: C-001, accepted_by: {role: owner, session: owner-1}}\n"+
+			"exception: {requirements: [TEST-08], reason: waived, owner: ani, recorded_at: '2026-09-15T00:00:00Z', check: C-001}\n"+
 			"---\n\n# Alpha\n")
 
 	index, err := LoadV2Index(root)
@@ -548,12 +548,12 @@ func TestLoadV2Index_evidenceReferencesResolve(t *testing.T) {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 
-	task := index.Tasks["T001"]
+	task := index.Tasks["T-001"]
 	if task.Evidence == nil {
-		t.Fatal("Tasks[T001].Evidence = nil, want decoded evidence")
+		t.Fatal("Tasks[T-001].Evidence = nil, want decoded evidence")
 	}
-	if task.Evidence.LastCheck != "C001" {
-		t.Errorf("Evidence.LastCheck = %q, want C001", task.Evidence.LastCheck)
+	if task.Evidence.LastCheck != "C-001" {
+		t.Errorf("Evidence.LastCheck = %q, want C-001", task.Evidence.LastCheck)
 	}
 }
 
@@ -565,18 +565,18 @@ func TestLoadV2Index_evidenceMissingReference(t *testing.T) {
 		name  string
 		field string
 	}{
-		{"last_check", "last_check: C999\n"},
-		{"freshness.check", "freshness: {state: current, check: C999, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-15T00:00:00Z', basis: reviewed}\n"},
-		{"owner_validation.accepted_check", "owner_validation: {required: true, accepted_check: C999, accepted_by: {role: owner, session: owner-1}}\n"},
-		{"exception.check", "exception: {requirements: [TEST-08], reason: waived, owner: ani, recorded_at: '2026-09-15T00:00:00Z', check: C999}\n"},
+		{"last_check", "last_check: C-999\n"},
+		{"freshness.check", "freshness: {state: current, check: C-999, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-15T00:00:00Z', basis: reviewed}\n"},
+		{"owner_validation.accepted_check", "owner_validation: {required: true, accepted_check: C-999, accepted_by: {role: owner, session: owner-1}}\n"},
+		{"exception.check", "exception: {requirements: [TEST-08], reason: waived, owner: ani, recorded_at: '2026-09-15T00:00:00Z', check: C-999}\n"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
-			writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-			testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2TasksDirName, "T001-alpha.md"),
-				"---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+tt.field+"---\n\n# Alpha\n")
+			writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+			testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-001-alpha.md"),
+				"---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n"+tt.field+"---\n\n# Alpha\n")
 
 			_, err := LoadV2Index(root)
 			if !errors.Is(err, ErrV2EvidenceMissingReference) {
@@ -590,8 +590,8 @@ func TestLoadV2Index_evidenceMissingReference(t *testing.T) {
 // reference resolution runs for Objective evidence, not just Task evidence.
 func TestLoadV2Index_evidenceMissingReferenceOnObjective(t *testing.T) {
 	root := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O001-first", v2ObjectiveFileName),
-		"---\nid: O001\ntitle: \"First objective\"\nstatus: planned\nlast_check: C999\n---\n\n# First objective\n")
+	testutil.WriteFile(t, filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2ObjectiveFileName),
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\nlast_check: C-999\n---\n\n# First objective\n")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2EvidenceMissingReference) {
@@ -601,11 +601,11 @@ func TestLoadV2Index_evidenceMissingReferenceOnObjective(t *testing.T) {
 
 func TestLoadV2Index_issuesValid(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I002-beta.md", id: "I002", status: "resolved",
+		fileName: "I-002-beta.md", id: "I-002", status: "resolved",
 		resolution: "{disposition: accepted, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
 	})
 
@@ -615,20 +615,20 @@ func TestLoadV2Index_issuesValid(t *testing.T) {
 	}
 
 	if len(index.Issues) != 2 {
-		t.Fatalf("Issues = %+v, want 2 keyed by I###", index.Issues)
+		t.Fatalf("Issues = %+v, want 2 keyed by I-###", index.Issues)
 	}
-	if index.Issues["I001"] == nil || index.Issues["I001"].Status != IssueStatusOpen {
-		t.Errorf("Issues[I001] = %+v, want the open issue", index.Issues["I001"])
+	if index.Issues["I-001"] == nil || index.Issues["I-001"].Status != IssueStatusOpen {
+		t.Errorf("Issues[I-001] = %+v, want the open issue", index.Issues["I-001"])
 	}
-	if index.Issues["I002"] == nil || index.Issues["I002"].Status != IssueStatusResolved {
-		t.Errorf("Issues[I002] = %+v, want the resolved issue", index.Issues["I002"])
+	if index.Issues["I-002"] == nil || index.Issues["I-002"].Status != IssueStatusResolved {
+		t.Errorf("Issues[I-002] = %+v, want the resolved issue", index.Issues["I-002"])
 	}
 }
 
 func TestLoadV2Index_issuesAbsentDirLoadsEmpty(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -651,34 +651,34 @@ func writeV2DuplicateIssueFixture(t *testing.T, root, fileName, id, duplicateOf 
 
 func TestLoadV2Index_issueDuplicateOfResolves(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-canonical.md", "I001", "open")
-	writeV2DuplicateIssueFixture(t, root, "I002-duplicate.md", "I002", "I001")
+	writeV2IssueFixture(t, root, "I-001-canonical.md", "I-001", "open")
+	writeV2DuplicateIssueFixture(t, root, "I-002-duplicate.md", "I-002", "I-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I002"].DuplicateOf != "I001" {
-		t.Errorf("Issues[I002].DuplicateOf = %q, want I001", index.Issues["I002"].DuplicateOf)
+	if index.Issues["I-002"].DuplicateOf != "I-001" {
+		t.Errorf("Issues[I-002].DuplicateOf = %q, want I-001", index.Issues["I-002"].DuplicateOf)
 	}
 }
 
 func TestLoadV2Index_issueDuplicateOfMissingTarget(t *testing.T) {
 	root := t.TempDir()
-	writeV2DuplicateIssueFixture(t, root, "I002-duplicate.md", "I002", "I999")
+	writeV2DuplicateIssueFixture(t, root, "I-002-duplicate.md", "I-002", "I-999")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2IssueMissingDuplicateTarget) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingDuplicateTarget", err)
 	}
-	if !strings.Contains(err.Error(), "I002") || !strings.Contains(err.Error(), "I999") {
+	if !strings.Contains(err.Error(), "I-002") || !strings.Contains(err.Error(), "I-999") {
 		t.Errorf("LoadV2Index() error = %v, want both the issue and its missing target named", err)
 	}
 }
 
 func TestLoadV2Index_issueDuplicateOfSelf(t *testing.T) {
 	root := t.TempDir()
-	writeV2DuplicateIssueFixture(t, root, "I001-self.md", "I001", "I001")
+	writeV2DuplicateIssueFixture(t, root, "I-001-self.md", "I-001", "I-001")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2IssueSelfDuplicate) {
@@ -690,9 +690,9 @@ func TestLoadV2Index_issueDuplicateOfSelf(t *testing.T) {
 // Issue is canonical, is refused rather than silently followed forever.
 func TestLoadV2Index_issueDuplicateOfCycle(t *testing.T) {
 	root := t.TempDir()
-	writeV2DuplicateIssueFixture(t, root, "I001-first.md", "I001", "I002")
-	writeV2DuplicateIssueFixture(t, root, "I002-second.md", "I002", "I003")
-	writeV2DuplicateIssueFixture(t, root, "I003-third.md", "I003", "I001")
+	writeV2DuplicateIssueFixture(t, root, "I-001-first.md", "I-001", "I-002")
+	writeV2DuplicateIssueFixture(t, root, "I-002-second.md", "I-002", "I-003")
+	writeV2DuplicateIssueFixture(t, root, "I-003-third.md", "I-003", "I-001")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2IssueDuplicateCycle) {
@@ -716,9 +716,9 @@ func TestLoadV2Index_issueDuplicateDiagnosticsAreDistinct(t *testing.T) {
 
 func TestLoadV2Index_issueDeterministicDiagnosticOrder(t *testing.T) {
 	root := t.TempDir()
-	writeV2DuplicateIssueFixture(t, root, "I001-first.md", "I001", "I997")
-	writeV2DuplicateIssueFixture(t, root, "I002-second.md", "I002", "I998")
-	writeV2DuplicateIssueFixture(t, root, "I003-third.md", "I003", "I999")
+	writeV2DuplicateIssueFixture(t, root, "I-001-first.md", "I-001", "I-997")
+	writeV2DuplicateIssueFixture(t, root, "I-002-second.md", "I-002", "I-998")
+	writeV2DuplicateIssueFixture(t, root, "I-003-third.md", "I-003", "I-999")
 
 	_, err1 := LoadV2Index(root)
 	_, err2 := LoadV2Index(root)
@@ -728,7 +728,7 @@ func TestLoadV2Index_issueDeterministicDiagnosticOrder(t *testing.T) {
 	if !errors.Is(err1, ErrV2IssueMissingDuplicateTarget) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingDuplicateTarget", err1)
 	}
-	if !strings.Contains(err1.Error(), "I001") {
+	if !strings.Contains(err1.Error(), "I-001") {
 		t.Errorf("LoadV2Index() error = %v, want the lowest-ID issue reported first", err1)
 	}
 }
@@ -738,10 +738,10 @@ func TestLoadV2Index_issueDeterministicDiagnosticOrder(t *testing.T) {
 // loading a project that is missing one record.
 func TestLoadV2Index_malformedIssueFailsClosed(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	testutil.WriteFile(t, filepath.Join(root, v2IssuesDirName, "I001-broken.md"),
-		"---\nid: I001\ntitle: \"Broken\"\ntype: defect\nstatus: open\n---\n\n# Issue\n")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	testutil.WriteFile(t, filepath.Join(root, v2IssuesDirName, "I-001-broken.md"),
+		"---\nid: I-001\ntitle: \"Broken\"\ntype: defect\nstatus: open\n---\n\n# Issue\n")
 
 	index, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2MissingField) {
@@ -814,8 +814,8 @@ func writeV2CheckWithIssuesFixture(t *testing.T, root, fileName, id, scopeKind, 
 // Objective, one Task, and one Check scoped to that Task.
 func writeV2LinkedProject(t *testing.T, root string) {
 	t.Helper()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 }
 
 // TestLoadV2Index_issueLinksResolve proves a fully paired Check-to-Issue link,
@@ -823,20 +823,20 @@ func writeV2LinkedProject(t *testing.T, root string) {
 func TestLoadV2Index_issueLinksResolve(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckWithIssuesFixture(t, root, "C001-alpha.md", "C001", "task", "T001", []string{"I001"})
+	writeV2CheckWithIssuesFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001", []string{"I-001"})
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", tasks: []string{"T001"}, checks: []string{"C001"},
+		fileName: "I-001-alpha.md", id: "I-001", tasks: []string{"T-001"}, checks: []string{"C-001"},
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if !reflect.DeepEqual(index.TaskIssues["T001"], []string{"I001"}) {
-		t.Errorf("TaskIssues[T001] = %v, want [I001]", index.TaskIssues["T001"])
+	if !reflect.DeepEqual(index.TaskIssues["T-001"], []string{"I-001"}) {
+		t.Errorf("TaskIssues[T-001] = %v, want [I-001]", index.TaskIssues["T-001"])
 	}
-	if !reflect.DeepEqual(index.CheckIssues["C001"], []string{"I001"}) {
-		t.Errorf("CheckIssues[C001] = %v, want [I001]", index.CheckIssues["C001"])
+	if !reflect.DeepEqual(index.CheckIssues["C-001"], []string{"I-001"}) {
+		t.Errorf("CheckIssues[C-001] = %v, want [I-001]", index.CheckIssues["C-001"])
 	}
 }
 
@@ -846,13 +846,13 @@ func TestLoadV2Index_issueLinksResolve(t *testing.T) {
 func TestLoadV2Index_checkNamesMissingIssue(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckWithIssuesFixture(t, root, "C001-alpha.md", "C001", "task", "T001", []string{"I999"})
+	writeV2CheckWithIssuesFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001", []string{"I-999"})
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2IssueMissingLinkTarget) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingLinkTarget", err)
 	}
-	if !strings.Contains(err.Error(), "C001") || !strings.Contains(err.Error(), "I999") {
+	if !strings.Contains(err.Error(), "C-001") || !strings.Contains(err.Error(), "I-999") {
 		t.Errorf("LoadV2Index() error = %v, want the check and the missing reference named", err)
 	}
 }
@@ -865,8 +865,8 @@ func TestLoadV2Index_issueNamesMissingRecord(t *testing.T) {
 		fixture v2IssueFixture
 		missing string
 	}{
-		{"missing task", v2IssueFixture{fileName: "I001-alpha.md", id: "I001", tasks: []string{"T999"}}, "T999"},
-		{"missing check", v2IssueFixture{fileName: "I001-alpha.md", id: "I001", checks: []string{"C999"}}, "C999"},
+		{"missing task", v2IssueFixture{fileName: "I-001-alpha.md", id: "I-001", tasks: []string{"T-999"}}, "T-999"},
+		{"missing check", v2IssueFixture{fileName: "I-001-alpha.md", id: "I-001", checks: []string{"C-999"}}, "C-999"},
 	}
 
 	for _, tt := range tests {
@@ -879,7 +879,7 @@ func TestLoadV2Index_issueNamesMissingRecord(t *testing.T) {
 			if !errors.Is(err, ErrV2IssueMissingLinkTarget) {
 				t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingLinkTarget", err)
 			}
-			if !strings.Contains(err.Error(), "I001") || !strings.Contains(err.Error(), tt.missing) {
+			if !strings.Contains(err.Error(), "I-001") || !strings.Contains(err.Error(), tt.missing) {
 				t.Errorf("LoadV2Index() error = %v, want the issue and %s named", err, tt.missing)
 			}
 		})
@@ -897,15 +897,15 @@ func TestLoadV2Index_checkIssueLinkUnpaired(t *testing.T) {
 		checkID string
 		issueID string
 	}{
-		{"check named first", "C001", "I002"},
-		{"issue named first", "C002", "I001"},
+		{"check named first", "C-001", "I-002"},
+		{"issue named first", "C-002", "I-001"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeV2LinkedProject(t, root)
-			writeV2CheckWithIssuesFixture(t, root, tt.checkID+"-alpha.md", tt.checkID, "task", "T001", []string{tt.issueID})
+			writeV2CheckWithIssuesFixture(t, root, tt.checkID+"-alpha.md", tt.checkID, "task", "T-001", []string{tt.issueID})
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: tt.issueID + "-alpha.md", id: tt.issueID})
 
 			index, err := LoadV2Index(root)
@@ -928,17 +928,17 @@ func TestLoadV2Index_checkIssueLinkUnpaired(t *testing.T) {
 func TestLoadV2Index_issueMayNameCheckThatDoesNotNameIt(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckFixture(t, root, "C001-recheck.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-recheck.md", "C-001", "task", "T-001")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", checks: []string{"C001"},
+		fileName: "I-001-alpha.md", id: "I-001", checks: []string{"C-001"},
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v, want an issue naming an unrecording check to be legal", err)
 	}
-	if !reflect.DeepEqual(index.CheckIssues["C001"], []string{"I001"}) {
-		t.Errorf("CheckIssues[C001] = %v, want [I001]", index.CheckIssues["C001"])
+	if !reflect.DeepEqual(index.CheckIssues["C-001"], []string{"I-001"}) {
+		t.Errorf("CheckIssues[C-001] = %v, want [I-001]", index.CheckIssues["C-001"])
 	}
 }
 
@@ -948,27 +948,27 @@ func TestLoadV2Index_issueMayNameCheckThatDoesNotNameIt(t *testing.T) {
 func TestLoadV2Index_issueLinkMapsAreOrdered(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I003-third.md", id: "I003", tasks: []string{"T001"}, checks: []string{"C001"},
+		fileName: "I-003-third.md", id: "I-003", tasks: []string{"T-001"}, checks: []string{"C-001"},
 	})
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-first.md", id: "I001", tasks: []string{"T001", "T001"}, checks: []string{"C001"},
+		fileName: "I-001-first.md", id: "I-001", tasks: []string{"T-001", "T-001"}, checks: []string{"C-001"},
 	})
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I002-second.md", id: "I002", tasks: []string{"T001"}, checks: []string{"C001"},
+		fileName: "I-002-second.md", id: "I-002", tasks: []string{"T-001"}, checks: []string{"C-001"},
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	want := []string{"I001", "I002", "I003"}
-	if !reflect.DeepEqual(index.TaskIssues["T001"], want) {
-		t.Errorf("TaskIssues[T001] = %v, want %v", index.TaskIssues["T001"], want)
+	want := []string{"I-001", "I-002", "I-003"}
+	if !reflect.DeepEqual(index.TaskIssues["T-001"], want) {
+		t.Errorf("TaskIssues[T-001] = %v, want %v", index.TaskIssues["T-001"], want)
 	}
-	if !reflect.DeepEqual(index.CheckIssues["C001"], want) {
-		t.Errorf("CheckIssues[C001] = %v, want %v", index.CheckIssues["C001"], want)
+	if !reflect.DeepEqual(index.CheckIssues["C-001"], want) {
+		t.Errorf("CheckIssues[C-001] = %v, want %v", index.CheckIssues["C-001"], want)
 	}
 }
 
@@ -977,7 +977,7 @@ func TestLoadV2Index_issueLinkMapsAreOrdered(t *testing.T) {
 func TestLoadV2Index_issueLinkMapsEmptyWithoutReferences(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -993,16 +993,16 @@ func TestLoadV2Index_issueLinkMapsEmptyWithoutReferences(t *testing.T) {
 func TestLoadV2Index_issueLinkDiagnosticOrder(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I001-first.md", id: "I001", tasks: []string{"T997"}})
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I002-second.md", id: "I002", tasks: []string{"T998"}})
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I003-third.md", id: "I003", tasks: []string{"T999"}})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-001-first.md", id: "I-001", tasks: []string{"T-997"}})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-002-second.md", id: "I-002", tasks: []string{"T-998"}})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-003-third.md", id: "I-003", tasks: []string{"T-999"}})
 
 	_, err1 := LoadV2Index(root)
 	_, err2 := LoadV2Index(root)
 	if err1 == nil || err2 == nil || err1.Error() != err2.Error() {
 		t.Fatalf("LoadV2Index() errors not deterministic across runs: %v vs %v", err1, err2)
 	}
-	if !strings.Contains(err1.Error(), "I001") {
+	if !strings.Contains(err1.Error(), "I-001") {
 		t.Errorf("LoadV2Index() error = %v, want the lowest-ID issue reported first", err1)
 	}
 }
@@ -1013,7 +1013,7 @@ func TestLoadV2Index_issueLinkDiagnosticOrder(t *testing.T) {
 func TestLoadV2Index_issueResolutionRequiredWhenResolved(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I001-alpha.md", id: "I001", status: "resolved"})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-001-alpha.md", id: "I-001", status: "resolved"})
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2IssueResolutionRequired) {
@@ -1030,7 +1030,7 @@ func TestLoadV2Index_issueResolutionNotAllowedWhenNotResolved(t *testing.T) {
 			root := t.TempDir()
 			writeV2LinkedProject(t, root)
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-				fileName: "I001-alpha.md", id: "I001", status: status,
+				fileName: "I-001-alpha.md", id: "I-001", status: status,
 				resolution: "{disposition: accepted, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
 			})
 
@@ -1072,24 +1072,24 @@ func TestLoadV2Index_issueVerifiedResolutionRequiresProof(t *testing.T) {
 		},
 		{
 			name:       "proof check does not exist",
-			resolution: verifiedResolution("C999"),
+			resolution: verifiedResolution("C-999"),
 			wantErr:    ErrV2IssueResolutionMissingProof,
 		},
 		{
 			name: "proof check recorded needs work",
 			setup: func(t *testing.T, root string) {
-				testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C001-alpha.md"),
-					"---\nid: C001\nscope: {kind: task, id: T001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
+				testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-001-alpha.md"),
+					"---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: NEEDS WORK\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
 			},
-			resolution: verifiedResolution("C001"),
+			resolution: verifiedResolution("C-001"),
 			wantErr:    ErrV2IssueResolutionUnusableProof,
 		},
 		{
 			name: "proof check not listed on the issue",
 			setup: func(t *testing.T, root string) {
-				writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+				writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 			},
-			resolution: verifiedResolution("C001"),
+			resolution: verifiedResolution("C-001"),
 			wantErr:    ErrV2IssueResolutionUnusableProof,
 		},
 	}
@@ -1102,7 +1102,7 @@ func TestLoadV2Index_issueVerifiedResolutionRequiresProof(t *testing.T) {
 				tt.setup(t, root)
 			}
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-				fileName: "I001-alpha.md", id: "I001", status: "resolved", resolution: tt.resolution,
+				fileName: "I-001-alpha.md", id: "I-001", status: "resolved", resolution: tt.resolution,
 			})
 
 			_, err := LoadV2Index(root)
@@ -1119,18 +1119,18 @@ func TestLoadV2Index_issueVerifiedResolutionRequiresProof(t *testing.T) {
 func TestLoadV2Index_issueVerifiedResolutionValid(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved", checks: []string{"C001"},
-		resolution: "{disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-16T00:00:00Z', reason: repaired and rechecked}",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved", checks: []string{"C-001"},
+		resolution: "{disposition: verified, check: C-001, actor: {role: checker, session: sess-1}, at: '2026-09-16T00:00:00Z', reason: repaired and rechecked}",
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionVerified {
-		t.Errorf("Resolution = %+v, want verified", index.Issues["I001"].Resolution)
+	if index.Issues["I-001"].Resolution == nil || index.Issues["I-001"].Resolution.Disposition != IssueDispositionVerified {
+		t.Errorf("Resolution = %+v, want verified", index.Issues["I-001"].Resolution)
 	}
 }
 
@@ -1152,7 +1152,7 @@ func TestLoadV2Index_issueAcceptedResolutionObligations(t *testing.T) {
 		},
 		{
 			name:       "names a proof check",
-			resolution: "{disposition: accepted, check: C001, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
+			resolution: "{disposition: accepted, check: C-001, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
 		},
 	}
 
@@ -1160,9 +1160,9 @@ func TestLoadV2Index_issueAcceptedResolutionObligations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeV2LinkedProject(t, root)
-			writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+			writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-				fileName: "I001-alpha.md", id: "I001", status: "resolved", resolution: tt.resolution,
+				fileName: "I-001-alpha.md", id: "I-001", status: "resolved", resolution: tt.resolution,
 			})
 
 			_, err := LoadV2Index(root)
@@ -1179,7 +1179,7 @@ func TestLoadV2Index_issueAcceptedResolutionValid(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved",
 		resolution: "{disposition: accepted, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
 	})
 
@@ -1187,8 +1187,8 @@ func TestLoadV2Index_issueAcceptedResolutionValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionAccepted {
-		t.Errorf("Resolution = %+v, want accepted", index.Issues["I001"].Resolution)
+	if index.Issues["I-001"].Resolution == nil || index.Issues["I-001"].Resolution.Disposition != IssueDispositionAccepted {
+		t.Errorf("Resolution = %+v, want accepted", index.Issues["I-001"].Resolution)
 	}
 }
 
@@ -1203,8 +1203,8 @@ func TestLoadV2Index_issueDuplicateResolutionObligations(t *testing.T) {
 	}{
 		{
 			name:        "names a proof check",
-			resolution:  "{disposition: duplicate, check: C001, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: same as I002}",
-			duplicateOf: "I002",
+			resolution:  "{disposition: duplicate, check: C-001, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: same as I-002}",
+			duplicateOf: "I-002",
 		},
 		{
 			name:       "missing duplicate_of",
@@ -1216,10 +1216,10 @@ func TestLoadV2Index_issueDuplicateResolutionObligations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeV2LinkedProject(t, root)
-			writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
-			writeV2IssueFixture(t, root, "I002-canonical.md", "I002", "open")
+			writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
+			writeV2IssueFixture(t, root, "I-002-canonical.md", "I-002", "open")
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-				fileName: "I001-alpha.md", id: "I001", status: "resolved",
+				fileName: "I-001-alpha.md", id: "I-001", status: "resolved",
 				resolution: tt.resolution, duplicateOf: tt.duplicateOf,
 			})
 
@@ -1237,18 +1237,18 @@ func TestLoadV2Index_issueDuplicateResolutionObligations(t *testing.T) {
 func TestLoadV2Index_issueDuplicateResolutionValid(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2IssueFixture(t, root, "I002-canonical.md", "I002", "open")
+	writeV2IssueFixture(t, root, "I-002-canonical.md", "I-002", "open")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved", duplicateOf: "I002",
-		resolution: "{disposition: duplicate, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: same as I002}",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved", duplicateOf: "I-002",
+		resolution: "{disposition: duplicate, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: same as I-002}",
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionDuplicate {
-		t.Errorf("Resolution = %+v, want duplicate", index.Issues["I001"].Resolution)
+	if index.Issues["I-001"].Resolution == nil || index.Issues["I-001"].Resolution.Disposition != IssueDispositionDuplicate {
+		t.Errorf("Resolution = %+v, want duplicate", index.Issues["I-001"].Resolution)
 	}
 }
 
@@ -1263,8 +1263,8 @@ func TestLoadV2Index_issueEscalatedResolutionObligations(t *testing.T) {
 	}{
 		{
 			name:        "names a proof check",
-			resolution:  "{disposition: escalated, check: C001, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
-			escalatedTo: "O001",
+			resolution:  "{disposition: escalated, check: C-001, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O-001}",
+			escalatedTo: "O-001",
 		},
 		{
 			name:        "missing escalated_to",
@@ -1273,8 +1273,8 @@ func TestLoadV2Index_issueEscalatedResolutionObligations(t *testing.T) {
 		},
 		{
 			name:        "non-planner actor",
-			resolution:  "{disposition: escalated, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
-			escalatedTo: "O001",
+			resolution:  "{disposition: escalated, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O-001}",
+			escalatedTo: "O-001",
 		},
 	}
 
@@ -1282,9 +1282,9 @@ func TestLoadV2Index_issueEscalatedResolutionObligations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeV2LinkedProject(t, root)
-			writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+			writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 			writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-				fileName: "I001-alpha.md", id: "I001", status: "resolved",
+				fileName: "I-001-alpha.md", id: "I-001", status: "resolved",
 				resolution: tt.resolution, escalatedTo: tt.escalatedTo,
 			})
 
@@ -1303,19 +1303,19 @@ func TestLoadV2Index_issueEscalatedResolutionValid(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved", escalatedTo: "O001",
-		resolution: "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O001}",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved", escalatedTo: "O-001",
+		resolution: "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted to O-001}",
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I001"].Resolution == nil || index.Issues["I001"].Resolution.Disposition != IssueDispositionEscalated {
-		t.Errorf("Resolution = %+v, want escalated", index.Issues["I001"].Resolution)
+	if index.Issues["I-001"].Resolution == nil || index.Issues["I-001"].Resolution.Disposition != IssueDispositionEscalated {
+		t.Errorf("Resolution = %+v, want escalated", index.Issues["I-001"].Resolution)
 	}
-	if index.Issues["I001"].EscalatedTo != "O001" {
-		t.Errorf("Issues[I001].EscalatedTo = %q, want O001", index.Issues["I001"].EscalatedTo)
+	if index.Issues["I-001"].EscalatedTo != "O-001" {
+		t.Errorf("Issues[I-001].EscalatedTo = %q, want O-001", index.Issues["I-001"].EscalatedTo)
 	}
 }
 
@@ -1325,7 +1325,7 @@ func TestLoadV2Index_issueEscalatedToMissingTarget(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved", escalatedTo: "O999",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved", escalatedTo: "O-999",
 		resolution: "{disposition: escalated, actor: {role: planner, session: planner-1}, at: '2026-09-16T00:00:00Z', reason: promoted}",
 	})
 
@@ -1333,7 +1333,7 @@ func TestLoadV2Index_issueEscalatedToMissingTarget(t *testing.T) {
 	if !errors.Is(err, ErrV2IssueMissingEscalationTarget) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueMissingEscalationTarget", err)
 	}
-	if !strings.Contains(err.Error(), "I001") || !strings.Contains(err.Error(), "O999") {
+	if !strings.Contains(err.Error(), "I-001") || !strings.Contains(err.Error(), "O-999") {
 		t.Errorf("LoadV2Index() error = %v, want both the issue and its missing target named", err)
 	}
 }
@@ -1348,42 +1348,42 @@ func TestLoadV2Index_issueEscalatedToMissingTarget(t *testing.T) {
 func TestLoadV2Index_issueVerifiedProofSupersededStillSatisfiesAtLoad(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckFixture(t, root, "C001-first.md", "C001", "task", "T001")
-	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C002-rerun.md"),
-		"---\nid: C002\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C001\n---\n\n# Check\n")
+	writeV2CheckFixture(t, root, "C-001-first.md", "C-001", "task", "T-001")
+	testutil.WriteFile(t, filepath.Join(root, v2ChecksDirName, "C-002-rerun.md"),
+		"---\nid: C-002\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-2}\nexecuted_session: build-fixture\nchecked_at: '2026-09-15T00:00:00Z'\nsupersedes: C-001\n---\n\n# Check\n")
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "resolved", checks: []string{"C001"},
-		resolution: "{disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z', reason: repaired}",
+		fileName: "I-001-alpha.md", id: "I-001", status: "resolved", checks: []string{"C-001"},
+		resolution: "{disposition: verified, check: C-001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z', reason: repaired}",
 	})
 
 	index, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v, want the superseded-but-still-CLEAR proof to satisfy verified at load", err)
 	}
-	if index.LatestCheck["T001"] != "C002" {
-		t.Fatalf("LatestCheck[T001] = %q, want C002 (the reference case for this test)", index.LatestCheck["T001"])
+	if index.LatestCheck["T-001"] != "C-002" {
+		t.Fatalf("LatestCheck[T-001] = %q, want C-002 (the reference case for this test)", index.LatestCheck["T-001"])
 	}
 }
 
 // TestLoadV2Index_issueReopeningClearsResolution proves an Issue returned to
-// open with a stale resolution still present is refused, while the same I###
+// open with a stale resolution still present is refused, while the same I-###
 // identity with the resolution cleared and a dated reopened history entry
 // loads cleanly as the one recurring record — never a second Issue.
 func TestLoadV2Index_issueReopeningClearsResolution(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "open", checks: []string{"C001"},
-		resolution: "{disposition: verified, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z', reason: repaired}",
+		fileName: "I-001-alpha.md", id: "I-001", status: "open", checks: []string{"C-001"},
+		resolution: "{disposition: verified, check: C-001, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z', reason: repaired}",
 	})
 	if _, err := LoadV2Index(root); !errors.Is(err, ErrV2IssueResolutionNotAllowed) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2IssueResolutionNotAllowed for the stale resolution", err)
 	}
 
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "open", checks: []string{"C001"},
+		fileName: "I-001-alpha.md", id: "I-001", status: "open", checks: []string{"C-001"},
 		history: "[{at: '2026-09-16T00:00:00Z', actor: {role: owner, session: owner-1}, kind: reopened, note: regressed}]",
 	})
 
@@ -1391,11 +1391,11 @@ func TestLoadV2Index_issueReopeningClearsResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v, want the reopened issue to load once resolution is cleared", err)
 	}
-	if index.Issues["I001"].Status != IssueStatusOpen || index.Issues["I001"].Resolution != nil {
-		t.Errorf("Issues[I001] = %+v, want open with no resolution", index.Issues["I001"])
+	if index.Issues["I-001"].Status != IssueStatusOpen || index.Issues["I-001"].Resolution != nil {
+		t.Errorf("Issues[I-001] = %+v, want open with no resolution", index.Issues["I-001"])
 	}
 	if len(index.Issues) != 1 {
-		t.Fatalf("Issues = %+v, want the single I001 identity, not a second record for the same recurrence", index.Issues)
+		t.Fatalf("Issues = %+v, want the single I-001 identity, not a second record for the same recurrence", index.Issues)
 	}
 }
 
@@ -1405,7 +1405,7 @@ func TestLoadV2Index_issueDeferralStaysOpen(t *testing.T) {
 	root := t.TempDir()
 	writeV2LinkedProject(t, root)
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I001-alpha.md", id: "I001", status: "open",
+		fileName: "I-001-alpha.md", id: "I-001", status: "open",
 		history: "[{at: '2026-09-16T00:00:00Z', actor: {role: owner, session: owner-1}, kind: deferred, note: revisit next release}]",
 	})
 
@@ -1413,11 +1413,11 @@ func TestLoadV2Index_issueDeferralStaysOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	if index.Issues["I001"].Status != IssueStatusOpen {
-		t.Errorf("Status = %q, want open", index.Issues["I001"].Status)
+	if index.Issues["I-001"].Status != IssueStatusOpen {
+		t.Errorf("Status = %q, want open", index.Issues["I-001"].Status)
 	}
-	if len(index.Issues["I001"].History) != 1 || index.Issues["I001"].History[0].Kind != IssueHistoryDeferred {
-		t.Errorf("History = %+v, want one deferred entry", index.Issues["I001"].History)
+	if len(index.Issues["I-001"].History) != 1 || index.Issues["I-001"].History[0].Kind != IssueHistoryDeferred {
+		t.Errorf("History = %+v, want one deferred entry", index.Issues["I-001"].History)
 	}
 }
 

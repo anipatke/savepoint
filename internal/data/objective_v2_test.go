@@ -8,21 +8,21 @@ import (
 
 func TestDecodeObjectiveV2_valid(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 title: "Load V2 work with stable identity"
 status: in_progress
-depends_on: [O001]
-release: R001
+depends_on: [O-001]
+release: R-001
 ---
 
 # Objective`
 
-	objective, err := DecodeObjectiveV2("O002-identity/Objective.md", content)
+	objective, err := DecodeObjectiveV2("O-002-identity/Objective.md", content)
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() error = %v", err)
 	}
-	if objective.ID != "O002" {
-		t.Errorf("ID = %q, want O002", objective.ID)
+	if objective.ID != "O-002" {
+		t.Errorf("ID = %q, want O-002", objective.ID)
 	}
 	if objective.Title != "Load V2 work with stable identity" {
 		t.Errorf("Title = %q, want the given title", objective.Title)
@@ -30,17 +30,17 @@ release: R001
 	if objective.Status != ColumnInProgress {
 		t.Errorf("Status = %q, want in_progress", objective.Status)
 	}
-	if len(objective.DependsOn) != 1 || objective.DependsOn[0] != "O001" {
-		t.Errorf("DependsOn = %v, want [O001]", objective.DependsOn)
+	if len(objective.DependsOn) != 1 || objective.DependsOn[0] != "O-001" {
+		t.Errorf("DependsOn = %v, want [O-001]", objective.DependsOn)
 	}
-	if objective.Release != "R001" {
-		t.Errorf("Release = %q, want R001", objective.Release)
+	if objective.Release != "R-001" {
+		t.Errorf("Release = %q, want R-001", objective.Release)
 	}
 }
 
 func TestDecodeObjectiveV2_minimalValid(t *testing.T) {
 	content := `---
-id: O010
+id: O-010
 title: "Bare objective"
 status: planned
 ---
@@ -66,9 +66,11 @@ func TestDecodeObjectiveV2_malformedID(t *testing.T) {
 	}{
 		{"missing digits", "O"},
 		{"too few digits", "O01"},
-		{"wrong prefix letter", "T002"},
+		{"unhyphenated identity", "O001"},
+		{"hyphenated but too few digits", "O-01"},
+		{"wrong prefix letter", "T-002"},
 		{"lowercase prefix", "o002"},
-		{"trailing garbage", "O002x"},
+		{"trailing garbage", "O-002x"},
 		{"empty", ""},
 	}
 
@@ -85,7 +87,7 @@ func TestDecodeObjectiveV2_malformedID(t *testing.T) {
 
 func TestDecodeObjectiveV2_missingTitle(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 status: planned
 ---
 
@@ -100,7 +102,7 @@ status: planned
 func TestDecodeObjectiveV2_whitespaceOnlyTitle(t *testing.T) {
 	for _, title := range []string{"   ", "\t\t", "\n\t"} {
 		t.Run(fmt.Sprintf("title-%q", title), func(t *testing.T) {
-			content := "---\nid: O002\ntitle: \u0022" + title + "\u0022\nstatus: planned\n---\n\n# Objective"
+			content := "---\nid: O-002\ntitle: \u0022" + title + "\u0022\nstatus: planned\n---\n\n# Objective"
 			_, err := DecodeObjectiveV2("test.md", content)
 			if !errors.Is(err, ErrV2MissingField) {
 				t.Fatalf("DecodeObjectiveV2() error = %v, want ErrV2MissingField", err)
@@ -122,7 +124,7 @@ func TestDecodeObjectiveV2_unknownStatusNotHealed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: O002\ntitle: \"Objective\"\nstatus: \"" + tt.status + "\"\n---\n\n# Objective"
+			content := "---\nid: O-002\ntitle: \"Objective\"\nstatus: \"" + tt.status + "\"\n---\n\n# Objective"
 			_, err := DecodeObjectiveV2("test.md", content)
 			if !errors.Is(err, ErrV2InvalidLifecycle) {
 				t.Fatalf("DecodeObjectiveV2() error = %v, want ErrV2InvalidLifecycle (no healing to planned)", err)
@@ -133,7 +135,7 @@ func TestDecodeObjectiveV2_unknownStatusNotHealed(t *testing.T) {
 
 func TestDecodeObjectiveV2_invalidDependency(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 depends_on: [O1]
@@ -171,7 +173,7 @@ func TestDecodeObjectiveV2_noFrontmatter(t *testing.T) {
 // decodes on Objective records through the same decoder as Task records.
 func TestDecodeObjectiveV2_evidenceValid(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 exception:
@@ -179,7 +181,7 @@ exception:
   reason: "owner accepted the tradeoff"
   owner: ani
   recorded_at: "2026-09-15T00:00:00Z"
-  check: C003
+  check: C-003
 ---
 
 # Objective`
@@ -191,8 +193,8 @@ exception:
 	if objective.Evidence == nil || objective.Evidence.Exception == nil {
 		t.Fatal("DecodeObjectiveV2() Evidence.Exception = nil, want decoded exception")
 	}
-	if objective.Evidence.Exception.Check != "C003" {
-		t.Errorf("Evidence.Exception.Check = %q, want C003", objective.Evidence.Exception.Check)
+	if objective.Evidence.Exception.Check != "C-003" {
+		t.Errorf("Evidence.Exception.Check = %q, want C-003", objective.Evidence.Exception.Check)
 	}
 }
 
@@ -200,7 +202,7 @@ exception:
 // the evidence fields decodes with a nil Evidence.
 func TestDecodeObjectiveV2_noEvidenceIsNil(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 ---
@@ -218,7 +220,7 @@ status: planned
 
 func TestDecodeObjectiveV2_releaseIsTypedReference(t *testing.T) {
 	base := `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 release: %s
@@ -226,12 +228,12 @@ release: %s
 
 # Objective`
 
-	withRelease, err := DecodeObjectiveV2("test.md", fmt.Sprintf(base, "R001"))
+	withRelease, err := DecodeObjectiveV2("test.md", fmt.Sprintf(base, "R-001"))
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() error = %v", err)
 	}
 	withoutRelease, err := DecodeObjectiveV2("test.md", `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 ---
@@ -246,14 +248,14 @@ status: planned
 	if withRelease.ID != withoutRelease.ID || withRelease.Title != withoutRelease.Title {
 		t.Fatalf("release value changed identity fields: %+v vs %+v", withRelease, withoutRelease)
 	}
-	if withRelease.Release != "R001" || withoutRelease.Release != "" {
-		t.Fatalf("Release fields = %q / %q, want R001 / empty", withRelease.Release, withoutRelease.Release)
+	if withRelease.Release != "R-001" || withoutRelease.Release != "" {
+		t.Fatalf("Release fields = %q / %q, want R-001 / empty", withRelease.Release, withoutRelease.Release)
 	}
 }
 
 func TestDecodeObjectiveV2_preservesTransitionalPackagingText(t *testing.T) {
 	content := `---
-id: O002
+id: O-002
 title: "Objective"
 status: planned
 release: v2
@@ -261,7 +263,7 @@ release: v2
 
 # Objective`
 
-	objective, err := DecodeObjectiveV2("objectives/O002-objective/Objective.md", content)
+	objective, err := DecodeObjectiveV2("objectives/O-002-objective/Objective.md", content)
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() error = %v, want transitional compatibility", err)
 	}

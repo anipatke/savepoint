@@ -29,13 +29,13 @@ func mustCurrentObjective(id, checkID string, extra *Evidence) *ObjectiveV2 {
 
 func TestResolveObjectiveCompletion_blocksOnEveryUnfinishedTask(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O001", Status: ColumnInProgress}
-	index.Tasks["T003"] = &TaskV2{ID: "T003", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001", "T002", "T003"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-001", Status: ColumnInProgress}
+	index.Tasks["T-003"] = &TaskV2{ID: "T-003", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002", "T-003"}
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (two unfinished tasks)")
 	}
@@ -54,12 +54,12 @@ func TestResolveObjectiveCompletion_blocksOnEveryUnfinishedTask(t *testing.T) {
 
 func TestResolveObjectiveCompletion_allowedWhenTasksDoneAndClearanceCurrent(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", nil)
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true, blockers = %+v", got.Blockers)
 	}
@@ -73,9 +73,9 @@ func TestResolveObjectiveCompletion_allowedWhenTasksDoneAndClearanceCurrent(t *t
 
 func TestResolveObjectiveCompletion_emptyObjectiveBlockedAsMissingRatherThanAllowed(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (no owned tasks and no check)")
 	}
@@ -98,20 +98,20 @@ func TestResolveObjectiveCompletion_eachClearanceStateBlocksWithADistinctReason(
 		},
 		{
 			name:     "needs_work",
-			build:    func(index *V2Index) { mustObjectiveCheck(index, "C001", "O001", CheckResultNeedsWork) },
+			build:    func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-001", CheckResultNeedsWork) },
 			wantKind: GateBlockClearanceNeedsWork,
 		},
 		{
 			name:     "unknown",
-			build:    func(index *V2Index) { mustObjectiveCheck(index, "C001", "O001", CheckResultClear) },
+			build:    func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear) },
 			wantKind: GateBlockClearanceUnknown,
 		},
 		{
 			name: "stale",
 			build: func(index *V2Index) {
-				mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
+				mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
 			},
-			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C001", Basis: "flagged stale"}},
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", Basis: "flagged stale"}},
 			wantKind: GateBlockClearanceStale,
 		},
 	}
@@ -119,12 +119,12 @@ func TestResolveObjectiveCompletion_eachClearanceStateBlocksWithADistinctReason(
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			index := newV2TestIndex()
-			index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-			index.ObjectiveTasks["O001"] = []string{"T001"}
+			index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+			index.ObjectiveTasks["O-001"] = []string{"T-001"}
 			tc.build(index)
-			index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, Evidence: tc.evidence}
+			index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress, Evidence: tc.evidence}
 
-			got := ResolveObjectiveCompletion(index, "O001")
+			got := ResolveObjectiveCompletion(index, "O-001")
 			if got.Allowed {
 				t.Fatalf("Allowed = true, want false")
 			}
@@ -137,12 +137,12 @@ func TestResolveObjectiveCompletion_eachClearanceStateBlocksWithADistinctReason(
 
 func TestResolveObjectiveCompletion_ownerValidationRequiredBlocksOnClearanceAlone(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (owner has not accepted)")
 	}
@@ -153,14 +153,14 @@ func TestResolveObjectiveCompletion_ownerValidationRequiredBlocksOnClearanceAlon
 
 func TestResolveObjectiveCompletion_ownerValidationSatisfiedWhenAcceptedCurrentCheck(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", &Evidence{
-		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", &Evidence{
+		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
 	})
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true (owner accepted current check), blockers = %+v", got.Blockers)
 	}
@@ -168,15 +168,15 @@ func TestResolveObjectiveCompletion_ownerValidationSatisfiedWhenAcceptedCurrentC
 
 func TestResolveObjectiveCompletion_acceptanceOfSupersededCheckDoesNotClose(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	mustObjectiveCheck(index, "C002", "O001", CheckResultClear) // supersedes C001 as the latest
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C002", &Evidence{
-		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	mustObjectiveCheck(index, "C-002", "O-001", CheckResultClear) // supersedes C-001 as the latest
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-002", &Evidence{
+		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
 	})
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (acceptance bound to a superseded check)")
 	}
@@ -187,18 +187,18 @@ func TestResolveObjectiveCompletion_acceptanceOfSupersededCheckDoesNotClose(t *t
 
 func TestResolveObjectiveCompletion_allowedByExceptionWhenOtherwiseBlocked(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultNeedsWork)
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = &ObjectiveV2{
-		ID:     "O001",
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultNeedsWork)
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = &ObjectiveV2{
+		ID:     "O-001",
 		Status: ColumnInProgress,
 		Evidence: &Evidence{
-			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C-001"},
 		},
 	}
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true (exception names the latest check), blockers = %+v", got.Blockers)
 	}
@@ -212,19 +212,19 @@ func TestResolveObjectiveCompletion_allowedByExceptionWhenOtherwiseBlocked(t *te
 
 func TestResolveObjectiveCompletion_exceptionNamingOtherCheckDoesNotApply(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultNeedsWork)
-	mustObjectiveCheck(index, "C002", "O001", CheckResultNeedsWork) // supersedes C001 as the latest
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = &ObjectiveV2{
-		ID:     "O001",
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultNeedsWork)
+	mustObjectiveCheck(index, "C-002", "O-001", CheckResultNeedsWork) // supersedes C-001 as the latest
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = &ObjectiveV2{
+		ID:     "O-001",
 		Status: ColumnInProgress,
 		Evidence: &Evidence{
-			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C-001"},
 		},
 	}
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (exception names a superseded check, not the latest)")
 	}
@@ -235,14 +235,14 @@ func TestResolveObjectiveCompletion_exceptionNamingOtherCheckDoesNotApply(t *tes
 
 func TestResolveObjectiveCompletion_unfinishedTaskIsNotExcusableByException(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", &Evidence{
-		Exception: &Exception{Requirements: []string{"tasks-done"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", &Evidence{
+		Exception: &Exception{Requirements: []string{"tasks-done"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C-001"},
 	})
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (an unfinished task is not excusable by exception)")
 	}
@@ -254,7 +254,7 @@ func TestResolveObjectiveCompletion_unfinishedTaskIsNotExcusableByException(t *t
 func TestResolveObjectiveCompletion_unknownObjectiveReturnsZeroDecision(t *testing.T) {
 	index := newV2TestIndex()
 
-	got := ResolveObjectiveCompletion(index, "O404")
+	got := ResolveObjectiveCompletion(index, "O-404")
 	if got.Allowed || len(got.Blockers) != 0 {
 		t.Fatalf("got = %+v, want zero-value decision for an unknown objective", got)
 	}
@@ -263,36 +263,36 @@ func TestResolveObjectiveCompletion_unknownObjectiveReturnsZeroDecision(t *testi
 func TestResolveObjectiveDependency_missingObjectiveBlocksAsNotDone(t *testing.T) {
 	index := newV2TestIndex()
 
-	got := ResolveObjectiveDependency(index, "O404")
+	got := ResolveObjectiveDependency(index, "O-404")
 	if got.Satisfied {
 		t.Fatalf("Satisfied = true, want false (no such objective)")
 	}
-	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O404" {
-		t.Fatalf("Block = %+v, want NotDone naming O404", got.Block)
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O-404" {
+		t.Fatalf("Block = %+v, want NotDone naming O-404", got.Block)
 	}
 }
 
 func TestResolveObjectiveDependency_notDoneBlocksReadiness(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnInProgress}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Status: ColumnInProgress}
 
-	got := ResolveObjectiveDependency(index, "O002")
+	got := ResolveObjectiveDependency(index, "O-002")
 	if got.Satisfied {
 		t.Fatalf("Satisfied = true, want false (dependency objective not done)")
 	}
-	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O002" {
-		t.Fatalf("Block = %+v, want NotDone naming O002", got.Block)
+	if got.Block == nil || got.Block.Kind != ObjectiveDependencyBlockNotDone || got.Block.Target != "O-002" {
+		t.Fatalf("Block = %+v, want NotDone naming O-002", got.Block)
 	}
 }
 
 func TestResolveObjectiveDependency_satisfiedWhenDoneAndClearanceCurrent(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O002", CheckResultClear)
-	dependency := mustCurrentObjective("O002", "C001", nil)
+	mustObjectiveCheck(index, "C-001", "O-002", CheckResultClear)
+	dependency := mustCurrentObjective("O-002", "C-001", nil)
 	dependency.Status = ColumnDone
-	index.Objectives["O002"] = dependency
+	index.Objectives["O-002"] = dependency
 
-	got := ResolveObjectiveDependency(index, "O002")
+	got := ResolveObjectiveDependency(index, "O-002")
 	if !got.Satisfied {
 		t.Fatalf("Satisfied = false, want true, block = %+v", got.Block)
 	}
@@ -313,16 +313,16 @@ func TestResolveObjectiveDependency_eachClearanceStateBlocksWithItsOwnReason(t *
 		},
 		{
 			name:  "needs_work",
-			build: func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork) },
+			build: func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultNeedsWork) },
 		},
 		{
 			name:  "unknown",
-			build: func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultClear) },
+			build: func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultClear) },
 		},
 		{
 			name:     "stale",
-			build:    func(index *V2Index) { mustObjectiveCheck(index, "C001", "O002", CheckResultClear) },
-			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C001", Basis: "flagged stale"}},
+			build:    func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", Basis: "flagged stale"}},
 		},
 	}
 
@@ -330,9 +330,9 @@ func TestResolveObjectiveDependency_eachClearanceStateBlocksWithItsOwnReason(t *
 		t.Run(tc.name, func(t *testing.T) {
 			index := newV2TestIndex()
 			tc.build(index)
-			index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnDone, Evidence: tc.evidence}
+			index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Status: ColumnDone, Evidence: tc.evidence}
 
-			got := ResolveObjectiveDependency(index, "O002")
+			got := ResolveObjectiveDependency(index, "O-002")
 			if got.Satisfied {
 				t.Fatalf("Satisfied = true, want false")
 			}
@@ -346,16 +346,16 @@ func TestResolveObjectiveDependency_eachClearanceStateBlocksWithItsOwnReason(t *
 
 func TestResolveObjectiveDependency_clearedByExceptionReportedDistinctlyNotAsCurrent(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork)
-	index.Objectives["O002"] = &ObjectiveV2{
-		ID:     "O002",
+	mustObjectiveCheck(index, "C-001", "O-002", CheckResultNeedsWork)
+	index.Objectives["O-002"] = &ObjectiveV2{
+		ID:     "O-002",
 		Status: ColumnDone,
 		Evidence: &Evidence{
-			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C-001"},
 		},
 	}
 
-	got := ResolveObjectiveDependency(index, "O002")
+	got := ResolveObjectiveDependency(index, "O-002")
 	if got.Satisfied {
 		t.Fatalf("Satisfied = true, want false (an exception is not current clearance)")
 	}
@@ -366,17 +366,17 @@ func TestResolveObjectiveDependency_clearedByExceptionReportedDistinctlyNotAsCur
 
 func TestResolveObjectiveDependency_exceptionNamingOtherCheckStillBlocksAsNotCleared(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O002", CheckResultNeedsWork)
-	mustObjectiveCheck(index, "C002", "O002", CheckResultNeedsWork) // supersedes C001 as the latest
-	index.Objectives["O002"] = &ObjectiveV2{
-		ID:     "O002",
+	mustObjectiveCheck(index, "C-001", "O-002", CheckResultNeedsWork)
+	mustObjectiveCheck(index, "C-002", "O-002", CheckResultNeedsWork) // supersedes C-001 as the latest
+	index.Objectives["O-002"] = &ObjectiveV2{
+		ID:     "O-002",
 		Status: ColumnDone,
 		Evidence: &Evidence{
-			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C001"},
+			Exception: &Exception{Requirements: []string{"integration-check"}, Reason: "shipping deadline", Owner: "owner-1", Check: "C-001"},
 		},
 	}
 
-	got := ResolveObjectiveDependency(index, "O002")
+	got := ResolveObjectiveDependency(index, "O-002")
 	if got.Satisfied {
 		t.Fatalf("Satisfied = true, want false")
 	}
@@ -390,10 +390,10 @@ func TestResolveObjectiveDependency_exceptionNamingOtherCheckStillBlocksAsNotCle
 // must not alter a single Task completion decision.
 func TestResolveTaskCompletion_unchangedByObjectiveGate(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Tasks["T001"] = mustCurrentTask("T001", "C001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Tasks["T-001"] = mustCurrentTask("T-001", "C-001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
 
-	got := ResolveTaskCompletion(index, "T001")
+	got := ResolveTaskCompletion(index, "T-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (owner has not accepted)")
 	}
@@ -401,89 +401,89 @@ func TestResolveTaskCompletion_unchangedByObjectiveGate(t *testing.T) {
 		t.Fatalf("Blockers = %+v, want one GateBlockOwnerAcceptance", got.Blockers)
 	}
 
-	index.Tasks["T001"].Evidence.OwnerValidation.AcceptedCheck = "C001"
-	index.Tasks["T001"].Evidence.OwnerValidation.AcceptedBy = Actor{Role: ActorRoleOwner, Session: "owner-1"}
+	index.Tasks["T-001"].Evidence.OwnerValidation.AcceptedCheck = "C-001"
+	index.Tasks["T-001"].Evidence.OwnerValidation.AcceptedBy = Actor{Role: ActorRoleOwner, Session: "owner-1"}
 
-	got = ResolveTaskCompletion(index, "T001")
+	got = ResolveTaskCompletion(index, "T-001")
 	if !got.Allowed || got.Actor != ActorRoleChecker {
 		t.Fatalf("got = %+v, want allowed under checker authority once owner accepts", got)
 	}
 }
 
 func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDoneTasks(t *testing.T) {
-	// I019: an Objective Check's NEEDS WORK must be repairable and rechecked
+	// I-019: an Objective Check's NEEDS WORK must be repairable and rechecked
 	// without retreating a Task that is already done. ResolveObjectiveCompletion
 	// only ever reads Task status; it never requires flipping it back to
 	// in_progress to unblock on a fresh, superseding Check.
 	index := newV2TestIndex()
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001", "T002"}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002"}
 
-	mustObjectiveCheck(index, "C001", "O001", CheckResultNeedsWork)
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultNeedsWork)
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress}
 
-	got := ResolveObjectiveCompletion(index, "O001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (objective check recorded NEEDS WORK)")
 	}
 	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
 		t.Fatalf("Blockers = %+v, want one GateBlockClearanceNeedsWork", got.Blockers)
 	}
-	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
 		t.Fatalf("owned tasks changed status while only the objective check was NEEDS WORK")
 	}
 
 	// The finding becomes new work under the same Objective. The two
 	// completed Tasks are historical work and must not be reopened.
-	index.Tasks["T003"] = &TaskV2{ID: "T003", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = append(index.ObjectiveTasks["O001"], "T003")
-	got = ResolveObjectiveCompletion(index, "O001")
+	index.Tasks["T-003"] = &TaskV2{ID: "T-003", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = append(index.ObjectiveTasks["O-001"], "T-003")
+	got = ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockInvalidState {
 		t.Fatalf("new remediation Task must block Objective completion, got %+v", got)
 	}
-	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
 		t.Fatal("adding remediation work reopened a completed Task")
 	}
 
 	// Finishing remediation alone cannot override the failed Check. A fresh,
 	// superseding CLEAR Check is still required.
-	index.Tasks["T003"].Status = ColumnDone
-	got = ResolveObjectiveCompletion(index, "O001")
+	index.Tasks["T-003"].Status = ColumnDone
+	got = ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
 		t.Fatalf("repair without recheck must remain blocked, got %+v", got)
 	}
-	mustObjectiveCheck(index, "C002", "O001", CheckResultClear)
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C002", nil)
-	index.Issues = map[string]*IssueV2{"I001": {ID: "I001", Status: IssueStatusOpen}}
-	index.CheckIssues = map[string][]string{"C002": {"I001"}}
+	mustObjectiveCheck(index, "C-002", "O-001", CheckResultClear)
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-002", nil)
+	index.Issues = map[string]*IssueV2{"I-001": {ID: "I-001", Status: IssueStatusOpen}}
+	index.CheckIssues = map[string][]string{"C-002": {"I-001"}}
 
-	got = ResolveObjectiveCompletion(index, "O001")
-	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved || got.Blockers[0].Issue != "I001" {
+	got = ResolveObjectiveCompletion(index, "O-001")
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved || got.Blockers[0].Issue != "I-001" {
 		t.Fatalf("current CLEAR Check with unresolved material Issue must block, got %+v", got)
 	}
-	index.Objectives["O001"].Evidence.Exception = &Exception{
+	index.Objectives["O-001"].Evidence.Exception = &Exception{
 		Requirements: []string{"other-requirement"}, Reason: "accepted separate risk",
-		Owner: "owner-1", Check: "C002",
+		Owner: "owner-1", Check: "C-002",
 	}
-	got = ResolveObjectiveCompletion(index, "O001")
+	got = ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved {
 		t.Fatalf("unrelated Objective exception must not accept an open Issue, got %+v", got)
 	}
-	index.Objectives["O001"].Evidence.Exception = nil
-	index.Issues["I001"].Status = IssueStatusResolved
-	got = ResolveObjectiveCompletion(index, "O001")
+	index.Objectives["O-001"].Evidence.Exception = nil
+	index.Issues["I-001"].Status = IssueStatusResolved
+	got = ResolveObjectiveCompletion(index, "O-001")
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true after the recheck cleared, blockers = %+v", got.Blockers)
 	}
-	if index.Tasks["T001"].Status != ColumnDone || index.Tasks["T002"].Status != ColumnDone {
+	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
 		t.Fatalf("owned tasks changed status during repair and recheck, want both to remain done throughout")
 	}
 }
 
 func TestInspectObjectiveConsistency_ignoresObjectivesNotDone(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
 
 	if got := InspectObjectiveConsistency(index); len(got) != 0 {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want none for a not-done objective", got)
@@ -492,38 +492,38 @@ func TestInspectObjectiveConsistency_ignoresObjectivesNotDone(t *testing.T) {
 
 func TestInspectObjectiveConsistency_doneWithoutCurrentClearance(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
 
 	got := InspectObjectiveConsistency(index)
-	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyDoneWithoutClearance || got[0].Objective != "O001" {
-		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O001", got)
+	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyDoneWithoutClearance || got[0].Objective != "O-001" {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O-001", got)
 	}
 }
 
 func TestInspectObjectiveConsistency_doneWithIncompleteTask(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
-	index.Objectives["O001"].Status = ColumnDone
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", nil)
+	index.Objectives["O-001"].Status = ColumnDone
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 
 	got := InspectObjectiveConsistency(index)
-	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyIncompleteTask || got[0].Objective != "O001" {
-		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyIncompleteTask naming O001", got)
+	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyIncompleteTask || got[0].Objective != "O-001" {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyIncompleteTask naming O-001", got)
 	}
-	if !strings.Contains(got[0].Detail, "T001") {
+	if !strings.Contains(got[0].Detail, "T-001") {
 		t.Errorf("Detail = %q, want the incomplete task named", got[0].Detail)
 	}
 }
 
 func TestInspectObjectiveConsistency_cleanObjectiveReportsNothing(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
-	index.Objectives["O001"].Status = ColumnDone
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", nil)
+	index.Objectives["O-001"].Status = ColumnDone
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 
 	if got := InspectObjectiveConsistency(index); len(got) != 0 {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want none for a consistent done objective", got)
@@ -532,14 +532,14 @@ func TestInspectObjectiveConsistency_cleanObjectiveReportsNothing(t *testing.T) 
 
 func TestInspectObjectiveConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O002-b/Objective.md"}}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O-002-b/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
 
 	got := InspectObjectiveConsistency(index)
 	if len(got) != 2 {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want 2 problems (one per done objective)", got)
 	}
-	if got[0].Objective != "O001" || got[1].Objective != "O002" {
-		t.Fatalf("InspectObjectiveConsistency() order = [%s, %s], want sorted [O001, O002]", got[0].Objective, got[1].Objective)
+	if got[0].Objective != "O-001" || got[1].Objective != "O-002" {
+		t.Fatalf("InspectObjectiveConsistency() order = [%s, %s], want sorted [O-001, O-002]", got[0].Objective, got[1].Objective)
 	}
 }

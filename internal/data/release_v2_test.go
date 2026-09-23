@@ -41,12 +41,12 @@ func writeV2ReleaseFixture(t *testing.T, root, dirName, id, title string) {
 }
 
 func TestDecodeReleaseV2_valid(t *testing.T) {
-	release, err := DecodeReleaseV2("releases/R001-first/Release.md", validReleaseContent("R001", "First-class releases", "in_progress"))
+	release, err := DecodeReleaseV2("releases/R-001-first/Release.md", validReleaseContent("R-001", "First-class releases", "in_progress"))
 	if err != nil {
 		t.Fatalf("DecodeReleaseV2() error = %v", err)
 	}
-	if release.ID != "R001" || release.Title != "First-class releases" || release.Status != ColumnInProgress {
-		t.Fatalf("Release = %+v, want R001/title/in_progress", release)
+	if release.ID != "R-001" || release.Title != "First-class releases" || release.Status != ColumnInProgress {
+		t.Fatalf("Release = %+v, want R-001/title/in_progress", release)
 	}
 	if !strings.Contains(release.Outcome, "first-class release boundary") {
 		t.Errorf("Outcome = %q, want decoded Outcome section", release.Outcome)
@@ -71,20 +71,25 @@ func TestDecodeReleaseV2_rejectsMalformedIdentityLifecycleAndBody(t *testing.T) 
 			wantErr: ErrV2InvalidID,
 		},
 		{
+			name:    "unhyphenated identity",
+			content: validReleaseContent("R001", "Release", "planned"),
+			wantErr: ErrV2InvalidID,
+		},
+		{
 			name:    "invalid lifecycle",
-			content: validReleaseContent("R001", "Release", "review"),
+			content: validReleaseContent("R-001", "Release", "review"),
 			wantErr: ErrV2InvalidLifecycle,
 		},
 		{
 			name:    "missing body section",
-			content: strings.Replace(validReleaseContent("R001", "Release", "planned"), "## Why\n\nThe delivery promise needs an identity.\n", "", 1),
+			content: strings.Replace(validReleaseContent("R-001", "Release", "planned"), "## Why\n\nThe delivery promise needs an identity.\n", "", 1),
 			wantErr: ErrV2ReleaseMissingSection,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := DecodeReleaseV2("releases/R001-release/Release.md", tt.content)
+			_, err := DecodeReleaseV2("releases/R-001-release/Release.md", tt.content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeReleaseV2() error = %v, want %v", err, tt.wantErr)
 			}
@@ -104,13 +109,13 @@ func TestDiscoverV2Releases_absentDirectoryIsEmpty(t *testing.T) {
 
 func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 	root := t.TempDir()
-	writeV2ReleaseFixture(t, root, "R001-first", "R001", "First release")
-	writeV2ReleaseFixture(t, root, "R002-second", "R002", "Second release")
+	writeV2ReleaseFixture(t, root, "R-001-first", "R-001", "First release")
+	writeV2ReleaseFixture(t, root, "R-002-second", "R-002", "Second release")
 
-	writeV2ObjectiveWithRelease(t, root, "O001-first", "O001", "First objective", "R001")
-	writeV2ObjectiveWithRelease(t, root, "O002-second", "O002", "Second objective", "R002")
-	writeV2ObjectiveFixture(t, root, "O003-unassigned", "O003", "Unassigned objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+	writeV2ObjectiveWithRelease(t, root, "O-001-first", "O-001", "First objective", "R-001")
+	writeV2ObjectiveWithRelease(t, root, "O-002-second", "O-002", "Second objective", "R-002")
+	writeV2ObjectiveFixture(t, root, "O-003-unassigned", "O-003", "Unassigned objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {
@@ -119,33 +124,33 @@ func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 	if len(index.Releases) != 2 {
 		t.Fatalf("Releases = %d, want 2", len(index.Releases))
 	}
-	if got := index.ReleaseObjectives["R001"]; len(got) != 1 || got[0] != "O001" {
-		t.Errorf("ReleaseObjectives[R001] = %v, want [O001]", got)
+	if got := index.ReleaseObjectives["R-001"]; len(got) != 1 || got[0] != "O-001" {
+		t.Errorf("ReleaseObjectives[R-001] = %v, want [O-001]", got)
 	}
-	if got := index.ReleaseObjectives["R002"]; len(got) != 1 || got[0] != "O002" {
-		t.Errorf("ReleaseObjectives[R002] = %v, want [O002]", got)
+	if got := index.ReleaseObjectives["R-002"]; len(got) != 1 || got[0] != "O-002" {
+		t.Errorf("ReleaseObjectives[R-002] = %v, want [O-002]", got)
 	}
-	if got := index.ReleaseObjectives["R003"]; got != nil {
-		t.Errorf("ReleaseObjectives[R003] = %v, want nil for unknown Release", got)
+	if got := index.ReleaseObjectives["R-003"]; got != nil {
+		t.Errorf("ReleaseObjectives[R-003] = %v, want nil for unknown Release", got)
 	}
-	if index.Objectives["O003"].Release != "" {
-		t.Errorf("unassigned Objective Release = %q, want empty", index.Objectives["O003"].Release)
+	if index.Objectives["O-003"].Release != "" {
+		t.Errorf("unassigned Objective Release = %q, want empty", index.Objectives["O-003"].Release)
 	}
-	if index.Tasks["T001"].Objective != "O001" {
-		t.Errorf("Task Objective = %q, want O001", index.Tasks["T001"].Objective)
+	if index.Tasks["T-001"].Objective != "O-001" {
+		t.Errorf("Task Objective = %q, want O-001", index.Tasks["T-001"].Objective)
 	}
 }
 
 func TestLoadV2Index_releaseIdentitySurvivesDirectorySlugChange(t *testing.T) {
 	root := t.TempDir()
-	writeV2ReleaseFixture(t, root, "R001-before", "R001", "Stable identity")
+	writeV2ReleaseFixture(t, root, "R-001-before", "R-001", "Stable identity")
 
 	first, err := LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("first LoadV2Index() error = %v", err)
 	}
-	oldPath := filepath.Join(root, v2ReleasesDirName, "R001-before")
-	newPath := filepath.Join(root, v2ReleasesDirName, "R001-after")
+	oldPath := filepath.Join(root, v2ReleasesDirName, "R-001-before")
+	newPath := filepath.Join(root, v2ReleasesDirName, "R-001-after")
 	if err := os.Rename(oldPath, newPath); err != nil {
 		t.Fatalf("os.Rename() error = %v", err)
 	}
@@ -154,30 +159,30 @@ func TestLoadV2Index_releaseIdentitySurvivesDirectorySlugChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second LoadV2Index() error = %v", err)
 	}
-	if first.Releases["R001"].ID != second.Releases["R001"].ID {
-		t.Errorf("Release identity changed after slug edit: %q -> %q", first.Releases["R001"].ID, second.Releases["R001"].ID)
+	if first.Releases["R-001"].ID != second.Releases["R-001"].ID {
+		t.Errorf("Release identity changed after slug edit: %q -> %q", first.Releases["R-001"].ID, second.Releases["R-001"].ID)
 	}
-	if second.Releases["R001"].Source.Path != filepath.Join(v2ReleasesDirName, "R001-after", v2ReleaseFileName) {
-		t.Errorf("Release Source.Path = %q, want moved path", second.Releases["R001"].Source.Path)
+	if second.Releases["R-001"].Source.Path != filepath.Join(v2ReleasesDirName, "R-001-after", v2ReleaseFileName) {
+		t.Errorf("Release Source.Path = %q, want moved path", second.Releases["R-001"].Source.Path)
 	}
 }
 
 func TestDiscoverV2Releases_rejectsDuplicateAndPathMismatch(t *testing.T) {
 	t.Run("duplicate identity", func(t *testing.T) {
 		root := t.TempDir()
-		writeV2ReleaseFixture(t, root, "R001-first", "R001", "First")
-		writeV2ReleaseFixture(t, root, "R001-second", "R001", "Second")
+		writeV2ReleaseFixture(t, root, "R-001-first", "R-001", "First")
+		writeV2ReleaseFixture(t, root, "R-001-second", "R-001", "Second")
 		_, err := DiscoverV2Releases(root)
-		if !errors.Is(err, ErrV2DuplicateID) || !strings.Contains(err.Error(), "R001") {
-			t.Fatalf("DiscoverV2Releases() error = %v, want duplicate R001 diagnostic", err)
+		if !errors.Is(err, ErrV2DuplicateID) || !strings.Contains(err.Error(), "R-001") {
+			t.Fatalf("DiscoverV2Releases() error = %v, want duplicate R-001 diagnostic", err)
 		}
 	})
 
 	t.Run("directory identity mismatch", func(t *testing.T) {
 		root := t.TempDir()
-		writeV2ReleaseFixture(t, root, "R002-wrong", "R001", "Release")
+		writeV2ReleaseFixture(t, root, "R-002-wrong", "R-001", "Release")
 		_, err := DiscoverV2Releases(root)
-		if !errors.Is(err, ErrV2PathMismatch) || !strings.Contains(err.Error(), "R001") {
+		if !errors.Is(err, ErrV2PathMismatch) || !strings.Contains(err.Error(), "R-001") {
 			t.Fatalf("DiscoverV2Releases() error = %v, want path/id diagnostic", err)
 		}
 	})
@@ -190,27 +195,27 @@ func TestDiscoverV2Releases_rejectsSymlinkEscape(t *testing.T) {
 
 	root := t.TempDir()
 	outside := t.TempDir()
-	writeV2ReleaseFixture(t, outside, "R001-first", "R001", "Escaped release")
+	writeV2ReleaseFixture(t, outside, "R-001-first", "R-001", "Escaped release")
 	testutil.MkdirAll(t, filepath.Join(root, v2ReleasesDirName))
-	if err := os.Symlink(filepath.Join(outside, v2ReleasesDirName, "R001-first"), filepath.Join(root, v2ReleasesDirName, "R001-first")); err != nil {
+	if err := os.Symlink(filepath.Join(outside, v2ReleasesDirName, "R-001-first"), filepath.Join(root, v2ReleasesDirName, "R-001-first")); err != nil {
 		t.Fatalf("os.Symlink() error = %v", err)
 	}
 
 	_, err := DiscoverV2Releases(root)
-	if !errors.Is(err, ErrV2UnsafePath) || !strings.Contains(err.Error(), "R001-first") {
+	if !errors.Is(err, ErrV2UnsafePath) || !strings.Contains(err.Error(), "R-001-first") {
 		t.Fatalf("DiscoverV2Releases() error = %v, want confined-path diagnostic", err)
 	}
 }
 
 func TestLoadV2Index_danglingObjectiveReleaseNamesPathAndIDs(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveWithRelease(t, root, "O001-first", "O001", "First objective", "R999")
+	writeV2ObjectiveWithRelease(t, root, "O-001-first", "O-001", "First objective", "R-999")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2MissingRelease) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2MissingRelease", err)
 	}
-	for _, want := range []string{"objectives/O001-first/Objective.md", "O001", "R999"} {
+	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "R-999"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}
@@ -219,14 +224,14 @@ func TestLoadV2Index_danglingObjectiveReleaseNamesPathAndIDs(t *testing.T) {
 
 func TestLoadV2Index_rejectsLegacyPackagingTextWhenReleasesExist(t *testing.T) {
 	root := t.TempDir()
-	writeV2ReleaseFixture(t, root, "R001-first", "R001", "First release")
-	writeV2ObjectiveWithRelease(t, root, "O001-first", "O001", "First objective", "v2")
+	writeV2ReleaseFixture(t, root, "R-001-first", "R-001", "First release")
+	writeV2ObjectiveWithRelease(t, root, "O-001-first", "O-001", "First objective", "v2")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2InvalidReleaseReference) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2InvalidReleaseReference", err)
 	}
-	for _, want := range []string{"objectives/O001-first/Objective.md", "O001", "v2"} {
+	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "v2"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}
@@ -235,13 +240,13 @@ func TestLoadV2Index_rejectsLegacyPackagingTextWhenReleasesExist(t *testing.T) {
 
 func TestLoadV2Index_rejectsLegacyPackagingTextWithoutReleases(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveWithRelease(t, root, "O001-first", "O001", "First objective", "v2")
+	writeV2ObjectiveWithRelease(t, root, "O-001-first", "O-001", "First objective", "v2")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2InvalidReleaseReference) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2InvalidReleaseReference", err)
 	}
-	for _, want := range []string{"objectives/O001-first/Objective.md", "O001", "v2"} {
+	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "v2"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}
@@ -250,8 +255,8 @@ func TestLoadV2Index_rejectsLegacyPackagingTextWithoutReleases(t *testing.T) {
 
 func TestLoadV2Index_noReleaseRecordsPreservesLegacyReleaseFreeProject(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
 
 	index, err := LoadV2Index(root)
 	if err != nil {

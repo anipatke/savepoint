@@ -50,7 +50,7 @@ func sidebarText(t *testing.T, model Model) string {
 }
 
 // TestSidebarListsEveryObjectiveInOrder covers the list itself: every Objective
-// in the index, in stable O### order, each row carrying its ID, its title, and
+// in the index, in stable O-### order, each row carrying its ID, its title, and
 // its recorded status.
 func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 	got := sidebarText(t, sidebarBoard(t, writeNavigationProject(t)))
@@ -60,7 +60,7 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 	}
 
 	previous := -1
-	for _, id := range []string{"O001", "O002", "O003", "O004", "O005", "O006"} {
+	for _, id := range []string{"O-001", "O-002", "O-003", "O-004", "O-005", "O-006"} {
 		at := strings.Index(got, id)
 		if at < 0 {
 			t.Fatalf("sidebar is missing Objective %s:\n%s", id, got)
@@ -88,13 +88,13 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 func TestSidebarShowsEachObjectivesOwnCheckBadge(t *testing.T) {
 	got := sidebarText(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	// O001 current; O002/O003 missing; O004 needs_work, O005 unknown, O006
+	// O-001 current; O-002/O-003 missing; O-004 needs_work, O-005 unknown, O-006
 	// stale all fold into the same "checked, not clear" badge.
 	if !strings.Contains(got, "[✓] Check") {
 		t.Errorf("sidebar does not show a current Objective as checked:\n%s", got)
 	}
 	if count := strings.Count(got, "[ ] Check"); count != 2 {
-		t.Errorf("sidebar shows %d Objectives as never checked, want 2 (O002, O003):\n%s", count, got)
+		t.Errorf("sidebar shows %d Objectives as never checked, want 2 (O-002, O-003):\n%s", count, got)
 	}
 	// The label wraps across two lines at this column width ("Check (needs" /
 	// "work)"), so this counts the badge's flagged glyph rather than the full
@@ -109,13 +109,13 @@ func TestSidebarShowsEachObjectivesOwnCheckBadge(t *testing.T) {
 // which has never had its own Check reads differently from one whose Check is
 // current, and finished Tasks alone are never enough to read as checked. This
 // used to be a second badge ("INTEGRATED" / "NEEDS INTEGRATION") that just
-// restated the Check badge in scarier words (I012); it is gone, and the Check
+// restated the Check badge in scarier words (I-012); it is gone, and the Check
 // badge alone carries this distinction now.
 func TestSidebarSeparatesFinishedTasksFromAFinishedObjective(t *testing.T) {
 	rows := sidebarLines(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	checked := rowsFor(rows, "O001")
-	neverChecked := rowsFor(rows, "O002")
+	checked := rowsFor(rows, "O-001")
+	neverChecked := rowsFor(rows, "O-002")
 
 	if !strings.Contains(checked, "[✓] Check") {
 		t.Errorf("an Objective whose Tasks are done and whose Check is current does not read as checked:\n%s", checked)
@@ -140,7 +140,7 @@ func TestSidebarSeparatesFinishedTasksFromAFinishedObjective(t *testing.T) {
 // clearance state alone would produce.
 func TestObjectiveRowBadgesFoldExceptionIntoCheck(t *testing.T) {
 	row := ObjectiveRow{
-		Objective:   &data.ObjectiveV2{ID: "O001", Title: "Accepted with a known gap", Status: "in_progress"},
+		Objective:   &data.ObjectiveV2{ID: "O-001", Title: "Accepted with a known gap", Status: "in_progress"},
 		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
 		ByException: true,
 	}
@@ -158,11 +158,11 @@ func TestObjectiveRowBadgesFoldExceptionIntoCheck(t *testing.T) {
 func TestSidebarNamesTheObjectiveAWaitIsOn(t *testing.T) {
 	rows := sidebarLines(t, sidebarBoard(t, writeNavigationProject(t)))
 
-	waiting := rowsFor(rows, "O003")
-	if !strings.Contains(waiting, "WAITS O002") {
-		t.Errorf("O003 does not name the Objective it waits on:\n%s", waiting)
+	waiting := rowsFor(rows, "O-003")
+	if !strings.Contains(waiting, "WAITS O-002") {
+		t.Errorf("O-003 does not name the Objective it waits on:\n%s", waiting)
 	}
-	if independent := rowsFor(rows, "O004"); strings.Contains(independent, "WAITS") {
+	if independent := rowsFor(rows, "O-004"); strings.Contains(independent, "WAITS") {
 		t.Errorf("an Objective with no declared dependency reports a wait:\n%s", independent)
 	}
 }
@@ -177,27 +177,27 @@ func TestSelectionFiltersColumnsByRecordedOwnership(t *testing.T) {
 	if loaded.Failed() {
 		t.Fatalf("fixture project did not load: %s", loaded.Diagnostic)
 	}
-	if got := loaded.State.Index.Tasks["T004"].Objective; got != "O003" {
-		t.Fatalf("fixture T004 is owned by %q, want O003 declared on the record itself", got)
+	if got := loaded.State.Index.Tasks["T-004"].Objective; got != "O-003" {
+		t.Fatalf("fixture T-004 is owned by %q, want O-003 declared on the record itself", got)
 	}
-	if path := loaded.State.Index.Tasks["T004"].Source.Path; !strings.Contains(path, "O001") {
-		t.Fatalf("fixture T004 lives at %q, want a path under another Objective's directory", path)
+	if path := loaded.State.Index.Tasks["T-004"].Source.Path; !strings.Contains(path, "O-001") {
+		t.Fatalf("fixture T-004 lives at %q, want a path under another Objective's directory", path)
 	}
 
-	// The router selects O003, so the board opens filtered to it.
+	// The router selects O-003, so the board opens filtered to it.
 	model := sidebarBoard(t, root)
-	if got := cardIDsInView(model); !equalIDs(got, []string{"T003", "T004"}) {
-		t.Errorf("columns show %v, want exactly the Tasks O003 owns", got)
+	if got := cardIDsInView(model); !equalIDs(got, []string{"T-003", "T-004"}) {
+		t.Errorf("columns show %v, want exactly the Tasks O-003 owns", got)
 	}
 
-	// Selecting O001 from the sidebar filters to its Tasks — and T004, whose
-	// file sits in O001's directory, is not one of them.
+	// Selecting O-001 from the sidebar filters to its Tasks — and T-004, whose
+	// file sits in O-001's directory, is not one of them.
 	model = press(t, model, "left", "up", "up")
-	if model.SelectedObjective != "O001" {
-		t.Fatalf("SelectedObjective = %q after selecting the first row, want O001", model.SelectedObjective)
+	if model.SelectedObjective != "O-001" {
+		t.Fatalf("SelectedObjective = %q after selecting the first row, want O-001", model.SelectedObjective)
 	}
-	if got := cardIDsInView(model); !equalIDs(got, []string{"T001"}) {
-		t.Errorf("columns show %v, want only the Task O001's own records claim", got)
+	if got := cardIDsInView(model); !equalIDs(got, []string{"T-001"}) {
+		t.Errorf("columns show %v, want only the Task O-001's own records claim", got)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestNoSelectionShowsEveryTaskInTheProject(t *testing.T) {
 	if model.SelectedObjective != "" {
 		t.Fatalf("SelectedObjective = %q after clearing, want nothing selected", model.SelectedObjective)
 	}
-	if got := cardIDsInView(model); !equalIDs(got, []string{"T001", "T002", "T003", "T004"}) {
+	if got := cardIDsInView(model); !equalIDs(got, []string{"T-001", "T-002", "T-003", "T-004"}) {
 		t.Errorf("columns show %v, want every Task in the project", got)
 	}
 }
@@ -218,15 +218,15 @@ func TestInitialSelectionPrecedence(t *testing.T) {
 	root := writeNavigationProject(t)
 
 	fromRouter := sidebarBoard(t, root)
-	if fromRouter.SelectedObjective != "O003" {
-		t.Errorf("SelectedObjective = %q, want the router's O003", fromRouter.SelectedObjective)
+	if fromRouter.SelectedObjective != "O-003" {
+		t.Errorf("SelectedObjective = %q, want the router's O-003", fromRouter.SelectedObjective)
 	}
 
-	fromFlag := openBoard(t, root, "O001")
-	if fromFlag.SelectedObjective != "O001" {
+	fromFlag := openBoard(t, root, "O-001")
+	if fromFlag.SelectedObjective != "O-001" {
 		t.Errorf("SelectedObjective = %q, want --objective to win over the router", fromFlag.SelectedObjective)
 	}
-	if got := cardIDsInView(fromFlag); !equalIDs(got, []string{"T001"}) {
+	if got := cardIDsInView(fromFlag); !equalIDs(got, []string{"T-001"}) {
 		t.Errorf("columns show %v, want the flagged Objective's Tasks", got)
 	}
 
@@ -248,7 +248,7 @@ func TestInitialSelectionPrecedence(t *testing.T) {
 // a glance at the resolved Task now, not a diagnostics surface.
 func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 	root := writeNavigationProject(t)
-	writeRouter(t, root, "task", "O009", "none")
+	writeRouter(t, root, "task", "O-009", "none")
 
 	model := sidebarBoard(t, root)
 	got := xansi.Strip(model.View())
@@ -262,8 +262,8 @@ func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 	if model.State.Next.SelectionDiagnostic == nil {
 		t.Fatalf("State.Next carries no selection diagnostic for a missing router Objective")
 	}
-	if !strings.Contains(model.State.Next.SelectionDiagnostic.ID, "O009") {
-		t.Errorf("selection diagnostic = %+v, want it to name O009", model.State.Next.SelectionDiagnostic)
+	if !strings.Contains(model.State.Next.SelectionDiagnostic.ID, "O-009") {
+		t.Errorf("selection diagnostic = %+v, want it to name O-009", model.State.Next.SelectionDiagnostic)
 	}
 	if !strings.Contains(got, "OBJECTIVES") || !strings.Contains(got, "PLANNED (") {
 		t.Errorf("board did not open over a stale router hint:\n%s", got)
@@ -284,7 +284,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 		t.Fatal("left did not move focus to the sidebar")
 	}
 	if model.ObjectiveCursor != 2 {
-		t.Fatalf("ObjectiveCursor = %d, want the row holding the selected O003", model.ObjectiveCursor)
+		t.Fatalf("ObjectiveCursor = %d, want the row holding the selected O-003", model.ObjectiveCursor)
 	}
 
 	atTop := press(t, model, "up", "up", "up", "up")
@@ -294,7 +294,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	if press(t, atTop, "up").View() != atTop.View() {
 		t.Error("pressing up at the first Objective changed the board")
 	}
-	if atTop.SelectedObjective != "O001" {
+	if atTop.SelectedObjective != "O-001" {
 		t.Errorf("SelectedObjective = %q at the top row, want up to have applied it immediately", atTop.SelectedObjective)
 	}
 
@@ -307,7 +307,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	}
 
 	// Moving the cursor applies the row it lands on, immediately.
-	if atBottom.SelectedObjective != "O006" {
+	if atBottom.SelectedObjective != "O-006" {
 		t.Errorf("SelectedObjective = %q after moving the cursor, want it to follow the cursor to the last row", atBottom.SelectedObjective)
 	}
 }
@@ -322,7 +322,7 @@ func TestLeftArrowAtPlannedColumnEntersSidebar(t *testing.T) {
 		t.Fatal("left at the Planned column did not move focus to the sidebar")
 	}
 	if viaLeft.ObjectiveCursor != 2 {
-		t.Errorf("ObjectiveCursor = %d via left, want the row holding the router's selected O003", viaLeft.ObjectiveCursor)
+		t.Errorf("ObjectiveCursor = %d via left, want the row holding the router's selected O-003", viaLeft.ObjectiveCursor)
 	}
 
 	// h is the same key as left.
@@ -384,10 +384,10 @@ func TestSidebarSurvivesAReloadThatShortensTheList(t *testing.T) {
 	// The three Objectives go, and so do the Checks that name them: a Check
 	// pointing at a record that no longer exists is a load refusal, not a
 	// shorter list.
-	for _, id := range []string{"O004", "O005", "O006"} {
+	for _, id := range []string{"O-004", "O-005", "O-006"} {
 		removeObjective(t, root, id)
 	}
-	for _, id := range []string{"C003", "C004", "C005"} {
+	for _, id := range []string{"C-003", "C-004", "C-005"} {
 		removeCheck(t, root, id)
 	}
 	reloaded, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
@@ -396,7 +396,7 @@ func TestSidebarSurvivesAReloadThatShortensTheList(t *testing.T) {
 	if after.ObjectiveCursor >= len(after.Objectives) {
 		t.Errorf("ObjectiveCursor = %d over %d rows, want a cursor inside the list", after.ObjectiveCursor, len(after.Objectives))
 	}
-	if got := sidebarText(t, after); strings.Contains(got, "O006") {
+	if got := sidebarText(t, after); strings.Contains(got, "O-006") {
 		t.Errorf("sidebar still lists an Objective the reload removed:\n%s", got)
 	}
 }
@@ -418,7 +418,7 @@ func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
 	}
 	// A title wider than the sidebar wraps across up to two lines so the whole title can be read.
 	full := strings.Join(sidebarLines(t, sidebarBoard(t, writeNavigationProject(t))), "\n")
-	if !strings.Contains(full, "O006") {
+	if !strings.Contains(full, "O-006") {
 		t.Fatalf("the last Objective is not on screen, so nothing here proves how its title renders:\n%s", full)
 	}
 	if !strings.Contains(full, "Integration has gone") || !strings.Contains(full, "stale") {
@@ -428,7 +428,7 @@ func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
 
 func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 	shortRow := ObjectiveRow{
-		Objective: &data.ObjectiveV2{ID: "O001", Title: "Short", Status: "planned"},
+		Objective: &data.ObjectiveV2{ID: "O-001", Title: "Short", Status: "planned"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
 	shortText := xansi.Strip(renderObjectiveRow(shortRow, sidebarWidth, false, false))
@@ -437,7 +437,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 	}
 
 	twoLineRow := ObjectiveRow{
-		Objective: &data.ObjectiveV2{ID: "O002", Title: "Implement user authentication subsystem", Status: "in_progress"},
+		Objective: &data.ObjectiveV2{ID: "O-002", Title: "Implement user authentication subsystem", Status: "in_progress"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
 	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, sidebarWidth, false, false))
@@ -449,7 +449,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 	}
 
 	longRow := ObjectiveRow{
-		Objective: &data.ObjectiveV2{ID: "O003", Title: "Implement user authentication and authorization subsystem with multi factor security and token lifecycle management", Status: "in_progress"},
+		Objective: &data.ObjectiveV2{ID: "O-003", Title: "Implement user authentication and authorization subsystem with multi factor security and token lifecycle management", Status: "in_progress"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
 	longText := xansi.Strip(renderObjectiveRow(longRow, 28, false, false))
@@ -644,7 +644,7 @@ func rowsFor(lines []string, id string) string {
 }
 
 // objectiveRowStart reports whether a sidebar line is the first line of a row,
-// which is the only line carrying an O### identity.
+// which is the only line carrying an O-### identity.
 func objectiveRowStart(line string) bool {
 	trimmed := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(line), "│"), " "+glyphCursor+glyphSelected)
 	return strings.HasPrefix(trimmed, "O") && len(trimmed) > 4 && trimmed[1] >= '0' && trimmed[1] <= '9'

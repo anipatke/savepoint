@@ -15,7 +15,7 @@ const releaseActiveMarker = "►"
 
 // orderedReleaseIDs is the selector's one source of ordering. The index is a
 // map because identity lookup is the data contract; the board presents it in
-// stable R### order for repeatable navigation.
+// stable R-### order for repeatable navigation.
 func orderedReleaseIDs(index *data.V2Index) []string {
 	if index == nil {
 		return nil

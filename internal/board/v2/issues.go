@@ -64,7 +64,7 @@ type IssueRow struct {
 }
 
 // IssueCatalog is built by the load command and reused by every Issues view.
-// Rows are stable I### order. TaskRows is the scoped entry-point projection,
+// Rows are stable I-### order. TaskRows is the scoped entry-point projection,
 // including direct Task links and Issues attached to that Task's Check chain.
 type IssueCatalog struct {
 	Rows     []IssueRow

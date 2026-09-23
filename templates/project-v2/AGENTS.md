@@ -48,7 +48,7 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 A Release is an optional delivery boundary, not another public state. Ask for one during Idea only when the owner needs a navigable delivery/package promise across multiple Objectives. Without one, the normal Idea → Design → Task → Check path remains complete and must not report a missing Release record.
 
-When an owner opts in, Design gives the Release a stable `R###` identity and an outcome, success conditions, and Objective links. Objectives carry the single optional `release: R###` reference; Releases do not nest files, own Tasks, or maintain a second membership list. Release `done` means current CLEAR integration evidence plus the owner's acceptance of that exact Check, not published or deployed.
+When an owner opts in, Design gives the Release a stable `R-###` identity and an outcome, success conditions, and Objective links. Objectives carry the single optional `release: R-###` reference; Releases do not nest files, own Tasks, or maintain a second membership list. Release `done` means current CLEAR integration evidence plus the owner's acceptance of that exact Check, not published or deployed.
 
 ## Terminology
 
@@ -64,7 +64,7 @@ When an owner opts in, Design gives the Release a stable `R###` identity and an 
 
 Use Issue capture when planning, implementation, or a Check surfaces a defect, drift, a guardrail gap, or other durable follow-up that does not belong inside Design or the current Objective's Tasks. "Defect" stays a word the user says; it maps to `type: defect` on the Issue record and does not reopen a separate defect workflow.
 
-- Issues live at `.savepoint/issues/I###-slug.md`.
+- Issues live at `.savepoint/issues/I-###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, the search-before-creating rule, resolution dispositions, and role boundaries.
 - The executor reports repair evidence on an Issue without closing it; only `savepoint-check` verifies the proof and closes it.
 
@@ -88,7 +88,7 @@ Objective/Release outcomes after the required evidence exists.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
-- Check records are immutable, at `.savepoint/checks/C###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
+- Check records are immutable, at `.savepoint/checks/C-###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
 
 ## Existing Codebase Adoption
 

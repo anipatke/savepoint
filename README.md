@@ -39,7 +39,7 @@ Savepoint makes those boundaries explicit:
   exists.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
-- **Use Releases when they help.** A V2 project may add stable `R###` Release
+- **Use Releases when they help.** A V2 project may add stable `R-###` Release
   records to group Objectives, show one delivery context on the board, and
   require an independent Release Check plus owner acceptance before marking
   that delivery promise done. Releases are optional and do not publish,
@@ -108,7 +108,7 @@ Use the V2 objective filter when you want to focus the board, and use the
 command help when you need the complete option contract:
 
 ```bash
-npx savepoint board --objective O001
+npx savepoint board --objective O-001
 npx savepoint --help
 npx savepoint board --help
 ```
@@ -132,7 +132,7 @@ teammate pick up where the last one stopped.
 | Command | What it does |
 | --- | --- |
 | `savepoint init [dir]` | Scaffolds Savepoint's project files and agent guidance. |
-| `savepoint board [--objective O###]` | Opens the keyboard-driven V2 board, optionally focused on one Objective. |
+| `savepoint board [--objective O-###]` | Opens the keyboard-driven V2 board, optionally focused on one Objective. |
 | `savepoint resume [dir]` | Prints the current state and the next recorded action. |
 | `savepoint doctor` | Runs deterministic project diagnostics and configured quality gates. |
 | `savepoint migrate [dir]` | Converts a legacy Savepoint project to V2. Preview is the default. |
@@ -155,7 +155,7 @@ project:
 - **Detail views** expose acceptance criteria, dependencies, evidence, and
   issues without leaving the terminal.
 - **Release context** is optional: press `r` to switch the visible Release;
-  membership comes from each Objective's `release: R###` field.
+  membership comes from each Objective's `release: R-###` field.
 - **Router priority** lets you focus the next task without rewriting the
   history of the project.
 
@@ -174,11 +174,11 @@ Savepoint uses Markdown and YAML as its source of truth:
 ├── Design.md              # Architecture and verified technical state
 ├── Guardrails.md          # Durable engineering policy
 ├── objectives/            # Outcomes and their bounded Tasks
-│   └── O001-example/
+│   └── O-001-example/
 │       ├── Objective.md
 │       └── tasks/
-├── releases/               # Optional V2 delivery promises (R###)
-│   └── R001-example/Release.md
+├── releases/               # Optional V2 delivery promises (R-###)
+│   └── R-001-example/Release.md
 ├── checks/                # Independent verification evidence
 └── issues/                # Durable follow-up and discovered problems
 
@@ -201,7 +201,7 @@ npx savepoint migrate --apply
 
 The preview reports planned records, identity mappings, archived source,
 conflicts, and decisions that still need an owner. Nothing is written unless
-`--apply` is used. Release PRDs become accountable `R###` records plus exact
+`--apply` is used. Release PRDs become accountable `R-###` records plus exact
 archive mappings; historical completion is displayed as historical evidence,
 never as a fabricated current Check. If a migration is interrupted,
 `--recover` reports the pending operation and can resume it without

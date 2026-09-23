@@ -2,13 +2,8 @@ package data
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
-
-// taskIDPatternV2 anchors V2 global Task identity: T plus at least three
-// digits.
-var taskIDPatternV2 = regexp.MustCompile(`^T[0-9]{3,}$`)
 
 // TaskDependencyRequirement is the clearance a V2 Task dependency needs
 // before it can be treated as satisfied. It is decoded strictly: an omitted
@@ -21,7 +16,7 @@ const (
 	TaskDependencyAccepted TaskDependencyRequirement = "accepted"
 )
 
-// TaskDependencyV2 is one decoded {task: T###, requires: clear|accepted}
+// TaskDependencyV2 is one decoded {task: T-###, requires: clear|accepted}
 // dependency record.
 type TaskDependencyV2 struct {
 	Task     string
@@ -34,7 +29,7 @@ type TaskDependencyV2 struct {
 type TaskV2 struct {
 	ID        string
 	Title     string
-	Objective string // the single O### owner
+	Objective string // the single O-### owner
 	PlannedBy Actor  // planner provenance recorded when the Task is created
 	Status    ColumnType
 	Stage     ProgressStage
@@ -65,8 +60,8 @@ type taskV2Frontmatter struct {
 }
 
 // DecodeTaskV2 strictly decodes a V2 Task record from content. It requires a
-// valid global T### ID, a non-empty title distinct from any Objective
-// reference, exactly one O### objective owner, a canonical lifecycle
+// valid global T-### ID, a non-empty title distinct from any Objective
+// reference, exactly one O-### objective owner, a canonical lifecycle
 // status/stage combination, planner provenance, and well-formed dependency
 // records. Nothing here is healed: missing titles, malformed IDs, unknown
 // lifecycle values, invalid provenance, and invalid dependency requirements
@@ -82,19 +77,19 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !taskIDPatternV2.MatchString(fields.ID) {
-		return nil, fmt.Errorf("%w: %s: task id %q must match T plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesV2Identity(fields.ID, 'T') {
+		return nil, fmt.Errorf("%w: %s: task id %q must match T- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 
 	// Title is required on its own terms. V1's objective-as-title fallback
 	// (parser.go firstNonEmpty(Title, Objective)) never applies here: V2
-	// objective is an O### identity reference, not display language.
+	// objective is an O-### identity reference, not display language.
 	if strings.TrimSpace(fields.Title) == "" {
 		return nil, fmt.Errorf("%w: %s: task %s missing required field title", ErrV2MissingField, path, fields.ID)
 	}
 
-	if !objectiveIDPattern.MatchString(fields.Objective) {
-		return nil, fmt.Errorf("%w: %s: task %s objective %q must be a single O### owner", ErrV2InvalidOwnership, path, fields.ID, fields.Objective)
+	if !matchesV2Identity(fields.Objective, 'O') {
+		return nil, fmt.Errorf("%w: %s: task %s objective %q must be a single O-### owner", ErrV2InvalidOwnership, path, fields.ID, fields.Objective)
 	}
 
 	plannedBy, err := decodeTaskPlanner(path, fields.ID, fields.PlannedBy)
@@ -112,8 +107,8 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 
 	dependsOn := make([]TaskDependencyV2, 0, len(fields.DependsOn))
 	for _, ref := range fields.DependsOn {
-		if !taskIDPatternV2.MatchString(ref.Task) {
-			return nil, fmt.Errorf("%w: %s: task %s depends_on %q must match T plus at least three digits", ErrV2InvalidDependency, path, fields.ID, ref.Task)
+		if !matchesV2Identity(ref.Task, 'T') {
+			return nil, fmt.Errorf("%w: %s: task %s depends_on %q must match T- plus at least three digits", ErrV2InvalidDependency, path, fields.ID, ref.Task)
 		}
 
 		requires := TaskDependencyRequirement(ref.Requires)

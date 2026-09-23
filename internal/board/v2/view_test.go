@@ -55,7 +55,7 @@ func TestViewReportsTheCountsItLoaded(t *testing.T) {
 	if !strings.Contains(got, "PLANNED (1)") || !strings.Contains(got, "DONE (1)") {
 		t.Errorf("view does not report Tasks in the columns their status names:\n%s", got)
 	}
-	if !strings.Contains(got, "T001") || !strings.Contains(got, "Do the thing") {
+	if !strings.Contains(got, "T-001") || !strings.Contains(got, "Do the thing") {
 		t.Errorf("view does not name the record the projection selected:\n%s", got)
 	}
 }
@@ -70,7 +70,7 @@ func TestViewDiagnosticScreenDrawsNoColumns(t *testing.T) {
 	if !strings.Contains(got, diagnosticHeading) {
 		t.Errorf("view missing the load-diagnostic heading:\n%s", got)
 	}
-	if !strings.Contains(got, "T001-fixture.md") || !strings.Contains(got, "missing required field title") {
+	if !strings.Contains(got, "T-001-fixture.md") || !strings.Contains(got, "missing required field title") {
 		t.Errorf("diagnostic view does not name the file and the problem:\n%s", got)
 	}
 	for _, column := range []string{"PLANNED", "IN PROGRESS", "DONE"} {

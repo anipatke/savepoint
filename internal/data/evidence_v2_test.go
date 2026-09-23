@@ -7,7 +7,7 @@ import (
 )
 
 func TestDecodeEvidenceV2_absentEvidenceIsNil(t *testing.T) {
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -17,12 +17,12 @@ func TestDecodeEvidenceV2_absentEvidenceIsNil(t *testing.T) {
 }
 
 func TestDecodeEvidenceV2_lastCheckOnly(t *testing.T) {
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{LastCheck: "C001"})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{LastCheck: "C-001"})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
-	if evidence == nil || evidence.LastCheck != "C001" {
-		t.Fatalf("decodeEvidenceV2() = %+v, want LastCheck C001", evidence)
+	if evidence == nil || evidence.LastCheck != "C-001" {
+		t.Fatalf("decodeEvidenceV2() = %+v, want LastCheck C-001", evidence)
 	}
 	if evidence.Freshness != nil || evidence.OwnerValidation != nil || evidence.Exception != nil || evidence.Replan != nil {
 		t.Fatalf("decodeEvidenceV2() = %+v, want every other sub-block nil", evidence)
@@ -30,7 +30,7 @@ func TestDecodeEvidenceV2_lastCheckOnly(t *testing.T) {
 }
 
 func TestDecodeEvidenceV2_lastCheckMalformed(t *testing.T) {
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{LastCheck: "C1"})
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{LastCheck: "C1"})
 	if !errors.Is(err, ErrV2InvalidID) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2InvalidID", err)
 	}
@@ -39,7 +39,7 @@ func TestDecodeEvidenceV2_lastCheckMalformed(t *testing.T) {
 func validFreshnessFrontmatter() freshnessV2Frontmatter {
 	return freshnessV2Frontmatter{
 		State:      "current",
-		Check:      "C001",
+		Check:      "C-001",
 		AssessedBy: evidenceActorFrontmatter{Role: "checker", Session: "sess-1"},
 		AssessedAt: "2026-09-15T00:00:00Z",
 		Basis:      "reviewed the diff",
@@ -48,7 +48,7 @@ func validFreshnessFrontmatter() freshnessV2Frontmatter {
 
 func TestDecodeEvidenceV2_freshnessValid(t *testing.T) {
 	fresh := validFreshnessFrontmatter()
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Freshness: &fresh})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Freshness: &fresh})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -56,8 +56,8 @@ func TestDecodeEvidenceV2_freshnessValid(t *testing.T) {
 		t.Fatal("decodeEvidenceV2() Freshness = nil, want a decoded Freshness")
 	}
 	f := evidence.Freshness
-	if f.State != FreshnessCurrent || f.Check != "C001" || f.Basis != "reviewed the diff" {
-		t.Errorf("Freshness = %+v, want state current, check C001, basis set", f)
+	if f.State != FreshnessCurrent || f.Check != "C-001" || f.Basis != "reviewed the diff" {
+		t.Errorf("Freshness = %+v, want state current, check C-001, basis set", f)
 	}
 	if f.AssessedBy.Role != ActorRoleChecker || f.AssessedBy.Session != "sess-1" {
 		t.Errorf("Freshness.AssessedBy = %+v, want checker/sess-1", f.AssessedBy)
@@ -73,7 +73,7 @@ func TestDecodeEvidenceV2_freshnessEachStateValue(t *testing.T) {
 		t.Run(string(state), func(t *testing.T) {
 			fresh := validFreshnessFrontmatter()
 			fresh.State = string(state)
-			evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Freshness: &fresh})
+			evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Freshness: &fresh})
 			if err != nil {
 				t.Fatalf("decodeEvidenceV2() error = %v", err)
 			}
@@ -87,7 +87,7 @@ func TestDecodeEvidenceV2_freshnessEachStateValue(t *testing.T) {
 func TestDecodeEvidenceV2_freshnessUnknownStateValueRejected(t *testing.T) {
 	fresh := validFreshnessFrontmatter()
 	fresh.State = "expired"
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Freshness: &fresh})
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Freshness: &fresh})
 	if !errors.Is(err, ErrV2EvidenceMalformed) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
@@ -96,7 +96,7 @@ func TestDecodeEvidenceV2_freshnessUnknownStateValueRejected(t *testing.T) {
 func TestDecodeEvidenceV2_currentFreshnessRequiresCheckerProvenance(t *testing.T) {
 	fresh := validFreshnessFrontmatter()
 	fresh.AssessedBy = evidenceActorFrontmatter{Role: "executor", Session: "executor-1"}
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Freshness: &fresh})
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Freshness: &fresh})
 	if !errors.Is(err, ErrV2EvidenceMalformed) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
@@ -127,7 +127,7 @@ func TestDecodeEvidenceV2_freshnessPartiallyFilledRejected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fresh := validFreshnessFrontmatter()
 			tt.mutate(&fresh)
-			_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Freshness: &fresh})
+			_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Freshness: &fresh})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("decodeEvidenceV2() error = %v, want %v", err, tt.wantErr)
 			}
@@ -136,7 +136,7 @@ func TestDecodeEvidenceV2_freshnessPartiallyFilledRejected(t *testing.T) {
 }
 
 func TestDecodeEvidenceV2_ownerValidationAbsentMeansNotRequired(t *testing.T) {
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -147,7 +147,7 @@ func TestDecodeEvidenceV2_ownerValidationAbsentMeansNotRequired(t *testing.T) {
 
 func TestDecodeEvidenceV2_ownerValidationRequiredOnly(t *testing.T) {
 	ov := ownerValidationV2Frontmatter{Required: true}
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{OwnerValidation: &ov})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{OwnerValidation: &ov})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -160,19 +160,19 @@ func TestDecodeEvidenceV2_ownerValidationRequiredOnly(t *testing.T) {
 }
 
 func TestDecodeEvidenceV2_ownerValidationWithAcceptedCheck(t *testing.T) {
-	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C002", AcceptedBy: &evidenceActorFrontmatter{Role: "owner", Session: "owner-1"}}
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{OwnerValidation: &ov})
+	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C-002", AcceptedBy: &evidenceActorFrontmatter{Role: "owner", Session: "owner-1"}}
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{OwnerValidation: &ov})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
-	if evidence.OwnerValidation.AcceptedCheck != "C002" {
-		t.Errorf("OwnerValidation.AcceptedCheck = %q, want C002", evidence.OwnerValidation.AcceptedCheck)
+	if evidence.OwnerValidation.AcceptedCheck != "C-002" {
+		t.Errorf("OwnerValidation.AcceptedCheck = %q, want C-002", evidence.OwnerValidation.AcceptedCheck)
 	}
 }
 
 func TestDecodeEvidenceV2_ownerAcceptanceRequiresProvenance(t *testing.T) {
-	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C002"}
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{OwnerValidation: &ov})
+	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C-002"}
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{OwnerValidation: &ov})
 	if !errors.Is(err, ErrV2MissingField) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2MissingField", err)
 	}
@@ -181,10 +181,10 @@ func TestDecodeEvidenceV2_ownerAcceptanceRequiresProvenance(t *testing.T) {
 func TestDecodeEvidenceV2_ownerAcceptanceRequiresOwnerRole(t *testing.T) {
 	ov := ownerValidationV2Frontmatter{
 		Required:      true,
-		AcceptedCheck: "C002",
+		AcceptedCheck: "C-002",
 		AcceptedBy:    &evidenceActorFrontmatter{Role: "executor", Session: "executor-1"},
 	}
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{OwnerValidation: &ov})
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{OwnerValidation: &ov})
 	if !errors.Is(err, ErrV2EvidenceMalformed) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
@@ -192,7 +192,7 @@ func TestDecodeEvidenceV2_ownerAcceptanceRequiresOwnerRole(t *testing.T) {
 
 func TestDecodeEvidenceV2_ownerValidationMalformedAcceptedCheck(t *testing.T) {
 	ov := ownerValidationV2Frontmatter{AcceptedCheck: "C1"}
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{OwnerValidation: &ov})
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{OwnerValidation: &ov})
 	if !errors.Is(err, ErrV2InvalidID) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2InvalidID", err)
 	}
@@ -204,13 +204,13 @@ func validExceptionFrontmatter() exceptionV2Frontmatter {
 		Reason:       "owner accepted the tradeoff",
 		Owner:        "ani",
 		RecordedAt:   "2026-09-15T00:00:00Z",
-		Check:        "C003",
+		Check:        "C-003",
 	}
 }
 
 func TestDecodeEvidenceV2_exceptionValid(t *testing.T) {
 	exception := validExceptionFrontmatter()
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Exception: &exception})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Exception: &exception})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestDecodeEvidenceV2_exceptionValid(t *testing.T) {
 	if len(e.Requirements) != 2 || e.Requirements[0] != "TEST-08" || e.Requirements[1] != "STYLE-01" {
 		t.Errorf("Exception.Requirements = %v, want [TEST-08 STYLE-01]", e.Requirements)
 	}
-	if e.Reason != "owner accepted the tradeoff" || e.Owner != "ani" || e.Check != "C003" {
+	if e.Reason != "owner accepted the tradeoff" || e.Owner != "ani" || e.Check != "C-003" {
 		t.Errorf("Exception = %+v, want reason/owner/check set", e)
 	}
 }
@@ -249,7 +249,7 @@ func TestDecodeEvidenceV2_exceptionPartiallyFilledRejected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			exception := validExceptionFrontmatter()
 			tt.mutate(&exception)
-			_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Exception: &exception})
+			_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Exception: &exception})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("decodeEvidenceV2() error = %v, want %v", err, tt.wantErr)
 			}
@@ -267,7 +267,7 @@ func validReplanFrontmatter() replanV2Frontmatter {
 
 func TestDecodeEvidenceV2_replanValid(t *testing.T) {
 	replan := validReplanFrontmatter()
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Replan: &replan})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Replan: &replan})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -300,7 +300,7 @@ func TestDecodeEvidenceV2_replanPartiallyFilledRejected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			replan := validReplanFrontmatter()
 			tt.mutate(&replan)
-			_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{Replan: &replan})
+			_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{Replan: &replan})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("decodeEvidenceV2() error = %v, want %v", err, tt.wantErr)
 			}
@@ -310,7 +310,7 @@ func TestDecodeEvidenceV2_replanPartiallyFilledRejected(t *testing.T) {
 
 func validCheckWaiverFrontmatter() checkWaiverV2Frontmatter {
 	return checkWaiverV2Frontmatter{
-		Task:       "T001",
+		Task:       "T-001",
 		Reason:     "owner waived the local Check; the Full Objective Check will cover it",
 		Actor:      evidenceActorFrontmatter{Role: "owner", Session: "owner-1"},
 		RecordedAt: "2026-09-20T00:00:00Z",
@@ -319,7 +319,7 @@ func validCheckWaiverFrontmatter() checkWaiverV2Frontmatter {
 
 func TestDecodeEvidenceV2_checkWaiverValid(t *testing.T) {
 	waiver := validCheckWaiverFrontmatter()
-	evidence, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	evidence, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{CheckWaiver: &waiver})
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
@@ -327,7 +327,7 @@ func TestDecodeEvidenceV2_checkWaiverValid(t *testing.T) {
 		t.Fatal("decodeEvidenceV2() CheckWaiver = nil, want decoded block")
 	}
 	w := evidence.CheckWaiver
-	if w.Task != "T001" || w.Reason == "" {
+	if w.Task != "T-001" || w.Reason == "" {
 		t.Errorf("CheckWaiver = %+v, want task/reason set", w)
 	}
 	if w.Actor.Role != ActorRoleOwner || w.Actor.Session != "owner-1" {
@@ -337,8 +337,8 @@ func TestDecodeEvidenceV2_checkWaiverValid(t *testing.T) {
 
 func TestDecodeEvidenceV2_checkWaiverOnlyAppliesToTaskEvidence(t *testing.T) {
 	waiver := validCheckWaiverFrontmatter()
-	waiver.Task = "O001"
-	_, err := decodeEvidenceV2("test.md", "objective", "O001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	waiver.Task = "O-001"
+	_, err := decodeEvidenceV2("test.md", "objective", "O-001", evidenceV2Frontmatter{CheckWaiver: &waiver})
 	if !errors.Is(err, ErrV2EvidenceMalformed) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
@@ -346,8 +346,8 @@ func TestDecodeEvidenceV2_checkWaiverOnlyAppliesToTaskEvidence(t *testing.T) {
 
 func TestDecodeEvidenceV2_checkWaiverMustNameItsOwnTask(t *testing.T) {
 	waiver := validCheckWaiverFrontmatter()
-	waiver.Task = "T999"
-	_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+	waiver.Task = "T-999"
+	_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{CheckWaiver: &waiver})
 	if !errors.Is(err, ErrV2EvidenceMalformed) {
 		t.Fatalf("decodeEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
@@ -376,7 +376,7 @@ func TestDecodeEvidenceV2_checkWaiverPartiallyFilledRejected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			waiver := validCheckWaiverFrontmatter()
 			tt.mutate(&waiver)
-			_, err := decodeEvidenceV2("test.md", "task", "T001", evidenceV2Frontmatter{CheckWaiver: &waiver})
+			_, err := decodeEvidenceV2("test.md", "task", "T-001", evidenceV2Frontmatter{CheckWaiver: &waiver})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("decodeEvidenceV2() error = %v, want %v", err, tt.wantErr)
 			}
@@ -389,12 +389,12 @@ func TestDecodeEvidenceV2_checkWaiverPartiallyFilledRejected(t *testing.T) {
 // one record without interfering with each other.
 func TestDecodeEvidenceV2_fullBlockAllSubBlocksTogether(t *testing.T) {
 	fresh := validFreshnessFrontmatter()
-	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C001", AcceptedBy: &evidenceActorFrontmatter{Role: "owner", Session: "owner-1"}}
+	ov := ownerValidationV2Frontmatter{Required: true, AcceptedCheck: "C-001", AcceptedBy: &evidenceActorFrontmatter{Role: "owner", Session: "owner-1"}}
 	exception := validExceptionFrontmatter()
 	replan := validReplanFrontmatter()
 
-	evidence, err := decodeEvidenceV2("test.md", "objective", "O001", evidenceV2Frontmatter{
-		LastCheck:       "C001",
+	evidence, err := decodeEvidenceV2("test.md", "objective", "O-001", evidenceV2Frontmatter{
+		LastCheck:       "C-001",
 		Freshness:       &fresh,
 		OwnerValidation: &ov,
 		Exception:       &exception,
@@ -403,7 +403,7 @@ func TestDecodeEvidenceV2_fullBlockAllSubBlocksTogether(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeEvidenceV2() error = %v", err)
 	}
-	if evidence.LastCheck != "C001" || evidence.Freshness == nil || evidence.OwnerValidation == nil || evidence.Exception == nil || evidence.Replan == nil {
+	if evidence.LastCheck != "C-001" || evidence.Freshness == nil || evidence.OwnerValidation == nil || evidence.Exception == nil || evidence.Replan == nil {
 		t.Fatalf("decodeEvidenceV2() = %+v, want every sub-block populated", evidence)
 	}
 }

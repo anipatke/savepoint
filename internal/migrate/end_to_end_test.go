@@ -468,12 +468,12 @@ func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
 			}
 
 			if fixture == "v1-history" {
-				historical := index.Releases["R001"]
+				historical := index.Releases["R-001"]
 				if historical == nil || historical.LegacyCompletion == nil {
-					t.Fatalf("R001 historical Release = %+v, want typed legacy completion", historical)
+					t.Fatalf("R-001 historical Release = %+v, want typed legacy completion", historical)
 				}
-				if historicalDecision := data.ResolveReleaseCompletion(index, "R001"); !historicalDecision.AllowedByLegacyCompletion {
-					t.Fatalf("R001 historical decision = %+v, want allowed by archived history", historicalDecision)
+				if historicalDecision := data.ResolveReleaseCompletion(index, "R-001"); !historicalDecision.AllowedByLegacyCompletion {
+					t.Fatalf("R-001 historical decision = %+v, want allowed by archived history", historicalDecision)
 				}
 				if cutover.Allowed {
 					t.Fatalf("v1-history cutover = %+v, want blocked by its active Release", cutover)

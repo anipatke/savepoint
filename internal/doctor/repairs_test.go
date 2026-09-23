@@ -148,9 +148,9 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 		{"v2-check-malformed", "result must be CLEAR or NEEDS WORK"},
 		{"v2-check-missing-scope-target", "Create the Task or Objective"},
 		{"v2-check-missing-release-scope-target", "Create the Release"},
-		{"v2-release-invalid-id", "valid R### identity"},
-		{"v2-invalid-release-reference", "existing R### Release"},
-		{"v2-missing-release", "referenced R### Release"},
+		{"v2-release-invalid-id", "valid R-### identity"},
+		{"v2-invalid-release-reference", "existing R-### Release"},
+		{"v2-missing-release", "referenced R-### Release"},
 		{"v2-release-missing-section", "required Release body section"},
 		{"v2-release-legacy-malformed", "legacy_completion"},
 		{"v2-check-missing-reference", "Create the Check named in supersedes"},
@@ -159,14 +159,14 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 		{"v2-evidence-missing-reference", "name a Check that exists"},
 		{"v2-check-immutable", "immutable once written"},
 		{"v2-issue-malformed", "type, status, source, resolution, and history"},
-		{"v2-issue-missing-duplicate-target", "duplicate_of to an existing I### Issue"},
+		{"v2-issue-missing-duplicate-target", "duplicate_of to an existing I-### Issue"},
 		{"v2-issue-self-duplicate", "own id from its duplicate_of"},
 		{"v2-issue-duplicate-cycle", "circular duplicate_of chain"},
 		{"v2-issue-missing-link-target", "tasks, checks, or issues reference"},
 		{"v2-issue-unpaired-check-link", "checks field"},
 		{"v2-issue-resolution-required", "resolution block naming a disposition"},
 		{"v2-issue-resolution-not-allowed", "Remove the resolution block"},
-		{"v2-issue-resolution-missing-proof", "CLEAR C### Check"},
+		{"v2-issue-resolution-missing-proof", "CLEAR C-### Check"},
 		{"v2-issue-resolution-unusable-proof", "recorded CLEAR"},
 		{"v2-issue-resolution-field-mismatch", "accepted needs an owner actor"},
 		{"v2-issue-already-exists", "cannot be overwritten by create"},
@@ -183,7 +183,7 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 
 func TestV2ProblemRepair_invalidIDNamesEveryV2RecordFamily(t *testing.T) {
 	got := V2ProblemRepair("v2-invalid-id")
-	for _, identity := range []string{"O### (Objective)", "T### (Task)", "C### (Check)", "I### (Issue reference)"} {
+	for _, identity := range []string{"O-### (Objective)", "T-### (Task)", "C-### (Check)", "I-### (Issue reference)"} {
 		if !strings.Contains(got, identity) {
 			t.Errorf("V2ProblemRepair(v2-invalid-id) = %q, want %q guidance", got, identity)
 		}

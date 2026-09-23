@@ -104,7 +104,7 @@ func assertSurfaceFits(t *testing.T, name, rendered string, width int) {
 
 func TestWideAndCombiningTaskTitleIsMeasuredInCells(t *testing.T) {
 	root := writeValidProject(t)
-	writeTaskBody(t, root, "O001", "T001", "界界 e\u0301 🙂 a title that must truncate", "status: planned\n", "")
+	writeTaskBody(t, root, "O-001", "T-001", "界界 e\u0301 🙂 a title that must truncate", "status: planned\n", "")
 
 	model := openSizedBoard(t, root, 20, 30)
 	got := xansi.Strip(model.View())

@@ -8,8 +8,8 @@ import (
 
 func TestDecodeCheckV2_valid(t *testing.T) {
 	content := `---
-id: C001
-scope: {kind: task, id: T001}
+id: C-001
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: checker, session: review-001}
 executed_session: build-001
@@ -19,22 +19,22 @@ reviewed:
   head_commit: def456
   files: [internal/data/check_v2.go]
   dependencies: [go.mod]
-issues: [I001]
-supersedes: C000
+issues: [I-001]
+supersedes: C-000
 ---
 
 # Check`
 
-	check, err := DecodeCheckV2("checks/C001-clear.md", content)
+	check, err := DecodeCheckV2("checks/C-001-clear.md", content)
 	if err != nil {
 		t.Fatalf("DecodeCheckV2() error = %v", err)
 	}
 
-	if check.ID != "C001" {
-		t.Errorf("ID = %q, want C001", check.ID)
+	if check.ID != "C-001" {
+		t.Errorf("ID = %q, want C-001", check.ID)
 	}
-	if check.Scope != (CheckScope{Kind: CheckScopeTask, ID: "T001"}) {
-		t.Errorf("Scope = %+v, want {task T001}", check.Scope)
+	if check.Scope != (CheckScope{Kind: CheckScopeTask, ID: "T-001"}) {
+		t.Errorf("Scope = %+v, want {task T-001}", check.Scope)
 	}
 	if check.Result != CheckResultClear {
 		t.Errorf("Result = %q, want CLEAR", check.Result)
@@ -61,18 +61,18 @@ supersedes: C000
 	if len(check.Reviewed.Dependencies) != 1 || check.Reviewed.Dependencies[0] != "go.mod" {
 		t.Errorf("Reviewed.Dependencies = %v, want [go.mod]", check.Reviewed.Dependencies)
 	}
-	if len(check.Issues) != 1 || check.Issues[0] != "I001" {
-		t.Errorf("Issues = %v, want [I001]", check.Issues)
+	if len(check.Issues) != 1 || check.Issues[0] != "I-001" {
+		t.Errorf("Issues = %v, want [I-001]", check.Issues)
 	}
-	if check.Supersedes != "C000" {
-		t.Errorf("Supersedes = %q, want C000", check.Supersedes)
+	if check.Supersedes != "C-000" {
+		t.Errorf("Supersedes = %q, want C-000", check.Supersedes)
 	}
 }
 
 func TestDecodeCheckV2_minimalValid(t *testing.T) {
 	content := `---
-id: C002
-scope: {kind: objective, id: O001}
+id: C-002
+scope: {kind: objective, id: O-001}
 result: NEEDS WORK
 checked_by: {role: owner, session: sess-1}
 executed_session: build-001
@@ -85,8 +85,8 @@ checked_at: '2026-09-14T00:00:00Z'
 	if err != nil {
 		t.Fatalf("DecodeCheckV2() error = %v", err)
 	}
-	if check.Scope != (CheckScope{Kind: CheckScopeObjective, ID: "O001"}) {
-		t.Errorf("Scope = %+v, want {objective O001}", check.Scope)
+	if check.Scope != (CheckScope{Kind: CheckScopeObjective, ID: "O-001"}) {
+		t.Errorf("Scope = %+v, want {objective O-001}", check.Scope)
 	}
 	if check.Result != CheckResultNeedsWork {
 		t.Errorf("Result = %q, want NEEDS WORK", check.Result)
@@ -104,8 +104,8 @@ checked_at: '2026-09-14T00:00:00Z'
 
 func TestDecodeCheckV2_clearAllowsAbsentReviewed(t *testing.T) {
 	content := `---
-id: C003
-scope: {kind: task, id: T001}
+id: C-003
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: checker, session: review-001}
 executed_session: build-001
@@ -142,7 +142,7 @@ func TestDecodeCheckV2_executedSessionValidation(t *testing.T) {
 			if tt.executedSession != "" {
 				executedSession = "executed_session: " + tt.executedSession + "\n"
 			}
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: " + tt.checkedSession + "}\n" + executedSession + "checked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: " + tt.checkedSession + "}\n" + executedSession + "checked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -153,8 +153,8 @@ func TestDecodeCheckV2_executedSessionValidation(t *testing.T) {
 
 func TestDecodeCheckV2_clearAllowsExplicitlyEmptyReviewed(t *testing.T) {
 	content := `---
-id: C002
-scope: {kind: task, id: T001}
+id: C-002
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: checker, session: sess-1}
 executed_session: build-001
@@ -188,15 +188,17 @@ func TestDecodeCheckV2_malformedID(t *testing.T) {
 	}{
 		{"missing digits", "C"},
 		{"too few digits", "C01"},
-		{"wrong prefix letter", "T001"},
+		{"unhyphenated identity", "C001"},
+		{"hyphenated but too few digits", "C-01"},
+		{"wrong prefix letter", "T-001"},
 		{"lowercase prefix", "c001"},
-		{"trailing garbage", "C001x"},
+		{"trailing garbage", "C-001x"},
 		{"empty", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: \"" + tt.id + "\"\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: \"" + tt.id + "\"\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, ErrV2InvalidID) {
 				t.Fatalf("DecodeCheckV2() error = %v, want ErrV2InvalidID", err)
@@ -211,16 +213,16 @@ func TestDecodeCheckV2_scope(t *testing.T) {
 		scope   string
 		wantErr error
 	}{
-		{"missing kind", "{id: T001}", ErrV2MissingField},
-		{"invalid kind", "{kind: epic, id: T001}", ErrV2CheckMalformed},
+		{"missing kind", "{id: T-001}", ErrV2MissingField},
+		{"invalid kind", "{kind: epic, id: T-001}", ErrV2CheckMalformed},
 		{"missing id", "{kind: task}", ErrV2MissingField},
-		{"task kind with objective id", "{kind: task, id: O001}", ErrV2InvalidID},
-		{"objective kind with task id", "{kind: objective, id: T001}", ErrV2InvalidID},
+		{"task kind with objective id", "{kind: task, id: O-001}", ErrV2InvalidID},
+		{"objective kind with task id", "{kind: objective, id: T-001}", ErrV2InvalidID},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: " + tt.scope + "\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C-001\nscope: " + tt.scope + "\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -242,7 +244,7 @@ func TestDecodeCheckV2_result(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: \"" + tt.result + "\"\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: \"" + tt.result + "\"\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -264,7 +266,7 @@ func TestDecodeCheckV2_checkedBy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: " + tt.checkedBy + "\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
+			content := "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: " + tt.checkedBy + "\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -275,8 +277,8 @@ func TestDecodeCheckV2_checkedBy(t *testing.T) {
 
 func TestDecodeCheckV2_clearRequiresCheckerProvenance(t *testing.T) {
 	content := `---
-id: C001
-scope: {kind: task, id: T001}
+id: C-001
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: executor, session: executor-1}
 executed_session: build-001
@@ -304,7 +306,7 @@ func TestDecodeCheckV2_checkedAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: \"" + tt.checkedAt + "\"\n---\n\n# Check"
+			content := "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: \"" + tt.checkedAt + "\"\n---\n\n# Check"
 			_, err := DecodeCheckV2("test.md", content)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("DecodeCheckV2() error = %v, want %v", err, tt.wantErr)
@@ -315,13 +317,13 @@ func TestDecodeCheckV2_checkedAt(t *testing.T) {
 
 func TestDecodeCheckV2_invalidIssueReference(t *testing.T) {
 	content := `---
-id: C001
-scope: {kind: task, id: T001}
+id: C-001
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: checker, session: s}
 executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
-issues: [T001]
+issues: [T-001]
 ---
 
 # Check`
@@ -334,13 +336,13 @@ issues: [T001]
 
 func TestDecodeCheckV2_invalidSupersedes(t *testing.T) {
 	content := `---
-id: C001
-scope: {kind: task, id: T001}
+id: C-001
+scope: {kind: task, id: T-001}
 result: CLEAR
 checked_by: {role: checker, session: s}
 executed_session: build-001
 checked_at: '2026-09-14T00:00:00Z'
-supersedes: T001
+supersedes: T-001
 ---
 
 # Check`

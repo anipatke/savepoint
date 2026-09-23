@@ -73,7 +73,7 @@ type V2Index struct {
 	Objectives map[string]*ObjectiveV2
 	Tasks      map[string]*TaskV2
 	Checks     map[string]*CheckV2
-	// Issues holds every durable follow-up record keyed by its global I###
+	// Issues holds every durable follow-up record keyed by its global I-###
 	// identity, the identity that survives repair, recheck, and reopening.
 	Issues map[string]*IssueV2
 	// ObjectiveTasks maps an Objective ID to the sorted IDs of the Tasks
@@ -92,7 +92,7 @@ type V2Index struct {
 	// guarantees every Check-side link appears there too.
 	CheckIssues map[string][]string
 	// ScopeChecks maps a Task, Objective, or Release ID to the IDs of the Checks that
-	// name it as their scope target, in recorded (ascending C### ID) order.
+	// name it as their scope target, in recorded (ascending C-### ID) order.
 	ScopeChecks map[string][]string
 	// LatestCheck maps a Task, Objective, or Release ID to the most recently recorded
 	// Check ID for that target — the last entry of ScopeChecks[id].
@@ -196,7 +196,7 @@ func LoadV2Index(root string) (*V2Index, error) {
 
 // indexReleaseObjectives validates typed Objective release references and
 // derives the only reverse membership view. Any present reference must use the
-// R### identity vocabulary and resolve to a discovered Release.
+// R-### identity vocabulary and resolve to a discovered Release.
 func indexReleaseObjectives(index *V2Index) error {
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
@@ -205,8 +205,8 @@ func indexReleaseObjectives(index *V2Index) error {
 		}
 
 		ref := objective.Release
-		if !releaseIDPatternV2.MatchString(ref) {
-			return fmt.Errorf("%w: %s: objective %s release %q must match R###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
+		if !matchesV2Identity(ref, 'R') {
+			return fmt.Errorf("%w: %s: objective %s release %q must match R-###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
 		}
 
 		releaseID := string(ref)
@@ -469,7 +469,7 @@ func compareV2CheckIDs(a, b string) int {
 }
 
 func normalizedV2CheckNumber(id string) string {
-	digits := strings.TrimPrefix(id, "C")
+	digits := strings.TrimPrefix(id, "C-")
 	digits = strings.TrimLeft(digits, "0")
 	if digits == "" {
 		return "0"

@@ -13,7 +13,7 @@ test:
 test-focused:
 	go run ./internal/buildtool focused-test "$(TEST)" $(if $(PKGS),$(PKGS),./...)
 
-# Ordinary Task handoff gate. T013's three expensive migration scenarios stay in full.
+# Ordinary Task handoff gate. T-013's three expensive migration scenarios stay in full.
 test-fast:
 	go run ./internal/buildtool test -json -count=1 -skip '^(TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability|TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits|TestEndToEnd_goldenIsReproducible)$$' ./...
 

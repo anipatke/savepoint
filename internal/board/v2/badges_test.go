@@ -35,7 +35,7 @@ var blockerKinds = []data.GateBlockKind{
 }
 
 // taskReviewOutcomeCases is every path taskReviewOutcomeBadge's precedence
-// covers, paired with the exact card text O012 fixes: owner risk acceptance
+// covers, paired with the exact card text O-012 fixes: owner risk acceptance
 // (exception) first, an owner's recorded Check waiver second, and the
 // resolved clearance state otherwise, with stale and unknown folded into one
 // "REVIEW" wording.
@@ -185,17 +185,17 @@ func TestBlockerBadgeCoversEveryKind(t *testing.T) {
 func TestBlockerBadgeNamesTheWaitTarget(t *testing.T) {
 	task, _ := blockerBadge(data.GateBlocker{
 		Kind:       data.GateBlockDependency,
-		Dependency: &data.DependencyBlock{Target: "T042"},
+		Dependency: &data.DependencyBlock{Target: "T-042"},
 	})
-	if !strings.Contains(task.Label, "T042") {
+	if !strings.Contains(task.Label, "T-042") {
 		t.Errorf("dependency badge = %q, want the Task it waits on named", task.Label)
 	}
 
 	objective, _ := blockerBadge(data.GateBlocker{
 		Kind:                data.GateBlockObjectiveDependency,
-		ObjectiveDependency: &data.ObjectiveDependencyBlock{Target: "O007"},
+		ObjectiveDependency: &data.ObjectiveDependencyBlock{Target: "O-007"},
 	})
-	if !strings.Contains(objective.Label, "O007") {
+	if !strings.Contains(objective.Label, "O-007") {
 		t.Errorf("objective dependency badge = %q, want the Objective it waits on named", objective.Label)
 	}
 	if objective.Text() == task.Text() {
@@ -211,7 +211,7 @@ func TestBlockerBadgeNamesTheWaitTarget(t *testing.T) {
 }
 
 // TestTaskReviewOutcomeBadgeRendersEveryPathAtExactText proves every path
-// O012's Done When names renders exactly the fixed text, whether the Task is
+// O-012's Done When names renders exactly the fixed text, whether the Task is
 // still open or already done — completion never changes the wording, since
 // the Done column carries that fact instead (see card.go's badges()).
 func TestTaskReviewOutcomeBadgeRendersEveryPathAtExactText(t *testing.T) {

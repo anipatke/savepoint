@@ -128,8 +128,8 @@ func TestPlan_v1Basic_archivesCompletedTaskAndReservesNoID(t *testing.T) {
 	if active.Kind != TargetTask {
 		t.Errorf("active target Kind = %v, want TargetTask", active.Kind)
 	}
-	if active.GlobalID != "T001" {
-		t.Errorf("active task GlobalID = %q, want T001 (the done sibling reserves nothing)", active.GlobalID)
+	if active.GlobalID != "T-001" {
+		t.Errorf("active task GlobalID = %q, want T-001 (the done sibling reserves nothing)", active.GlobalID)
 	}
 	if len(active.DependsOn) != 0 {
 		t.Errorf("active task DependsOn = %v, want empty: its dependency is archived, not converted", active.DependsOn)
@@ -157,8 +157,8 @@ func TestPlan_v1Basic_archivesCompletedTaskAndReservesNoID(t *testing.T) {
 	if !ok || objective.Kind != TargetObjective {
 		t.Fatalf("epic %s was not planned as an Objective target: %+v", epicPath, objective)
 	}
-	if objective.GlobalID != "O001" {
-		t.Errorf("Objective GlobalID = %q, want O001", objective.GlobalID)
+	if objective.GlobalID != "O-001" {
+		t.Errorf("Objective GlobalID = %q, want O-001", objective.GlobalID)
 	}
 	// Original epic bytes are also archived alongside conversion.
 	if _, ok := archiveByPath(p, epicPath); !ok {
@@ -549,5 +549,19 @@ func TestPlan_ambiguitiesSortedByID(t *testing.T) {
 	}
 	if !sort.StringsAreSorted(ids) {
 		t.Errorf("Ambiguities not sorted by ID: %v", ids)
+	}
+}
+
+func TestIDAllocator_allocateUsesHyphenatedIdentities(t *testing.T) {
+	allocator := newIDAllocator()
+	for _, prefix := range []string{"R", "O", "T", "I"} {
+		if got, want := allocator.allocate(prefix), prefix+"-001"; got != want {
+			t.Errorf("allocate(%q) = %q, want %q", prefix, got, want)
+		}
+	}
+
+	allocator.reserve("I-002")
+	if got, want := allocator.allocate("I"), "I-003"; got != want {
+		t.Errorf("allocate(I) after reserving I-002 = %q, want %q", got, want)
 	}
 }

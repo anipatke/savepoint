@@ -62,7 +62,7 @@ func TestPreflightCutover_refusesEveryOperationalCondition(t *testing.T) {
 			setup: func(t *testing.T) string {
 				root := t.TempDir()
 				writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "schema_version: 2\n")
-				writeFile(t, filepath.Join(root, ".savepoint", "objectives", "O001-broken", "Objective.md"), "---\nid: O001\nstatus: done\n---\n\n# Broken\n")
+				writeFile(t, filepath.Join(root, ".savepoint", "objectives", "O-001-broken", "Objective.md"), "---\nid: O-001\nstatus: done\n---\n\n# Broken\n")
 				return root
 			},
 			wantKinds:  []CutoverBlockKind{CutoverBlockInvalidV2},
@@ -193,12 +193,12 @@ func TestPreflightCutover_allowsAcceptedMultiReleaseCandidate(t *testing.T) {
 func TestPreflightCutover_translatesCanonicalReleaseBlockers(t *testing.T) {
 	t.Parallel()
 	root := writeAcceptedMultiReleaseCandidate(t, 2)
-	releasePath := filepath.Join(root, ".savepoint", "releases", "R002-release-2", "Release.md")
+	releasePath := filepath.Join(root, ".savepoint", "releases", "R-002-release-2", "Release.md")
 	content, err := os.ReadFile(releasePath)
 	if err != nil {
 		t.Fatalf("ReadFile(%s) error = %v", releasePath, err)
 	}
-	content = []byte(strings.Replace(string(content), "owner_validation:\n  required: true\n  accepted_check: C004\n  accepted_by: {role: owner, session: owner-2}\n", "", 1))
+	content = []byte(strings.Replace(string(content), "owner_validation:\n  required: true\n  accepted_check: C-004\n  accepted_by: {role: owner, session: owner-2}\n", "", 1))
 	if err := os.WriteFile(releasePath, content, 0644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", releasePath, err)
 	}
@@ -209,13 +209,13 @@ func TestPreflightCutover_translatesCanonicalReleaseBlockers(t *testing.T) {
 	}
 	var found bool
 	for _, blocker := range got.Blockers {
-		if blocker.Kind == CutoverBlockRelease && blocker.ReleaseID == "R002" && blocker.Gate.Kind == data.GateBlockOwnerAcceptance {
+		if blocker.Kind == CutoverBlockRelease && blocker.ReleaseID == "R-002" && blocker.Gate.Kind == data.GateBlockOwnerAcceptance {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("Blockers = %+v, want canonical R002 owner-acceptance blocker", got.Blockers)
+		t.Fatalf("Blockers = %+v, want canonical R-002 owner-acceptance blocker", got.Blockers)
 	}
 }
 
@@ -288,11 +288,11 @@ func writeAcceptedMultiReleaseCandidate(t *testing.T, releaseCount int) string {
 	checkedAt := "2026-09-15T00:00:00Z"
 	releaseBody := "\n# Release\n\n## Outcome\n\nDeliver the promise.\n\n## Why\n\nA Release owns the delivery promise.\n\n## Success Conditions\n\n- Every member Objective is complete.\n\n## Boundaries\n\nRelease does not own Tasks.\n"
 	for i := 1; i <= releaseCount; i++ {
-		releaseID := fmt.Sprintf("R%03d", i)
-		objectiveID := fmt.Sprintf("O%03d", i)
-		taskID := fmt.Sprintf("T%03d", i)
-		objectiveCheckID := fmt.Sprintf("C%03d", (i-1)*2+1)
-		releaseCheckID := fmt.Sprintf("C%03d", i*2)
+		releaseID := fmt.Sprintf("R-%03d", i)
+		objectiveID := fmt.Sprintf("O-%03d", i)
+		taskID := fmt.Sprintf("T-%03d", i)
+		objectiveCheckID := fmt.Sprintf("C-%03d", (i-1)*2+1)
+		releaseCheckID := fmt.Sprintf("C-%03d", i*2)
 
 		writeFile(t, filepath.Join(root, ".savepoint", "releases", releaseID+"-release-"+fmt.Sprint(i), "Release.md"), fmt.Sprintf("---\nid: %s\ntitle: Release %d\nstatus: in_progress\nfreshness:\n  state: current\n  check: %s\n  assessed_by: {role: checker, session: release-checker-%d}\n  assessed_at: '%s'\n  basis: release integration reviewed\nowner_validation:\n  required: true\n  accepted_check: %s\n  accepted_by: {role: owner, session: owner-%d}\n---\n%s", releaseID, i, releaseCheckID, i, checkedAt, releaseCheckID, i, releaseBody))
 		writeFile(t, filepath.Join(root, ".savepoint", "objectives", objectiveID+"-objective-"+fmt.Sprint(i), "Objective.md"), fmt.Sprintf("---\nid: %s\ntitle: Objective %d\nstatus: done\nrelease: %s\nfreshness:\n  state: current\n  check: %s\n  assessed_by: {role: checker, session: objective-checker-%d}\n  assessed_at: '%s'\n  basis: objective integration reviewed\n---\n\n# Objective\n", objectiveID, i, releaseID, objectiveCheckID, i, checkedAt))

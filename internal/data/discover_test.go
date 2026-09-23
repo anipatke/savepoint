@@ -101,8 +101,8 @@ func TestListTasks(t *testing.T) {
 	if len(tasks) != 2 {
 		t.Fatalf("ListTasks() returned %d tasks, want 2", len(tasks))
 	}
-	if tasks[0].ID != "T001-task-struct" || tasks[1].ID != "T002-frontmatter-parser" {
-		t.Errorf("ListTasks() IDs = %v, want [T001-task-struct T002-frontmatter-parser]", []string{tasks[0].ID, tasks[1].ID})
+	if tasks[0].ID != "T-001-task-struct" || tasks[1].ID != "T-002-frontmatter-parser" {
+		t.Errorf("ListTasks() IDs = %v, want [T-001-task-struct T-002-frontmatter-parser]", []string{tasks[0].ID, tasks[1].ID})
 	}
 }
 
@@ -122,8 +122,8 @@ func createDiscoveryFixture(t *testing.T) string {
 	}
 
 	files := []string{
-		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "T002-frontmatter-parser.md"),
-		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "T001-task-struct.md"),
+		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "T-002-frontmatter-parser.md"),
+		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "T-001-task-struct.md"),
 		filepath.Join(savepointRoot, "releases", "v1", "epics", "E02-data-readers", "tasks", "notes.txt"),
 	}
 	for _, file := range files {
@@ -162,10 +162,10 @@ func joinIDs(ids []string) string {
 
 func TestDiscoverV2Records_valid(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O002-second", "O002", "Second objective", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2TaskFixture(t, root, "O001-first", "T002-beta.md", "T002", "Beta", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2TaskFixture(t, root, "O-001-first", "T-002-beta.md", "T-002", "Beta", "O-001")
 
 	objectives, tasks, err := DiscoverV2Records(root)
 	if err != nil {
@@ -175,18 +175,18 @@ func TestDiscoverV2Records_valid(t *testing.T) {
 	if len(objectives) != 2 {
 		t.Fatalf("DiscoverV2Records() objectives = %d, want 2", len(objectives))
 	}
-	if objectives["O001"] == nil || objectives["O001"].Title != "First objective" {
-		t.Errorf("objectives[O001] = %+v, want title %q", objectives["O001"], "First objective")
+	if objectives["O-001"] == nil || objectives["O-001"].Title != "First objective" {
+		t.Errorf("objectives[O-001] = %+v, want title %q", objectives["O-001"], "First objective")
 	}
-	if objectives["O002"] == nil || len(objectives["O002"].DependsOn) != 1 || objectives["O002"].DependsOn[0] != "O001" {
-		t.Errorf("objectives[O002] = %+v, want DependsOn [O001]", objectives["O002"])
+	if objectives["O-002"] == nil || len(objectives["O-002"].DependsOn) != 1 || objectives["O-002"].DependsOn[0] != "O-001" {
+		t.Errorf("objectives[O-002] = %+v, want DependsOn [O-001]", objectives["O-002"])
 	}
 
 	if len(tasks) != 2 {
 		t.Fatalf("DiscoverV2Records() tasks = %d, want 2", len(tasks))
 	}
-	if tasks["T001"] == nil || tasks["T001"].Objective != "O001" {
-		t.Errorf("tasks[T001] = %+v, want objective O001", tasks["T001"])
+	if tasks["T-001"] == nil || tasks["T-001"].Objective != "O-001" {
+		t.Errorf("tasks[T-001] = %+v, want objective O-001", tasks["T-001"])
 	}
 }
 
@@ -207,13 +207,13 @@ func TestDiscoverV2Records_emptyProjectHasNoObjectivesDir(t *testing.T) {
 // must retain the task long enough to return the named missing-owner error.
 func TestLoadV2Index_missingObjectiveStillDiscoversTasks(t *testing.T) {
 	root := t.TempDir()
-	writeV2TaskFixture(t, root, "O999-missing", "T003-orphan.md", "T003", "Orphan task", "O999")
+	writeV2TaskFixture(t, root, "O-999-missing", "T-003-orphan.md", "T-003", "Orphan task", "O-999")
 
 	_, err := LoadV2Index(root)
 	if !errors.Is(err, ErrV2MissingOwner) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2MissingOwner", err)
 	}
-	if !strings.Contains(err.Error(), "T003") || !strings.Contains(err.Error(), "O999") {
+	if !strings.Contains(err.Error(), "T-003") || !strings.Contains(err.Error(), "O-999") {
 		t.Fatalf("LoadV2Index() error = %v, want task and owner context", err)
 	}
 }
@@ -225,26 +225,26 @@ func TestLoadV2Index_missingObjectiveStillDiscoversTasks(t *testing.T) {
 // directory.
 func TestDiscoverV2Records_movedTaskRetainsPathIndependentOwnership(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O002-second", "O002", "Second objective")
-	// T001 lives under O002's directory but still declares O001 as owner.
-	writeV2TaskFixture(t, root, "O002-second", "T001-alpha.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	// T-001 lives under O-002's directory but still declares O-001 as owner.
+	writeV2TaskFixture(t, root, "O-002-second", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 
 	_, tasks, err := DiscoverV2Records(root)
 	if err != nil {
 		t.Fatalf("DiscoverV2Records() error = %v", err)
 	}
-	if tasks["T001"] == nil {
+	if tasks["T-001"] == nil {
 		t.Fatal("DiscoverV2Records() did not index the moved task")
 	}
-	if tasks["T001"].Objective != "O001" {
-		t.Errorf("moved task Objective = %q, want O001 (declared owner, not containing directory)", tasks["T001"].Objective)
+	if tasks["T-001"].Objective != "O-001" {
+		t.Errorf("moved task Objective = %q, want O-001 (declared owner, not containing directory)", tasks["T-001"].Objective)
 	}
 }
 
 func TestDiscoverV2Records_objectiveDirectoryNameMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O002-wrong-dir", "O001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-wrong-dir", "O-001", "First objective")
 
 	_, _, err := DiscoverV2Records(root)
 	if !errors.Is(err, ErrV2PathMismatch) {
@@ -254,8 +254,8 @@ func TestDiscoverV2Records_objectiveDirectoryNameMismatch(t *testing.T) {
 
 func TestDiscoverV2Records_taskFileNameMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T002-wrong-name.md", "T001", "Alpha", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-002-wrong-name.md", "T-001", "Alpha", "O-001")
 
 	_, _, err := DiscoverV2Records(root)
 	if !errors.Is(err, ErrV2PathMismatch) {
@@ -265,8 +265,8 @@ func TestDiscoverV2Records_taskFileNameMismatch(t *testing.T) {
 
 func TestDiscoverV2Records_duplicateObjectiveID(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O001-duplicate", "O001", "Duplicate objective")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-001-duplicate", "O-001", "Duplicate objective")
 
 	_, _, err := DiscoverV2Records(root)
 	if !errors.Is(err, ErrV2DuplicateID) {
@@ -276,10 +276,10 @@ func TestDiscoverV2Records_duplicateObjectiveID(t *testing.T) {
 
 func TestDiscoverV2Records_duplicateTaskID(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "O002-second", "O002", "Second objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-alpha.md", "T001", "Alpha", "O001")
-	writeV2TaskFixture(t, root, "O002-second", "T001-alpha-again.md", "T001", "Alpha again", "O002")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
+	writeV2TaskFixture(t, root, "O-002-second", "T-001-alpha-again.md", "T-001", "Alpha again", "O-002")
 
 	_, _, err := DiscoverV2Records(root)
 	if !errors.Is(err, ErrV2DuplicateID) {
@@ -294,11 +294,11 @@ func TestDiscoverV2Records_rejectsSymlinkEscape(t *testing.T) {
 
 	root := t.TempDir()
 	outside := t.TempDir()
-	writeV2ObjectiveFixture(t, outside, "O001-first", "O001", "Escaped objective")
+	writeV2ObjectiveFixture(t, outside, "O-001-first", "O-001", "Escaped objective")
 
 	testutil.MkdirAll(t, filepath.Join(root, v2ObjectivesDirName))
-	target := filepath.Join(outside, v2ObjectivesDirName, "O001-first")
-	link := filepath.Join(root, v2ObjectivesDirName, "O001-first")
+	target := filepath.Join(outside, v2ObjectivesDirName, "O-001-first")
+	link := filepath.Join(root, v2ObjectivesDirName, "O-001-first")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatalf("os.Symlink() error = %v", err)
 	}
@@ -311,8 +311,8 @@ func TestDiscoverV2Records_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Records_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2ObjectiveFixture(t, root, "o001-First", "O002", "Case-colliding objective")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "o-001-First", "O-002", "Case-colliding objective")
 
 	_, _, err := DiscoverV2Records(root)
 	if !errors.Is(err, ErrV2UnsafePath) {
@@ -328,8 +328,8 @@ func writeV2CheckFixture(t *testing.T, root, fileName, id, scopeKind, scopeID st
 
 func TestDiscoverV2Checks_valid(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
-	writeV2CheckFixture(t, root, "C002-beta.md", "C002", "objective", "O001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
+	writeV2CheckFixture(t, root, "C-002-beta.md", "C-002", "objective", "O-001")
 
 	checks, err := DiscoverV2Checks(root)
 	if err != nil {
@@ -338,11 +338,11 @@ func TestDiscoverV2Checks_valid(t *testing.T) {
 	if len(checks) != 2 {
 		t.Fatalf("DiscoverV2Checks() = %d checks, want 2", len(checks))
 	}
-	if checks["C001"] == nil || checks["C001"].Scope.ID != "T001" {
-		t.Errorf("checks[C001] = %+v, want scope id T001", checks["C001"])
+	if checks["C-001"] == nil || checks["C-001"].Scope.ID != "T-001" {
+		t.Errorf("checks[C-001] = %+v, want scope id T-001", checks["C-001"])
 	}
-	if checks["C002"] == nil || checks["C002"].Scope.Kind != CheckScopeObjective {
-		t.Errorf("checks[C002] = %+v, want objective scope", checks["C002"])
+	if checks["C-002"] == nil || checks["C-002"].Scope.Kind != CheckScopeObjective {
+		t.Errorf("checks[C-002] = %+v, want objective scope", checks["C-002"])
 	}
 }
 
@@ -360,7 +360,7 @@ func TestDiscoverV2Checks_absentChecksDir(t *testing.T) {
 
 func TestDiscoverV2Checks_fileNameMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C002-wrong-name.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-002-wrong-name.md", "C-001", "task", "T-001")
 
 	_, err := DiscoverV2Checks(root)
 	if !errors.Is(err, ErrV2PathMismatch) {
@@ -370,8 +370,8 @@ func TestDiscoverV2Checks_fileNameMismatch(t *testing.T) {
 
 func TestDiscoverV2Checks_duplicateID(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
-	writeV2CheckFixture(t, root, "C001-alpha-again.md", "C001", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
+	writeV2CheckFixture(t, root, "C-001-alpha-again.md", "C-001", "task", "T-001")
 
 	_, err := DiscoverV2Checks(root)
 	if !errors.Is(err, ErrV2DuplicateID) {
@@ -386,11 +386,11 @@ func TestDiscoverV2Checks_rejectsSymlinkEscape(t *testing.T) {
 
 	root := t.TempDir()
 	outside := t.TempDir()
-	outsideFile := filepath.Join(outside, "C001-alpha.md")
-	testutil.WriteFile(t, outsideFile, "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
+	outsideFile := filepath.Join(outside, "C-001-alpha.md")
+	testutil.WriteFile(t, outsideFile, "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n")
 
 	testutil.MkdirAll(t, filepath.Join(root, v2ChecksDirName))
-	link := filepath.Join(root, v2ChecksDirName, "C001-alpha.md")
+	link := filepath.Join(root, v2ChecksDirName, "C-001-alpha.md")
 	if err := os.Symlink(outsideFile, link); err != nil {
 		t.Fatalf("os.Symlink() error = %v", err)
 	}
@@ -403,8 +403,8 @@ func TestDiscoverV2Checks_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Checks_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
-	writeV2CheckFixture(t, root, "C001-alpha.md", "C001", "task", "T001")
-	writeV2CheckFixture(t, root, "c001-Alpha.md", "C002", "task", "T001")
+	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
+	writeV2CheckFixture(t, root, "c-001-Alpha.md", "C-002", "task", "T-001")
 
 	_, err := DiscoverV2Checks(root)
 	if !errors.Is(err, ErrV2UnsafePath) {
@@ -421,8 +421,8 @@ func writeV2IssueFixture(t *testing.T, root, fileName, id, status string) {
 
 func TestDiscoverV2Issues_valid(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
-	writeV2IssueFixture(t, root, "I002-beta.md", "I002", "in_progress")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
+	writeV2IssueFixture(t, root, "I-002-beta.md", "I-002", "in_progress")
 
 	issues, err := DiscoverV2Issues(root)
 	if err != nil {
@@ -431,11 +431,11 @@ func TestDiscoverV2Issues_valid(t *testing.T) {
 	if len(issues) != 2 {
 		t.Fatalf("DiscoverV2Issues() = %d issues, want 2", len(issues))
 	}
-	if issues["I001"] == nil || issues["I001"].Status != IssueStatusOpen {
-		t.Errorf("issues[I001] = %+v, want status open", issues["I001"])
+	if issues["I-001"] == nil || issues["I-001"].Status != IssueStatusOpen {
+		t.Errorf("issues[I-001] = %+v, want status open", issues["I-001"])
 	}
-	if issues["I002"] == nil || issues["I002"].Source.Path != filepath.Join(v2IssuesDirName, "I002-beta.md") {
-		t.Errorf("issues[I002] = %+v, want its project-relative source path", issues["I002"])
+	if issues["I-002"] == nil || issues["I-002"].Source.Path != filepath.Join(v2IssuesDirName, "I-002-beta.md") {
+		t.Errorf("issues[I-002] = %+v, want its project-relative source path", issues["I-002"])
 	}
 }
 
@@ -453,7 +453,7 @@ func TestDiscoverV2Issues_absentIssuesDir(t *testing.T) {
 
 func TestDiscoverV2Issues_fileNameMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I002-wrong-name.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I-002-wrong-name.md", "I-001", "open")
 
 	_, err := DiscoverV2Issues(root)
 	if !errors.Is(err, ErrV2PathMismatch) {
@@ -463,8 +463,8 @@ func TestDiscoverV2Issues_fileNameMismatch(t *testing.T) {
 
 func TestDiscoverV2Issues_duplicateID(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
-	writeV2IssueFixture(t, root, "I001-alpha-again.md", "I001", "open")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
+	writeV2IssueFixture(t, root, "I-001-alpha-again.md", "I-001", "open")
 
 	_, err := DiscoverV2Issues(root)
 	if !errors.Is(err, ErrV2DuplicateID) {
@@ -477,15 +477,15 @@ func TestDiscoverV2Issues_duplicateID(t *testing.T) {
 // directory entries, so the escape attempt is simply not an Issue file.
 func TestDiscoverV2Issues_rejectsTraversalFilename(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
-	testutil.WriteFile(t, filepath.Join(root, "I999-escaped.md"),
-		"---\nid: I999\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
+	testutil.WriteFile(t, filepath.Join(root, "I-999-escaped.md"),
+		"---\nid: I-999\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
 
 	issues, err := DiscoverV2Issues(root)
 	if err != nil {
 		t.Fatalf("DiscoverV2Issues() error = %v", err)
 	}
-	if _, ok := issues["I999"]; ok {
+	if _, ok := issues["I-999"]; ok {
 		t.Error("DiscoverV2Issues() indexed a record outside issues/, want confinement to the issues directory")
 	}
 }
@@ -497,12 +497,12 @@ func TestDiscoverV2Issues_rejectsSymlinkEscape(t *testing.T) {
 
 	root := t.TempDir()
 	outside := t.TempDir()
-	outsideFile := filepath.Join(outside, "I001-alpha.md")
+	outsideFile := filepath.Join(outside, "I-001-alpha.md")
 	testutil.WriteFile(t, outsideFile,
-		"---\nid: I001\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
+		"---\nid: I-001\ntitle: \"Escaped\"\ntype: defect\nstatus: open\nsource: {kind: report, actor: {role: owner, session: o}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
 
 	testutil.MkdirAll(t, filepath.Join(root, v2IssuesDirName))
-	link := filepath.Join(root, v2IssuesDirName, "I001-alpha.md")
+	link := filepath.Join(root, v2IssuesDirName, "I-001-alpha.md")
 	if err := os.Symlink(outsideFile, link); err != nil {
 		t.Fatalf("os.Symlink() error = %v", err)
 	}
@@ -515,8 +515,8 @@ func TestDiscoverV2Issues_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Issues_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
-	writeV2IssueFixture(t, root, "i001-Alpha.md", "I002", "open")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
+	writeV2IssueFixture(t, root, "i-001-Alpha.md", "I-002", "open")
 
 	_, err := DiscoverV2Issues(root)
 	if !errors.Is(err, ErrV2UnsafePath) {
@@ -529,8 +529,8 @@ func TestDiscoverV2Issues_rejectsCaseCollision(t *testing.T) {
 // fewer Issues than it actually has.
 func TestDiscoverV2Issues_malformedRecordFailsClosed(t *testing.T) {
 	root := t.TempDir()
-	writeV2IssueFixture(t, root, "I001-alpha.md", "I001", "open")
-	writeV2IssueFixture(t, root, "I002-beta.md", "I002", "done")
+	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
+	writeV2IssueFixture(t, root, "I-002-beta.md", "I-002", "done")
 
 	_, err := DiscoverV2Issues(root)
 	if !errors.Is(err, ErrV2InvalidLifecycle) {

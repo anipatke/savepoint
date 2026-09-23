@@ -15,8 +15,8 @@ import (
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
-// This file proves the three claims T001-T006 each leave unproven on their
-// own (E48 T007): every reachable project state lands on exactly one rung of
+// This file proves the three claims T-001-T006 each leave unproven on their
+// own (E48 T-007): every reachable project state lands on exactly one rung of
 // the ladder, resume's no-write guarantee holds across the whole matrix and
 // a second consecutive invocation, and the projection is a shared value with
 // no resume-specific shape — a second, independent consumer built here reads
@@ -45,13 +45,13 @@ func resumeMatrixCases() []matrixCase {
 			name:       "selected Release executes its member Task",
 			build:      matrixBuildReleaseExecute,
 			wantKind:   data.NextExecute,
-			wantAction: "Start Task T001.",
+			wantAction: "Start Task T-001.",
 		},
 		{
 			name:       "selected Release needs its integration Check",
 			build:      matrixBuildReleaseCheckNeeded,
 			wantKind:   data.NextReleaseCheckNeeded,
-			wantAction: "Record a fresh Release Check for R001.",
+			wantAction: "Record a fresh Release Check for R-001.",
 		},
 		{
 			name:       "selected Release waits for owner validation",
@@ -63,13 +63,13 @@ func resumeMatrixCases() []matrixCase {
 			name:       "selected Release is ready",
 			build:      matrixBuildReleaseReady,
 			wantKind:   data.NextReleaseReady,
-			wantAction: "Record Release R001 as done.",
+			wantAction: "Record Release R-001 as done.",
 		},
 		{
 			name:                    "missing Release selection keeps global work available",
 			build:                   matrixBuildMissingReleaseSelection,
 			wantKind:                data.NextReady,
-			wantAction:              "Start Task T001.",
+			wantAction:              "Start Task T-001.",
 			wantSelectionDiagnostic: data.SelectionReleaseNotFound,
 		},
 		{
@@ -94,7 +94,7 @@ func resumeMatrixCases() []matrixCase {
 			name:       "planned task with no blockers may start",
 			build:      matrixBuildExecute,
 			wantKind:   data.NextExecute,
-			wantAction: "Start Task T001.",
+			wantAction: "Start Task T-001.",
 		},
 		{
 			name:       "task at audit with no recorded check needs one",
@@ -112,25 +112,25 @@ func resumeMatrixCases() []matrixCase {
 			name:       "every owned task done, objective integration check missing",
 			build:      matrixBuildObjectiveIntegration,
 			wantKind:   data.NextObjectiveIntegration,
-			wantAction: "Record the Objective O001 integration Check",
+			wantAction: "Record the Objective O-001 integration Check",
 		},
 		{
 			name:       "no selection, a ready task exists elsewhere",
 			build:      matrixBuildReady,
 			wantKind:   data.NextReady,
-			wantAction: "Start Task T001.",
+			wantAction: "Start Task T-001.",
 		},
 		{
 			name:       "objective selected with no tasks yet falls through to planning",
 			build:      matrixBuildObjectiveNoTasks,
 			wantKind:   data.NextReady,
-			wantAction: "Plan Tasks under Objective O001.",
+			wantAction: "Plan Tasks under Objective O-001.",
 		},
 		{
 			name:       "objective integration check outstanding but router selects nothing",
 			build:      matrixBuildObjectiveIntegrationUnselected,
 			wantKind:   data.NextObjectiveIntegration,
-			wantAction: "Record the Objective O001 integration Check",
+			wantAction: "Record the Objective O-001 integration Check",
 		},
 		{
 			name:       "empty project, nothing ready",
@@ -162,22 +162,22 @@ func matrixConfig(t *testing.T, dir string) {
 
 func matrixRelease(t *testing.T, dir, status, extra string) {
 	t.Helper()
-	content := "---\nid: R001\ntitle: \"First delivery\"\nstatus: " + status + "\n" + extra + "---\n" +
+	content := "---\nid: R-001\ntitle: \"First delivery\"\nstatus: " + status + "\n" + extra + "---\n" +
 		"# Release\n\n## Outcome\n\nShip the promised outcome.\n\n## Why\n\nThe delivery needs a stable boundary.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nRelease does not own Tasks.\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "releases", "R001-first", "Release.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "releases", "R-001-first", "Release.md"), content)
 }
 
 func matrixReleaseObjective(t *testing.T, dir, status, extra string) {
 	t.Helper()
-	content := "---\nid: O001\ntitle: \"Objective O001\"\nstatus: " + status + "\nrelease: R001\n" + extra + "---\n\n# Objective O001\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "Objective.md"), content)
+	content := "---\nid: O-001\ntitle: \"Objective O-001\"\nstatus: " + status + "\nrelease: R-001\n" + extra + "---\n\n# Objective O-001\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "Objective.md"), content)
 }
 
 func matrixReleaseTask(t *testing.T, dir, status string) {
 	t.Helper()
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: " + status + "\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
 }
 
 func matrixReleaseRouter(t *testing.T, dir, release, objective, task string) {
@@ -201,17 +201,17 @@ func matrixBuildReleaseExecute(t *testing.T, dir string) {
 	matrixRelease(t, dir, "in_progress", "")
 	matrixReleaseObjective(t, dir, "planned", "")
 	matrixReleaseTask(t, dir, "planned")
-	matrixReleaseRouter(t, dir, "R001", "O001", "T001")
+	matrixReleaseRouter(t, dir, "R-001", "O-001", "T-001")
 }
 
 func matrixBuildReleaseCheckNeeded(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
 	matrixRelease(t, dir, "in_progress", "")
-	matrixReleaseObjective(t, dir, "done", "last_check: C001\nfreshness:\n  state: current\n  check: C001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
+	matrixReleaseObjective(t, dir, "done", "last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
 	matrixReleaseTask(t, dir, "done")
-	matrixReleaseCheck(t, dir, "C001", "objective", "O001")
-	matrixReleaseRouter(t, dir, "R001", "O001", "none")
+	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
+	matrixReleaseRouter(t, dir, "R-001", "O-001", "none")
 }
 
 func matrixBuildReleaseOwnerValidation(t *testing.T, dir string) {
@@ -219,20 +219,20 @@ func matrixBuildReleaseOwnerValidation(t *testing.T, dir string) {
 	matrixBuildReleaseCheckNeeded(t, dir)
 	// Re-write the Release with its current technical evidence, but without
 	// owner acceptance, so the Release gate reaches its owner-wait rung.
-	matrixRelease(t, dir, "in_progress", "last_check: C002\nfreshness:\n  state: current\n  check: C002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
-	matrixReleaseCheck(t, dir, "C002", "release", "R001")
+	matrixRelease(t, dir, "in_progress", "last_check: C-002\nfreshness:\n  state: current\n  check: C-002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
+	matrixReleaseCheck(t, dir, "C-002", "release", "R-001")
 }
 
 func matrixBuildReleaseReady(t *testing.T, dir string) {
 	t.Helper()
 	matrixBuildReleaseOwnerValidation(t, dir)
-	matrixRelease(t, dir, "in_progress", "last_check: C002\nfreshness:\n  state: current\n  check: C002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\nowner_validation:\n  required: true\n  accepted_check: C002\n  accepted_by: {role: owner, session: owner-1}\n")
+	matrixRelease(t, dir, "in_progress", "last_check: C-002\nfreshness:\n  state: current\n  check: C-002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\nowner_validation:\n  required: true\n  accepted_check: C-002\n  accepted_by: {role: owner, session: owner-1}\n")
 }
 
 func matrixBuildMissingReleaseSelection(t *testing.T, dir string) {
 	t.Helper()
 	matrixBuildReleaseExecute(t, dir)
-	matrixReleaseRouter(t, dir, "R999", "O001", "T001")
+	matrixReleaseRouter(t, dir, "R-999", "O-001", "T-001")
 }
 
 func matrixObjective(t *testing.T, dir, dirName, id, status string) {
@@ -244,27 +244,27 @@ func matrixObjective(t *testing.T, dir, dirName, id, status string) {
 func matrixBuildReplan(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: planned\n" +
 		"replan: {reason: \"scope changed\", recorded_by: {role: owner, session: owner-1}, recorded_at: '2026-09-14T00:00:00Z'}\n" +
 		"---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O001", "T001", "Resolve the replan."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O-001", "T-001", "Resolve the replan."))
 }
 
 func matrixBuildTaskDependency(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	t001 := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	t001 := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: planned\n" +
-		"depends_on: [{task: T002}]\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), t001)
-	t002 := "---\nid: T002\ntitle: \"Beta\"\nobjective: O001\n" +
+		"depends_on: [{task: T-002}]\n---\n\n# Alpha\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), t001)
+	t002 := "---\nid: T-002\ntitle: \"Beta\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Beta\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T002-beta.md"), t002)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O001", "T001", "Wait on T002."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-002-beta.md"), t002)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O-001", "T-001", "Wait on T-002."))
 }
 
 func matrixBuildExecute(t *testing.T, dir string) {
@@ -275,36 +275,36 @@ func matrixBuildExecute(t *testing.T, dir string) {
 func matrixBuildCheckNeeded(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: audit\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O001", "T001", "Record a fresh Check."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O-001", "T-001", "Record a fresh Check."))
 }
 
 func matrixBuildOwnerValidation(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	check := "---\nid: C001\nscope: {kind: task, id: T001}\nresult: CLEAR\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	check := "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\n" +
 		"checked_by: {role: checker, session: sess-1}\nexecuted_session: build-fixture\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "checks", "C001-alpha.md"), check)
-	task := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "checks", "C-001-alpha.md"), check)
+	task := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: audit\n" +
-		"freshness: {state: current, check: C001, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n" +
+		"freshness: {state: current, check: C-001, assessed_by: {role: checker, session: sess-1}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n" +
 		"owner_validation: {required: true}\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), task)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O001", "T001", "Ask the owner to accept."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), task)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O-001", "T-001", "Ask the owner to accept."))
 }
 
 func matrixBuildObjectiveIntegration(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "in_progress")
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: done\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O001", "T001", "Record the Objective integration Check."))
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O-001", "T-001", "Record the Objective integration Check."))
 }
 
 // matrixBuildObjectiveNoTasks selects an Objective that owns no Task yet —
@@ -315,8 +315,8 @@ func matrixBuildObjectiveIntegration(t *testing.T, dir string) {
 func matrixBuildObjectiveNoTasks(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("design", "O001", "none", "Plan Tasks under Objective O001."))
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("design", "O-001", "none", "Plan Tasks under Objective O-001."))
 }
 
 // matrixBuildObjectiveIntegrationUnselected mirrors matrixBuildObjectiveIntegration
@@ -326,20 +326,20 @@ func matrixBuildObjectiveNoTasks(t *testing.T, dir string) {
 func matrixBuildObjectiveIntegrationUnselected(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "in_progress")
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: done\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("idea", "none", "none", "Plan the next thing."))
 }
 
 func matrixBuildReady(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
-	matrixObjective(t, dir, "O001-first", "O001", "planned")
-	content := "---\nid: T001\ntitle: \"Alpha\"\nobjective: O001\n" +
+	matrixObjective(t, dir, "O-001-first", "O-001", "planned")
+	content := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
 		"planned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Alpha\n"
-	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O001-first", "tasks", "T001-alpha.md"), content)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), content)
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("idea", "none", "none", "Plan the next thing."))
 }
 
@@ -429,7 +429,7 @@ func minimalSecondConsumerRender(next data.Next) minimalSecondConsumerResult {
 	return result
 }
 
-// TestResumeMatrix_everyRungReachedExactlyOnce is E48 T007's central proof:
+// TestResumeMatrix_everyRungReachedExactlyOnce is E48 T-007's central proof:
 // each named project state above resolves through the real load-to-render
 // pipeline to exactly the one rung it was built for, resume's rendered
 // output names the matching next action, a second independent consumer

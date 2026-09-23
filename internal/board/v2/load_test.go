@@ -37,8 +37,8 @@ func TestLoadProjectLoadsIndexRouterAndNext(t *testing.T) {
 	if loaded.State.Next.Kind != data.NextExecute {
 		t.Errorf("Next.Kind = %q, want %q", loaded.State.Next.Kind, data.NextExecute)
 	}
-	if loaded.State.Next.Task == nil || loaded.State.Next.Task.ID != "T001" {
-		t.Errorf("Next.Task = %+v, want T001", loaded.State.Next.Task)
+	if loaded.State.Next.Task == nil || loaded.State.Next.Task.ID != "T-001" {
+		t.Errorf("Next.Task = %+v, want T-001", loaded.State.Next.Task)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestLoadProjectRouterDiagnostics(t *testing.T) {
 		{
 			name: "unknown router state",
 			build: func(t *testing.T, root string) {
-				testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("shipping", "O001", "T001"))
+				testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent("shipping", "O-001", "T-001"))
 			},
 			wantParts: []string{"router.md", "router state", "shipping"},
 		},
@@ -130,7 +130,7 @@ func TestLoadProjectRouterDiagnostics(t *testing.T) {
 			name: "unknown router key",
 			build: func(t *testing.T, root string) {
 				testutil.WriteFile(t, filepath.Join(root, "router.md"),
-					"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nepic: E01-legacy\n```\n")
+					"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nepic: E01-legacy\n```\n")
 			},
 			wantParts: []string{"router.md"},
 		},

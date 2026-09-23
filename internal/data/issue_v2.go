@@ -3,7 +3,6 @@ package data
 import (
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ const (
 // rather than appearing from nowhere.
 type IssueOrigin struct {
 	Kind IssueOriginKind
-	// Check is the C### that produced the Issue. It is required when Kind is
+	// Check is the C-### that produced the Issue. It is required when Kind is
 	// check and rejected otherwise, so a reported or migrated Issue cannot
 	// borrow an evaluation's authority.
 	Check string
@@ -88,7 +87,7 @@ const (
 // against the full index rather than here.
 type IssueResolution struct {
 	Disposition IssueDisposition
-	Check       string // optional C### proof reference
+	Check       string // optional C-### proof reference
 	Actor       Actor
 	At          time.Time
 	Reason      string
@@ -115,7 +114,7 @@ type IssueHistoryEntry struct {
 	Actor Actor
 	Kind  IssueHistoryKind
 	Note  string
-	Check string // optional C### this entry refers to
+	Check string // optional C-### this entry refers to
 }
 
 // IssueV2 is a strict V2 Issue record decoded by DecodeIssueV2: one durable
@@ -143,8 +142,8 @@ type IssueV2 struct {
 	// the record declared none.
 	Severity    string
 	Resolution  *IssueResolution
-	DuplicateOf string // optional I### reference to the canonical Issue
-	// EscalatedTo is the optional O### reference naming the Objective this
+	DuplicateOf string // optional I-### reference to the canonical Issue
+	// EscalatedTo is the optional O-### reference naming the Objective this
 	// Issue's repair was promoted into. It is populated only on an escalated
 	// resolution, mirroring DuplicateOf's shape for a different target family.
 	EscalatedTo string
@@ -199,11 +198,11 @@ type issueV2Frontmatter struct {
 }
 
 // DecodeIssueV2 strictly decodes a V2 Issue record from content. It requires a
-// valid global I### ID, a non-empty title, a known type, an Issue-vocabulary
+// valid global I-### ID, a non-empty title, a known type, an Issue-vocabulary
 // status, and a source naming what produced the Issue with its actor and
 // time. tasks, checks, guardrail_ids, severity, resolution, duplicate_of, and
 // history are optional; when present they are validated for shape only —
-// tasks and checks are T### and C### references with no record lookup,
+// tasks and checks are T-### and C-### references with no record lookup,
 // guardrail_ids are opaque policy strings, and the proof obligations a
 // resolution carries are resolved later against the full index, not here.
 func DecodeIssueV2(path, content string) (*IssueV2, error) {
@@ -217,8 +216,8 @@ func DecodeIssueV2(path, content string) (*IssueV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !issueIDPatternV2.MatchString(fields.ID) {
-		return nil, fmt.Errorf("%w: %s: issue id %q must match I plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesV2Identity(fields.ID, 'I') {
+		return nil, fmt.Errorf("%w: %s: issue id %q must match I- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 
 	if strings.TrimSpace(fields.Title) == "" {
@@ -240,12 +239,12 @@ func DecodeIssueV2(path, content string) (*IssueV2, error) {
 		return nil, err
 	}
 
-	tasks, err := decodeIssueReferences(path, fields.ID, "tasks", taskIDPatternV2, "T plus at least three digits", fields.Tasks)
+	tasks, err := decodeIssueReferences(path, fields.ID, "tasks", 'T', "T- plus at least three digits", fields.Tasks)
 	if err != nil {
 		return nil, err
 	}
 
-	checks, err := decodeIssueReferences(path, fields.ID, "checks", checkIDPatternV2, "C plus at least three digits", fields.Checks)
+	checks, err := decodeIssueReferences(path, fields.ID, "checks", 'C', "C- plus at least three digits", fields.Checks)
 	if err != nil {
 		return nil, err
 	}
@@ -264,12 +263,12 @@ func DecodeIssueV2(path, content string) (*IssueV2, error) {
 		return nil, err
 	}
 
-	if fields.DuplicateOf != "" && !issueIDPatternV2.MatchString(fields.DuplicateOf) {
-		return nil, fmt.Errorf("%w: %s: issue %s duplicate_of %q must match I plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.DuplicateOf)
+	if fields.DuplicateOf != "" && !matchesV2Identity(fields.DuplicateOf, 'I') {
+		return nil, fmt.Errorf("%w: %s: issue %s duplicate_of %q must match I- plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.DuplicateOf)
 	}
 
-	if fields.EscalatedTo != "" && !objectiveIDPattern.MatchString(fields.EscalatedTo) {
-		return nil, fmt.Errorf("%w: %s: issue %s escalated_to %q must match O plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.EscalatedTo)
+	if fields.EscalatedTo != "" && !matchesV2Identity(fields.EscalatedTo, 'O') {
+		return nil, fmt.Errorf("%w: %s: issue %s escalated_to %q must match O- plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.EscalatedTo)
 	}
 
 	history, err := decodeIssueHistory(path, fields.ID, fields.History)
@@ -344,8 +343,8 @@ func decodeIssueOrigin(path, id string, raw *issueOriginFrontmatter) (IssueOrigi
 		if raw.Check == "" {
 			return IssueOrigin{}, fmt.Errorf("%w: %s: issue %s missing required field source.check", ErrV2MissingField, path, id)
 		}
-		if !checkIDPatternV2.MatchString(raw.Check) {
-			return IssueOrigin{}, fmt.Errorf("%w: %s: issue %s source.check %q must match C plus at least three digits", ErrV2InvalidID, path, id, raw.Check)
+		if !matchesV2Identity(raw.Check, 'C') {
+			return IssueOrigin{}, fmt.Errorf("%w: %s: issue %s source.check %q must match C- plus at least three digits", ErrV2InvalidID, path, id, raw.Check)
 		}
 	} else if raw.Check != "" {
 		return IssueOrigin{}, fmt.Errorf("%w: %s: issue %s source.check is recorded only when source.kind is check", ErrV2IssueMalformed, path, id)
@@ -367,10 +366,10 @@ func decodeIssueOrigin(path, id string, raw *issueOriginFrontmatter) (IssueOrigi
 // decodeIssueReferences validates one list of identity references for shape
 // only. Whether the named records exist is resolved against the full index,
 // so a reference that is well formed but dangling is not a decoding error.
-func decodeIssueReferences(path, id, field string, pattern *regexp.Regexp, shape string, refs []string) ([]string, error) {
+func decodeIssueReferences(path, id, field string, kind byte, shape string, refs []string) ([]string, error) {
 	out := make([]string, 0, len(refs))
 	for _, ref := range refs {
-		if !pattern.MatchString(ref) {
+		if !matchesV2Identity(ref, kind) {
 			return nil, fmt.Errorf("%w: %s: issue %s %s %q must match %s", ErrV2InvalidID, path, id, field, ref, shape)
 		}
 		out = append(out, ref)
@@ -412,8 +411,8 @@ func decodeIssueResolution(path, id string, raw *issueResolutionFrontmatter) (*I
 		return nil, fmt.Errorf("%w: %s: issue %s resolution.disposition %q; use verified, accepted, duplicate, or escalated", ErrV2IssueMalformed, path, id, raw.Disposition)
 	}
 
-	if raw.Check != "" && !checkIDPatternV2.MatchString(raw.Check) {
-		return nil, fmt.Errorf("%w: %s: issue %s resolution.check %q must match C plus at least three digits", ErrV2InvalidID, path, id, raw.Check)
+	if raw.Check != "" && !matchesV2Identity(raw.Check, 'C') {
+		return nil, fmt.Errorf("%w: %s: issue %s resolution.check %q must match C- plus at least three digits", ErrV2InvalidID, path, id, raw.Check)
 	}
 
 	actor, err := decodeV2Actor(ErrV2IssueMalformed, path, "issue", id, "resolution.actor", raw.Actor)
@@ -466,8 +465,8 @@ func decodeIssueHistory(path, id string, raw []issueHistoryFrontmatter) ([]Issue
 			return nil, err
 		}
 
-		if entry.Check != "" && !checkIDPatternV2.MatchString(entry.Check) {
-			return nil, fmt.Errorf("%w: %s: issue %s %s.check %q must match C plus at least three digits", ErrV2InvalidID, path, id, field, entry.Check)
+		if entry.Check != "" && !matchesV2Identity(entry.Check, 'C') {
+			return nil, fmt.Errorf("%w: %s: issue %s %s.check %q must match C- plus at least three digits", ErrV2InvalidID, path, id, field, entry.Check)
 		}
 
 		entries = append(entries, IssueHistoryEntry{

@@ -18,10 +18,10 @@ files:
 
         Ship the shared baseline in v1, then extend it in v1.1 under the same epic and Task
         short ID while keeping the audit register and defect history intact and interpretable.
-    - path: .savepoint/issues/I001-shared.md
+    - path: .savepoint/issues/I-001-shared.md
       content: |
         ---
-        id: I001
+        id: I-001
         title: Follow-up drafted before the v1.1 baseline is confirmed stable
         type: defect
         status: open
@@ -32,7 +32,7 @@ files:
                 session: .savepoint/releases/v1.1/defects/D001-shared.md
             at: "2026-09-18T12:00:00Z"
         tasks:
-            - T002
+            - T-002
         severity: low
         ---
         ## Migrated from V1
@@ -64,10 +64,10 @@ files:
         Low: the follow-up remains `planned`, not started, so no premature work has happened.
         Left open in this frozen fixture as release-scoped migration source evidence, distinct
         from the resolved v1 record sharing the same short ID.
-    - path: .savepoint/issues/I002-F001.md
+    - path: .savepoint/issues/I-002-F001.md
       content: |-
         ---
-        id: I002
+        id: I-002
         title: Shared-epic dependency resolution lacked regression coverage
         type: guardrail
         status: in_progress
@@ -78,7 +78,7 @@ files:
                 session: .savepoint/audit/findings/F001-awaiting-proof.md
             at: "2026-09-18T12:00:00Z"
         tasks:
-            - T001
+            - T-001
         guardrail_ids:
             - TEST-05
         severity: medium
@@ -131,10 +131,10 @@ files:
         - Epics: E01-example
         - Tasks: E01-example/T001-shared
         - Locations: internal/data/dependency.go
-    - path: .savepoint/issues/I003-F003.md
+    - path: .savepoint/issues/I-003-F003.md
       content: |-
         ---
-        id: I003
+        id: I-003
         title: Duplicate of shared-epic dependency resolution finding
         type: other
         status: resolved
@@ -145,7 +145,7 @@ files:
                 session: .savepoint/audit/findings/F003-duplicate.md
             at: "2026-09-18T12:00:00Z"
         tasks:
-            - T001
+            - T-001
         severity: medium
         resolution:
             disposition: duplicate
@@ -154,7 +154,7 @@ files:
                 session: .savepoint/audit/findings/F003-duplicate.md
             at: "2026-07-01T00:00:00Z"
             reason: migrated V1 finding F003 recorded as a duplicate of F001; no independent proof is tracked here
-        duplicate_of: I002
+        duplicate_of: I-002
         ---
         ## Migrated from V1
 
@@ -243,56 +243,56 @@ files:
             - path: .savepoint/router.md
               sha256: 96084a8b100f04e712c183777afa1b87af5c062ea79a4f688bb30f19b0ee77bf
         identities:
-            - global_id: I001
+            - global_id: I-001
               kind: issue
               release: v1.1
               path: .savepoint/releases/v1.1/defects/D001-shared.md
               original_id: v1.1/D001-shared
-              target_path: issues/I001-shared.md
-            - global_id: I002
+              target_path: issues/I-001-shared.md
+            - global_id: I-002
               kind: issue
               path: .savepoint/audit/findings/F001-awaiting-proof.md
               original_id: F001
-              target_path: issues/I002-F001.md
-            - global_id: I003
+              target_path: issues/I-002-F001.md
+            - global_id: I-003
               kind: issue
               path: .savepoint/audit/findings/F003-duplicate.md
               original_id: F003
-              target_path: issues/I003-F003.md
-            - global_id: O001
+              target_path: issues/I-003-F003.md
+            - global_id: O-001
               kind: objective
               release: v1.1
-              release_id: R002
+              release_id: R-002
               epic: E01-example
               path: .savepoint/releases/v1.1/epics/E01-example/E01-Detail.md
               original_id: E01-example
-              target_path: objectives/O001-example/Objective.md
-            - global_id: R001
+              target_path: objectives/O-001-example/Objective.md
+            - global_id: R-001
               kind: release
               release: v1
               path: .savepoint/releases/v1/v1-PRD.md
               original_id: v1
-              target_path: releases/R001-v1/Release.md
-            - global_id: R002
+              target_path: releases/R-001-v1/Release.md
+            - global_id: R-002
               kind: release
               release: v1.1
               path: .savepoint/releases/v1.1/v1.1-PRD.md
               original_id: v1.1
-              target_path: releases/R002-v1.1/Release.md
-            - global_id: T001
+              target_path: releases/R-002-v1.1/Release.md
+            - global_id: T-001
               kind: task
               release: v1.1
               epic: E01-example
               path: .savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md
               original_id: E01-example/T001-shared
-              target_path: objectives/O001-example/tasks/T001-shared.md
-            - global_id: T002
+              target_path: objectives/O-001-example/tasks/T-001-shared.md
+            - global_id: T-002
               kind: task
               release: v1.1
               epic: E01-example
               path: .savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md
               original_id: E01-example/T002-follow-up
-              target_path: objectives/O001-example/tasks/T002-follow-up.md
+              target_path: objectives/O-001-example/tasks/T-002-follow-up.md
         archives:
             - source_path: .savepoint/Health-Check.md
               archive_path: .savepoint/archive/v1/.savepoint/Health-Check.md
@@ -352,16 +352,16 @@ files:
               release: v1
               original_id: v1
         waived_references:
-            - task: T001
+            - task: T-001
               archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
               reason: Owner decided Deep mode is unnecessary for this example project; only Quick is ever exercised here, and this frozen fixture will never reach production launch.
-    - path: .savepoint/objectives/O001-example/Objective.md
+    - path: .savepoint/objectives/O-001-example/Objective.md
       content: |
         ---
-        id: O001
+        id: O-001
         title: 'Epic E01: Example (v1.1 continuation)'
         status: in_progress
-        release: R002
+        release: R-002
         ---
         ## Migrated from V1
 
@@ -385,12 +385,12 @@ files:
         ## Components and files
 
         None; this is a documentation-only example epic.
-    - path: .savepoint/objectives/O001-example/tasks/T001-shared.md
+    - path: .savepoint/objectives/O-001-example/tasks/T-001-shared.md
       content: |
         ---
-        id: T001
+        id: T-001
         title: Redo the shared baseline output for v1.1 before the follow-up depends on it
-        objective: O001
+        objective: O-001
         planned_by:
             role: planner
             session: migration
@@ -414,18 +414,18 @@ files:
 
         - [x] Read the v1 baseline for reference
         - [ ] Redo the baseline output under v1.1 scope
-    - path: .savepoint/objectives/O001-example/tasks/T002-follow-up.md
+    - path: .savepoint/objectives/O-001-example/tasks/T-002-follow-up.md
       content: |
         ---
-        id: T002
+        id: T-002
         title: Extend the v1.1 shared baseline with a dependent follow-up
-        objective: O001
+        objective: O-001
         planned_by:
             role: planner
             session: migration
         status: planned
         depends_on:
-            - task: T001
+            - task: T-001
         release: v1.1
         ---
         ## Migrated from V1
@@ -443,10 +443,10 @@ files:
         ## Implementation Plan
 
         - [ ] Wait for T001-shared, then extend it
-    - path: .savepoint/releases/R001-v1/Release.md
+    - path: .savepoint/releases/R-001-v1/Release.md
       content: |
         ---
-        id: R001
+        id: R-001
         title: Example Release
         status: done
         legacy_completion:
@@ -493,10 +493,10 @@ files:
         Minimal frozen release scope, kept only as migration source evidence for E41. One epic,
         one Task, completed, plus one resolved defect.
         ````
-    - path: .savepoint/releases/R002-v1.1/Release.md
+    - path: .savepoint/releases/R-002-v1.1/Release.md
       content: |
         ---
-        id: R002
+        id: R-002
         title: Example Release — Follow-up
         status: in_progress
         ---
@@ -554,8 +554,8 @@ files:
 
         ```yaml
         state: task
-        release: R002
-        objective: O001
-        task: T001
+        release: R-002
+        objective: O-001
+        task: T-001
         next_action: Build E01-example/T001-shared.
         ```

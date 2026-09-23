@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// I025 shrank the always-visible footer to the keys that actually do
+// I-025 shrank the always-visible footer to the keys that actually do
 // something on the focused surface right now. The full key map, including
 // every key omitted here, stays available in Help (see actions_test.go's
 // TestHelpListsOnlyFocusedOwnerCapabilities).
@@ -58,13 +58,13 @@ func TestFooterOmitsDeadTaskIssuesHint(t *testing.T) {
 func TestFooterCanonicalHintOnlyWhenTheIssueHasADuplicateTarget(t *testing.T) {
 	root := writeIssuesProject(t)
 
-	// I001 is Open and carries no duplicate_of.
+	// I-001 is Open and carries no duplicate_of.
 	notDuplicate := press(t, issueBoard(t, root), "i", "enter")
 	if strings.Contains(notDuplicate.hints(), "enter:canonical") {
 		t.Errorf("footer offers enter:canonical for an Issue with no canonical target:\n%q", notDuplicate.hints())
 	}
 
-	// I004 is Resolved's second row and names I001 as duplicate_of.
+	// I-004 is Resolved's second row and names I-001 as duplicate_of.
 	duplicate := press(t, issueBoard(t, root), "i", "right", "right", "down", "enter")
 	if !strings.Contains(duplicate.hints(), "enter:canonical") {
 		t.Errorf("footer omits enter:canonical for an Issue that names a canonical target:\n%q", duplicate.hints())

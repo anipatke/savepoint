@@ -9,28 +9,28 @@ import (
 )
 
 func TestReadStateV2_decodesSelectedTask(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nnext_action: \"Build T001\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"Build T-001\"\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
 
-	want := RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001", NextAction: "Build T001"}
+	want := RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001", NextAction: "Build T-001"}
 	if *state != want {
 		t.Errorf("ReadStateV2() = %+v, want %+v", *state, want)
 	}
 }
 
 func TestReadStateV2_decodesSelectedRelease(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: task\nrelease: R001\nobjective: O001\ntask: T001\nnext_action: \"Build T001\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task\nrelease: R-001\nobjective: O-001\ntask: T-001\nnext_action: \"Build T-001\"\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
-	if state.Release != "R001" || state.Objective != "O001" || state.Task != "T001" {
-		t.Fatalf("ReadStateV2() selections = release %q objective %q task %q, want R001/O001/T001", state.Release, state.Objective, state.Task)
+	if state.Release != "R-001" || state.Objective != "O-001" || state.Task != "T-001" {
+		t.Fatalf("ReadStateV2() selections = release %q objective %q task %q, want R-001/O-001/T-001", state.Release, state.Objective, state.Task)
 	}
 }
 
@@ -56,14 +56,14 @@ func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
 }
 
 func TestReadStateV2_taskAbsentObjectivePresentDecodesCleanly(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: design\nobjective: O002\ntask: none\nnext_action: \"Plan O002\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: design\nobjective: O-002\ntask: none\nnext_action: \"Plan O-002\"\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
-	if state.Objective != "O002" {
-		t.Errorf("Objective = %q, want O002", state.Objective)
+	if state.Objective != "O-002" {
+		t.Errorf("Objective = %q, want O-002", state.Objective)
 	}
 	if state.Task != "" {
 		t.Errorf("Task = %q, want empty", state.Task)
@@ -71,7 +71,7 @@ func TestReadStateV2_taskAbsentObjectivePresentDecodesCleanly(t *testing.T) {
 }
 
 func TestReadStateV2_emptyNextActionDecodesCleanly(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: check\nobjective: O003\ntask: none\nnext_action:\n```\n"
+	content := "## Current state\n\n```yaml\nstate: check\nobjective: O-003\ntask: none\nnext_action:\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestReadStateV2_malformedReleaseID(t *testing.T) {
 }
 
 func TestReadStateV2_malformedTaskID(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: xyz\nnext_action: \"\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: xyz\nnext_action: \"\"\n```\n"
 
 	_, err := NewRouterReader().ReadStateV2(content)
 	if !errors.Is(err, ErrV2InvalidID) {
@@ -130,8 +130,29 @@ func TestReadStateV2_malformedTaskID(t *testing.T) {
 	}
 }
 
+func TestReadStateV2_rejectsUnhyphenatedSelections(t *testing.T) {
+	tests := []struct {
+		name   string
+		fields string
+	}{
+		{"release", "release: R001\nobjective: none\ntask: none"},
+		{"objective", "release: none\nobjective: O001\ntask: none"},
+		{"task", "release: none\nobjective: O-001\ntask: T001"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := "## Current state\n\n```yaml\nstate: task\n" + tt.fields + "\nnext_action: \"\"\n```\n"
+			_, err := NewRouterReader().ReadStateV2(content)
+			if !errors.Is(err, ErrV2InvalidID) {
+				t.Fatalf("ReadStateV2() error = %v, want ErrV2InvalidID", err)
+			}
+		})
+	}
+}
+
 func TestReadStateV2_taskWithoutObjectiveIsNamedDiagnostic(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: task\nobjective: none\ntask: T001\nnext_action: \"\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task\nobjective: none\ntask: T-001\nnext_action: \"\"\n```\n"
 
 	_, err := NewRouterReader().ReadStateV2(content)
 	if !errors.Is(err, ErrV2InvalidOwnership) {
@@ -162,7 +183,7 @@ func TestReadStateV2_unknownKeyIsNamedDiagnostic(t *testing.T) {
 	// Unlike the V1 reader (TestRouterReader_ignoresUnknownKeys), the V2
 	// reader decodes strictly: an unrecognized key is a diagnostic, not
 	// silently ignored.
-	content := "## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nnext_action: \"\"\nowner: someone\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"\"\nowner: someone\n```\n"
 
 	_, err := NewRouterReader().ReadStateV2(content)
 	if !errors.Is(err, ErrV2Malformed) {
@@ -173,7 +194,7 @@ func TestReadStateV2_unknownKeyIsNamedDiagnostic(t *testing.T) {
 func TestReadStateV2_v1RouterStateDecodeUnaffected(t *testing.T) {
 	// ReadState (V1) must keep decoding unknown keys tolerantly after
 	// ReadState and ReadStateV2 started sharing extractStateBlock.
-	content := "## Current state\n\n```yaml\nstate: task-building\nrelease: v1\nepic: E01\ntask: E01/T001\nnext_action: \"Build T001\"\nowner: someone\n```\n"
+	content := "## Current state\n\n```yaml\nstate: task-building\nrelease: v1\nepic: E01\ntask: E01/T-001\nnext_action: \"Build T-001\"\nowner: someone\n```\n"
 
 	state, err := NewRouterReader().ReadState(content)
 	if err != nil {

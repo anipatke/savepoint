@@ -2,19 +2,9 @@ package data
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 )
-
-// checkIDPatternV2 anchors V2 global Check identity: C plus at least three
-// digits.
-var checkIDPatternV2 = regexp.MustCompile(`^C[0-9]{3,}$`)
-
-// issueIDPatternV2 anchors the I### identity references a Check's issues
-// list may carry. E43 validates the reference shape only: it never loads,
-// looks up, or validates an Issue record, which belongs to E44.
-var issueIDPatternV2 = regexp.MustCompile(`^I[0-9]{3,}$`)
 
 // CheckResult is the outcome an evaluation records. There is no partial or
 // pending result: a Check is written once, after the evaluation concludes.
@@ -82,11 +72,11 @@ type CheckV2 struct {
 	ExecutedSession string
 	CheckedAt       time.Time
 	Reviewed        *ReviewedBasis
-	// Issues are I### references decoded for shape here and resolved against
+	// Issues are I-### references decoded for shape here and resolved against
 	// the Issue records at index time, where this list is the authoritative
 	// record of which Issues the evaluation opened.
 	Issues     []string
-	Supersedes string // C### reference to the Check this run replaces, empty if none
+	Supersedes string // C-### reference to the Check this run replaces, empty if none
 	Source     V2SourceDocument
 }
 
@@ -120,7 +110,7 @@ type checkV2Frontmatter struct {
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
-// a valid global C### ID, a scope naming a T###, O###, or R### target
+// a valid global C-### ID, a scope naming a T-###, O-###, or R-### target
 // consistent with its kind, a CLEAR or NEEDS WORK result, checked_by actor provenance,
 // and a parseable checked_at timestamp. A CLEAR Check must be recorded by a
 // checker; other roles may record NEEDS WORK evidence, but cannot author a
@@ -129,7 +119,7 @@ type checkV2Frontmatter struct {
 // including for CLEAR, and does not participate in clearance resolution;
 // issues and supersedes are optional too. When present, these fields are
 // validated for shape only — reviewed's fields are recorded as given, issues
-// are I### references with no Issue lookup, and supersedes is a C### reference
+// are I-### references with no Issue lookup, and supersedes is a C-### reference
 // resolved later against the full index, not here.
 func DecodeCheckV2(path, content string) (*CheckV2, error) {
 	doc, err := ParseV2Document(path, content)
@@ -142,8 +132,8 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !checkIDPatternV2.MatchString(fields.ID) {
-		return nil, fmt.Errorf("%w: %s: check id %q must match C plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesV2Identity(fields.ID, 'C') {
+		return nil, fmt.Errorf("%w: %s: check id %q must match C- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 
 	scope, err := decodeCheckScope(path, fields.ID, fields.Scope)
@@ -195,14 +185,14 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 
 	issues := make([]string, 0, len(fields.Issues))
 	for _, ref := range fields.Issues {
-		if !issueIDPatternV2.MatchString(ref) {
-			return nil, fmt.Errorf("%w: %s: check %s issues %q must match I plus at least three digits", ErrV2InvalidID, path, fields.ID, ref)
+		if !matchesV2Identity(ref, 'I') {
+			return nil, fmt.Errorf("%w: %s: check %s issues %q must match I- plus at least three digits", ErrV2InvalidID, path, fields.ID, ref)
 		}
 		issues = append(issues, ref)
 	}
 
-	if fields.Supersedes != "" && !checkIDPatternV2.MatchString(fields.Supersedes) {
-		return nil, fmt.Errorf("%w: %s: check %s supersedes %q must match C plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.Supersedes)
+	if fields.Supersedes != "" && !matchesV2Identity(fields.Supersedes, 'C') {
+		return nil, fmt.Errorf("%w: %s: check %s supersedes %q must match C- plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.Supersedes)
 	}
 
 	return &CheckV2{
@@ -231,14 +221,14 @@ func decodeCheckScope(path, checkID string, raw checkScopeFrontmatter) (CheckSco
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s missing required field scope.id", ErrV2MissingField, path, checkID)
 	}
 
-	pattern := taskIDPatternV2
+	kindPrefix := byte('T')
 	switch kind {
 	case CheckScopeObjective:
-		pattern = objectiveIDPattern
+		kindPrefix = 'O'
 	case CheckScopeRelease:
-		pattern = releaseIDPatternV2
+		kindPrefix = 'R'
 	}
-	if !pattern.MatchString(raw.ID) {
+	if !matchesV2Identity(raw.ID, kindPrefix) {
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s scope.id %q does not match scope.kind %s", ErrV2InvalidID, path, checkID, raw.ID, kind)
 	}
 

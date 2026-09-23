@@ -13,7 +13,7 @@ func TestWriteTaskStatus_updatesStatusAndStage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T001
+id: E01/T-001
 status: planned
 stage: build
 objective: "Test"
@@ -32,7 +32,7 @@ depends_on: []
 	}
 
 	task := &Task{
-		ID:     "E01/T001",
+		ID:     "E01/T-001",
 		Column: ColumnInProgress,
 		Stage:  StageTest,
 	}
@@ -68,7 +68,7 @@ func TestWriteTaskStatus_removesStageWhenStageEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T002
+id: E01/T-002
 status: in_progress
 stage: audit
 objective: "Test"
@@ -83,7 +83,7 @@ objective: "Test"
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T002",
+		ID:     "E01/T-002",
 		Column: ColumnDone,
 		Stage:  "",
 	}
@@ -119,7 +119,7 @@ func TestWriteTaskStatus_rewritesAgentCompleteStatusAsCanonicalDone(t *testing.T
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T002
+id: E01/T-002
 status: complete
 objective: "Agent completed task"
 ---
@@ -156,7 +156,7 @@ func TestWriteTaskStatus_removesProgressFieldsWhenStatusPlanned(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T003
+id: E01/T-003
 status: in_progress
 stage: build
 ---
@@ -170,7 +170,7 @@ stage: build
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T003",
+		ID:     "E01/T-003",
 		Column: ColumnPlanned,
 		Stage:  "",
 	}
@@ -193,7 +193,7 @@ func TestWriteTaskStatus_mtimeConflict(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T004
+id: E01/T-004
 status: planned
 ---`
 
@@ -204,7 +204,7 @@ status: planned
 	oldMtime := time.Now().Add(-time.Hour)
 
 	task := &Task{
-		ID:     "E01/T004",
+		ID:     "E01/T-004",
 		Column: ColumnInProgress,
 		Stage:  StageBuild,
 	}
@@ -222,7 +222,7 @@ func TestWriteTaskStatus_addsStageWhenStagePresent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T005
+id: E01/T-005
 status: in_progress
 objective: "No phase yet"
 ---`
@@ -234,7 +234,7 @@ objective: "No phase yet"
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T005",
+		ID:     "E01/T-005",
 		Column: ColumnInProgress,
 		Stage:  StageAudit,
 	}
@@ -257,7 +257,7 @@ func TestWriteTaskStatus_rejectsInProgressWhenStageMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T010
+id: E01/T-010
 status: planned
 objective: "No phase yet"
 ---`
@@ -269,7 +269,7 @@ objective: "No phase yet"
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T010",
+		ID:     "E01/T-010",
 		Column: ColumnInProgress,
 	}
 
@@ -286,7 +286,7 @@ func TestWriteTaskStatus_removesLegacyPhaseField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T009
+id: E01/T-009
 status: in_progress
 stage: build
 phase: build
@@ -299,7 +299,7 @@ objective: "Legacy mixed fields"
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:     "E01/T009",
+		ID:     "E01/T-009",
 		Column: ColumnInProgress,
 		Stage:  StageTest,
 	}
@@ -328,7 +328,7 @@ func TestWriteTaskStatus_removesLegacyImplementationFieldsOutsideInProgress(t *t
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T011
+id: E01/T-011
 status: done
 stage: implementation
 phase: implementation
@@ -341,7 +341,7 @@ objective: "Legacy completed task"
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:     "E01/T011",
+		ID:     "E01/T-011",
 		Column: ColumnDone,
 	}
 
@@ -373,7 +373,7 @@ func TestWriteTaskStatus_preservesBodyWithMultipleLines(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T006
+id: E01/T-006
 status: planned
 ---
 
@@ -390,7 +390,7 @@ More content.`
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T006",
+		ID:     "E01/T-006",
 		Column: ColumnInProgress,
 		Stage:  StageBuild,
 	}
@@ -423,7 +423,7 @@ func TestWriteRouterState_updatesRouterFields(t *testing.T) {
 state: task-building
 release: v1
 epic: E03-board-tui-core
-task: E03-board-tui-core/T004-render
+task: E03-board-tui-core/T-004-render
 next_action: "Render the board"
 ` + "```" + `
 
@@ -443,7 +443,7 @@ next_action: "Render the board"
 		State:      "task-building",
 		Release:    "v1",
 		Epic:       "E05-phase-transitions",
-		Task:       "E05-phase-transitions/T004-write-router",
+		Task:       "E05-phase-transitions/T-004-write-router",
 		NextAction: "Write router state",
 	}
 
@@ -471,8 +471,8 @@ next_action: "Render the board"
 	if parsed.Release != "v1" {
 		t.Errorf("Release = %q, want v1", parsed.Release)
 	}
-	if parsed.Task != "E05-phase-transitions/T004-write-router" {
-		t.Errorf("Task = %q, want E05-phase-transitions/T004-write-router", parsed.Task)
+	if parsed.Task != "E05-phase-transitions/T-004-write-router" {
+		t.Errorf("Task = %q, want E05-phase-transitions/T-004-write-router", parsed.Task)
 	}
 	if parsed.NextAction != "Write router state" {
 		t.Errorf("NextAction = %q, want Write router state", parsed.NextAction)
@@ -719,7 +719,7 @@ func TestWriteTaskStatus_noFrontmatter(t *testing.T) {
 	fi, _ := os.Stat(path)
 
 	task := &Task{
-		ID:     "E01/T007",
+		ID:     "E01/T-007",
 		Column: ColumnPlanned,
 	}
 
@@ -733,7 +733,7 @@ func TestWriteTaskStatus_rejectsInvalidLifecycle(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T008
+id: E01/T-008
 status: planned
 ---`
 
@@ -743,7 +743,7 @@ status: planned
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:     "E01/T008",
+		ID:     "E01/T-008",
 		Column: ColumnDone,
 		Stage:  StageAudit,
 	}
@@ -758,7 +758,7 @@ func TestWriteTaskStatus_rejectsImplementationStageForInProgress(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E01/T012
+id: E01/T-012
 status: planned
 ---`
 
@@ -768,7 +768,7 @@ status: planned
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:     "E01/T012",
+		ID:     "E01/T-012",
 		Column: ColumnInProgress,
 		Stage:  LegacyTaskStageImplementation,
 	}
@@ -786,7 +786,7 @@ func TestWriteTaskStatus_rejectsInvalidComplexityOnInProgress(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E19/T011
+id: E19/T-011
 status: planned
 objective: "Invalid complexity"
 ---`
@@ -797,7 +797,7 @@ objective: "Invalid complexity"
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:               "E19/T011",
+		ID:               "E19/T-011",
 		Column:           ColumnInProgress,
 		Stage:            StageBuild,
 		ComplexityTier:   ComplexityTier("extreme"),
@@ -817,7 +817,7 @@ func TestWriteTaskStatus_trimsOverlongComplexityReasonByWordCount(t *testing.T) 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E19/T012
+id: E19/T-012
 status: planned
 objective: "Invalid complexity"
 ---`
@@ -828,7 +828,7 @@ objective: "Invalid complexity"
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:               "E19/T012",
+		ID:               "E19/T-012",
 		Column:           ColumnInProgress,
 		Stage:            StageBuild,
 		ComplexityTier:   ComplexityHigh,
@@ -853,7 +853,7 @@ func TestWriteTaskStatus_preservesComplexityFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	content := `---
-id: E19/T001
+id: E19/T-001
 status: planned
 complexity_tier: high
 complexity_reason: "Requires coordinated changes across multiple packages."
@@ -868,7 +868,7 @@ objective: "Complexity test"
 
 	fi, _ := os.Stat(path)
 	task := &Task{
-		ID:     "E19/T001",
+		ID:     "E19/T-001",
 		Column: ColumnInProgress,
 		Stage:  StageBuild,
 	}
@@ -902,7 +902,7 @@ func TestWriteTaskStatus_selfHealsKnownComplexityBlockers(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "task.md")
 	longReason := strings.TrimSpace(strings.Repeat("word ", MaxComplexityReasonWords+1))
-	content := "---\nid: E19/T013\nstatus: planned\ncomplexity_tier: small\ncomplexity_reason: \"" + longReason + "\"\nobjective: \"Complexity repair\"\n---\n\n# Body"
+	content := "---\nid: E19/T-013\nstatus: planned\ncomplexity_tier: small\ncomplexity_reason: \"" + longReason + "\"\nobjective: \"Complexity repair\"\n---\n\n# Body"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -949,7 +949,7 @@ release: v1
 status: open
 severity: high
 title: "Crash"
-reference: E01/T001
+reference: E01/T-001
 ---
 
 # Body
@@ -989,7 +989,7 @@ Keep this text.`
 	if parsed.Status != DefectResolved {
 		t.Errorf("Status = %v, want resolved", parsed.Status)
 	}
-	if !strings.Contains(string(result), "reference: E01/T001") {
+	if !strings.Contains(string(result), "reference: E01/T-001") {
 		t.Error("unrelated frontmatter field not preserved")
 	}
 	if !strings.Contains(string(result), "Keep this text.") {
@@ -1001,11 +1001,11 @@ func TestWriteObjectiveV2_updatesStatusPreservesUnknownFieldsAndBody(t *testing.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Objective.md")
 	content := `---
-id: O002
+id: O-002
 title: "Load V2 work with stable identity"
 status: planned
-depends_on: [O001]
-release: R001
+depends_on: [O-001]
+release: R-001
 owner:
   team: platform
   contact: "team@example.com"
@@ -1043,11 +1043,11 @@ Authored planning notes that must survive the rewrite.`
 	if reparsed.Status != ColumnInProgress {
 		t.Errorf("Status = %q, want in_progress", reparsed.Status)
 	}
-	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
-		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O-001" {
+		t.Errorf("DependsOn = %v, want [O-001] preserved", reparsed.DependsOn)
 	}
-	if reparsed.Release != "R001" {
-		t.Errorf("Release = %q, want R001 preserved", reparsed.Release)
+	if reparsed.Release != "R-001" {
+		t.Errorf("Release = %q, want R-001 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "team: platform") {
 		t.Error("unknown nested field not preserved")
@@ -1067,7 +1067,7 @@ func TestWriteObjectiveV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Objective.md")
 	content := `---
-id: O003
+id: O-003
 title: "No-op objective"
 status: in_progress
 ---
@@ -1119,7 +1119,7 @@ func TestWriteObjectiveV2_refusesUnsupportedStatusAndLeavesFileUntouched(t *test
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Objective.md")
 	content := `---
-id: O004
+id: O-004
 title: "Guarded objective"
 status: planned
 ---
@@ -1158,18 +1158,18 @@ status: planned
 
 func TestWriteTaskV2_updatesStatusAndStagePreservesDependencies(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T005.md")
+	path := filepath.Join(dir, "T-005.md")
 	content := `---
-id: T005
+id: T-005
 title: "Show clear project errors"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: planned
 depends_on:
-  - task: T003
-  - task: T004
+  - task: T-003
+  - task: T-004
     requires: accepted
-release: R001
+release: R-001
 ---
 
 # Task
@@ -1206,8 +1206,8 @@ Authored task notes.`
 	if len(reparsed.DependsOn) != 2 {
 		t.Fatalf("DependsOn len = %d, want 2 preserved", len(reparsed.DependsOn))
 	}
-	if reparsed.DependsOn[1].Task != "T004" || reparsed.DependsOn[1].Requires != TaskDependencyAccepted {
-		t.Errorf("DependsOn[1] = %+v, want T004/accepted preserved", reparsed.DependsOn[1])
+	if reparsed.DependsOn[1].Task != "T-004" || reparsed.DependsOn[1].Requires != TaskDependencyAccepted {
+		t.Errorf("DependsOn[1] = %+v, want T-004/accepted preserved", reparsed.DependsOn[1])
 	}
 	if !strings.Contains(string(result), "Authored task notes.") {
 		t.Error("authored body content not preserved")
@@ -1216,11 +1216,11 @@ Authored task notes.`
 
 func TestWriteTaskV2_removesStageWhenLeavingInProgress(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T006.md")
+	path := filepath.Join(dir, "T-006.md")
 	content := `---
-id: T006
+id: T-006
 title: "Finish up"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: audit
@@ -1262,11 +1262,11 @@ stage: audit
 
 func TestWriteTaskV2_refusesInProgressWithoutStageAndLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T007.md")
+	path := filepath.Join(dir, "T-007.md")
 	content := `---
-id: T007
+id: T-007
 title: "Guarded task"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
@@ -1303,11 +1303,11 @@ status: planned
 
 func TestWriteTaskV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T008.md")
+	path := filepath.Join(dir, "T-008.md")
 	content := `---
-id: T008
+id: T-008
 title: "No-op task"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: test
@@ -1358,8 +1358,8 @@ stage: test
 
 func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T009.md")
-	content := "---\r\nid: T009\r\ntitle: \"CRLF task\"\r\nobjective: O002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+	path := filepath.Join(dir, "T-009.md")
+	content := "---\r\nid: T-009\r\ntitle: \"CRLF task\"\r\nobjective: O-002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1399,8 +1399,8 @@ func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
 
 func TestWriteTaskV2_preservesLFLineEndingsByDefault(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T010.md")
-	content := "---\nid: T010\ntitle: \"LF task\"\nobjective: O002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Task\n"
+	path := filepath.Join(dir, "T-010.md")
+	content := "---\nid: T-010\ntitle: \"LF task\"\nobjective: O-002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Task\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1434,7 +1434,7 @@ func TestWriteObjectiveV2_writeFailureIsPathQualifiedAndLeavesRecordIntact(t *te
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Objective.md")
 	content := `---
-id: O005
+id: O-005
 title: "Read-only objective"
 status: planned
 ---
@@ -1478,15 +1478,15 @@ status: planned
 
 func TestWriteV2Record_resolvesDiscoveredRelativePathFromProjectRoot(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
 
 	objectives, tasks, err := DiscoverV2Records(root)
 	if err != nil {
 		t.Fatalf("DiscoverV2Records() error = %v", err)
 	}
-	objective := objectives["O001"]
-	task := tasks["T001"]
+	objective := objectives["O-001"]
+	task := tasks["T-001"]
 	if objective == nil || task == nil {
 		t.Fatal("DiscoverV2Records() did not return both V2 records")
 	}
@@ -1528,7 +1528,7 @@ func TestWriteV2Record_resolvesDiscoveredRelativePathFromProjectRoot(t *testing.
 
 func TestResolveV2SourcePath_confinesPathsToProjectRoot(t *testing.T) {
 	root := t.TempDir()
-	inside := filepath.Join(root, "objectives", "O001", "Objective.md")
+	inside := filepath.Join(root, "objectives", "O-001", "Objective.md")
 
 	tests := []struct {
 		name    string
@@ -1538,7 +1538,7 @@ func TestResolveV2SourcePath_confinesPathsToProjectRoot(t *testing.T) {
 	}{
 		{
 			name: "relative inside",
-			path: "objectives/O001/Objective.md",
+			path: "objectives/O-001/Objective.md",
 			want: inside,
 		},
 		{
@@ -1594,20 +1594,20 @@ func TestResolveV2SourcePath_allowsAbsolutePathWithoutProjectRoot(t *testing.T) 
 
 func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *testing.T) {
 	root := t.TempDir()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2TaskFixture(t, root, "O001-first", "T001-first.md", "T001", "First task", "O001")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
 
 	_, tasks, err := DiscoverV2Records(root)
 	if err != nil {
 		t.Fatalf("DiscoverV2Records() error = %v", err)
 	}
-	task := tasks["T001"]
+	task := tasks["T-001"]
 	if task == nil {
-		t.Fatal("DiscoverV2Records() did not return T001")
+		t.Fatal("DiscoverV2Records() did not return T-001")
 	}
 
 	path := filepath.Join(root, task.Source.Path)
-	userEdit := "---\nid: T001\ntitle: \"First task\"\nobjective: O001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
+	userEdit := "---\nid: T-001\ntitle: \"First task\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
 	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -1636,17 +1636,17 @@ func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *tes
 
 func TestWriteTaskEvidenceV2_setsAllSubBlocksPreservesUnknownFieldsAndBody(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T020.md")
+	path := filepath.Join(dir, "T-020.md")
 	content := `---
-id: T020
+id: T-020
 title: "No evidence yet"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
 depends_on:
-  - task: T010
-release: R001
+  - task: T-010
+release: R-001
 ---
 
 # Task
@@ -1671,26 +1671,26 @@ Authored task notes.`
 	waiverAt := time.Date(2026, 9, 14, 3, 0, 0, 0, time.UTC)
 	task.Evidence = &Evidence{
 		CheckWaiver: &CheckWaiver{
-			Task:       "T020",
+			Task:       "T-020",
 			Reason:     "Owner completed via board without requesting a Check.",
 			Actor:      Actor{Role: ActorRoleOwner, Session: "board-owner"},
 			RecordedAt: waiverAt,
 		},
-		LastCheck: "C001",
+		LastCheck: "C-001",
 		Freshness: &Freshness{
 			State:      FreshnessCurrent,
-			Check:      "C001",
+			Check:      "C-001",
 			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 			AssessedAt: assessedAt,
 			Basis:      "Reviewed diff against AC.",
 		},
-		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+		OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
 		Exception: &Exception{
 			Requirements: []string{"TEST-08"},
 			Reason:       "Owner accepted known risk.",
 			Owner:        "owner-1",
 			RecordedAt:   recordedAt,
-			Check:        "C001",
+			Check:        "C-001",
 		},
 		Replan: &Replan{
 			Reason:     "Plan needs revisiting.",
@@ -1715,8 +1715,8 @@ Authored task notes.`
 	if reparsed.Evidence == nil {
 		t.Fatal("Evidence = nil, want populated evidence")
 	}
-	if reparsed.Evidence.LastCheck != "C001" {
-		t.Errorf("LastCheck = %q, want C001", reparsed.Evidence.LastCheck)
+	if reparsed.Evidence.LastCheck != "C-001" {
+		t.Errorf("LastCheck = %q, want C-001", reparsed.Evidence.LastCheck)
 	}
 	if reparsed.Evidence.Freshness == nil || reparsed.Evidence.Freshness.State != FreshnessCurrent {
 		t.Errorf("Freshness = %+v, want state current", reparsed.Evidence.Freshness)
@@ -1733,15 +1733,15 @@ Authored task notes.`
 	if reparsed.Evidence.Replan == nil || reparsed.Evidence.Replan.Reason != "Plan needs revisiting." {
 		t.Errorf("Replan = %+v, want reason set", reparsed.Evidence.Replan)
 	}
-	if reparsed.Evidence.CheckWaiver == nil || reparsed.Evidence.CheckWaiver.Task != "T020" || reparsed.Evidence.CheckWaiver.Actor.Role != ActorRoleOwner {
-		t.Errorf("CheckWaiver = %+v, want task T020 recorded by owner", reparsed.Evidence.CheckWaiver)
+	if reparsed.Evidence.CheckWaiver == nil || reparsed.Evidence.CheckWaiver.Task != "T-020" || reparsed.Evidence.CheckWaiver.Actor.Role != ActorRoleOwner {
+		t.Errorf("CheckWaiver = %+v, want task T-020 recorded by owner", reparsed.Evidence.CheckWaiver)
 	}
 
 	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
 		t.Errorf("Status/Stage = %q/%q, want in_progress/build preserved", reparsed.Status, reparsed.Stage)
 	}
-	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T010" {
-		t.Errorf("DependsOn = %v, want [T010] preserved", reparsed.DependsOn)
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T-010" {
+		t.Errorf("DependsOn = %v, want [T-010] preserved", reparsed.DependsOn)
 	}
 	if !strings.Contains(string(result), "Authored task notes.") {
 		t.Error("authored body content not preserved")
@@ -1750,15 +1750,15 @@ Authored task notes.`
 
 func TestWriteTaskEvidenceV2_removesReplanKeyRatherThanEmptyValue(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T021.md")
+	path := filepath.Join(dir, "T-021.md")
 	content := `---
-id: T021
+id: T-021
 title: "Replan flagged"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
-last_check: C001
+last_check: C-001
 replan:
   reason: "Plan needs revisiting."
   recorded_by:
@@ -1805,25 +1805,25 @@ replan:
 	if reparsed.Evidence.Replan != nil {
 		t.Errorf("Replan = %+v, want nil after clearing", reparsed.Evidence.Replan)
 	}
-	if reparsed.Evidence.LastCheck != "C001" {
-		t.Errorf("LastCheck = %q, want C001 preserved", reparsed.Evidence.LastCheck)
+	if reparsed.Evidence.LastCheck != "C-001" {
+		t.Errorf("LastCheck = %q, want C-001 preserved", reparsed.Evidence.LastCheck)
 	}
 }
 
 func TestWriteTaskEvidenceV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T022.md")
+	path := filepath.Join(dir, "T-022.md")
 	content := `---
-id: T022
+id: T-022
 title: "Fully evidenced task"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: in_progress
 stage: build
-last_check: C001
+last_check: C-001
 freshness:
   state: current
-  check: C001
+  check: C-001
   assessed_by:
     role: checker
     session: sess-1
@@ -1831,7 +1831,7 @@ freshness:
   basis: "Reviewed diff against AC."
 owner_validation:
   required: true
-  accepted_check: C001
+  accepted_check: C-001
   accepted_by:
     role: owner
     session: owner-1
@@ -1841,7 +1841,7 @@ exception:
   reason: "Owner accepted known risk."
   owner: owner-1
   recorded_at: '2026-09-14T01:00:00Z'
-  check: C001
+  check: C-001
 replan:
   reason: "Plan needs revisiting."
   recorded_by:
@@ -1895,11 +1895,11 @@ replan:
 
 func TestWriteTaskEvidenceV2_refusesStaleSourceWithoutOverwritingUserEdit(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T023.md")
+	path := filepath.Join(dir, "T-023.md")
 	content := `---
-id: T023
+id: T-023
 title: "Guarded evidence write"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
@@ -1915,12 +1915,12 @@ status: planned
 		t.Fatalf("DecodeTaskV2() error = %v", err)
 	}
 
-	userEdit := "---\nid: T023\ntitle: \"Guarded evidence write\"\nobjective: O002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
+	userEdit := "---\nid: T-023\ntitle: \"Guarded evidence write\"\nobjective: O-002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
 	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	task.Evidence = &Evidence{LastCheck: "C001"}
+	task.Evidence = &Evidence{LastCheck: "C-001"}
 
 	err = WriteTaskEvidenceV2(task)
 	if !errors.Is(err, ErrV2SourceConflict) {
@@ -1941,8 +1941,8 @@ status: planned
 
 func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T024.md")
-	content := "---\r\nid: T024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
+	path := filepath.Join(dir, "T-024.md")
+	content := "---\r\nid: T-024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O-002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -1952,7 +1952,7 @@ func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeTaskV2() error = %v", err)
 	}
-	task.Evidence = &Evidence{LastCheck: "C001"}
+	task.Evidence = &Evidence{LastCheck: "C-001"}
 
 	if err := WriteTaskEvidenceV2(task); err != nil {
 		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
@@ -1972,11 +1972,11 @@ func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
 
 func TestWriteTaskEvidenceV2_rejectsMalformedEvidenceLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "T025.md")
+	path := filepath.Join(dir, "T-025.md")
 	content := `---
-id: T025
+id: T-025
 title: "Guarded malformed evidence"
-objective: O002
+objective: O-002
 planned_by: {role: planner, session: planning-fixture}
 status: planned
 ---
@@ -1994,7 +1994,7 @@ status: planned
 	task.Evidence = &Evidence{
 		Freshness: &Freshness{
 			State:      FreshnessState("bogus"),
-			Check:      "C001",
+			Check:      "C-001",
 			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 			AssessedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
 			Basis:      "Reviewed diff against AC.",
@@ -2023,12 +2023,12 @@ func TestCreateCheckV2_writesNewFileAllocatesFirstID(t *testing.T) {
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 
 	fields := NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-001"},
 		Result:          CheckResultClear,
 		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		ExecutedSession: "build-001",
 		CheckedAt:       time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-		Issues:          []string{"I001"},
+		Issues:          []string{"I-001"},
 		Body:            "\n\n# Check\n\nOutcome notes.\n",
 	}
 
@@ -2036,37 +2036,37 @@ func TestCreateCheckV2_writesNewFileAllocatesFirstID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCheckV2() error = %v", err)
 	}
-	if check.ID != "C001" {
-		t.Errorf("ID = %q, want C001", check.ID)
+	if check.ID != "C-001" {
+		t.Errorf("ID = %q, want C-001", check.ID)
 	}
 
-	path := filepath.Join(root, "checks", "C001.md")
+	path := filepath.Join(root, "checks", "C-001.md")
 	result, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("checks/C001.md not written: %v", err)
+		t.Fatalf("checks/C-001.md not written: %v", err)
 	}
 	if !strings.Contains(string(result), "Outcome notes.") {
 		t.Error("authored body content not written")
 	}
 
-	reparsed, err := DecodeCheckV2(filepath.Join("checks", "C001.md"), string(result))
+	reparsed, err := DecodeCheckV2(filepath.Join("checks", "C-001.md"), string(result))
 	if err != nil {
 		t.Fatalf("DecodeCheckV2() after create error = %v", err)
 	}
-	if reparsed.Scope.ID != "T001" || reparsed.Result != CheckResultClear {
-		t.Errorf("reparsed = %+v, want scope T001/CLEAR", reparsed)
+	if reparsed.Scope.ID != "T-001" || reparsed.Result != CheckResultClear {
+		t.Errorf("reparsed = %+v, want scope T-001/CLEAR", reparsed)
 	}
 }
 
 func TestCreateCheckV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	root := t.TempDir()
 	index := &V2Index{Checks: map[string]*CheckV2{
-		"C001": {ID: "C001"},
-		"C002": {ID: "C002"},
+		"C-001": {ID: "C-001"},
+		"C-002": {ID: "C-002"},
 	}}
 
 	fields := NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-001"},
 		Result:          CheckResultNeedsWork,
 		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		ExecutedSession: "build-001",
@@ -2078,8 +2078,8 @@ func TestCreateCheckV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCheckV2() error = %v", err)
 	}
-	if check.ID != "C003" {
-		t.Errorf("ID = %q, want C003 as next unused id", check.ID)
+	if check.ID != "C-003" {
+		t.Errorf("ID = %q, want C-003 as next unused id", check.ID)
 	}
 }
 
@@ -2090,13 +2090,13 @@ func TestCreateCheckV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	leftover := "not a check record"
-	if err := os.WriteFile(filepath.Join(checksDir, "C001.md"), []byte(leftover), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(checksDir, "C-001.md"), []byte(leftover), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 	fields := NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-001"},
 		Result:          CheckResultClear,
 		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		ExecutedSession: "build-001",
@@ -2112,7 +2112,7 @@ func TestCreateCheckV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
 		t.Fatalf("CreateCheckV2() error = %v, want ErrV2CheckImmutable", err)
 	}
 
-	result, err := os.ReadFile(filepath.Join(checksDir, "C001.md"))
+	result, err := os.ReadFile(filepath.Join(checksDir, "C-001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2192,7 +2192,7 @@ func (f *fakeV2CheckFileSystem) operations() v2CheckFileOperations {
 }
 
 func TestCreateV2CheckFile_operationFailuresPreserveFinalState(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "checks", "C001.md")
+	path := filepath.Join(t.TempDir(), "checks", "C-001.md")
 	wantContent := []byte("check content")
 	failure := errors.New("injected failure")
 
@@ -2265,7 +2265,7 @@ func TestCreateCheckV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
 	index := &V2Index{Checks: map[string]*CheckV2{}}
 
 	fields := NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T001"},
+		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-001"},
 		Result:          CheckResultClear,
 		CheckedBy:       Actor{Role: ActorRoleChecker, Session: ""}, // missing required session
 		ExecutedSession: "build-001",
@@ -2281,8 +2281,8 @@ func TestCreateCheckV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
 		t.Errorf("CreateCheckV2() returned %+v, want nil on validation failure", check)
 	}
 
-	if _, statErr := os.Stat(filepath.Join(root, "checks", "C001.md")); !os.IsNotExist(statErr) {
-		t.Errorf("checks/C001.md exists after rejected record, statErr = %v", statErr)
+	if _, statErr := os.Stat(filepath.Join(root, "checks", "C-001.md")); !os.IsNotExist(statErr) {
+		t.Errorf("checks/C-001.md exists after rejected record, statErr = %v", statErr)
 	}
 }
 
@@ -2295,11 +2295,11 @@ func TestCreateIssueV2_writesNewFileAllocatesFirstID(t *testing.T) {
 		Type:  IssueTypeDefect,
 		Origin: IssueOrigin{
 			Kind:  IssueOriginCheck,
-			Check: "C001",
+			Check: "C-001",
 			Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 			At:    time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
 		},
-		Checks: []string{"C001"},
+		Checks: []string{"C-001"},
 		Body:   "\n\n# Issue\n\nSummary notes.\n",
 	}
 
@@ -2307,31 +2307,31 @@ func TestCreateIssueV2_writesNewFileAllocatesFirstID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateIssueV2() error = %v", err)
 	}
-	if issue.ID != "I001" {
-		t.Errorf("ID = %q, want I001", issue.ID)
+	if issue.ID != "I-001" {
+		t.Errorf("ID = %q, want I-001", issue.ID)
 	}
 	if issue.Status != IssueStatusOpen {
 		t.Errorf("Status = %q, want open", issue.Status)
 	}
 
-	path := filepath.Join(root, "issues", "I001-broken-retry-loop.md")
+	path := filepath.Join(root, "issues", "I-001-broken-retry-loop.md")
 	result, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("issues/I001-broken-retry-loop.md not written: %v", err)
+		t.Fatalf("issues/I-001-broken-retry-loop.md not written: %v", err)
 	}
 	if !strings.Contains(string(result), "Summary notes.") {
 		t.Error("authored body content not written")
 	}
 
-	reparsed, err := DecodeIssueV2(filepath.Join("issues", "I001-broken-retry-loop.md"), string(result))
+	reparsed, err := DecodeIssueV2(filepath.Join("issues", "I-001-broken-retry-loop.md"), string(result))
 	if err != nil {
 		t.Fatalf("DecodeIssueV2() after create error = %v", err)
 	}
 	if reparsed.Type != IssueTypeDefect || reparsed.Status != IssueStatusOpen {
 		t.Errorf("reparsed = %+v, want type defect/status open", reparsed)
 	}
-	if len(reparsed.Checks) != 1 || reparsed.Checks[0] != "C001" {
-		t.Errorf("Checks = %v, want [C001]", reparsed.Checks)
+	if len(reparsed.Checks) != 1 || reparsed.Checks[0] != "C-001" {
+		t.Errorf("Checks = %v, want [C-001]", reparsed.Checks)
 	}
 }
 
@@ -2371,8 +2371,8 @@ func TestCreateIssueV2_reportOriginOmitsEmptyCheckKey(t *testing.T) {
 func TestCreateIssueV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	root := t.TempDir()
 	index := &V2Index{Issues: map[string]*IssueV2{
-		"I001": {ID: "I001"},
-		"I002": {ID: "I002"},
+		"I-001": {ID: "I-001"},
+		"I-002": {ID: "I-002"},
 	}}
 
 	fields := NewIssueV2{
@@ -2390,8 +2390,8 @@ func TestCreateIssueV2_allocatesNextIDOverPopulatedIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateIssueV2() error = %v", err)
 	}
-	if issue.ID != "I003" {
-		t.Errorf("ID = %q, want I003 as next unused id", issue.ID)
+	if issue.ID != "I-003" {
+		t.Errorf("ID = %q, want I-003 as next unused id", issue.ID)
 	}
 }
 
@@ -2402,7 +2402,7 @@ func TestCreateIssueV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	leftover := "not an issue record"
-	if err := os.WriteFile(filepath.Join(issuesDir, "I001-collides-with-existing-file.md"), []byte(leftover), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(issuesDir, "I-001-collides-with-existing-file.md"), []byte(leftover), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2426,7 +2426,7 @@ func TestCreateIssueV2_refusesExistingPathAndLeavesItUntouched(t *testing.T) {
 		t.Fatalf("CreateIssueV2() error = %v, want ErrV2IssueAlreadyExists", err)
 	}
 
-	result, err := os.ReadFile(filepath.Join(issuesDir, "I001-collides-with-existing-file.md"))
+	result, err := os.ReadFile(filepath.Join(issuesDir, "I-001-collides-with-existing-file.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2465,13 +2465,13 @@ func TestCreateIssueV2_rejectsMalformedRecordLeavesNoFileBehind(t *testing.T) {
 
 func issueV2FixtureContent() string {
 	return `---
-id: I010
+id: I-010
 title: "Broken retry loop"
 type: defect
 status: open
 source:
   kind: check
-  check: C001
+  check: C-001
   actor:
     role: checker
     session: sess-1
@@ -2489,7 +2489,7 @@ Authored issue notes that must survive the rewrite.`
 
 func TestWriteIssueV2_updatesManagedFieldsPreservesUnknownFieldsAndBody(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I010.md")
+	path := filepath.Join(dir, "I-010.md")
 	content := issueV2FixtureContent()
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -2503,13 +2503,13 @@ func TestWriteIssueV2_updatesManagedFieldsPreservesUnknownFieldsAndBody(t *testi
 
 	issue.Status = IssueStatusResolved
 	issue.Severity = "high"
-	issue.Tasks = []string{"T010"}
-	issue.Checks = []string{"C001"}
+	issue.Tasks = []string{"T-010"}
+	issue.Checks = []string{"C-001"}
 	issue.DuplicateOf = ""
 	resolvedAt := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
 	issue.Resolution = &IssueResolution{
 		Disposition: IssueDispositionVerified,
-		Check:       "C001",
+		Check:       "C-001",
 		Actor:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		At:          resolvedAt,
 		Reason:      "Recheck confirmed the fix.",
@@ -2534,13 +2534,13 @@ func TestWriteIssueV2_updatesManagedFieldsPreservesUnknownFieldsAndBody(t *testi
 	if reparsed.Severity != "high" {
 		t.Errorf("Severity = %q, want high", reparsed.Severity)
 	}
-	if len(reparsed.Tasks) != 1 || reparsed.Tasks[0] != "T010" {
-		t.Errorf("Tasks = %v, want [T010]", reparsed.Tasks)
+	if len(reparsed.Tasks) != 1 || reparsed.Tasks[0] != "T-010" {
+		t.Errorf("Tasks = %v, want [T-010]", reparsed.Tasks)
 	}
 	if reparsed.Resolution == nil || reparsed.Resolution.Disposition != IssueDispositionVerified {
 		t.Errorf("Resolution = %+v, want disposition verified", reparsed.Resolution)
 	}
-	if reparsed.Title != "Broken retry loop" || reparsed.Origin.Check != "C001" {
+	if reparsed.Title != "Broken retry loop" || reparsed.Origin.Check != "C-001" {
 		t.Errorf("unrelated fields not preserved: %+v", reparsed)
 	}
 	if !strings.Contains(string(result), "team: platform") {
@@ -2553,9 +2553,9 @@ func TestWriteIssueV2_updatesManagedFieldsPreservesUnknownFieldsAndBody(t *testi
 
 func TestWriteIssueV2_clearingResolutionOnReopenRemovesKey(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I011.md")
+	path := filepath.Join(dir, "I-011.md")
 	content := `---
-id: I011
+id: I-011
 title: "Reopened issue"
 type: defect
 status: resolved
@@ -2615,9 +2615,9 @@ resolution:
 // rather than a disposition that forbids one.
 func TestWriteIssueV2_acceptedResolutionOmitsProofCheckKey(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I013.md")
+	path := filepath.Join(dir, "I-013.md")
 	content := `---
-id: I013
+id: I-013
 title: "Accepted risk"
 type: guardrail
 status: open
@@ -2662,7 +2662,7 @@ source:
 
 func TestWriteIssueV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I012.md")
+	path := filepath.Join(dir, "I-012.md")
 	content := issueV2FixtureContent()
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -2761,7 +2761,7 @@ func TestCreateIssueV2ThenWriteIssueV2_roundTripsAsNoOp(t *testing.T) {
 
 func TestWriteIssueV2_refusesUnsupportedStatusAndLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I013.md")
+	path := filepath.Join(dir, "I-013.md")
 	content := issueV2FixtureContent()
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -2795,8 +2795,8 @@ func TestWriteIssueV2_refusesUnsupportedStatusAndLeavesFileUntouched(t *testing.
 
 func TestWriteIssueV2_preservesCRLFLineEndings(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I014.md")
-	content := "---\r\nid: I014\r\ntitle: \"CRLF issue\"\r\ntype: defect\r\nstatus: open\r\nsource:\r\n  kind: report\r\n  actor:\r\n    role: planner\r\n    session: sess-1\r\n  at: \"2026-09-14T00:00:00Z\"\r\n---\r\n\r\n# Issue\r\n\r\nAuthored notes.\r\n"
+	path := filepath.Join(dir, "I-014.md")
+	content := "---\r\nid: I-014\r\ntitle: \"CRLF issue\"\r\ntype: defect\r\nstatus: open\r\nsource:\r\n  kind: report\r\n  actor:\r\n    role: planner\r\n    session: sess-1\r\n  at: \"2026-09-14T00:00:00Z\"\r\n---\r\n\r\n# Issue\r\n\r\nAuthored notes.\r\n"
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -2839,21 +2839,21 @@ func issueHistoryFixtureEntry() IssueHistoryEntry {
 		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		Kind:  IssueHistoryObserved,
 		Note:  "Found during review.",
-		Check: "C001",
+		Check: "C-001",
 	}
 }
 
 func TestWriteIssueHistoryV2_appendsEntryPreservesEarlierEntries(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I020.md")
+	path := filepath.Join(dir, "I-020.md")
 	content := `---
-id: I020
+id: I-020
 title: "History issue"
 type: defect
 status: open
 source:
   kind: check
-  check: C001
+  check: C-001
   actor:
     role: checker
     session: sess-1
@@ -2865,7 +2865,7 @@ history:
       session: sess-1
     kind: observed
     note: "Found during review."
-    check: C001
+    check: C-001
 ---
 
 # Issue`
@@ -2906,7 +2906,7 @@ history:
 	if len(reparsed.History) != 2 {
 		t.Fatalf("History = %v, want 2 entries", reparsed.History)
 	}
-	if reparsed.History[0].Note != "Found during review." || reparsed.History[0].Check != "C001" {
+	if reparsed.History[0].Note != "Found during review." || reparsed.History[0].Check != "C-001" {
 		t.Errorf("History[0] = %+v, want earlier entry preserved byte-for-byte", reparsed.History[0])
 	}
 	if reparsed.History[1].Kind != IssueHistoryRepairAttempted || reparsed.History[1].Note != "Patched the retry loop." {
@@ -2920,9 +2920,9 @@ history:
 // `check: ""` keys just because a later write touched the file.
 func TestWriteIssueHistoryV2_appendPreservesPriorEntryBytes(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I025.md")
+	path := filepath.Join(dir, "I-025.md")
 	content := `---
-id: I025
+id: I-025
 title: "History issue"
 type: defect
 status: open
@@ -2973,9 +2973,9 @@ history:
 
 func TestWriteIssueHistoryV2_refusesShorterListLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I021.md")
+	path := filepath.Join(dir, "I-021.md")
 	content := `---
-id: I021
+id: I-021
 title: "History issue"
 type: defect
 status: open
@@ -3026,9 +3026,9 @@ history:
 
 func TestWriteIssueHistoryV2_refusesEditedEntryLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I022.md")
+	path := filepath.Join(dir, "I-022.md")
 	content := `---
-id: I022
+id: I-022
 title: "History issue"
 type: defect
 status: open
@@ -3081,9 +3081,9 @@ history:
 
 func TestWriteIssueHistoryV2_refusesReorderedEntriesLeavesFileUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I023.md")
+	path := filepath.Join(dir, "I-023.md")
 	content := `---
-id: I023
+id: I-023
 title: "History issue"
 type: defect
 status: open
@@ -3144,9 +3144,9 @@ history:
 
 func TestWriteIssueHistoryV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I024.md")
+	path := filepath.Join(dir, "I-024.md")
 	content := `---
-id: I024
+id: I-024
 title: "History issue"
 type: defect
 status: open
@@ -3163,7 +3163,7 @@ history:
       session: sess-1
     kind: observed
     note: "Found during review."
-    check: C001
+    check: C-001
 ---
 
 # Issue`
@@ -3214,9 +3214,9 @@ history:
 // bytes and modification time unchanged, and no `history: []` key appears.
 func TestWriteIssueHistoryV2_emptyOnHistoryFreeIssueIsNoOp(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "I026.md")
+	path := filepath.Join(dir, "I-026.md")
 	content := `---
-id: I026
+id: I-026
 title: "No history yet"
 type: defect
 status: open
@@ -3276,13 +3276,13 @@ source:
 
 func TestWriteObjectiveEvidenceV2_setsSubBlocksPreservesUnknownFieldsAndBody(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "O020.md")
+	path := filepath.Join(dir, "O-020.md")
 	content := `---
-id: O020
+id: O-020
 title: "No evidence yet"
 status: in_progress
-depends_on: [O001]
-release: R001
+depends_on: [O-001]
+release: R-001
 ---
 
 # Objective
@@ -3303,10 +3303,10 @@ Authored objective notes.`
 
 	assessedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
 	objective.Evidence = &Evidence{
-		LastCheck: "C001",
+		LastCheck: "C-001",
 		Freshness: &Freshness{
 			State:      FreshnessCurrent,
-			Check:      "C001",
+			Check:      "C-001",
 			AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 			AssessedAt: assessedAt,
 			Basis:      "Objective integration Check is current.",
@@ -3326,17 +3326,17 @@ Authored objective notes.`
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() after write error = %v", err)
 	}
-	if reparsed.Evidence == nil || reparsed.Evidence.LastCheck != "C001" {
-		t.Errorf("Evidence = %+v, want LastCheck C001", reparsed.Evidence)
+	if reparsed.Evidence == nil || reparsed.Evidence.LastCheck != "C-001" {
+		t.Errorf("Evidence = %+v, want LastCheck C-001", reparsed.Evidence)
 	}
 	if reparsed.Evidence.Freshness == nil || reparsed.Evidence.Freshness.State != FreshnessCurrent {
 		t.Errorf("Freshness = %+v, want state current", reparsed.Evidence.Freshness)
 	}
-	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O001" {
-		t.Errorf("DependsOn = %v, want [O001] preserved", reparsed.DependsOn)
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0] != "O-001" {
+		t.Errorf("DependsOn = %v, want [O-001] preserved", reparsed.DependsOn)
 	}
-	if reparsed.Release != "R001" {
-		t.Errorf("Release = %q, want R001 preserved", reparsed.Release)
+	if reparsed.Release != "R-001" {
+		t.Errorf("Release = %q, want R-001 preserved", reparsed.Release)
 	}
 	if !strings.Contains(string(result), "Authored objective notes.") {
 		t.Error("authored body content not preserved")
@@ -3345,15 +3345,15 @@ Authored objective notes.`
 
 func TestWriteObjectiveEvidenceV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "O021.md")
+	path := filepath.Join(dir, "O-021.md")
 	content := `---
-id: O021
+id: O-021
 title: "No-op objective evidence"
 status: in_progress
-last_check: C001
+last_check: C-001
 freshness:
   state: current
-  check: C001
+  check: C-001
   assessed_by:
     role: checker
     session: sess-1
@@ -3497,12 +3497,12 @@ func TestWriteRouterStateV2_setsSelectionAndPreservesEveryOtherByte(t *testing.T
 	content := routerV2FixtureContent()
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001", Task: "T005"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001", Task: "T-005"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
-	want := strings.Replace(content, "objective: none", "objective: O001", 1)
-	want = strings.Replace(want, "task: none", "task: T005", 1)
+	want := strings.Replace(content, "objective: none", "objective: O-001", 1)
+	want = strings.Replace(want, "task: none", "task: T-005", 1)
 
 	if got := readFileString(t, path); got != want {
 		t.Errorf("file content changed beyond the selection keys.\n got:\n%s\nwant:\n%s", got, want)
@@ -3517,7 +3517,7 @@ func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *test
 		t.Fatalf("ReadStateV2() before release write error = %v", err)
 	}
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R001", Objective: "O001", Task: "T005"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R-001", Objective: "O-001", Task: "T-005"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
@@ -3525,8 +3525,8 @@ func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *test
 	if err != nil {
 		t.Fatalf("ReadStateV2() after release write error = %v", err)
 	}
-	if state.Release != "R001" || state.Objective != "O001" || state.Task != "T005" {
-		t.Fatalf("selections = release %q objective %q task %q, want R001/O001/T005", state.Release, state.Objective, state.Task)
+	if state.Release != "R-001" || state.Objective != "O-001" || state.Task != "T-005" {
+		t.Fatalf("selections = release %q objective %q task %q, want R-001/O-001/T-005", state.Release, state.Objective, state.Task)
 	}
 	if state.State != before.State || state.NextAction != before.NextAction {
 		t.Fatalf("router lifecycle/prose changed: before state %q next_action %q, after state %q next_action %q", before.State, before.NextAction, state.State, state.NextAction)
@@ -3539,14 +3539,14 @@ func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *test
 
 func TestWriteRouterStateV2_repeatingReleaseSelectionLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	content := strings.NewReplacer(
-		"objective: none", "objective: O001",
-		"task: none", "task: T005",
+		"objective: none", "objective: O-001",
+		"task: none", "task: T-005",
 	).Replace(routerV2FixtureContent())
-	content = strings.Replace(content, "state: design", "state: task\nrelease: R001", 1)
+	content = strings.Replace(content, "state: design", "state: task\nrelease: R-001", 1)
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
 	time.Sleep(10 * time.Millisecond)
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R001", Objective: "O001", Task: "T005"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R-001", Objective: "O-001", Task: "T-005"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 	after, err := os.Stat(path)
@@ -3560,8 +3560,8 @@ func TestWriteRouterStateV2_repeatingReleaseSelectionLeavesBytesAndMtimeUnchange
 
 func TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel(t *testing.T) {
 	content := strings.NewReplacer(
-		"objective: none", "objective: O001",
-		"task: none", "task: T005",
+		"objective: none", "objective: O-001",
+		"task: none", "task: T-005",
 	).Replace(routerV2FixtureContent())
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
@@ -3600,7 +3600,7 @@ func TestWriteRouterStateV2_addsSelectionKeysToRecordARealSelection(t *testing.T
 	content := "## Current state\n\n```yaml\nstate: task\n```\n"
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O007", Task: "T042"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-007", Task: "T-042"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
@@ -3608,8 +3608,8 @@ func TestWriteRouterStateV2_addsSelectionKeysToRecordARealSelection(t *testing.T
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
-	if state.Objective != "O007" || state.Task != "T042" {
-		t.Errorf("selection read back as objective %q task %q, want O007/T042", state.Objective, state.Task)
+	if state.Objective != "O-007" || state.Task != "T-042" {
+		t.Errorf("selection read back as objective %q task %q, want O-007/T-042", state.Objective, state.Task)
 	}
 	if state.State != RouterPhaseTask {
 		t.Errorf("state changed to %q", state.State)
@@ -3622,15 +3622,15 @@ func TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched(t *t
 		selection RouterSelectionV2
 		wantErr   error
 	}{
-		{"objective wrong family", RouterSelectionV2{Objective: "T001"}, ErrV2InvalidID},
-		{"release wrong family", RouterSelectionV2{Release: "O001"}, ErrV2InvalidID},
+		{"objective wrong family", RouterSelectionV2{Objective: "T-001"}, ErrV2InvalidID},
+		{"release wrong family", RouterSelectionV2{Release: "O-001"}, ErrV2InvalidID},
 		{"release too few digits", RouterSelectionV2{Release: "R01"}, ErrV2InvalidID},
 		{"objective too few digits", RouterSelectionV2{Objective: "O1"}, ErrV2InvalidID},
-		{"objective with trailing slug", RouterSelectionV2{Objective: "O001-recovery"}, ErrV2InvalidID},
-		{"two objectives", RouterSelectionV2{Objective: "O001 O002"}, ErrV2InvalidID},
-		{"task wrong family", RouterSelectionV2{Objective: "O001", Task: "C001"}, ErrV2InvalidID},
-		{"task too few digits", RouterSelectionV2{Objective: "O001", Task: "T4"}, ErrV2InvalidID},
-		{"task without objective", RouterSelectionV2{Task: "T005"}, ErrV2InvalidOwnership},
+		{"objective with trailing slug", RouterSelectionV2{Objective: "O-001-recovery"}, ErrV2InvalidID},
+		{"two objectives", RouterSelectionV2{Objective: "O-001 O-002"}, ErrV2InvalidID},
+		{"task wrong family", RouterSelectionV2{Objective: "O-001", Task: "C-001"}, ErrV2InvalidID},
+		{"task too few digits", RouterSelectionV2{Objective: "O-001", Task: "T4"}, ErrV2InvalidID},
+		{"task without objective", RouterSelectionV2{Task: "T-005"}, ErrV2InvalidOwnership},
 	}
 
 	for _, tc := range cases {
@@ -3651,14 +3651,14 @@ func TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched(t *t
 
 func TestWriteRouterStateV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 	content := strings.NewReplacer(
-		"objective: none", "objective: O001",
-		"task: none", "task: T005",
+		"objective: none", "objective: O-001",
+		"task: none", "task: T-005",
 	).Replace(routerV2FixtureContent())
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
 	time.Sleep(10 * time.Millisecond)
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001", Task: "T005"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001", Task: "T-005"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
@@ -3678,7 +3678,7 @@ func TestWriteRouterStateV2_refusesStaleMtimeAndLeavesFileUntouched(t *testing.T
 	content := routerV2FixtureContent()
 	root, path, _ := writeRouterV2Fixture(t, content)
 
-	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, time.Now().Add(-time.Hour))
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001"}, time.Now().Add(-time.Hour))
 	if !errors.Is(err, ErrMtimeConflict) {
 		t.Fatalf("WriteRouterStateV2() error = %v, want ErrMtimeConflict", err)
 	}
@@ -3708,7 +3708,7 @@ func TestWriteRouterStateV2_refusesUnreadableDocuments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root, path, mtime := writeRouterV2Fixture(t, tc.content)
 
-			err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime)
+			err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001"}, mtime)
 			if err == nil {
 				t.Fatal("WriteRouterStateV2() expected an error")
 			}
@@ -3725,7 +3725,7 @@ func TestWriteRouterStateV2_refusesUnreadableDocuments(t *testing.T) {
 func TestWriteRouterStateV2_refusesMissingFile(t *testing.T) {
 	root := t.TempDir()
 
-	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, time.Now())
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001"}, time.Now())
 	if err == nil {
 		t.Fatal("WriteRouterStateV2() expected an error for a missing router.md")
 	}
@@ -3738,7 +3738,7 @@ func TestWriteRouterStateV2_refusesARouterItCouldNotReadBack(t *testing.T) {
 	content := strings.Replace(routerV2FixtureContent(), "state: design", "state: audit-pending", 1)
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
-	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime)
+	err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001"}, mtime)
 	if !errors.Is(err, ErrV2InvalidLifecycle) {
 		t.Fatalf("WriteRouterStateV2() error = %v, want ErrV2InvalidLifecycle", err)
 	}
@@ -3751,7 +3751,7 @@ func TestWriteRouterStateV2_roundTripsThroughReadStateV2(t *testing.T) {
 	content := routerV2FixtureContent()
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O012", Task: "T034"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-012", Task: "T-034"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
@@ -3759,8 +3759,8 @@ func TestWriteRouterStateV2_roundTripsThroughReadStateV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
-	if state.Objective != "O012" || state.Task != "T034" {
-		t.Errorf("round trip gave objective %q task %q, want O012/T034", state.Objective, state.Task)
+	if state.Objective != "O-012" || state.Task != "T-034" {
+		t.Errorf("round trip gave objective %q task %q, want O-012/T-034", state.Objective, state.Task)
 	}
 	if state.State != RouterPhaseDesign {
 		t.Errorf("state changed to %q, want design", state.State)
@@ -3774,7 +3774,7 @@ func TestWriteRouterStateV2_preservesCRLFLineEndings(t *testing.T) {
 	content := strings.ReplaceAll(routerV2FixtureContent(), "\n", "\r\n")
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
-	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O001"}, mtime); err != nil {
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
@@ -3782,7 +3782,7 @@ func TestWriteRouterStateV2_preservesCRLFLineEndings(t *testing.T) {
 	if strings.Contains(strings.ReplaceAll(got, "\r\n", ""), "\n") {
 		t.Error("CRLF router gained bare LF line endings")
 	}
-	want := strings.Replace(content, "objective: none", "objective: O001", 1)
+	want := strings.Replace(content, "objective: none", "objective: O-001", 1)
 	if got != want {
 		t.Errorf("CRLF router changed beyond the selection key:\n%q", got)
 	}

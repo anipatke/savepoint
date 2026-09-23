@@ -79,7 +79,7 @@ func TestConvertIdea_rejectsNonIdeaDocument(t *testing.T) {
 
 // TestConvertRouter_activeSelectionResolvesGlobalIDs proves that when the V1
 // router's selected epic/task both converted, the V2 router names their
-// allocated O###/T###, keeps next_action untouched, and adds no migration
+// allocated O-###/T-###, keeps next_action untouched, and adds no migration
 // note.
 func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 	cases := []struct {
@@ -170,7 +170,7 @@ func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 // TestConvertRouter_archivedTaskSelection_recordsNoteAndNoDanglingReference
 // covers a router pointing at a completed (archived) task under an otherwise
 // active epic: the Objective still resolves, but the Task does not, and a
-// named note explains why instead of a dangling T### reference.
+// named note explains why instead of a dangling T-### reference.
 func TestConvertRouter_archivedTaskSelection_recordsNoteAndNoDanglingReference(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")

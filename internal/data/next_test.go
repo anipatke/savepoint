@@ -12,38 +12,38 @@ import (
 // no diagnostic.
 func TestResolveSelection_exactMatch(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Ship it"}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "Write the code", Objective: "O001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Ship it"}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Write the code", Objective: "O-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic != nil {
 		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
 	}
-	if selection.Objective == nil || selection.Objective.ID != "O001" {
-		t.Fatalf("Selection.Objective = %+v, want O001", selection.Objective)
+	if selection.Objective == nil || selection.Objective.ID != "O-001" {
+		t.Fatalf("Selection.Objective = %+v, want O-001", selection.Objective)
 	}
-	if selection.Task == nil || selection.Task.ID != "T001" {
-		t.Fatalf("Selection.Task = %+v, want T001", selection.Task)
+	if selection.Task == nil || selection.Task.ID != "T-001" {
+		t.Fatalf("Selection.Task = %+v, want T-001", selection.Task)
 	}
 }
 
 // TestResolveSelection_nearMissIDNeverSubstituted proves a project holding
-// both T014 and T140 resolves a router naming T014 to exactly T014: no
+// both T-014 and T-140 resolves a router naming T-014 to exactly T-014: no
 // numeric-proximity or prefix fallback ever selects the other record.
 func TestResolveSelection_nearMissIDNeverSubstituted(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Ship it"}
-	index.Tasks["T014"] = &TaskV2{ID: "T014", Title: "The real target", Objective: "O001"}
-	index.Tasks["T140"] = &TaskV2{ID: "T140", Title: "A similarly numbered task", Objective: "O001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T014"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Ship it"}
+	index.Tasks["T-014"] = &TaskV2{ID: "T-014", Title: "The real target", Objective: "O-001"}
+	index.Tasks["T-140"] = &TaskV2{ID: "T-140", Title: "A similarly numbered task", Objective: "O-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-014"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic != nil {
 		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
 	}
-	if selection.Task == nil || selection.Task.ID != "T014" {
-		t.Fatalf("Selection.Task = %+v, want exactly T014, never T140", selection.Task)
+	if selection.Task == nil || selection.Task.ID != "T-014" {
+		t.Fatalf("Selection.Task = %+v, want exactly T-014, never T-140", selection.Task)
 	}
 }
 
@@ -52,8 +52,8 @@ func TestResolveSelection_nearMissIDNeverSubstituted(t *testing.T) {
 // a partial selection.
 func TestResolveSelection_absentTask(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Ship it"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T999"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Ship it"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-999"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic == nil {
@@ -62,8 +62,8 @@ func TestResolveSelection_absentTask(t *testing.T) {
 	if diagnostic.Kind != SelectionNotFound {
 		t.Errorf("diagnostic.Kind = %q, want SelectionNotFound", diagnostic.Kind)
 	}
-	if diagnostic.RecordKind != SelectionRecordTask || diagnostic.ID != "T999" {
-		t.Errorf("diagnostic = %+v, want RecordKind task, ID T999", diagnostic)
+	if diagnostic.RecordKind != SelectionRecordTask || diagnostic.ID != "T-999" {
+		t.Errorf("diagnostic = %+v, want RecordKind task, ID T-999", diagnostic)
 	}
 	if selection.Objective != nil || selection.Task != nil {
 		t.Errorf("Selection = %+v, want zero value alongside a diagnostic", selection)
@@ -74,7 +74,7 @@ func TestResolveSelection_absentTask(t *testing.T) {
 // Objective ID missing from the live index.
 func TestResolveSelection_absentObjective(t *testing.T) {
 	index := newV2TestIndex()
-	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O999"}
+	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-999"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic == nil {
@@ -83,8 +83,8 @@ func TestResolveSelection_absentObjective(t *testing.T) {
 	if diagnostic.Kind != SelectionNotFound {
 		t.Errorf("diagnostic.Kind = %q, want SelectionNotFound", diagnostic.Kind)
 	}
-	if diagnostic.RecordKind != SelectionRecordObjective || diagnostic.ID != "O999" {
-		t.Errorf("diagnostic = %+v, want RecordKind objective, ID O999", diagnostic)
+	if diagnostic.RecordKind != SelectionRecordObjective || diagnostic.ID != "O-999" {
+		t.Errorf("diagnostic = %+v, want RecordKind objective, ID O-999", diagnostic)
 	}
 	if selection.Objective != nil || selection.Task != nil {
 		t.Errorf("Selection = %+v, want zero value alongside a diagnostic", selection)
@@ -97,10 +97,10 @@ func TestResolveSelection_absentObjective(t *testing.T) {
 // for the router's.
 func TestResolveSelection_mismatch(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Router's guess"}
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Title: "Task's real owner"}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "Moved task", Objective: "O002"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Router's guess"}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Title: "Task's real owner"}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Moved task", Objective: "O-002"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic == nil {
@@ -109,8 +109,8 @@ func TestResolveSelection_mismatch(t *testing.T) {
 	if diagnostic.Kind != SelectionMismatch {
 		t.Errorf("diagnostic.Kind = %q, want SelectionMismatch", diagnostic.Kind)
 	}
-	if diagnostic.RouterObjective != "O001" || diagnostic.Task != "T001" || diagnostic.TaskObjective != "O002" {
-		t.Errorf("diagnostic = %+v, want RouterObjective O001, Task T001, TaskObjective O002", diagnostic)
+	if diagnostic.RouterObjective != "O-001" || diagnostic.Task != "T-001" || diagnostic.TaskObjective != "O-002" {
+		t.Errorf("diagnostic = %+v, want RouterObjective O-001, Task T-001, TaskObjective O-002", diagnostic)
 	}
 	if selection.Objective != nil || selection.Task != nil {
 		t.Errorf("Selection = %+v, want zero value alongside a diagnostic", selection)
@@ -122,15 +122,15 @@ func TestResolveSelection_mismatch(t *testing.T) {
 // diagnostic.
 func TestResolveSelection_objectiveOnly(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Plan me"}
-	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Plan me"}
+	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic != nil {
 		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
 	}
-	if selection.Objective == nil || selection.Objective.ID != "O001" {
-		t.Fatalf("Selection.Objective = %+v, want O001", selection.Objective)
+	if selection.Objective == nil || selection.Objective.ID != "O-001" {
+		t.Fatalf("Selection.Objective = %+v, want O-001", selection.Objective)
 	}
 	if selection.Task != nil {
 		t.Errorf("Selection.Task = %+v, want nil", selection.Task)
@@ -148,43 +148,43 @@ func TestResolveSelection_releaseContextDiagnostics(t *testing.T) {
 		{
 			name: "valid release",
 			configure: func(index *V2Index) {
-				index.Releases["R001"] = &ReleaseV2{ID: "R001", Title: "First"}
+				index.Releases["R-001"] = &ReleaseV2{ID: "R-001", Title: "First"}
 			},
-			router:      RouterStateV2{Release: "R001"},
+			router:      RouterStateV2{Release: "R-001"},
 			wantRelease: true,
 		},
 		{
 			name:     "missing release",
-			router:   RouterStateV2{Release: "R999"},
+			router:   RouterStateV2{Release: "R-999"},
 			wantKind: SelectionReleaseNotFound,
 		},
 		{
 			name: "archived release",
 			configure: func(index *V2Index) {
-				index.Releases["R001"] = &ReleaseV2{ID: "R001", LegacyCompletion: &LegacyCompletionReference{SourcePath: "legacy.md"}}
+				index.Releases["R-001"] = &ReleaseV2{ID: "R-001", LegacyCompletion: &LegacyCompletionReference{SourcePath: "legacy.md"}}
 			},
-			router:      RouterStateV2{Release: "R001"},
+			router:      RouterStateV2{Release: "R-001"},
 			wantKind:    SelectionReleaseArchived,
 			wantRelease: true,
 		},
 		{
 			name: "unassigned objective",
 			configure: func(index *V2Index) {
-				index.Releases["R001"] = &ReleaseV2{ID: "R001"}
-				index.Objectives["O001"] = &ObjectiveV2{ID: "O001"}
+				index.Releases["R-001"] = &ReleaseV2{ID: "R-001"}
+				index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001"}
 			},
-			router:      RouterStateV2{Release: "R001", Objective: "O001"},
+			router:      RouterStateV2{Release: "R-001", Objective: "O-001"},
 			wantKind:    SelectionObjectiveUnassigned,
 			wantRelease: true,
 		},
 		{
 			name: "objective belongs to another release",
 			configure: func(index *V2Index) {
-				index.Releases["R001"] = &ReleaseV2{ID: "R001"}
-				index.Releases["R002"] = &ReleaseV2{ID: "R002"}
-				index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R002"}
+				index.Releases["R-001"] = &ReleaseV2{ID: "R-001"}
+				index.Releases["R-002"] = &ReleaseV2{ID: "R-002"}
+				index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-002"}
 			},
-			router:      RouterStateV2{Release: "R001", Objective: "O001"},
+			router:      RouterStateV2{Release: "R-001", Objective: "O-001"},
 			wantKind:    SelectionReleaseMismatch,
 			wantRelease: true,
 		},
@@ -216,16 +216,16 @@ func TestResolveSelection_releaseContextDiagnostics(t *testing.T) {
 func TestResolveSelection_releaseMismatchNeverSubstitutesObjective(t *testing.T) {
 	index := newV2TestIndex()
 	index.Releases = map[string]*ReleaseV2{
-		"R001": {ID: "R001", Title: "Selected release"},
-		"R002": {ID: "R002", Title: "Other release"},
+		"R-001": {ID: "R-001", Title: "Selected release"},
+		"R-002": {ID: "R-002", Title: "Other release"},
 	}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Same title", Release: "R002"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Same title", Release: "R-002"}
 
-	selection, diagnostic := ResolveSelection(index, &RouterStateV2{Release: "R001", Objective: "O001"})
+	selection, diagnostic := ResolveSelection(index, &RouterStateV2{Release: "R-001", Objective: "O-001"})
 	if diagnostic == nil || diagnostic.Kind != SelectionReleaseMismatch {
 		t.Fatalf("diagnostic = %+v, want release mismatch", diagnostic)
 	}
-	if selection.Objective != nil || selection.Release == nil || selection.Release.ID != "R001" {
+	if selection.Objective != nil || selection.Release == nil || selection.Release.ID != "R-001" {
 		t.Fatalf("selection = %+v, want only the exact selected Release and no substituted Objective", selection)
 	}
 }
@@ -234,7 +234,7 @@ func TestResolveSelection_releaseMismatchNeverSubstitutesObjective(t *testing.T)
 // Objective and no Task resolves cleanly to no selection, not a diagnostic.
 func TestResolveSelection_noSelection(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Unrelated"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Unrelated"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	selection, diagnostic := ResolveSelection(index, router)
@@ -252,13 +252,13 @@ func TestResolveSelection_noSelection(t *testing.T) {
 func TestResolveSelection_readsNoFilesystem(t *testing.T) {
 	index := &V2Index{
 		Objectives: map[string]*ObjectiveV2{
-			"O001": {ID: "O001", Title: "In-memory only"},
+			"O-001": {ID: "O-001", Title: "In-memory only"},
 		},
 		Tasks: map[string]*TaskV2{
-			"T001": {ID: "T001", Title: "In-memory only", Objective: "O001"},
+			"T-001": {ID: "T-001", Title: "In-memory only", Objective: "O-001"},
 		},
 	}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	selection, diagnostic := ResolveSelection(index, router)
 	if diagnostic != nil {
@@ -273,9 +273,9 @@ func TestResolveSelection_readsNoFilesystem(t *testing.T) {
 // even over a project that would otherwise land on NextExecute.
 func TestResolveNext_pendingMigrationOutranksEverything(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	next := ResolveNext(NextInput{Index: index, Router: router, Migration: MigrationState{Pending: true, OperationID: "op-1"}})
@@ -292,13 +292,13 @@ func TestResolveNext_pendingMigrationOutranksEverything(t *testing.T) {
 // dependency and would otherwise be ready to start.
 func TestResolveNext_replanOutranksExecution(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnPlanned,
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnPlanned,
 		Evidence: &Evidence{Replan: &Replan{Reason: "scope changed", RecordedBy: Actor{Role: ActorRoleOwner, Session: "sess-1"}}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
@@ -308,12 +308,12 @@ func TestResolveNext_replanOutranksExecution(t *testing.T) {
 
 func TestResolveNext_pendingMigrationOutranksSelectedRelease(t *testing.T) {
 	index := releaseGateIndex()
-	index.Releases["R001"].Evidence.OwnerValidation = &OwnerValidation{
-		AcceptedCheck: "C002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
+	index.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{
+		AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
 	}
 
 	next := ResolveNext(NextInput{
-		Index: index, Router: &RouterStateV2{Release: "R001"},
+		Index: index, Router: &RouterStateV2{Release: "R-001"},
 		Migration: MigrationState{Pending: true, OperationID: "op-release"},
 	})
 	if next.Kind != NextPendingMigration || next.Migration.OperationID != "op-release" {
@@ -323,19 +323,19 @@ func TestResolveNext_pendingMigrationOutranksSelectedRelease(t *testing.T) {
 
 func TestResolveNext_selectedReleaseReplanOutranksReleaseExecution(t *testing.T) {
 	index := newV2TestIndex()
-	index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001"}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild,
+	index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-001"}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageBuild,
 		Evidence: &Evidence{Replan: &Replan{Reason: "scope changed", RecordedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.ReleaseObjectives = map[string][]string{"R001": {"O001"}}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.ReleaseObjectives = map[string][]string{"R-001": {"O-001"}}
 
 	next := ResolveNext(NextInput{
-		Index: index, Router: &RouterStateV2{Release: "R001", Objective: "O001", Task: "T001"},
+		Index: index, Router: &RouterStateV2{Release: "R-001", Objective: "O-001", Task: "T-001"},
 	})
-	if next.Kind != NextReplan || next.Task == nil || next.Task.ID != "T001" {
+	if next.Kind != NextReplan || next.Task == nil || next.Task.ID != "T-001" {
 		t.Fatalf("next = %+v, want selected Release task replan", next)
 	}
 }
@@ -343,42 +343,42 @@ func TestResolveNext_selectedReleaseReplanOutranksReleaseExecution(t *testing.T)
 func TestResolveNext_selectedReleaseScopesReadyWorkToItsMembers(t *testing.T) {
 	index := newV2TestIndex()
 	index.Releases = map[string]*ReleaseV2{
-		"R001": {ID: "R001", Title: "Selected"},
-		"R002": {ID: "R002", Title: "Unrelated"},
+		"R-001": {ID: "R-001", Title: "Selected"},
+		"R-002": {ID: "R-002", Title: "Unrelated"},
 	}
 	index.ReleaseObjectives = map[string][]string{}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnPlanned}
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Release: "R002", Status: ColumnPlanned}
-	index.Objectives["O003"] = &ObjectiveV2{ID: "O003", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O002", Status: ColumnPlanned}
-	index.Tasks["T003"] = &TaskV2{ID: "T003", Objective: "O003", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.ObjectiveTasks["O002"] = []string{"T002"}
-	index.ObjectiveTasks["O003"] = []string{"T003"}
-	index.ReleaseObjectives["R001"] = []string{"O001"}
-	index.ReleaseObjectives["R002"] = []string{"O002"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-001", Status: ColumnPlanned}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Release: "R-002", Status: ColumnPlanned}
+	index.Objectives["O-003"] = &ObjectiveV2{ID: "O-003", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-002", Status: ColumnPlanned}
+	index.Tasks["T-003"] = &TaskV2{ID: "T-003", Objective: "O-003", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.ObjectiveTasks["O-002"] = []string{"T-002"}
+	index.ObjectiveTasks["O-003"] = []string{"T-003"}
+	index.ReleaseObjectives["R-001"] = []string{"O-001"}
+	index.ReleaseObjectives["R-002"] = []string{"O-002"}
 
-	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
-	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("next = %+v, want selected Release's T001 ready", next)
+	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
+	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("next = %+v, want selected Release's T-001 ready", next)
 	}
-	if next.Release == nil || next.Release.ID != "R001" {
-		t.Fatalf("next.Release = %+v, want R001", next.Release)
+	if next.Release == nil || next.Release.ID != "R-001" {
+		t.Fatalf("next.Release = %+v, want R-001", next.Release)
 	}
 }
 
 func TestResolveNext_selectedReleaseKeepsActiveMemberTaskActionable(t *testing.T) {
 	index := newV2TestIndex()
-	index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnInProgress}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	index.ReleaseObjectives = map[string][]string{"R001": {"O001"}}
+	index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-001", Status: ColumnInProgress}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageBuild}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	index.ReleaseObjectives = map[string][]string{"R-001": {"O-001"}}
 
-	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
-	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("next = %+v, want active member T001 execution", next)
+	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
+	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("next = %+v, want active member T-001 execution", next)
 	}
 }
 
@@ -391,13 +391,13 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 		{
 			name: "release Check needed",
 			configure: func(index *V2Index) {
-				index.Releases = map[string]*ReleaseV2{"R001": {ID: "R001"}}
+				index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001"}}
 				index.ReleaseObjectives = map[string][]string{}
-				index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Release: "R001", Status: ColumnDone, Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "objective-checker"}, Basis: "done"}}}
-				index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-				index.ObjectiveTasks["O001"] = []string{"T001"}
-				index.ReleaseObjectives["R001"] = []string{"O001"}
-				mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
+				index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-001", Status: ColumnDone, Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "objective-checker"}, Basis: "done"}}}
+				index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+				index.ObjectiveTasks["O-001"] = []string{"T-001"}
+				index.ReleaseObjectives["R-001"] = []string{"O-001"}
+				mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
 			},
 			wantKind: NextReleaseCheckNeeded,
 		},
@@ -414,7 +414,7 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 			name: "release ready",
 			configure: func(index *V2Index) {
 				configured := releaseGateIndex()
-				configured.Releases["R001"].Evidence.OwnerValidation = &OwnerValidation{AcceptedCheck: "C002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}
+				configured.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}
 				*index = *configured
 			},
 			wantKind: NextReleaseReady,
@@ -425,11 +425,11 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			index := newV2TestIndex()
 			tt.configure(index)
-			next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R001"}})
+			next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
 			if next.Kind != tt.wantKind {
 				t.Fatalf("next.Kind = %q, want %q; next = %+v", next.Kind, tt.wantKind, next)
 			}
-			if next.Release == nil || next.Release.ID != "R001" || next.GateDecision == nil || next.Clearance == nil {
+			if next.Release == nil || next.Release.ID != "R-001" || next.GateDecision == nil || next.Clearance == nil {
 				t.Fatalf("next = %+v, want typed Release, gate decision, and clearance", next)
 			}
 		})
@@ -440,13 +440,13 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 // stage, where the Task would otherwise need a fresh Check.
 func TestResolveNext_replanOutranksCheckNeeded(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
 		Evidence: &Evidence{Replan: &Replan{Reason: "scope changed", RecordedBy: Actor{Role: ActorRoleOwner, Session: "sess-1"}}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
@@ -459,14 +459,14 @@ func TestResolveNext_replanOutranksCheckNeeded(t *testing.T) {
 // DependencyBlock.
 func TestResolveNext_taskDependencyBlocks(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnPlanned,
-		DependsOn: []TaskDependencyV2{{Task: "T002", Requires: TaskDependencyClear}},
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnPlanned,
+		DependsOn: []TaskDependencyV2{{Task: "T-002", Requires: TaskDependencyClear}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001", "T002"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextDependency {
@@ -475,8 +475,8 @@ func TestResolveNext_taskDependencyBlocks(t *testing.T) {
 	if next.GateDecision == nil || len(next.GateDecision.Blockers) == 0 || next.GateDecision.Blockers[0].Kind != GateBlockDependency {
 		t.Fatalf("GateDecision = %+v, want a GateBlockDependency blocker", next.GateDecision)
 	}
-	if dep := next.GateDecision.Blockers[0].Dependency; dep == nil || dep.Target != "T002" {
-		t.Errorf("Dependency block = %+v, want target T002", dep)
+	if dep := next.GateDecision.Blockers[0].Dependency; dep == nil || dep.Target != "T-002" {
+		t.Errorf("Dependency block = %+v, want target T-002", dep)
 	}
 }
 
@@ -486,11 +486,11 @@ func TestResolveNext_taskDependencyBlocks(t *testing.T) {
 // ResolveObjectiveDependency's typed ObjectiveDependencyBlock instead.
 func TestResolveNext_objectiveDependencyBlocks(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Status: ColumnPlanned}
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned, DependsOn: []string{"O002"}}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Status: ColumnPlanned}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned, DependsOn: []string{"O-002"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextDependency {
@@ -499,8 +499,8 @@ func TestResolveNext_objectiveDependencyBlocks(t *testing.T) {
 	if next.GateDecision == nil || len(next.GateDecision.Blockers) == 0 || next.GateDecision.Blockers[0].Kind != GateBlockObjectiveDependency {
 		t.Fatalf("GateDecision = %+v, want a GateBlockObjectiveDependency blocker", next.GateDecision)
 	}
-	if dep := next.GateDecision.Blockers[0].ObjectiveDependency; dep == nil || dep.Target != "O002" {
-		t.Errorf("ObjectiveDependency block = %+v, want target O002", dep)
+	if dep := next.GateDecision.Blockers[0].ObjectiveDependency; dep == nil || dep.Target != "O-002" {
+		t.Errorf("ObjectiveDependency block = %+v, want target O-002", dep)
 	}
 }
 
@@ -508,10 +508,10 @@ func TestResolveNext_objectiveDependencyBlocks(t *testing.T) {
 // satisfied dependencies reaches NextExecute under executor authority.
 func TestResolveNext_executeWhenTaskPlannedAndReady(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
@@ -526,10 +526,10 @@ func TestResolveNext_executeWhenTaskPlannedAndReady(t *testing.T) {
 // build/test, read through ResolveTaskAdvance rather than ResolveTaskStart.
 func TestResolveNext_executeWhenTaskInProgress(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageBuild}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageBuild}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
@@ -544,10 +544,10 @@ func TestResolveNext_executeWhenTaskInProgress(t *testing.T) {
 // value ResolveClearance already computed.
 func TestResolveNext_checkNeeded_missing(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceMissing {
@@ -557,11 +557,11 @@ func TestResolveNext_checkNeeded_missing(t *testing.T) {
 
 func TestResolveNext_checkNeeded_needsWork(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultNeedsWork)
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	mustCheck(index, "C-001", "T-001", CheckResultNeedsWork)
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceNeedsWork {
@@ -571,15 +571,15 @@ func TestResolveNext_checkNeeded_needsWork(t *testing.T) {
 
 func TestResolveNext_checkNeeded_stale(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	mustCheck(index, "C002", "T001", CheckResultClear) // supersedes C001 as the latest
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "stale basis"}},
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	mustCheck(index, "C-002", "T-001", CheckResultClear) // supersedes C-001 as the latest
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "stale basis"}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceStale {
@@ -589,11 +589,11 @@ func TestResolveNext_checkNeeded_stale(t *testing.T) {
 
 func TestResolveNext_checkNeeded_unknown(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceUnknown {
@@ -607,13 +607,13 @@ func TestResolveNext_checkNeeded_unknown(t *testing.T) {
 // blocker once clearance is already current.
 func TestResolveNext_checkNeededOutranksOwnerValidation(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
 		Evidence: &Evidence{OwnerValidation: &OwnerValidation{Required: true}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded {
@@ -625,11 +625,11 @@ func TestResolveNext_checkNeededOutranksOwnerValidation(t *testing.T) {
 // validation is reported only once clearance is current.
 func TestResolveNext_ownerValidationRequiredAfterClearanceCurrent(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = mustCurrentTask("T001", "C001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = mustCurrentTask("T-001", "C-001", &Evidence{OwnerValidation: &OwnerValidation{Required: true}})
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextOwnerValidationRequired {
@@ -646,19 +646,19 @@ func TestResolveNext_ownerValidationRequiredAfterClearanceCurrent(t *testing.T) 
 // carries no Clearance — it is never presented as a CLEAR result.
 func TestResolveNext_exceptionAllowedCompletionReportsExecuteNotClearance(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultNeedsWork)
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnInProgress, Stage: StageAudit,
+	mustCheck(index, "C-001", "T-001", CheckResultNeedsWork)
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
 		Evidence: &Evidence{Exception: &Exception{
 			Requirements: []string{"R1"},
 			Reason:       "known risk accepted",
 			Owner:        "owner-1",
-			Check:        "C001",
+			Check:        "C-001",
 		}},
 	}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
@@ -678,17 +678,17 @@ func TestResolveNext_exceptionAllowedCompletionReportsExecuteNotClearance(t *tes
 // decision and the Objective's own Clearance.
 func TestResolveNext_objectiveIntegrationRung(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextObjectiveIntegration {
 		t.Fatalf("Kind = %q, want objective_integration", next.Kind)
 	}
-	if next.Objective == nil || next.Objective.ID != "O001" {
-		t.Fatalf("Objective = %+v, want O001", next.Objective)
+	if next.Objective == nil || next.Objective.ID != "O-001" {
+		t.Fatalf("Objective = %+v, want O-001", next.Objective)
 	}
 	if next.GateDecision == nil || next.GateDecision.Allowed {
 		t.Fatalf("GateDecision = %+v, want blocked (no objective check recorded)", next.GateDecision)
@@ -704,17 +704,17 @@ func TestResolveNext_objectiveIntegrationRung(t *testing.T) {
 // project-wide search.
 func TestResolveNext_objectiveIntegrationFallsThroughWhenTaskIncomplete(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnInProgress}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnInProgress}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReady {
-		t.Fatalf("Kind = %q, want ready (T001 is the real next action, not integration)", next.Kind)
+		t.Fatalf("Kind = %q, want ready (T-001 is the real next action, not integration)", next.Kind)
 	}
-	if next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("Task = %+v, want T001", next.Task)
+	if next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("Task = %+v, want T-001", next.Task)
 	}
 }
 
@@ -722,15 +722,15 @@ func TestResolveNext_objectiveIntegrationFallsThroughWhenTaskIncomplete(t *testi
 // search is deterministic: it always names the same ready Task first.
 func TestResolveNext_readyRungPicksLowestSortedTaskID(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Objective: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001", "T002"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
-	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("next = %+v, want ready/T001", next)
+	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("next = %+v, want ready/T-001", next)
 	}
 }
 
@@ -739,15 +739,15 @@ func TestResolveNext_readyRungPicksLowestSortedTaskID(t *testing.T) {
 // and satisfied dependencies — when no Task anywhere is ready.
 func TestResolveNext_readyRungFallsBackToObjectiveWithNoTasks(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReady {
 		t.Fatalf("Kind = %q, want ready", next.Kind)
 	}
-	if next.Objective == nil || next.Objective.ID != "O001" || next.Task != nil {
-		t.Fatalf("next = %+v, want Objective O001 selected with no Task", next)
+	if next.Objective == nil || next.Objective.ID != "O-001" || next.Task != nil {
+		t.Fatalf("next = %+v, want Objective O-001 selected with no Task", next)
 	}
 }
 
@@ -775,11 +775,11 @@ func TestResolveNext_planObjectiveForEmptyProject(t *testing.T) {
 // Objective and Task is done.
 func TestResolveNext_planObjectiveWhenNothingReady(t *testing.T) {
 	index := newV2TestIndex()
-	mustObjectiveCheck(index, "C001", "O001", CheckResultClear)
-	index.Objectives["O001"] = mustCurrentObjective("O001", "C001", nil)
-	index.Objectives["O001"].Status = ColumnDone
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
+	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-001", nil)
+	index.Objectives["O-001"].Status = ColumnDone
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
@@ -793,17 +793,17 @@ func TestResolveNext_planObjectiveWhenNothingReady(t *testing.T) {
 // next action the project's own records support.
 func TestResolveNext_unresolvedSelectionStillYieldsAnAvailableAction(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T999"} // T999 does not exist
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-999"} // T-999 does not exist
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionNotFound {
-		t.Fatalf("SelectionDiagnostic = %+v, want SelectionNotFound for T999", next.SelectionDiagnostic)
+		t.Fatalf("SelectionDiagnostic = %+v, want SelectionNotFound for T-999", next.SelectionDiagnostic)
 	}
-	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T001" {
-		t.Fatalf("next = %+v, want ready/T001 derived from the records despite the unresolved selection", next)
+	if next.Kind != NextReady || next.Task == nil || next.Task.ID != "T-001" {
+		t.Fatalf("next = %+v, want ready/T-001 derived from the records despite the unresolved selection", next)
 	}
 }
 
@@ -812,9 +812,9 @@ func TestResolveNext_unresolvedSelectionStillYieldsAnAvailableAction(t *testing.
 // diagnostic.
 func TestResolveNext_noSelectionCarriesNoDiagnostic(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
@@ -828,14 +828,14 @@ func TestResolveNext_noSelectionCarriesNoDiagnostic(t *testing.T) {
 // consults only the values it is handed.
 func TestResolveNext_readsNoFilesystem(t *testing.T) {
 	index := &V2Index{
-		Objectives:     map[string]*ObjectiveV2{"O001": {ID: "O001", Status: ColumnPlanned}},
-		Tasks:          map[string]*TaskV2{"T001": {ID: "T001", Objective: "O001", Status: ColumnPlanned}},
-		ObjectiveTasks: map[string][]string{"O001": {"T001"}},
+		Objectives:     map[string]*ObjectiveV2{"O-001": {ID: "O-001", Status: ColumnPlanned}},
+		Tasks:          map[string]*TaskV2{"T-001": {ID: "T-001", Objective: "O-001", Status: ColumnPlanned}},
+		ObjectiveTasks: map[string][]string{"O-001": {"T-001"}},
 		Checks:         map[string]*CheckV2{},
 		ScopeChecks:    map[string][]string{},
 		LatestCheck:    map[string]string{},
 	}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
@@ -848,19 +848,19 @@ func TestResolveNext_readsNoFilesystem(t *testing.T) {
 // the index already keeps them in.
 func TestResolveNext_issuesLinkedToSelectedTask(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	index.Issues = map[string]*IssueV2{
-		"I001": {ID: "I001", Title: "Found during build", Type: IssueTypeDefect, Status: IssueStatusOpen},
-		"I002": {ID: "I002", Title: "Unrelated", Type: IssueTypeDrift, Status: IssueStatusOpen},
+		"I-001": {ID: "I-001", Title: "Found during build", Type: IssueTypeDefect, Status: IssueStatusOpen},
+		"I-002": {ID: "I-002", Title: "Unrelated", Type: IssueTypeDrift, Status: IssueStatusOpen},
 	}
-	index.TaskIssues = map[string][]string{"T001": {"I001"}}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.TaskIssues = map[string][]string{"T-001": {"I-001"}}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
-	if len(next.Issues) != 1 || next.Issues[0].ID != "I001" {
-		t.Fatalf("Issues = %+v, want exactly [I001]", next.Issues)
+	if len(next.Issues) != 1 || next.Issues[0].ID != "I-001" {
+		t.Fatalf("Issues = %+v, want exactly [I-001]", next.Issues)
 	}
 }
 
@@ -871,21 +871,21 @@ func TestResolveNext_issuesLinkedToSelectedTask(t *testing.T) {
 // deduplicated.
 func TestResolveNext_issuesForObjectiveUnionOwnedTasksAndOwnChecks(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	index.Issues = map[string]*IssueV2{
-		"I001": {ID: "I001", Title: "From owned task", Type: IssueTypeDefect, Status: IssueStatusOpen},
-		"I002": {ID: "I002", Title: "From objective's own check", Type: IssueTypeGuardrail, Status: IssueStatusOpen},
+		"I-001": {ID: "I-001", Title: "From owned task", Type: IssueTypeDefect, Status: IssueStatusOpen},
+		"I-002": {ID: "I-002", Title: "From objective's own check", Type: IssueTypeGuardrail, Status: IssueStatusOpen},
 	}
-	index.TaskIssues = map[string][]string{"T001": {"I001"}}
-	index.ScopeChecks = map[string][]string{"O001": {"C001"}}
-	index.CheckIssues = map[string][]string{"C001": {"I002"}}
-	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O001"}
+	index.TaskIssues = map[string][]string{"T-001": {"I-001"}}
+	index.ScopeChecks = map[string][]string{"O-001": {"C-001"}}
+	index.CheckIssues = map[string][]string{"C-001": {"I-002"}}
+	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
-	if len(next.Issues) != 2 || next.Issues[0].ID != "I001" || next.Issues[1].ID != "I002" {
-		t.Fatalf("Issues = %+v, want [I001 I002] sorted", next.Issues)
+	if len(next.Issues) != 2 || next.Issues[0].ID != "I-001" || next.Issues[1].ID != "I-002" {
+		t.Fatalf("Issues = %+v, want [I-001 I-002] sorted", next.Issues)
 	}
 }
 
@@ -894,10 +894,10 @@ func TestResolveNext_issuesForObjectiveUnionOwnedTasksAndOwnChecks(t *testing.T)
 // Issues" apart from "an empty Issues section".
 func TestResolveNext_noIssuesLeavesNilNotEmpty(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Status: ColumnPlanned}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O001"] = []string{"T001"}
-	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O001", Task: "T001"}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Issues != nil {
@@ -927,7 +927,7 @@ func TestNext_packageDoesNotImportMigrate(t *testing.T) {
 
 // TestDataPackage_staysBeneathEverySurfaceItFeeds proves internal/data
 // imports none of internal/resume, internal/board, internal/doctor, or
-// internal/migrate (E48 T007). The projection this package computes is
+// internal/migrate (E48 T-007). The projection this package computes is
 // meant to be consumed by every one of those surfaces; a package that
 // imported any of them back would mean the projection had started leaning
 // on how one particular consumer renders or reports it, which is exactly

@@ -34,7 +34,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 1. Confirm the session is fresh. If this session built the work under review, state that limitation; do not proceed as an independent Check unless the user explicitly asks to continue anyway.
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design; a Release Check uses `scope.kind: release` to evaluate integration across all member Objectives.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check or Release Check.
-4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C###` and names the run it replaces in `supersedes`.
+4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective or Release Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is new or newly selected work linked to the Objective and the recorded Issue, and every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective/Release outcome.
 7. Record advisory observations, including `STYLE` guardrail findings, as non-blocking; do not let them change the result.
@@ -59,8 +59,8 @@ It must never: repair implementation, edit acceptance criteria to match a result
 Write each Check record with this structure:
 
 ```yaml
-id: C###
-scope: {kind: task|objective|release, id: T###, O###, or R###}
+id: C-###
+scope: {kind: task|objective|release, id: T-###, O-###, or R-###}
 result: CLEAR|NEEDS WORK
 checked_by: {role: checker, session: review-001}
 executed_session: build-001
@@ -80,13 +80,13 @@ present, `reviewed.files` and `reviewed.dependencies` use real path or
 content-hash entries, or explicit `[]` when that category is absent. This
 metadata does not establish technical clearance: `CLEAR` depends on the
 independent checker recorded on the Check and a current freshness assessment.
-`issues` lists the `I###` references this run opened. `supersedes` names the
-prior `C###` this run replaces, or stays empty on a first run. The record body
+`issues` lists the `I-###` references this run opened. `supersedes` names the
+prior `C-###` this run replaces, or stays empty on a first run. The record body
 carries outcome coverage, test and command results, negative and boundary
 probes, applicable Guardrails, owner validation still needed, and nonblocking
 observations.
 
-Each run writes a new record with a new `C###`. A recheck never edits the superseded record; it sets its own `supersedes` and leaves the prior run intact as history.
+Each run writes a new record with a new `C-###`. A recheck never edits the superseded record; it sets its own `supersedes` and leaves the prior run intact as history.
 
 ## Closure Rules
 
@@ -94,7 +94,7 @@ Each run writes a new record with a new `C###`. A recheck never edits the supers
 - A Task with no requested Task Check may be owner-closed only when its implementation evidence is complete and an explicit Task-check waiver names the Task, reason, actor, and time. The waiver skips only the optional local Check: it is not technical `CLEAR`, and it does not waive any acceptance criterion, guardrail, Objective Check, or Release Check. It satisfies a downstream Task dependency that requires `clear` — the owner's own completion decision stands in there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
 - A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count.
 - An Objective closes only after every Task it owns is done, the mandatory Objective integration Check is current, and every material Issue linked to that current Check is resolved (including explicit owner acceptance recorded as an Issue resolution), with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
-- A Release Check is mandatory whenever a Release exists. It reviews cross-Objective integration for `R###`, reuses ordinary Issues for material findings, and does not invent a parallel release audit. Release `done` requires at least one member Objective, every member Objective complete, current CLEAR integration evidence, resolved or explicitly excepted material Issues, and the owner's acceptance of that exact current Check. The checker never supplies that acceptance, and Release `done` does not mean published or deployed.
+- A Release Check is mandatory whenever a Release exists. It reviews cross-Objective integration for `R-###`, reuses ordinary Issues for material findings, and does not invent a parallel release audit. Release `done` requires at least one member Objective, every member Objective complete, current CLEAR integration evidence, resolved or explicitly excepted material Issues, and the owner's acceptance of that exact current Check. The checker never supplies that acceptance, and Release `done` does not mean published or deployed.
 - A record lacking sufficient scope or evidence cannot support completion. Stale or unknown freshness blocks normal completion; it is never waived through by re-asserting "current" without a fresh assessment.
 - A recorded owner exception can grant completion despite an unmet requirement, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance, and it applies only to the Check it names.
 
@@ -112,7 +112,7 @@ verifying Check proof. The owner may close an Issue as `accepted` by an explicit
 - This session must be independent from the executor's conversation under review; state the limitation plainly when it is not, and do not call the result independent unless the user explicitly says to continue anyway.
 - Load and apply `agent-skills/references/check-method.md` in full; do not restate its scope-lock, coverage-matrix, adversarial-pass, materiality, or convergence mechanics here.
 - Write only the Check record, Issues, evaluation metadata, and authorized closure. Never repair implementation, edit acceptance criteria, or update Design as remediation — route corrections back to the planner or executor.
-- Every Check run is a new immutable `C###` record; a recheck sets `supersedes` and never edits a prior run.
+- Every Check run is a new immutable `C-###` record; a recheck sets `supersedes` and never edits a prior run.
 - Apply Quick evidence only for a requested Task Check. Apply Full evidence for the mandatory Objective Check and Release Check; an Objective Check additionally covers cross-Task integration and Design reconciliation, and a Task-only Check never substitutes for either mandatory integration gate.
 - Apply the Release Check scope when `scope.kind: release`: inspect all member Objectives and their cross-Objective integration, then reuse ordinary Issues and hand owner acceptance back to the owner.
 - A `NEEDS WORK` result records Issues and hands remediation to the executor or planner. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task; an Objective or Release Check's `NEEDS WORK` instead routes remediation to new or newly selected work linked to the Objective and Issue, and must never retreat a Task that is already `done`.

@@ -15,10 +15,10 @@ canonical workflow source; this router records state and next action only.
 
 ```yaml
 state: task
-release: R006
-objective: O018
-task: T019
-next_action: "Execute O018 T019 (hyphenated ID rule and generators) using savepoint-task; T019 and T020 land in one commit."
+release: R-006
+objective: O-018
+task: T-020
+next_action: "T-020 is implemented and at stage audit: request an optional Task Check or record an explicit owner waiver, then run O-018's mandatory Full Objective Check."
 ```
 
 ## State → action

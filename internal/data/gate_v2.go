@@ -36,7 +36,7 @@ const (
 // assessment consulted, if any (which carries the recorded basis).
 type Clearance struct {
 	State     ClearanceState
-	Check     string // C### of the target's latest Check; empty when State is missing
+	Check     string // C-### of the target's latest Check; empty when State is missing
 	Freshness *Freshness
 }
 

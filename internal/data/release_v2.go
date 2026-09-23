@@ -13,7 +13,6 @@ import (
 // readers can consume the pre-E51 Objective projection without conversion.
 type ReleaseID = string
 
-var releaseIDPatternV2 = regexp.MustCompile(`^R[0-9]{3,}$`)
 var legacyCompletionHashPatternV2 = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 
 // LegacyCompletionReference records why a migrated historical Release may
@@ -79,8 +78,8 @@ func DecodeReleaseV2(path, content string) (*ReleaseV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !releaseIDPatternV2.MatchString(fields.ID) {
-		return nil, fmt.Errorf("%w: %s: release id %q must match R plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesV2Identity(fields.ID, 'R') {
+		return nil, fmt.Errorf("%w: %s: release id %q must match R- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 	if strings.TrimSpace(fields.Title) == "" {
 		return nil, fmt.Errorf("%w: %s: release %s missing required field title", ErrV2MissingField, path, fields.ID)

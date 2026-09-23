@@ -18,10 +18,10 @@ func newV2TestIndex() *V2Index {
 
 func TestValidateV2ReferenceGraphs_valid(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Title: "Second", Status: ColumnPlanned, DependsOn: []string{"O001"}, Source: V2SourceDocument{Path: "objectives/O002-b/Objective.md"}}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "First task", Objective: "O001", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T001-first.md"}}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Title: "Second task", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T002-second.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Title: "Second", Status: ColumnPlanned, DependsOn: []string{"O-001"}, Source: V2SourceDocument{Path: "objectives/O-002-b/Objective.md"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "First task", Objective: "O-001", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-001-first.md"}}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Title: "Second task", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-002-second.md"}}
 
 	if err := ValidateV2ReferenceGraphs(index); err != nil {
 		t.Fatalf("ValidateV2ReferenceGraphs() error = %v, want nil", err)
@@ -30,8 +30,8 @@ func TestValidateV2ReferenceGraphs_valid(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_taskSelfDependency(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "Self", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T001-self.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Self", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-001-self.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2SelfDependency) {
@@ -41,8 +41,8 @@ func TestValidateV2ReferenceGraphs_taskSelfDependency(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_taskMissingTarget(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "Orphan dep", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T999", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T001-orphan.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Orphan dep", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-999", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-001-orphan.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2MissingDependencyTarget) {
@@ -52,10 +52,10 @@ func TestValidateV2ReferenceGraphs_taskMissingTarget(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_taskCycle(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "A", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T002", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T001-a.md"}}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Title: "B", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T003", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T002-b.md"}}
-	index.Tasks["T003"] = &TaskV2{ID: "T003", Title: "C", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T003-c.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "First", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "A", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-002", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-001-a.md"}}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Title: "B", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-003", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-002-b.md"}}
+	index.Tasks["T-003"] = &TaskV2{ID: "T-003", Title: "C", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-003-c.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2DependencyCycle) {
@@ -65,7 +65,7 @@ func TestValidateV2ReferenceGraphs_taskCycle(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_objectiveSelfDependency(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Self", Status: ColumnPlanned, DependsOn: []string{"O001"}, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Self", Status: ColumnPlanned, DependsOn: []string{"O-001"}, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2SelfDependency) {
@@ -75,7 +75,7 @@ func TestValidateV2ReferenceGraphs_objectiveSelfDependency(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_objectiveMissingTarget(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "Orphan dep", Status: ColumnPlanned, DependsOn: []string{"O999"}, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Orphan dep", Status: ColumnPlanned, DependsOn: []string{"O-999"}, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2MissingDependencyTarget) {
@@ -85,8 +85,8 @@ func TestValidateV2ReferenceGraphs_objectiveMissingTarget(t *testing.T) {
 
 func TestValidateV2ReferenceGraphs_objectiveCycle(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "A", Status: ColumnPlanned, DependsOn: []string{"O002"}, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Title: "B", Status: ColumnPlanned, DependsOn: []string{"O001"}, Source: V2SourceDocument{Path: "objectives/O002-b/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "A", Status: ColumnPlanned, DependsOn: []string{"O-002"}, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Title: "B", Status: ColumnPlanned, DependsOn: []string{"O-001"}, Source: V2SourceDocument{Path: "objectives/O-002-b/Objective.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2DependencyCycle) {
@@ -100,14 +100,14 @@ func TestValidateV2ReferenceGraphs_objectiveCycle(t *testing.T) {
 // independently rather than sharing one combined graph.
 func TestValidateV2ReferenceGraphs_taskAndObjectiveCyclesNotConflated(t *testing.T) {
 	index := newV2TestIndex()
-	index.Objectives["O001"] = &ObjectiveV2{ID: "O001", Title: "A", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O001-a/Objective.md"}}
-	index.Objectives["O002"] = &ObjectiveV2{ID: "O002", Title: "B", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O002-b/Objective.md"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "A", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"}}
+	index.Objectives["O-002"] = &ObjectiveV2{ID: "O-002", Title: "B", Status: ColumnPlanned, Source: V2SourceDocument{Path: "objectives/O-002-b/Objective.md"}}
 	// Task IDs collide with Objective IDs in shape only; the graphs must stay
-	// separate keyspaces (T### vs O###), so this is not a real risk in
+	// separate keyspaces (T-### vs O-###), so this is not a real risk in
 	// practice, but the independent-cycle guarantee still needs a task cycle
 	// under acyclic objectives to be provable.
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Title: "A", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T002", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T001-a.md"}}
-	index.Tasks["T002"] = &TaskV2{ID: "T002", Title: "B", Objective: "O001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O001-a/tasks/T002-b.md"}}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "A", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-002", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-001-a.md"}}
+	index.Tasks["T-002"] = &TaskV2{ID: "T-002", Title: "B", Objective: "O-001", Status: ColumnPlanned, DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}}, Source: V2SourceDocument{Path: "objectives/O-001-a/tasks/T-002-b.md"}}
 
 	err := ValidateV2ReferenceGraphs(index)
 	if !errors.Is(err, ErrV2DependencyCycle) {
@@ -117,13 +117,13 @@ func TestValidateV2ReferenceGraphs_taskAndObjectiveCyclesNotConflated(t *testing
 
 func TestResolveTaskDependencyV2_clearSatisfiedWhenDoneAndCurrent(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyClear})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyClear})
 	if !got.Satisfied || got.Block != nil {
 		t.Fatalf("ResolveTaskDependencyV2() = %+v, want satisfied with no block", got)
 	}
@@ -136,12 +136,12 @@ func TestResolveTaskDependencyV2_clearSatisfiedWhenDoneAndCurrent(t *testing.T) 
 // independent Check the owner already chose to skip.
 func TestResolveTaskDependencyV2_clearSatisfiedByCheckWaiver(t *testing.T) {
 	index := newV2TestIndex()
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
-		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T-001")},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyClear})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyClear})
 	if !got.Satisfied || got.Block != nil {
 		t.Fatalf("ResolveTaskDependencyV2() = %+v, want satisfied by the recorded waiver", got)
 	}
@@ -153,12 +153,12 @@ func TestResolveTaskDependencyV2_clearSatisfiedByCheckWaiver(t *testing.T) {
 // dependency level stays blocked.
 func TestResolveTaskDependencyV2_acceptedNeverSatisfiedByCheckWaiver(t *testing.T) {
 	index := newV2TestIndex()
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
-		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T001")},
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T-001")},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyAccepted})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyAccepted})
 	if got.Satisfied {
 		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false: a waiver is not an accepted Check")
 	}
@@ -169,14 +169,14 @@ func TestResolveTaskDependencyV2_acceptedNeverSatisfiedByCheckWaiver(t *testing.
 
 func TestResolveTaskDependencyV2_notDoneUnsatisfied(t *testing.T) {
 	index := newV2TestIndex()
-	index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnInProgress}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyClear})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyClear})
 	if got.Satisfied {
 		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false")
 	}
-	if got.Block == nil || got.Block.Kind != DependencyBlockNotDone || got.Block.Target != "T001" {
-		t.Fatalf("Block = %+v, want {Target: T001, Kind: not_done}", got.Block)
+	if got.Block == nil || got.Block.Kind != DependencyBlockNotDone || got.Block.Target != "T-001" {
+		t.Fatalf("Block = %+v, want {Target: T-001, Kind: not_done}", got.Block)
 	}
 }
 
@@ -190,25 +190,25 @@ func TestResolveTaskDependencyV2_doneButNotClearedUnsatisfied(t *testing.T) {
 		{
 			name: "needs_work",
 			buildEvidence: func(index *V2Index) {
-				mustCheck(index, "C001", "T001", CheckResultNeedsWork)
+				mustCheck(index, "C-001", "T-001", CheckResultNeedsWork)
 			},
 			wantClearance: ClearanceNeedsWork,
 		},
 		{
 			name: "unknown",
 			buildEvidence: func(index *V2Index) {
-				mustCheck(index, "C001", "T001", CheckResultClear)
+				mustCheck(index, "C-001", "T-001", CheckResultClear)
 			},
 			wantClearance: ClearanceUnknown,
 		},
 		{
 			name: "stale",
 			buildEvidence: func(index *V2Index) {
-				mustCheck(index, "C001", "T001", CheckResultClear)
-				mustCheck(index, "C002", "T001", CheckResultClear)
+				mustCheck(index, "C-001", "T-001", CheckResultClear)
+				mustCheck(index, "C-002", "T-001", CheckResultClear)
 			},
 			wantClearance: ClearanceStale,
-			evidence:      &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", Basis: "names the superseded check"}},
+			evidence:      &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", Basis: "names the superseded check"}},
 		},
 		{
 			name:          "missing",
@@ -221,9 +221,9 @@ func TestResolveTaskDependencyV2_doneButNotClearedUnsatisfied(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			index := newV2TestIndex()
 			tc.buildEvidence(index)
-			index.Tasks["T001"] = &TaskV2{ID: "T001", Objective: "O001", Status: ColumnDone, Evidence: tc.evidence}
+			index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone, Evidence: tc.evidence}
 
-			got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyClear})
+			got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyClear})
 			if got.Satisfied {
 				t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false")
 			}
@@ -239,16 +239,16 @@ func TestResolveTaskDependencyV2_doneButNotClearedUnsatisfied(t *testing.T) {
 
 func TestResolveTaskDependencyV2_acceptedSatisfiedWhenOwnerAcceptedCurrentCheck(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
 		Evidence: &Evidence{
-			Freshness:       &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"},
-			OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+			Freshness:       &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"},
+			OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
 		},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyAccepted})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyAccepted})
 	if !got.Satisfied || got.Block != nil {
 		t.Fatalf("ResolveTaskDependencyV2() = %+v, want satisfied with no block", got)
 	}
@@ -256,13 +256,13 @@ func TestResolveTaskDependencyV2_acceptedSatisfiedWhenOwnerAcceptedCurrentCheck(
 
 func TestResolveTaskDependencyV2_acceptedUnsatisfiedWithNoAcceptance(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyAccepted})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyAccepted})
 	if got.Satisfied {
 		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false")
 	}
@@ -281,19 +281,19 @@ func TestResolveTaskDependencyV2_acceptedUnsatisfiedWithNoAcceptance(t *testing.
 // freshness assessment naming the new Check.
 func TestResolveTaskDependencyV2_acceptedUnsatisfiedWhenAcceptanceBoundToSupersededCheck(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	mustCheck(index, "C002", "T001", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	mustCheck(index, "C-002", "T-001", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
 		Evidence: &Evidence{
-			Freshness:       &Freshness{State: FreshnessCurrent, Check: "C002", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "rechecked"},
-			OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
+			Freshness:       &Freshness{State: FreshnessCurrent, Check: "C-002", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "rechecked"},
+			OwnerValidation: &OwnerValidation{Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}},
 		},
 	}
 
-	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T001", Requires: TaskDependencyAccepted})
+	got := ResolveTaskDependencyV2(index, TaskDependencyV2{Task: "T-001", Requires: TaskDependencyAccepted})
 	if got.Satisfied {
-		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false (acceptance bound to superseded C001, latest is C002)")
+		t.Fatalf("ResolveTaskDependencyV2() satisfied = true, want false (acceptance bound to superseded C-001, latest is C-002)")
 	}
 	if got.Block == nil || got.Block.Kind != DependencyBlockNotAccepted {
 		t.Fatalf("Block = %+v, want kind not_accepted", got.Block)
@@ -302,35 +302,35 @@ func TestResolveTaskDependencyV2_acceptedUnsatisfiedWhenAcceptanceBoundToSuperse
 
 // TestResolveTaskDependencyV2_chainAcrossSeveralTasks proves each dependency
 // in a chain is resolved independently against the live index rather than a
-// cached judgement: T003 depends on T002, which depends on T001. T001 is
-// done and current; T002 is done but only unknown (no freshness assessment),
-// so T002's own dependency on T001 is satisfied while T003's dependency on
-// T002 is not.
+// cached judgement: T-003 depends on T-002, which depends on T-001. T-001 is
+// done and current; T-002 is done but only unknown (no freshness assessment),
+// so T-002's own dependency on T-001 is satisfied while T-003's dependency on
+// T-002 is not.
 func TestResolveTaskDependencyV2_chainAcrossSeveralTasks(t *testing.T) {
 	index := newV2TestIndex()
-	mustCheck(index, "C001", "T001", CheckResultClear)
-	mustCheck(index, "C002", "T002", CheckResultClear)
-	index.Tasks["T001"] = &TaskV2{
-		ID: "T001", Objective: "O001", Status: ColumnDone,
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
+	mustCheck(index, "C-001", "T-001", CheckResultClear)
+	mustCheck(index, "C-002", "T-002", CheckResultClear)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "checked"}},
 	}
-	index.Tasks["T002"] = &TaskV2{
-		ID: "T002", Objective: "O001", Status: ColumnDone,
-		DependsOn: []TaskDependencyV2{{Task: "T001", Requires: TaskDependencyClear}},
+	index.Tasks["T-002"] = &TaskV2{
+		ID: "T-002", Objective: "O-001", Status: ColumnDone,
+		DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}},
 	}
-	index.Tasks["T003"] = &TaskV2{
-		ID: "T003", Objective: "O001", Status: ColumnDone,
-		DependsOn: []TaskDependencyV2{{Task: "T002", Requires: TaskDependencyClear}},
+	index.Tasks["T-003"] = &TaskV2{
+		ID: "T-003", Objective: "O-001", Status: ColumnDone,
+		DependsOn: []TaskDependencyV2{{Task: "T-002", Requires: TaskDependencyClear}},
 	}
 
-	gotT2onT1 := ResolveTaskDependencyV2(index, index.Tasks["T002"].DependsOn[0])
+	gotT2onT1 := ResolveTaskDependencyV2(index, index.Tasks["T-002"].DependsOn[0])
 	if !gotT2onT1.Satisfied {
-		t.Fatalf("T002 -> T001 = %+v, want satisfied", gotT2onT1)
+		t.Fatalf("T-002 -> T-001 = %+v, want satisfied", gotT2onT1)
 	}
 
-	gotT3onT2 := ResolveTaskDependencyV2(index, index.Tasks["T003"].DependsOn[0])
+	gotT3onT2 := ResolveTaskDependencyV2(index, index.Tasks["T-003"].DependsOn[0])
 	if gotT3onT2.Satisfied {
-		t.Fatalf("T003 -> T002 satisfied = true, want false (T002 has no freshness assessment)")
+		t.Fatalf("T-003 -> T-002 satisfied = true, want false (T-002 has no freshness assessment)")
 	}
 	if gotT3onT2.Block == nil || gotT3onT2.Block.Kind != DependencyBlockNotCleared || gotT3onT2.Block.Clearance != ClearanceUnknown {
 		t.Fatalf("Block = %+v, want {Kind: not_cleared, Clearance: unknown}", gotT3onT2.Block)

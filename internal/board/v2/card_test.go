@@ -24,7 +24,7 @@ func fixtureCard(task *data.TaskV2, clearance data.Clearance, decision data.Gate
 }
 
 func fixtureTask(id, title string, status data.ColumnType, stage data.ProgressStage) *data.TaskV2 {
-	return &data.TaskV2{ID: id, Title: title, Objective: "O001", Status: status, Stage: stage}
+	return &data.TaskV2{ID: id, Title: title, Objective: "O-001", Status: status, Stage: stage}
 }
 
 func renderedText(card TaskCard, width int, focused bool) string {
@@ -33,7 +33,7 @@ func renderedText(card TaskCard, width int, focused bool) string {
 
 func TestRenderCardLabelsWithTheTitleAndCarriesTheIdentity(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T001", "Open the board a V2 project already has", data.ColumnPlanned, ""),
+		fixtureTask("T-001", "Open the board a V2 project already has", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)
@@ -43,10 +43,10 @@ func TestRenderCardLabelsWithTheTitleAndCarriesTheIdentity(t *testing.T) {
 	if !strings.Contains(got, "Open the board a V2 project") {
 		t.Errorf("card does not carry its title:\n%s", got)
 	}
-	if !strings.Contains(got, "T001") {
-		t.Errorf("card does not carry its T### identity:\n%s", got)
+	if !strings.Contains(got, "T-001") {
+		t.Errorf("card does not carry its T-### identity:\n%s", got)
 	}
-	if strings.Contains(got, "O001") {
+	if strings.Contains(got, "O-001") {
 		t.Errorf("card shows its objective reference as display language:\n%s", got)
 	}
 }
@@ -58,17 +58,17 @@ func TestRenderCardLabelsWithTheTitleAndCarriesTheIdentity(t *testing.T) {
 // have nothing to derive from and could not produce these badges.
 func TestRenderCardReadsOnlyResolvedValues(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T010", "Carry what the resolvers said", data.ColumnInProgress, data.StageAudit),
+		fixtureTask("T-010", "Carry what the resolvers said", data.ColumnInProgress, data.StageAudit),
 		data.Clearance{State: data.ClearanceStale},
 		data.GateDecision{Blockers: []data.GateBlocker{
-			{Kind: data.GateBlockDependency, Dependency: &data.DependencyBlock{Target: "T999"}},
+			{Kind: data.GateBlockDependency, Dependency: &data.DependencyBlock{Target: "T-999"}},
 			{Kind: data.GateBlockOwnerAcceptance},
 		}},
 	)
 
 	got := renderedText(card, 44, false)
 
-	for _, want := range []string{"[!] REVIEW", "WAITS T999", "OWNER"} {
+	for _, want := range []string{"[!] REVIEW", "WAITS T-999", "OWNER"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("card missing %q:\n%s", want, got)
 		}
@@ -79,7 +79,7 @@ func TestRenderCardReadsOnlyResolvedValues(t *testing.T) {
 // saying the same fact twice in two wordings.
 func TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T011", "One statement per fact", data.ColumnInProgress, data.StageAudit),
+		fixtureTask("T-011", "One statement per fact", data.ColumnInProgress, data.StageAudit),
 		data.Clearance{State: data.ClearanceNeedsWork},
 		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockClearanceNeedsWork}}},
 	)
@@ -91,23 +91,23 @@ func TestRenderCardOmitsBlockersTheClearanceBadgeAlreadyStates(t *testing.T) {
 	}
 }
 
-// TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge proves O012's
+// TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge proves O-012's
 // retired vocabulary — "DONE", "BY EXCEPTION", "BY WAIVER", "Check (stale)" —
 // never appears on a Done card, and that a Done card's own review outcome
 // still tells an ordinary close, a stale one, and an owner-accepted one apart.
 func TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge(t *testing.T) {
 	ordinary := fixtureCard(
-		fixtureTask("T020", "Closed the ordinary way", data.ColumnDone, ""),
+		fixtureTask("T-020", "Closed the ordinary way", data.ColumnDone, ""),
 		data.Clearance{State: data.ClearanceCurrent},
 		data.GateDecision{},
 	)
 	exception := TaskCard{
-		Task:        fixtureTask("T021", "Closed by a recorded exception", data.ColumnDone, ""),
+		Task:        fixtureTask("T-021", "Closed by a recorded exception", data.ColumnDone, ""),
 		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
 		ByException: true,
 	}
 	stale := fixtureCard(
-		fixtureTask("T022", "Closed, and the check went stale", data.ColumnDone, ""),
+		fixtureTask("T-022", "Closed, and the check went stale", data.ColumnDone, ""),
 		data.Clearance{State: data.ClearanceStale},
 		data.GateDecision{},
 	)
@@ -143,7 +143,7 @@ func TestRenderCardDoneCardsShowOneReviewOutcomeAndNoCompletionBadge(t *testing.
 // with no Blockers at all, never the owner-acceptance blocker it overrode.
 func TestRenderCardOpenExceptionOmitsTheOwnerBlockerItResolved(t *testing.T) {
 	card := TaskCard{
-		Task:        fixtureTask("T023", "Owner accepted the risk while still open", data.ColumnInProgress, data.StageAudit),
+		Task:        fixtureTask("T-023", "Owner accepted the risk while still open", data.ColumnInProgress, data.StageAudit),
 		Clearance:   data.Clearance{State: data.ClearanceNeedsWork},
 		Decision:    data.GateDecision{Allowed: true, Actor: data.ActorRoleOwner, AllowedByException: true},
 		ByException: true,
@@ -161,7 +161,7 @@ func TestRenderCardOpenExceptionOmitsTheOwnerBlockerItResolved(t *testing.T) {
 
 func TestRenderCardStageAbsentOffAnInProgressTask(t *testing.T) {
 	planned := renderedText(fixtureCard(
-		fixtureTask("T030", "Not started", data.ColumnPlanned, ""),
+		fixtureTask("T-030", "Not started", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	), 40, false)
@@ -179,7 +179,7 @@ func TestRenderCardFocusChangesColorNotGeometry(t *testing.T) {
 	forceColorProfile(t, termenv.TrueColor)
 
 	card := fixtureCard(
-		fixtureTask("T040", "A card that must not move when focused", data.ColumnInProgress, data.StageBuild),
+		fixtureTask("T-040", "A card that must not move when focused", data.ColumnInProgress, data.StageBuild),
 		data.Clearance{State: data.ClearanceCurrent},
 		data.GateDecision{Allowed: true},
 	)
@@ -203,10 +203,10 @@ func TestRenderCardFocusChangesColorNotGeometry(t *testing.T) {
 
 func TestRenderCardNeverExceedsItsWidth(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T050", "A title long enough to need more than one line at any sensible width", data.ColumnInProgress, data.StageAudit),
+		fixtureTask("T-050", "A title long enough to need more than one line at any sensible width", data.ColumnInProgress, data.StageAudit),
 		data.Clearance{State: data.ClearanceUnknown},
 		data.GateDecision{Blockers: []data.GateBlocker{
-			{Kind: data.GateBlockObjectiveDependency, ObjectiveDependency: &data.ObjectiveDependencyBlock{Target: "O009"}},
+			{Kind: data.GateBlockObjectiveDependency, ObjectiveDependency: &data.ObjectiveDependencyBlock{Target: "O-009"}},
 		}},
 	)
 
@@ -248,7 +248,7 @@ func TestGroupTaskCardsGroupsByRecordedStatus(t *testing.T) {
 	}
 
 	planned := grouped[data.ColumnPlanned]
-	if len(planned) < 2 || planned[0].Task.ID != "T001" || planned[1].Task.ID != "T002" {
+	if len(planned) < 2 || planned[0].Task.ID != "T-001" || planned[1].Task.ID != "T-002" {
 		t.Errorf("planned cards = %v, want ascending Task ID order", cardIDs(planned))
 	}
 }
@@ -257,10 +257,10 @@ func TestO900OutcomeSpreadRendersEveryOutcomeAndBlockerOnCards(t *testing.T) {
 	root := writeO900OutcomeProject(t)
 	loaded := loadProject(root)
 	if loaded.Failed() {
-		t.Fatalf("O900-equivalent fixture did not load: %s", loaded.Diagnostic)
+		t.Fatalf("O-900-equivalent fixture did not load: %s", loaded.Diagnostic)
 	}
 
-	grouped := groupTaskCardsFor(loaded.State.Index, "O900")
+	grouped := groupTaskCardsFor(loaded.State.Index, "O-900")
 	for column, want := range map[data.ColumnType]int{
 		data.ColumnPlanned: 4, data.ColumnInProgress: 4, data.ColumnDone: 4,
 	} {
@@ -279,7 +279,7 @@ func TestO900OutcomeSpreadRendersEveryOutcomeAndBlockerOnCards(t *testing.T) {
 	got := rendered.String()
 	for _, want := range []string{
 		"[ ] CHECK", "[✓] CHECK", "[!] NEEDS WORK", "[!] REVIEW",
-		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T001", "REPLAN", "AWAITS OWNER",
+		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T-001", "REPLAN", "AWAITS OWNER",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("interactive cards missing %q:\n%s", want, got)
@@ -322,16 +322,16 @@ func TestCardReportsAnObjectiveLevelWait(t *testing.T) {
 		t.Fatalf("fixture project did not load: %s", loaded.Diagnostic)
 	}
 
-	card, ok := findCard(groupTaskCards(loaded.State.Index), "T002")
+	card, ok := findCard(groupTaskCards(loaded.State.Index), "T-002")
 	if !ok {
-		t.Fatal("no card for T002")
+		t.Fatal("no card for T-002")
 	}
 	if len(card.Task.DependsOn) != 0 {
 		t.Fatalf("fixture Task declares its own dependencies: %+v", card.Task.DependsOn)
 	}
 
 	got := renderedText(card, 44, false)
-	if !strings.Contains(got, "OBJECTIVE WAITS O001") {
+	if !strings.Contains(got, "OBJECTIVE WAITS O-001") {
 		t.Errorf("card does not report the Objective-level wait:\n%s", got)
 	}
 }
@@ -370,7 +370,7 @@ func findCard(grouped map[data.ColumnType][]TaskCard, id string) (TaskCard, bool
 
 func TestRenderCardPlannedOmitsCheckBadge(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T001", "Planned task", data.ColumnPlanned, ""),
+		fixtureTask("T-001", "Planned task", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)
@@ -401,7 +401,7 @@ func TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			card := fixtureCard(
-				fixtureTask("T002", "In progress task", data.ColumnInProgress, test.stage),
+				fixtureTask("T-002", "In progress task", data.ColumnInProgress, test.stage),
 				data.Clearance{State: test.clearance},
 				data.GateDecision{Allowed: true},
 			)
@@ -425,7 +425,7 @@ func TestRenderCardInProgressOmitsCheckBadgeWhenNotActionable(t *testing.T) {
 // checked, or checked and clear) are hidden on an open card.
 func TestRenderCardInProgressStillShowsAnActionableOutcome(t *testing.T) {
 	needsWork := renderedText(fixtureCard(
-		fixtureTask("T003", "Sent back to build for repair", data.ColumnInProgress, data.StageBuild),
+		fixtureTask("T-003", "Sent back to build for repair", data.ColumnInProgress, data.StageBuild),
 		data.Clearance{State: data.ClearanceNeedsWork},
 		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockClearanceNeedsWork}}},
 	), 44, false)
@@ -434,7 +434,7 @@ func TestRenderCardInProgressStillShowsAnActionableOutcome(t *testing.T) {
 	}
 
 	stale := renderedText(fixtureCard(
-		fixtureTask("T004", "Testing again after clearance went stale", data.ColumnInProgress, data.StageTest),
+		fixtureTask("T-004", "Testing again after clearance went stale", data.ColumnInProgress, data.StageTest),
 		data.Clearance{State: data.ClearanceStale},
 		data.GateDecision{},
 	), 44, false)
@@ -453,7 +453,7 @@ func TestRenderCardInProgressStillShowsAnActionableOutcome(t *testing.T) {
 // outstanding, the blocker alone is the actionable fact.
 func TestRenderCardCurrentCheckAwaitingOwnerShowsOnlyTheOwnerBlocker(t *testing.T) {
 	card := fixtureCard(
-		fixtureTask("T006", "At audit and waiting on the owner", data.ColumnInProgress, data.StageAudit),
+		fixtureTask("T-006", "At audit and waiting on the owner", data.ColumnInProgress, data.StageAudit),
 		data.Clearance{State: data.ClearanceCurrent},
 		data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockOwnerAcceptance}}},
 	)
@@ -473,7 +473,7 @@ func TestRenderCardPlannedFocusUsesMutedStyling(t *testing.T) {
 	forceColorProfile(t, termenv.TrueColor)
 
 	card := fixtureCard(
-		fixtureTask("T001", "Planned task", data.ColumnPlanned, ""),
+		fixtureTask("T-001", "Planned task", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)
@@ -501,7 +501,7 @@ func TestRenderCardDoneFocusUsesGreenStyling(t *testing.T) {
 	forceColorProfile(t, termenv.TrueColor)
 
 	card := fixtureCard(
-		fixtureTask("T001", "Done task", data.ColumnDone, ""),
+		fixtureTask("T-001", "Done task", data.ColumnDone, ""),
 		data.Clearance{State: data.ClearanceCurrent},
 		data.GateDecision{},
 	)
@@ -527,7 +527,7 @@ func TestRenderCardDoneFocusUsesGreenStyling(t *testing.T) {
 
 func TestRenderCardTitleWrapsUpToTwoLines(t *testing.T) {
 	shortCard := fixtureCard(
-		fixtureTask("T001", "Short title", data.ColumnPlanned, ""),
+		fixtureTask("T-001", "Short title", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)
@@ -537,7 +537,7 @@ func TestRenderCardTitleWrapsUpToTwoLines(t *testing.T) {
 	}
 
 	wrapCard := fixtureCard(
-		fixtureTask("T002", "Implement user authentication subsystem", data.ColumnPlanned, ""),
+		fixtureTask("T-002", "Implement user authentication subsystem", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)
@@ -559,7 +559,7 @@ func TestRenderCardTitleWrapsUpToTwoLines(t *testing.T) {
 	}
 
 	longCard := fixtureCard(
-		fixtureTask("T003", "Implement user authentication subsystem with OAuth2 and SAML providers and tokens", data.ColumnPlanned, ""),
+		fixtureTask("T-003", "Implement user authentication subsystem with OAuth2 and SAML providers and tokens", data.ColumnPlanned, ""),
 		data.Clearance{State: data.ClearanceMissing},
 		data.GateDecision{Allowed: true},
 	)

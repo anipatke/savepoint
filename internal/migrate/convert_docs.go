@@ -57,7 +57,7 @@ type routerV2State struct {
 // router fresh from root. Only the "## Current state" YAML anchor changes;
 // every other authored byte — the read-order prose, headings, everything —
 // is preserved verbatim via data.ReplaceStateBlock. plan resolves the
-// previously selected epic/task to their allocated O###/T###, or names the
+// previously selected epic/task to their allocated O-###/T-###, or names the
 // archive path that explains why there is nothing left to select.
 func ConvertRouter(root string, plan *ConversionPlan, doc PlannedDocument) (string, error) {
 	if doc.Kind != DocumentRouter {
@@ -168,7 +168,7 @@ func resolveRouterRelease(plan *ConversionPlan, release string) string {
 }
 
 // resolveRouterObjective resolves a V1 router epic selection to the
-// Objective's allocated O### when it converted, or the archive path that
+// Objective's allocated O-### when it converted, or the archive path that
 // explains why it did not.
 func resolveRouterObjective(plan *ConversionPlan, release, epic string) (globalID, archivePath string) {
 	for _, t := range plan.Targets {
@@ -186,7 +186,7 @@ func resolveRouterObjective(plan *ConversionPlan, release, epic string) (globalI
 
 // resolveRouterTask resolves a V1 router task selection (an epic-qualified
 // short id, e.g. "E01-example/T002-follow-up" — the same shape
-// LegacyKey.OriginalID already carries for a task) to its allocated T###
+// LegacyKey.OriginalID already carries for a task) to its allocated T-###
 // when it converted, or the archive path that explains why it did not.
 func resolveRouterTask(plan *ConversionPlan, release, taskRef string) (globalID, archivePath string) {
 	for _, t := range plan.Targets {

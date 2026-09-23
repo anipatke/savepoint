@@ -35,7 +35,7 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		"Done and cleared",
 		"▣ BUILD", "◇ TEST", "◆ CHECK",
 		"[!] NEEDS WORK", "[✓] CHECK",
-		"→ WAITS T001", "⚠ REPLAN", "! AWAITS OWNER",
+		"→ WAITS T-001", "⚠ REPLAN", "! AWAITS OWNER",
 		"[!] REVIEW", "[✓] OWNER ACCEPTED",
 	} {
 		if !strings.Contains(got, want) {
@@ -43,7 +43,7 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		}
 	}
 
-	// This fixture's build- and test-stage Tasks (T003, T004) have never been
+	// This fixture's build- and test-stage Tasks (T-003, T-004) have never been
 	// checked, so their review outcome is suppressed rather than shown as an
 	// unearned "[ ] CHECK" — see TaskCard.showsReviewOutcome. The pending
 	// "[ ] CHECK" rendering itself is covered where it still belongs, at
@@ -52,7 +52,7 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		t.Errorf("board shows an unearned pending check badge on a build/test-stage card:\n%s", got)
 	}
 
-	// The retired completion vocabulary O012 removes from Task cards must
+	// The retired completion vocabulary O-012 removes from Task cards must
 	// never reappear: the Done column carries completion, and one review
 	// outcome badge carries the rest.
 	for _, retired := range []string{"✓ DONE", "⚠ DONE", "BY EXCEPTION", "BY WAIVER", "Check (stale)", "Check (unverified)"} {
@@ -161,11 +161,11 @@ func TestReloadClampsFocusIntoTheCardsThatRemain(t *testing.T) {
 		t.Fatalf("FocusedCard = %d, want the fourth in-progress card", model.FocusedCard)
 	}
 
-	removeTask(t, root, "O001", "T004")
-	removeTask(t, root, "O001", "T005")
-	removeTask(t, root, "O001", "T006")
-	removeCheck(t, root, "C001")
-	removeCheck(t, root, "C002")
+	removeTask(t, root, "O-001", "T-004")
+	removeTask(t, root, "O-001", "T-005")
+	removeTask(t, root, "O-001", "T-006")
+	removeCheck(t, root, "C-001")
+	removeCheck(t, root, "C-002")
 	reloaded, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
 
 	after := reloaded.(Model)

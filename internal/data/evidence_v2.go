@@ -24,7 +24,7 @@ const (
 // healed value.
 type Freshness struct {
 	State      FreshnessState
-	Check      string // C### this assessment names
+	Check      string // C-### this assessment names
 	AssessedBy Actor
 	AssessedAt time.Time
 	Basis      string
@@ -36,7 +36,7 @@ type Freshness struct {
 // is not required.
 type OwnerValidation struct {
 	Required      bool
-	AcceptedCheck string // optional C### reference
+	AcceptedCheck string // optional C-### reference
 	AcceptedBy    Actor  // required when AcceptedCheck is present
 }
 
@@ -48,7 +48,7 @@ type Exception struct {
 	Reason       string
 	Owner        string
 	RecordedAt   time.Time
-	Check        string // C### this exception applies to
+	Check        string // C-### this exception applies to
 }
 
 // Replan flags that a Task or Objective's plan needs revisiting. It never
@@ -67,7 +67,7 @@ type Replan struct {
 // Check. It applies only to a Task's own evidence — decodeCheckWaiverV2
 // rejects one recorded on an Objective or Release.
 type CheckWaiver struct {
-	Task       string // T### this waiver names; must equal the owning Task's own ID
+	Task       string // T-### this waiver names; must equal the owning Task's own ID
 	Reason     string
 	Actor      Actor // required role: owner
 	RecordedAt time.Time
@@ -79,7 +79,7 @@ type CheckWaiver struct {
 // record carrying none of them decodes to a nil Evidence rather than a
 // defaulted one.
 type Evidence struct {
-	LastCheck       string // optional C### reference to the most recent Check
+	LastCheck       string // optional C-### reference to the most recent Check
 	Freshness       *Freshness
 	OwnerValidation *OwnerValidation
 	Exception       *Exception
@@ -156,8 +156,8 @@ func decodeEvidenceV2(path, recordKind, id string, raw evidenceV2Frontmatter) (*
 	evidence := &Evidence{}
 
 	if raw.LastCheck != "" {
-		if !checkIDPatternV2.MatchString(raw.LastCheck) {
-			return nil, fmt.Errorf("%w: %s: %s %s last_check %q must match C plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.LastCheck)
+		if !matchesV2Identity(raw.LastCheck, 'C') {
+			return nil, fmt.Errorf("%w: %s: %s %s last_check %q must match C- plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.LastCheck)
 		}
 		evidence.LastCheck = raw.LastCheck
 	}
@@ -218,8 +218,8 @@ func decodeFreshnessV2(path, recordKind, id string, raw freshnessV2Frontmatter) 
 	if raw.Check == "" {
 		return nil, fmt.Errorf("%w: %s: %s %s missing required field freshness.check", ErrV2MissingField, path, recordKind, id)
 	}
-	if !checkIDPatternV2.MatchString(raw.Check) {
-		return nil, fmt.Errorf("%w: %s: %s %s freshness.check %q must match C plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
+	if !matchesV2Identity(raw.Check, 'C') {
+		return nil, fmt.Errorf("%w: %s: %s %s freshness.check %q must match C- plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
 	}
 
 	assessedBy, err := decodeV2Actor(ErrV2EvidenceMalformed, path, recordKind, id, "freshness.assessed_by", raw.AssessedBy)
@@ -249,8 +249,8 @@ func decodeFreshnessV2(path, recordKind, id string, raw freshnessV2Frontmatter) 
 }
 
 func decodeOwnerValidationV2(path, recordKind, id string, raw ownerValidationV2Frontmatter) (*OwnerValidation, error) {
-	if raw.AcceptedCheck != "" && !checkIDPatternV2.MatchString(raw.AcceptedCheck) {
-		return nil, fmt.Errorf("%w: %s: %s %s owner_validation.accepted_check %q must match C plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.AcceptedCheck)
+	if raw.AcceptedCheck != "" && !matchesV2Identity(raw.AcceptedCheck, 'C') {
+		return nil, fmt.Errorf("%w: %s: %s %s owner_validation.accepted_check %q must match C- plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.AcceptedCheck)
 	}
 
 	if raw.AcceptedCheck == "" {
@@ -300,8 +300,8 @@ func decodeExceptionV2(path, recordKind, id string, raw exceptionV2Frontmatter) 
 	if raw.Check == "" {
 		return nil, fmt.Errorf("%w: %s: %s %s missing required field exception.check", ErrV2MissingField, path, recordKind, id)
 	}
-	if !checkIDPatternV2.MatchString(raw.Check) {
-		return nil, fmt.Errorf("%w: %s: %s %s exception.check %q must match C plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
+	if !matchesV2Identity(raw.Check, 'C') {
+		return nil, fmt.Errorf("%w: %s: %s %s exception.check %q must match C- plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
 	}
 
 	return &Exception{

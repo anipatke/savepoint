@@ -8,7 +8,7 @@ import (
 
 // This file is the Next area: a one-line glance at the Task the project's
 // resolved projection (data.ResolveNext) is pointing at right now — its
-// lifecycle word, its T### identity, and its title. Nothing more: the rung
+// lifecycle word, its T-### identity, and its title. Nothing more: the rung
 // label, the clearance/owner-wait/dependency evidence, the action sentence,
 // and the Issues summary that used to live here are deliberately not
 // repeated in this compact panel. That fuller narrative remains

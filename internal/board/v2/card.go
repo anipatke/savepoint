@@ -106,7 +106,7 @@ func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string
 // badges is the card's state line: stage, one review outcome, and every
 // blocker that is not already stated by that outcome. The order is fixed so
 // a reader learns one shape. Completion is the Done column's own fact and is
-// never repeated here (see O012, taskReviewOutcomeBadge).
+// never repeated here (see O-012, taskReviewOutcomeBadge).
 func (c TaskCard) badges() []Badge {
 	var badges []Badge
 
@@ -152,12 +152,12 @@ func (c TaskCard) showsReviewOutcome() bool {
 	return reviewOutcomeIsActionable(c.Clearance.State)
 }
 
-// renderCard draws one card at the given outer width: its T### identity, the
+// renderCard draws one card at the given outer width: its T-### identity, the
 // human title its author wrote, and its badges. It reads only the resolved
 // values on the card — no index, no resolver, no Check ID comparison, no
 // freshness inspection, and no dependency evaluation.
 //
-// The title is the card's label. A V2 Task's objective field is an O###
+// The title is the card's label. A V2 Task's objective field is an O-###
 // identity reference, never display language, so there is no fallback to it
 // and no other source for the label: a titleless Task cannot reach here,
 // because DecodeTaskV2 refuses to load one.

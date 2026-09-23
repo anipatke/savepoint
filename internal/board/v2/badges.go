@@ -155,7 +155,7 @@ func taskCheckBadge(clearance data.ClearanceState, waived bool) Badge {
 // badge — deliberately the only one. An earlier version of this row carried
 // a second badge ("INTEGRATED" / "NEEDS INTEGRATION") that restated this same
 // clearance fact in different words once every owned Task was done; that was
-// confusing and was removed rather than reconciled; see I012. Do not
+// confusing and was removed rather than reconciled; see I-012. Do not
 // reintroduce a second badge for Task-completeness — clearance is the one
 // fact this row states about whether an Objective is ready to close, and it
 // states it once.
@@ -192,7 +192,7 @@ func objectiveCheckBadge(clearance data.ClearanceState, byException bool) Badge 
 
 // taskReviewOutcomeBadge is the one review-outcome badge a non-planned Task
 // card shows. It replaces the separate completion-plus-Check composition an
-// earlier version carried (completionBadge, exceptionBadge — see O012):
+// earlier version carried (completionBadge, exceptionBadge — see O-012):
 // completion is now the Done column's own fact, so this badge states review
 // standing alone, at fixed precedence — an owner's recorded risk acceptance
 // (exception) first, an owner's recorded Check waiver second, and the

@@ -15,7 +15,7 @@ func TestRunWithoutTTYLeadsWithNextAndReportsCounts(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if want := "Planned T001 — Do the thing"; !strings.Contains(got, want) {
+	if want := "Planned T-001 — Do the thing"; !strings.Contains(got, want) {
 		t.Errorf("output does not lead with the resolved Task, missing %q:\n%s", want, got)
 	}
 	if !strings.Contains(got, "Objectives: 1  Tasks: 2") {
@@ -31,7 +31,7 @@ func TestRunWithoutTTYLeadsWithNextAndReportsCounts(t *testing.T) {
 
 func TestRunWithoutTTYStripsAuthoredTerminalControls(t *testing.T) {
 	root := writeValidProject(t)
-	writeTask(t, root, "O001", "T001", `\u001b[31mred\u001b[0m\tname`, "status: planned\n")
+	writeTask(t, root, "O-001", "T-001", `\u001b[31mred\u001b[0m\tname`, "status: planned\n")
 
 	var stdout bytes.Buffer
 	if err := Run(Options{Root: root, Stdout: &stdout, TTY: false}); err != nil {
@@ -71,13 +71,13 @@ func TestRunWithoutTTYIncludesTitlesBadgesAndIssueSummary(t *testing.T) {
 	got := stdout.String()
 	for _, want := range []string{
 		"Rechecked after the first run found problems",
-		// T002 is at stored audit (displayed CHECK) with a current, clear Check and nothing else
+		// T-002 is at stored audit (displayed CHECK) with a current, clear Check and nothing else
 		// outstanding: just the stage badge, no completion-outcome badge —
 		// that vocabulary belongs to the Done column (see
 		// TaskCard.showsReviewOutcome).
 		"[◆ CHECK]",
 		"Waiting on the owner to accept",
-		// T006 is at stored audit (displayed CHECK) with the same current, clear Check but owner
+		// T-006 is at stored audit (displayed CHECK) with the same current, clear Check but owner
 		// sign-off still outstanding: the owner blocker is the actionable
 		// fact, shown alone rather than beside a "checked and clear" badge
 		// that would read as a contradiction.
@@ -94,7 +94,7 @@ func TestRunWithoutTTYRendersTheCompleteO900OutcomeSpread(t *testing.T) {
 	root := writeO900OutcomeProject(t)
 	var stdout bytes.Buffer
 
-	if err := Run(Options{Root: root, ObjectiveFilter: "O900", Stdout: &stdout, TTY: false}); err != nil {
+	if err := Run(Options{Root: root, ObjectiveFilter: "O-900", Stdout: &stdout, TTY: false}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -102,10 +102,10 @@ func TestRunWithoutTTYRendersTheCompleteO900OutcomeSpread(t *testing.T) {
 	for _, want := range []string{
 		"PLANNED      4", "IN PROGRESS  4", "DONE         4",
 		"[ ] CHECK", "[✓] CHECK", "[!] NEEDS WORK", "[!] REVIEW",
-		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T001", "REPLAN", "AWAITS OWNER",
+		"[✓] WAIVED", "[✓] OWNER ACCEPTED", "WAITS T-001", "REPLAN", "AWAITS OWNER",
 	} {
 		if !strings.Contains(got, want) {
-			t.Errorf("plain O900-equivalent output missing %q:\n%s", want, got)
+			t.Errorf("plain O-900-equivalent output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -144,19 +144,19 @@ func TestRunObjectiveFilterSelectsAndRejects(t *testing.T) {
 	root := writeValidProject(t)
 
 	var stdout bytes.Buffer
-	if err := Run(Options{Root: root, ObjectiveFilter: "O001", Stdout: &stdout, TTY: false}); err != nil {
+	if err := Run(Options{Root: root, ObjectiveFilter: "O-001", Stdout: &stdout, TTY: false}); err != nil {
 		t.Fatalf("Run() with a known objective error = %v", err)
 	}
 
 	var rejected bytes.Buffer
-	err := Run(Options{Root: root, ObjectiveFilter: "O002", Stdout: &rejected, TTY: false})
+	err := Run(Options{Root: root, ObjectiveFilter: "O-002", Stdout: &rejected, TTY: false})
 	if err == nil {
 		t.Fatal("Run() error = nil, want an unknown --objective refused")
 	}
-	if !strings.Contains(err.Error(), "--objective O002") {
+	if !strings.Contains(err.Error(), "--objective O-002") {
 		t.Errorf("error = %q, want the flag and the value it was given named", err.Error())
 	}
-	if strings.Contains(err.Error(), "O001") {
+	if strings.Contains(err.Error(), "O-001") {
 		t.Errorf("error = %q, want nothing guessed at in place of the named objective", err.Error())
 	}
 	if rejected.Len() != 0 {
@@ -174,17 +174,17 @@ func TestRunWithoutTTYCountsOnlyTheSelectedObjectivesTasks(t *testing.T) {
 	if err := Run(Options{Root: root, Stdout: &fromRouter, TTY: false}); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	for _, want := range []string{"Tasks: 4", "Selected: O003", "PLANNED      2", "DONE         0"} {
+	for _, want := range []string{"Tasks: 4", "Selected: O-003", "PLANNED      2", "DONE         0"} {
 		if !strings.Contains(fromRouter.String(), want) {
 			t.Errorf("output is missing %q:\n%s", want, fromRouter.String())
 		}
 	}
 
 	var fromFlag bytes.Buffer
-	if err := Run(Options{Root: root, ObjectiveFilter: "O001", Stdout: &fromFlag, TTY: false}); err != nil {
+	if err := Run(Options{Root: root, ObjectiveFilter: "O-001", Stdout: &fromFlag, TTY: false}); err != nil {
 		t.Fatalf("Run() with --objective error = %v", err)
 	}
-	for _, want := range []string{"Selected: O001", "PLANNED      0", "DONE         1"} {
+	for _, want := range []string{"Selected: O-001", "PLANNED      0", "DONE         1"} {
 		if !strings.Contains(fromFlag.String(), want) {
 			t.Errorf("output does not count only the flagged Objective's Tasks, missing %q:\n%s", want, fromFlag.String())
 		}
@@ -197,12 +197,12 @@ func TestRunWithoutTTYCountsOnlyTheSelectedObjectivesTasks(t *testing.T) {
 func TestUpdateUnknownObjectiveFilterQuitsWithError(t *testing.T) {
 	root := writeValidProject(t)
 
-	model := openBoard(t, root, "O002")
+	model := openBoard(t, root, "O-002")
 
 	if model.FatalErr == nil {
 		t.Fatal("FatalErr = nil, want the unknown --objective refused")
 	}
-	if !strings.Contains(model.FatalErr.Error(), "--objective O002") {
+	if !strings.Contains(model.FatalErr.Error(), "--objective O-002") {
 		t.Errorf("FatalErr = %q, want the flag named", model.FatalErr.Error())
 	}
 }
@@ -210,13 +210,13 @@ func TestUpdateUnknownObjectiveFilterQuitsWithError(t *testing.T) {
 func TestUpdateObjectiveFilterSelectsThatObjective(t *testing.T) {
 	root := writeValidProject(t)
 
-	model := openBoard(t, root, "O001")
+	model := openBoard(t, root, "O-001")
 
 	if model.FatalErr != nil {
 		t.Fatalf("FatalErr = %v, want a known objective accepted", model.FatalErr)
 	}
-	if model.SelectedObjective != "O001" {
-		t.Errorf("SelectedObjective = %q, want O001", model.SelectedObjective)
+	if model.SelectedObjective != "O-001" {
+		t.Errorf("SelectedObjective = %q, want O-001", model.SelectedObjective)
 	}
 }
 
@@ -225,7 +225,7 @@ func TestUpdateObjectiveFilterSelectsThatObjective(t *testing.T) {
 // projection's own selection diagnostic as the report.
 func TestUpdateRouterSelectionThatNoLongerResolvesSelectsNothing(t *testing.T) {
 	root := writeValidProject(t)
-	writeRouter(t, root, "design", "O009", "")
+	writeRouter(t, root, "design", "O-009", "")
 
 	model := openBoard(t, root, "")
 

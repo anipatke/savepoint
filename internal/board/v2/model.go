@@ -50,7 +50,7 @@ type Model struct {
 	// Objectives and their Tasks are derived from the loaded index; changing
 	// this value never changes a lifecycle record.
 	SelectedRelease string
-	// Releases is the stable, ascending list of live R### identities offered
+	// Releases is the stable, ascending list of live R-### identities offered
 	// by the selector. Titles remain on the indexed records and are looked up
 	// only when the selector renders.
 	Releases      []string
@@ -66,7 +66,7 @@ type Model struct {
 	releaseRollback      *reloadSnapshot
 	preserveReloadStatus bool
 
-	// Objectives are the sidebar's rows in stable O### order, each carrying the
+	// Objectives are the sidebar's rows in stable O-### order, each carrying the
 	// values its badges read. Like Cards they are rebuilt by every load.
 	Objectives []ObjectiveRow
 	// ObjectiveCursor is the sidebar's cursor. Like the card cursor it selects

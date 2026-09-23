@@ -14,37 +14,37 @@ An Issue is a record, not a phase: durable follow-up is captured from wherever i
 Write each Issue file with this structure:
 
 ```yaml
-id: I###
+id: I-###
 title: Issue Title
 type: defect|drift|guardrail|verification|other
 status: open|in_progress|resolved
 source:
   kind: check|report|migration
-  check: optional-C###
+  check: optional-C-###
   actor: {role: ..., session: ...}
   at: '2026-09-19T00:00:00Z'
-tasks: [T###]
-checks: [C###]
+tasks: [T-###]
+checks: [C-###]
 guardrail_ids: [RULE-ID]
 severity: optional
 resolution:
   disposition: verified|accepted|duplicate|escalated
-  check: optional-C###
+  check: optional-C-###
   actor: {role: ..., session: ...}
   at: '2026-09-19T00:00:00Z'
   reason: optional
-duplicate_of: optional-I###
-escalated_to: optional-O###
+duplicate_of: optional-I-###
+escalated_to: optional-O-###
 history:
   - at: '2026-09-19T00:00:00Z'
     actor: {role: ..., session: ...}
     kind: observed
     note: optional
-    check: optional-C###
+    check: optional-C-###
 ```
 
 ```markdown
-# I###: Issue Title
+# I-###: Issue Title
 
 ## Summary
 
@@ -63,7 +63,7 @@ or, when a Release exists, the mandatory Release Check.
 
 ## Search Before Creating
 
-Before allocating an `I###`, look for an existing Issue matching the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed: nothing in Savepoint runs a matching pass for you, so this search is a manual step every capture takes before naming a new ID.
+Before allocating an `I-###`, look for an existing Issue matching the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed: nothing in Savepoint runs a matching pass for you, so this search is a manual step every capture takes before naming a new ID.
 
 ## Resolution Dispositions
 
@@ -74,11 +74,11 @@ A resolved Issue records exactly one disposition:
 - **duplicate** — the same problem as another, canonical Issue. It names that Issue and proves nothing itself.
 - **escalated** — the Issue's repair was promoted into a tracked Objective. It names that Objective in `escalated_to` and proves nothing itself; the Objective's own mandatory Check and owner acceptance carry the proof from here, not a later re-verification of this Issue.
 
-Reopening a recurring problem reuses the same `I###` with new, dated evidence rather than allocating a new ID.
+Reopening a recurring problem reuses the same `I-###` with new, dated evidence rather than allocating a new ID.
 
 ## Escalation Retires The Issue
 
-When an Issue's repair becomes a new Objective — not a Task inside the current Objective, but an Objective of its own — retire the Issue immediately rather than leaving it open until that Objective's work is later verified: set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O###, actor: {role: planner, ...}, ...}`, and append a `kind: escalated` history entry naming the Objective. Escalation does not require Check proof at closure time: the promoted Objective carries its own mandatory Full Objective Check and owner acceptance. An owner-directed `accepted` resolution also closes without Check proof, while making no technical clearance claim. `savepoint-design` performs this closure at the moment it plans the remediation Objective; owner-directed `accepted` closure is the other path that needs no Check proof.
+When an Issue's repair becomes a new Objective — not a Task inside the current Objective, but an Objective of its own — retire the Issue immediately rather than leaving it open until that Objective's work is later verified: set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O-###, actor: {role: planner, ...}, ...}`, and append a `kind: escalated` history entry naming the Objective. Escalation does not require Check proof at closure time: the promoted Objective carries its own mandatory Full Objective Check and owner acceptance. An owner-directed `accepted` resolution also closes without Check proof, while making no technical clearance claim. `savepoint-design` performs this closure at the moment it plans the remediation Objective; owner-directed `accepted` closure is the other path that needs no Check proof.
 
 ## History Is Append-Only
 

@@ -121,8 +121,8 @@ func TestConvertObjective_activeEpicFields(t *testing.T) {
 		wantRelease   string
 		wantDependsOn []string
 	}{
-		{fixture: "v1-basic", wantTitle: "Epic E01: Example", wantStatus: data.ColumnInProgress, wantRelease: "R001"},
-		{fixture: "v1-history", wantTitle: "Epic E01: Example (v1.1 continuation)", wantStatus: data.ColumnInProgress, wantRelease: "R002"},
+		{fixture: "v1-basic", wantTitle: "Epic E01: Example", wantStatus: data.ColumnInProgress, wantRelease: "R-001"},
+		{fixture: "v1-history", wantTitle: "Epic E01: Example (v1.1 continuation)", wantStatus: data.ColumnInProgress, wantRelease: "R-002"},
 	}
 
 	for _, tc := range cases {
@@ -217,7 +217,7 @@ func TestConvertObjective_unauditedEpicWithAllTasksDone(t *testing.T) {
 }
 
 // TestConvertObjective_dependsOnMapsToAllocatedObjective proves a declared V1
-// epic dependency resolves to the depended-on epic's allocated O###, and that
+// epic dependency resolves to the depended-on epic's allocated O-###, and that
 // an unresolvable reference is refused rather than silently dropped.
 func TestConvertObjective_dependsOnMapsToAllocatedObjective(t *testing.T) {
 	root := t.TempDir()
@@ -344,6 +344,29 @@ func TestConvertTask_activeFields(t *testing.T) {
 	})
 }
 
+func TestOwnerObjectiveID_extractsHyphenatedIDs(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+		ok   bool
+	}{
+		{"objectives/O-001-example/tasks/T-001-work", "O-001", true},
+		{"objectives/O-1234-example/tasks/T-001-work", "O-1234", true},
+		{"objectives/O-01-example/tasks/T-001-work", "", false},
+		{"objectives/O-abc-example/tasks/T-001-work", "", false},
+		{"tasks/T-001-work", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got, ok := ownerObjectiveID(tt.path)
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("ownerObjectiveID(%q) = (%q, %t), want (%q, %t)", tt.path, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 // TestConvertTask_legacyPrerequisiteLine proves a Task whose V1 dependency
 // was an archived, completed Task carries an authored line naming the
 // archive path and the recorded completion evidence.
@@ -396,9 +419,9 @@ func TestConvertTask_unrecognizedStatusRefusesRatherThanHeals(t *testing.T) {
 
 	target := PlannedTarget{
 		Kind:       TargetTask,
-		GlobalID:   "T001",
+		GlobalID:   "T-001",
 		Legacy:     LegacyKey{Release: "v1", Epic: "E01-x", Path: rel, OriginalID: "E01-x/T001-bad"},
-		TargetPath: "objectives/O001-x/tasks/T001-bad",
+		TargetPath: "objectives/O-001-x/tasks/T-001-bad",
 	}
 	_, err = ConvertTask(root, &ConversionPlan{}, target)
 	if !errors.Is(err, ErrAmbiguousLifecycle) {
@@ -418,9 +441,9 @@ func TestConvertTask_unrecognizedStageRefusesRatherThanHeals(t *testing.T) {
 
 	target := PlannedTarget{
 		Kind:       TargetTask,
-		GlobalID:   "T001",
+		GlobalID:   "T-001",
 		Legacy:     LegacyKey{Release: "v1", Epic: "E01-x", Path: rel, OriginalID: "E01-x/T001-bad"},
-		TargetPath: "objectives/O001-x/tasks/T001-bad",
+		TargetPath: "objectives/O-001-x/tasks/T-001-bad",
 	}
 	_, err := ConvertTask(root, &ConversionPlan{}, target)
 	if !errors.Is(err, ErrAmbiguousLifecycle) {

@@ -15,7 +15,7 @@ func nextPanelText(next data.Next) string {
 }
 
 // TestNextPanelNamesTheTasksStageIdentityAndTitle proves the compact panel's
-// whole content for a selected Task: its lifecycle word, its T### identity,
+// whole content for a selected Task: its lifecycle word, its T-### identity,
 // and its title, in that order, on one line — nothing else. "Audit" never
 // appears; a Task at that stage reads "Check" (see taskStageWord/stageLabel).
 func TestNextPanelNamesTheTasksStageIdentityAndTitle(t *testing.T) {
@@ -24,11 +24,11 @@ func TestNextPanelNamesTheTasksStageIdentityAndTitle(t *testing.T) {
 		task *data.TaskV2
 		want string
 	}{
-		{"planned", &data.TaskV2{ID: "T001", Title: "Do the thing", Status: data.ColumnPlanned}, "Planned T001 — Do the thing"},
-		{"build", &data.TaskV2{ID: "T002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}, "Build T002 — Build it"},
-		{"test", &data.TaskV2{ID: "T003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}, "Test T003 — Test it"},
-		{"audit stage reads as Check", &data.TaskV2{ID: "T004", Title: "Prove it", Status: data.ColumnInProgress, Stage: data.StageAudit}, "Check T004 — Prove it"},
-		{"done", &data.TaskV2{ID: "T005", Title: "Shipped it", Status: data.ColumnDone}, "Done T005 — Shipped it"},
+		{"planned", &data.TaskV2{ID: "T-001", Title: "Do the thing", Status: data.ColumnPlanned}, "Planned T-001 — Do the thing"},
+		{"build", &data.TaskV2{ID: "T-002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}, "Build T-002 — Build it"},
+		{"test", &data.TaskV2{ID: "T-003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}, "Test T-003 — Test it"},
+		{"audit stage reads as Check", &data.TaskV2{ID: "T-004", Title: "Prove it", Status: data.ColumnInProgress, Stage: data.StageAudit}, "Check T-004 — Prove it"},
+		{"done", &data.TaskV2{ID: "T-005", Title: "Shipped it", Status: data.ColumnDone}, "Done T-005 — Shipped it"},
 	}
 
 	for _, tc := range cases {
@@ -48,9 +48,9 @@ func TestNextPanelNamesTheTasksStageIdentityAndTitle(t *testing.T) {
 // with no Task of their own — Objective integration, planning a first
 // Objective — which name the Objective by ID and title instead.
 func TestNextPanelFallsBackToTheObjectiveWithNoTaskSelected(t *testing.T) {
-	objective := &data.ObjectiveV2{ID: "O001", Title: "Ship the board"}
+	objective := &data.ObjectiveV2{ID: "O-001", Title: "Ship the board"}
 	got := nextPanelText(data.Next{Kind: data.NextObjectiveIntegration, Objective: objective})
-	if want := "O001 — Ship the board"; got != want {
+	if want := "O-001 — Ship the board"; got != want {
 		t.Errorf("nextPanelText() = %q, want %q", got, want)
 	}
 }
@@ -82,7 +82,7 @@ func TestNextAreaIgnoresTheSidebarSelection(t *testing.T) {
 	model := openSizedBoard(t, writeNavigationProject(t), 120, 48)
 	before := xansi.Strip(model.renderNext(120))
 
-	for _, objective := range []string{"O001", "O005", ""} {
+	for _, objective := range []string{"O-001", "O-005", ""} {
 		model.selectObjective(objective)
 		if got := xansi.Strip(model.renderNext(120)); got != before {
 			t.Errorf("selecting %q moved the Next area:\nbefore:\n%s\nafter:\n%s", objective, before, got)
@@ -99,7 +99,7 @@ func TestNextAreaTracksOnlyTheProjection(t *testing.T) {
 	model := openBoard(t, writeValidProject(t), "")
 	before := xansi.Strip(model.renderNext(100))
 
-	if !strings.Contains(before, "T001 — Do the thing") {
+	if !strings.Contains(before, "T-001 — Do the thing") {
 		t.Fatalf("the Next area does not name the projection's own Task:\n%s", before)
 	}
 

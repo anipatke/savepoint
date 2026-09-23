@@ -30,9 +30,9 @@ func TestV2ArtifactTemplatesDecodeThroughTypedContracts(t *testing.T) {
 		check := readProvenanceContractSource(t, checkPath)
 		checkYAML := provenanceArtifactFence(t, check, "executed_session: build-001")
 		checkYAML = strings.NewReplacer(
-			"C###", "C001",
+			"C-###", "C-001",
 			"task|objective|release", "task",
-			"T###, O###, or R###", "T001",
+			"T-###, O-###, or R-###", "T-001",
 			"CLEAR|NEEDS WORK", "CLEAR",
 		).Replace(checkYAML)
 		checkContent := "---\n" + strings.TrimSpace(checkYAML) + "\n---\n\n# Check\n"

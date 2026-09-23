@@ -330,8 +330,8 @@ func TestSavepointDesignSkillObjectiveTemplate(t *testing.T) {
 		if !strings.Contains(content, "status: planned|in_progress|done") {
 			t.Errorf("%s: %s Objective template does not constrain status to planned|in_progress|done", tree, path)
 		}
-		if !strings.Contains(content, "depends_on: [O###]") {
-			t.Errorf("%s: %s Objective template does not show depends_on: [O###]", tree, path)
+		if !strings.Contains(content, "depends_on: [O-###]") {
+			t.Errorf("%s: %s Objective template does not show depends_on: [O-###]", tree, path)
 		}
 		for _, heading := range designObjectiveBodySections {
 			if !strings.Contains(content, "## "+heading) {
@@ -365,8 +365,8 @@ func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
 				t.Errorf("%s: %s Task template missing frontmatter field %q", tree, path, field)
 			}
 		}
-		if !strings.Contains(content, "depends_on: [{task: T013, requires: clear}]") {
-			t.Errorf("%s: %s Task template does not show depends_on in {task: T###, requires: clear} form", tree, path)
+		if !strings.Contains(content, "depends_on: [{task: T-013, requires: clear}]") {
+			t.Errorf("%s: %s Task template does not show depends_on in {task: T-###, requires: clear} form", tree, path)
 		}
 		if !strings.Contains(content, "owner_validation: {required: true}") {
 			t.Errorf("%s: %s Task template does not show owner_validation: {required: true|false}", tree, path)
@@ -395,8 +395,8 @@ func TestSavepointDesignSkillTaskTitleNoReuseRule(t *testing.T) {
 		if !strings.Contains(content, "must never be the Outcome text, a truncation of it, or a restatement of the technical objective") {
 			t.Errorf("%s: %s does not state the title no-reuse rule", tree, path)
 		}
-		if !strings.Contains(content, "always an `O###` reference to the owning Objective, never free text") {
-			t.Errorf("%s: %s does not document objective as an O### reference, never free text", tree, path)
+		if !strings.Contains(content, "always an `O-###` reference to the owning Objective, never free text") {
+			t.Errorf("%s: %s does not document objective as an O-### reference, never free text", tree, path)
 		}
 		if !strings.Contains(content, "every Task belongs to exactly one Objective") {
 			t.Errorf("%s: %s does not state one-Objective Task membership", tree, path)
@@ -869,7 +869,7 @@ func TestSavepointCheckSkillWriteBoundaryAndForbiddenActions(t *testing.T) {
 	}
 }
 
-var checkTemplateFields = []string{"id: C###", "scope: {kind: task|objective|release, id:", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
+var checkTemplateFields = []string{"id: C-###", "scope: {kind: task|objective|release, id:", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
 
 func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
@@ -961,9 +961,9 @@ func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
 		design := string(readSkillFile(t, root, "savepoint-design"))
 		for _, phrase := range []string{
 			"## Optional Release Boundary",
-			"stable global `R###` identity from the first unused number",
+			"stable global `R-###` identity from the first unused number",
 			"Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
-			"one optional `release: R###` field",
+			"one optional `release: R-###` field",
 			"do not maintain a second membership list",
 			"continue through Idea → Design → Task → Check with no missing-record error or extra phase",
 			"current CLEAR integration evidence exists",
@@ -979,7 +979,7 @@ func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
 
 		check := string(readSkillFile(t, root, "savepoint-check"))
 		for _, phrase := range []string{
-			"scope: {kind: task|objective|release, id: T###, O###, or R###}",
+			"scope: {kind: task|objective|release, id: T-###, O-###, or R-###}",
 			"cross-Objective integration",
 			"creates or reuses ordinary Issues",
 			"never records owner acceptance on the owner's behalf",
@@ -1175,7 +1175,7 @@ func TestSharedIssueCaptureDispositionsAndHistory(t *testing.T) {
 			"proven by a Check that recorded `CLEAR`",
 			"owner decision, not a `CLEAR` Check or independent proof",
 			"names that Issue and proves nothing itself",
-			"reuses the same `I###` with new, dated evidence",
+			"reuses the same `I-###` with new, dated evidence",
 			"{at, actor, kind, note, check}",
 			"shortens, reorders, or edits a recorded entry is refused",
 			"not a fourth lifecycle state",

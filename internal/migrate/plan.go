@@ -79,7 +79,7 @@ type PlannedTarget struct {
 	DependsOn []string
 	// DuplicateOfGlobalID is set only for a TargetIssue planned from a
 	// `duplicate` finding whose canonical finding also converts: the
-	// allocated I### of that canonical Issue. Empty for every other target,
+	// allocated I-### of that canonical Issue. Empty for every other target,
 	// including a duplicate finding whose canonical is archive-only (that
 	// duplicate is archived too; see planFinding).
 	DuplicateOfGlobalID string
@@ -157,7 +157,7 @@ type PlannedDocument struct {
 // recorded and resolvable, but it is never a fabricated depends_on entry and
 // never a fabricated Check.
 type LegacyPrerequisite struct {
-	Task        string // the new T### that named the archived work as a dependency
+	Task        string // the new T-### that named the archived work as a dependency
 	ArchivePath string
 	Evidence    string // the original recorded completion (or waiver) evidence, best-effort from the source
 }
@@ -419,7 +419,7 @@ func newIDAllocator() *idAllocator {
 func (a *idAllocator) allocate(prefix string) string {
 	n := a.next[prefix]
 	for {
-		id := fmt.Sprintf("%s%03d", prefix, n)
+		id := fmt.Sprintf("%s-%03d", prefix, n)
 		if !a.reserved(id) {
 			a.next[prefix] = n + 1
 			return id
@@ -464,15 +464,15 @@ type planBuilder struct {
 	taskByLegacyPath map[string]plannedTaskOutcome
 	// issueByFindingID tracks whether a given finding ID converted to an
 	// Issue, so a duplicate finding can tell whether its canonical did too.
-	issueByFindingID map[string]string // finding ID -> allocated I### (absent = archived)
+	issueByFindingID map[string]string // finding ID -> allocated I-### (absent = archived)
 	// taskIdentitySeen tracks the first source path to declare a given task
 	// ID within one release+epic scope, so a second file declaring the same
 	// ID raises AmbiguityDuplicateSourceIdentity instead of silently
 	// shadowing or overwriting the first.
 	taskIdentitySeen map[string]string // "release/epic/originalID" -> first source path
 	// releaseIDs is the one source-qualified mapping from a V1 release
-	// directory name to its allocated V2 R### identity. Objectives and router
-	// selections use this map; they never derive an R### independently.
+	// directory name to its allocated V2 R-### identity. Objectives and router
+	// selections use this map; they never derive an R-### independently.
 	releaseIDs map[string]string
 }
 
@@ -508,7 +508,7 @@ func (b *planBuilder) build() error {
 
 	// Pass 0: every release and its PRD are resolved before any Objective is
 	// planned. This makes the Objective release edge a lookup to the same
-	// allocated R### target rather than a second interpretation of the source.
+	// allocated R-### target rather than a second interpretation of the source.
 	for _, release := range releases {
 		if err := b.planRelease(release.ID); err != nil {
 			return err
@@ -594,7 +594,7 @@ type releaseRawFrontmatter struct {
 	Status string `yaml:"status"`
 }
 
-// planRelease allocates one stable R### for one source release and gives its
+// planRelease allocates one stable R-### for one source release and gives its
 // PRD both a live Release destination and an exact-byte archive destination.
 // A missing PRD in the old container-only shape has no promise to convert.
 // A duplicated PRD is a blocking source-identity ambiguity: the planner does

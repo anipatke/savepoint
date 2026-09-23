@@ -26,9 +26,9 @@ const (
 // ResolveSelection.
 type RouterStateV2 struct {
 	State      RouterPhaseV2
-	Release    string // R### selection, or empty when no Release is selected
-	Objective  string // O### selection, or empty when none is selected
-	Task       string // T### selection, or empty when none is selected
+	Release    string // R-### selection, or empty when no Release is selected
+	Objective  string // O-### selection, or empty when none is selected
+	Task       string // T-### selection, or empty when none is selected
 	NextAction string
 }
 
@@ -48,7 +48,7 @@ type routerV2Frontmatter struct {
 // ReadStateV2 decodes the "## Current state" anchor into a V2 RouterStateV2.
 // It reuses extractStateBlock's anchor-finding — the same heading and fenced
 // ```yaml block the V1 reader locates — and then decodes strictly (DATA-03):
-// an unrecognized or empty state, a malformed R###/O###/T### selection, a task
+// an unrecognized or empty state, a malformed R-###/O-###/T-### selection, a task
 // selected without an objective, and an unknown key each return a named
 // diagnostic instead of a healed default. Decoding performs no filesystem
 // write and no repair of content.
@@ -74,18 +74,18 @@ func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 	}
 
 	release := normalizeRouterSelectionV2(fields.Release)
-	if release != "" && !releaseIDPatternV2.MatchString(release) {
-		return nil, fmt.Errorf("%w: router release %q must be a single R### selection", ErrV2InvalidID, fields.Release)
+	if release != "" && !matchesV2Identity(release, 'R') {
+		return nil, fmt.Errorf("%w: router release %q must be a single R-### selection", ErrV2InvalidID, fields.Release)
 	}
 
 	objective := normalizeRouterSelectionV2(fields.Objective)
-	if objective != "" && !objectiveIDPattern.MatchString(objective) {
-		return nil, fmt.Errorf("%w: router objective %q must be a single O### selection", ErrV2InvalidID, fields.Objective)
+	if objective != "" && !matchesV2Identity(objective, 'O') {
+		return nil, fmt.Errorf("%w: router objective %q must be a single O-### selection", ErrV2InvalidID, fields.Objective)
 	}
 
 	task := normalizeRouterSelectionV2(fields.Task)
-	if task != "" && !taskIDPatternV2.MatchString(task) {
-		return nil, fmt.Errorf("%w: router task %q must be a single T### selection", ErrV2InvalidID, fields.Task)
+	if task != "" && !matchesV2Identity(task, 'T') {
+		return nil, fmt.Errorf("%w: router task %q must be a single T-### selection", ErrV2InvalidID, fields.Task)
 	}
 
 	if task != "" && objective == "" {

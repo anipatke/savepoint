@@ -14,11 +14,11 @@ import (
 // exactly the one field it is about, instead of restating the whole schema.
 func issueFixture(overrides map[string]string) string {
 	fields := map[string]string{
-		"id":     "I001",
+		"id":     "I-001",
 		"title":  "\"Follow-up that outlives one evaluation\"",
 		"type":   "defect",
 		"status": "open",
-		"source": "{kind: check, check: C001, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z'}",
+		"source": "{kind: check, check: C-001, actor: {role: checker, session: sess-1}, at: '2026-09-15T00:00:00Z'}",
 	}
 	order := []string{"id", "title", "type", "status", "stage", "source", "tasks", "checks",
 		"guardrail_ids", "severity", "resolution", "duplicate_of", "history"}
@@ -40,40 +40,40 @@ func issueFixture(overrides map[string]string) string {
 
 func TestDecodeIssueV2_valid(t *testing.T) {
 	content := `---
-id: I001
+id: I-001
 title: "Router drifts from its documented state table"
 type: drift
 status: resolved
 source:
   kind: check
-  check: C001
+  check: C-001
   actor: {role: checker, session: sess-1}
   at: '2026-09-15T00:00:00Z'
-tasks: [T001, T002]
-checks: [C001, C002]
+tasks: [T-001, T-002]
+checks: [C-001, C-002]
 guardrail_ids: [DATA-02, STYLE-07]
 severity: high
 resolution:
   disposition: verified
-  check: C002
+  check: C-002
   actor: {role: checker, session: sess-2}
   at: '2026-09-16T00:00:00Z'
   reason: repaired and rechecked
-duplicate_of: I002
+duplicate_of: I-002
 history:
   - {at: '2026-09-15T00:00:00Z', actor: {role: checker, session: sess-1}, kind: observed, note: first seen}
-  - {at: '2026-09-16T00:00:00Z', actor: {role: checker, session: sess-2}, kind: rechecked, check: C002}
+  - {at: '2026-09-16T00:00:00Z', actor: {role: checker, session: sess-2}, kind: rechecked, check: C-002}
 ---
 
 # Issue`
 
-	issue, err := DecodeIssueV2("issues/I001-router-drift.md", content)
+	issue, err := DecodeIssueV2("issues/I-001-router-drift.md", content)
 	if err != nil {
 		t.Fatalf("DecodeIssueV2() error = %v", err)
 	}
 
-	if issue.ID != "I001" {
-		t.Errorf("ID = %q, want I001", issue.ID)
+	if issue.ID != "I-001" {
+		t.Errorf("ID = %q, want I-001", issue.ID)
 	}
 	if issue.Title != "Router drifts from its documented state table" {
 		t.Errorf("Title = %q, want the recorded title", issue.Title)
@@ -87,7 +87,7 @@ history:
 
 	wantOrigin := IssueOrigin{
 		Kind:  IssueOriginCheck,
-		Check: "C001",
+		Check: "C-001",
 		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"},
 		At:    mustParseTime(t, "2026-09-15T00:00:00Z"),
 	}
@@ -95,11 +95,11 @@ history:
 		t.Errorf("Origin = %+v, want %+v", issue.Origin, wantOrigin)
 	}
 
-	if len(issue.Tasks) != 2 || issue.Tasks[0] != "T001" || issue.Tasks[1] != "T002" {
-		t.Errorf("Tasks = %v, want [T001 T002]", issue.Tasks)
+	if len(issue.Tasks) != 2 || issue.Tasks[0] != "T-001" || issue.Tasks[1] != "T-002" {
+		t.Errorf("Tasks = %v, want [T-001 T-002]", issue.Tasks)
 	}
-	if len(issue.Checks) != 2 || issue.Checks[0] != "C001" || issue.Checks[1] != "C002" {
-		t.Errorf("Checks = %v, want [C001 C002]", issue.Checks)
+	if len(issue.Checks) != 2 || issue.Checks[0] != "C-001" || issue.Checks[1] != "C-002" {
+		t.Errorf("Checks = %v, want [C-001 C-002]", issue.Checks)
 	}
 	if len(issue.GuardrailIDs) != 2 || issue.GuardrailIDs[0] != "DATA-02" {
 		t.Errorf("GuardrailIDs = %v, want [DATA-02 STYLE-07]", issue.GuardrailIDs)
@@ -107,15 +107,15 @@ history:
 	if issue.Severity != "high" {
 		t.Errorf("Severity = %q, want high", issue.Severity)
 	}
-	if issue.DuplicateOf != "I002" {
-		t.Errorf("DuplicateOf = %q, want I002", issue.DuplicateOf)
+	if issue.DuplicateOf != "I-002" {
+		t.Errorf("DuplicateOf = %q, want I-002", issue.DuplicateOf)
 	}
 
 	if issue.Resolution == nil {
 		t.Fatal("Resolution = nil, want the decoded resolution block")
 	}
-	if issue.Resolution.Disposition != IssueDispositionVerified || issue.Resolution.Check != "C002" {
-		t.Errorf("Resolution = %+v, want verified proved by C002", issue.Resolution)
+	if issue.Resolution.Disposition != IssueDispositionVerified || issue.Resolution.Check != "C-002" {
+		t.Errorf("Resolution = %+v, want verified proved by C-002", issue.Resolution)
 	}
 	if issue.Resolution.Actor != (Actor{Role: ActorRoleChecker, Session: "sess-2"}) {
 		t.Errorf("Resolution.Actor = %+v, want {checker sess-2}", issue.Resolution.Actor)
@@ -133,8 +133,8 @@ history:
 	if issue.History[0].Kind != IssueHistoryObserved || issue.History[0].Note != "first seen" {
 		t.Errorf("History[0] = %+v, want the observed entry first", issue.History[0])
 	}
-	if issue.History[1].Kind != IssueHistoryRechecked || issue.History[1].Check != "C002" {
-		t.Errorf("History[1] = %+v, want the rechecked entry naming C002", issue.History[1])
+	if issue.History[1].Kind != IssueHistoryRechecked || issue.History[1].Check != "C-002" {
+		t.Errorf("History[1] = %+v, want the rechecked entry naming C-002", issue.History[1])
 	}
 	if !issue.History[0].At.Before(issue.History[1].At) {
 		t.Errorf("History order = %v then %v, want recorded order preserved", issue.History[0].At, issue.History[1].At)
@@ -145,7 +145,7 @@ history:
 // was never recorded decodes as absent rather than as a permissive default
 // that would read as a deliberate declaration.
 func TestDecodeIssueV2_absentOptionalsStayAbsent(t *testing.T) {
-	issue, err := DecodeIssueV2("issues/I001-minimal.md", issueFixture(nil))
+	issue, err := DecodeIssueV2("issues/I-001-minimal.md", issueFixture(nil))
 	if err != nil {
 		t.Fatalf("DecodeIssueV2() error = %v", err)
 	}
@@ -171,9 +171,11 @@ func TestDecodeIssueV2_malformedID(t *testing.T) {
 	}{
 		{"missing digits", "I"},
 		{"too few digits", "I01"},
-		{"wrong prefix letter", "C001"},
+		{"unhyphenated identity", "I001"},
+		{"hyphenated but too few digits", "I-01"},
+		{"wrong prefix letter", "C-001"},
 		{"lowercase prefix", "i001"},
-		{"trailing garbage", "I001x"},
+		{"trailing garbage", "I-001x"},
 		{"empty", ""},
 	}
 
@@ -286,11 +288,11 @@ func TestDecodeIssueV2_source(t *testing.T) {
 		wantErr error
 	}{
 		{"missing block", "", ErrV2MissingField},
-		{"missing kind", "{check: C001, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2MissingField},
+		{"missing kind", "{check: C-001, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2MissingField},
 		{"unknown kind", "{kind: audit, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2IssueMalformed},
 		{"check kind without a check", "{kind: check, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2MissingField},
-		{"check kind with a malformed check", "{kind: check, check: T001, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2InvalidID},
-		{"report kind naming a check", "{kind: report, check: C001, actor: {role: owner, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2IssueMalformed},
+		{"check kind with a malformed check", "{kind: check, check: T-001, actor: {role: checker, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2InvalidID},
+		{"report kind naming a check", "{kind: report, check: C-001, actor: {role: owner, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2IssueMalformed},
 		{"missing actor role", "{kind: report, actor: {session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2MissingField},
 		{"unknown actor role", "{kind: report, actor: {role: reviewer, session: s}, at: '2026-09-15T00:00:00Z'}", ErrV2IssueMalformed},
 		{"missing actor session", "{kind: report, actor: {role: owner}, at: '2026-09-15T00:00:00Z'}", ErrV2MissingField},
@@ -333,11 +335,11 @@ func TestDecodeIssueV2_identityReferences(t *testing.T) {
 		name      string
 		overrides map[string]string
 	}{
-		{"task reference with a check id", map[string]string{"tasks": "[C001]"}},
+		{"task reference with a check id", map[string]string{"tasks": "[C-001]"}},
 		{"task reference with too few digits", map[string]string{"tasks": "[T01]"}},
-		{"check reference with a task id", map[string]string{"checks": "[T001]"}},
-		{"check reference with an issue id", map[string]string{"checks": "[I001]"}},
-		{"duplicate_of with a task id", map[string]string{"duplicate_of": "T001"}},
+		{"check reference with a task id", map[string]string{"checks": "[T-001]"}},
+		{"check reference with an issue id", map[string]string{"checks": "[I-001]"}},
+		{"duplicate_of with a task id", map[string]string{"duplicate_of": "T-001"}},
 	}
 
 	for _, tt := range tests {
@@ -391,7 +393,7 @@ func TestDecodeIssueV2_resolutionShape(t *testing.T) {
 	}{
 		{"missing disposition", "{actor: {role: checker, session: s}, at: '2026-09-16T00:00:00Z'}", ErrV2MissingField},
 		{"unknown disposition", "{disposition: closed, actor: {role: checker, session: s}, at: '2026-09-16T00:00:00Z'}", ErrV2IssueMalformed},
-		{"malformed proof check", "{disposition: verified, check: I001, actor: {role: checker, session: s}, at: '2026-09-16T00:00:00Z'}", ErrV2InvalidID},
+		{"malformed proof check", "{disposition: verified, check: I-001, actor: {role: checker, session: s}, at: '2026-09-16T00:00:00Z'}", ErrV2InvalidID},
 		{"missing actor", "{disposition: verified, at: '2026-09-16T00:00:00Z'}", ErrV2MissingField},
 		{"unknown actor role", "{disposition: verified, actor: {role: reviewer, session: s}, at: '2026-09-16T00:00:00Z'}", ErrV2IssueMalformed},
 		{"missing at", "{disposition: verified, actor: {role: checker, session: s}}", ErrV2MissingField},
@@ -443,7 +445,7 @@ func TestDecodeIssueV2_historyEntryShapes(t *testing.T) {
 		{"missing actor role", "{at: '2026-09-15T00:00:00Z', actor: {session: s}, kind: observed}", ErrV2MissingField},
 		{"unknown actor role", "{at: '2026-09-15T00:00:00Z', actor: {role: reviewer, session: s}, kind: observed}", ErrV2IssueMalformed},
 		{"missing actor session", "{at: '2026-09-15T00:00:00Z', actor: {role: checker}, kind: observed}", ErrV2MissingField},
-		{"malformed check reference", "{at: '2026-09-15T00:00:00Z', actor: {role: checker, session: s}, kind: rechecked, check: I001}", ErrV2InvalidID},
+		{"malformed check reference", "{at: '2026-09-15T00:00:00Z', actor: {role: checker, session: s}, kind: rechecked, check: I-001}", ErrV2InvalidID},
 	}
 
 	for _, tt := range tests {
@@ -464,7 +466,7 @@ func TestDecodeIssueV2_historyDiagnosticNamesTheEntry(t *testing.T) {
 		"{at: '2026-09-15T00:00:00Z', actor: {role: checker, session: s}, kind: observed}, " +
 		"{at: '2026-09-16T00:00:00Z', actor: {role: executor, session: s}, kind: sorted-out}]"
 
-	_, err := DecodeIssueV2("issues/I001-x.md", issueFixture(map[string]string{"history": history}))
+	_, err := DecodeIssueV2("issues/I-001-x.md", issueFixture(map[string]string{"history": history}))
 	if !errors.Is(err, ErrV2IssueMalformed) {
 		t.Fatalf("DecodeIssueV2() error = %v, want ErrV2IssueMalformed", err)
 	}
@@ -509,14 +511,14 @@ func TestDecodeIssueV2_noFrontmatter(t *testing.T) {
 // and three types, so one fixture exercises every listing and count.
 func writeV2MixedIssueProject(t *testing.T, root string) {
 	t.Helper()
-	writeV2ObjectiveFixture(t, root, "O001-first", "O001", "First objective")
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I001-first.md", id: "I001", issueType: "defect", status: "open"})
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I002-second.md", id: "I002", issueType: "drift", status: "in_progress"})
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-001-first.md", id: "I-001", issueType: "defect", status: "open"})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-002-second.md", id: "I-002", issueType: "drift", status: "in_progress"})
 	writeV2LinkedIssueFixture(t, root, v2IssueFixture{
-		fileName: "I003-third.md", id: "I003", issueType: "defect", status: "resolved",
+		fileName: "I-003-third.md", id: "I-003", issueType: "defect", status: "resolved",
 		resolution: "{disposition: accepted, actor: {role: owner, session: owner-1}, at: '2026-09-16T00:00:00Z', reason: accepted risk}",
 	})
-	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I004-fourth.md", id: "I004", issueType: "guardrail", status: "open"})
+	writeV2LinkedIssueFixture(t, root, v2IssueFixture{fileName: "I-004-fourth.md", id: "I-004", issueType: "guardrail", status: "open"})
 }
 
 // TestV2Index_issueListingsAndCounts proves the open, in_progress, and
@@ -532,9 +534,9 @@ func TestV2Index_issueListingsAndCounts(t *testing.T) {
 	}
 
 	listings := map[IssueStatus][]string{
-		IssueStatusOpen:       {"I001", "I004"},
-		IssueStatusInProgress: {"I002"},
-		IssueStatusResolved:   {"I003"},
+		IssueStatusOpen:       {"I-001", "I-004"},
+		IssueStatusInProgress: {"I-002"},
+		IssueStatusResolved:   {"I-003"},
 	}
 	for status, want := range listings {
 		if got := index.IssueIDsWithStatus(status); !reflect.DeepEqual(got, want) {
@@ -601,8 +603,8 @@ func TestV2Index_issueListingsAreDerivedNotPersisted(t *testing.T) {
 		t.Errorf("project files after listing = %v, want unchanged %v", after, before)
 	}
 
-	index.Issues["I001"].Status = IssueStatusResolved
-	want := []string{"I004"}
+	index.Issues["I-001"].Status = IssueStatusResolved
+	want := []string{"I-004"}
 	if got := index.IssueIDsWithStatus(IssueStatusOpen); !reflect.DeepEqual(got, want) {
 		t.Errorf("IssueIDsWithStatus(open) = %v, want %v recomputed from the index", got, want)
 	}
@@ -650,8 +652,8 @@ func mustVerifiedIssue(id, proofCheck string) *IssueV2 {
 func TestInspectIssueConsistency_ignoresUnresolvedAndNonVerifiedIssues(t *testing.T) {
 	index := &V2Index{
 		Issues: map[string]*IssueV2{
-			"I001": {ID: "I001", Status: IssueStatusOpen},
-			"I002": {ID: "I002", Status: IssueStatusResolved, Resolution: &IssueResolution{Disposition: IssueDispositionAccepted}},
+			"I-001": {ID: "I-001", Status: IssueStatusOpen},
+			"I-002": {ID: "I-002", Status: IssueStatusResolved, Resolution: &IssueResolution{Disposition: IssueDispositionAccepted}},
 		},
 		Checks:      map[string]*CheckV2{},
 		LatestCheck: map[string]string{},
@@ -664,11 +666,11 @@ func TestInspectIssueConsistency_ignoresUnresolvedAndNonVerifiedIssues(t *testin
 
 func TestInspectIssueConsistency_verifiedProofStillLatestReportsNothing(t *testing.T) {
 	index := &V2Index{
-		Issues: map[string]*IssueV2{"I001": mustVerifiedIssue("I001", "C001")},
+		Issues: map[string]*IssueV2{"I-001": mustVerifiedIssue("I-001", "C-001")},
 		Checks: map[string]*CheckV2{
-			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
+			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear},
 		},
-		LatestCheck: map[string]string{"T001": "C001"},
+		LatestCheck: map[string]string{"T-001": "C-001"},
 	}
 
 	if got := InspectIssueConsistency(index); len(got) != 0 {
@@ -678,19 +680,19 @@ func TestInspectIssueConsistency_verifiedProofStillLatestReportsNothing(t *testi
 
 func TestInspectIssueConsistency_verifiedProofSuperseded(t *testing.T) {
 	index := &V2Index{
-		Issues: map[string]*IssueV2{"I001": mustVerifiedIssue("I001", "C001")},
+		Issues: map[string]*IssueV2{"I-001": mustVerifiedIssue("I-001", "C-001")},
 		Checks: map[string]*CheckV2{
-			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
-			"C002": {ID: "C002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear, Supersedes: "C001"},
+			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear},
+			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear, Supersedes: "C-001"},
 		},
-		LatestCheck: map[string]string{"T001": "C002"},
+		LatestCheck: map[string]string{"T-001": "C-002"},
 	}
 
 	got := InspectIssueConsistency(index)
-	if len(got) != 1 || got[0].Kind != IssueConsistencyProofSuperseded || got[0].Issue != "I001" {
-		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming I001", got)
+	if len(got) != 1 || got[0].Kind != IssueConsistencyProofSuperseded || got[0].Issue != "I-001" {
+		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming I-001", got)
 	}
-	if !strings.Contains(got[0].Detail, "C001") || !strings.Contains(got[0].Detail, "C002") {
+	if !strings.Contains(got[0].Detail, "C-001") || !strings.Contains(got[0].Detail, "C-002") {
 		t.Errorf("Detail = %q, want both the proof and its superseder named", got[0].Detail)
 	}
 }
@@ -698,21 +700,21 @@ func TestInspectIssueConsistency_verifiedProofSuperseded(t *testing.T) {
 func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 	index := &V2Index{
 		Issues: map[string]*IssueV2{
-			"I002": mustVerifiedIssue("I002", "C001"),
-			"I001": mustVerifiedIssue("I001", "C001"),
+			"I-002": mustVerifiedIssue("I-002", "C-001"),
+			"I-001": mustVerifiedIssue("I-001", "C-001"),
 		},
 		Checks: map[string]*CheckV2{
-			"C001": {ID: "C001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear},
-			"C002": {ID: "C002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T001"}, Result: CheckResultClear, Supersedes: "C001"},
+			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear},
+			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear, Supersedes: "C-001"},
 		},
-		LatestCheck: map[string]string{"T001": "C002"},
+		LatestCheck: map[string]string{"T-001": "C-002"},
 	}
 
 	got := InspectIssueConsistency(index)
 	if len(got) != 2 {
 		t.Fatalf("InspectIssueConsistency() = %+v, want 2 problems", got)
 	}
-	if got[0].Issue != "I001" || got[1].Issue != "I002" {
-		t.Fatalf("InspectIssueConsistency() order = [%s, %s], want sorted [I001, I002]", got[0].Issue, got[1].Issue)
+	if got[0].Issue != "I-001" || got[1].Issue != "I-002" {
+		t.Fatalf("InspectIssueConsistency() order = [%s, %s], want sorted [I-001, I-002]", got[0].Issue, got[1].Issue)
 	}
 }

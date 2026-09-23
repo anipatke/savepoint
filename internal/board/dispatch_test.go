@@ -31,11 +31,11 @@ func writeV2ProjectForDispatch(t *testing.T) string {
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
 	testutil.WriteFile(t, filepath.Join(savepointRoot, "config.yml"), "schema_version: 2\n")
 	testutil.WriteFile(t, filepath.Join(savepointRoot, "router.md"),
-		"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: O001\ntask: T001\nnext_action: \"go\"\n```\n")
-	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O001-alpha", "Objective.md"),
-		"---\nid: O001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
-	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O001-alpha", "tasks", "T001-first.md"),
-		"---\nid: T001\ntitle: \"Do the thing\"\nobjective: O001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
+		"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"go\"\n```\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O-001-alpha", "Objective.md"),
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O-001-alpha", "tasks", "T-001-first.md"),
+		"---\nid: T-001\ntitle: \"Do the thing\"\nobjective: O-001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
 	return projectRoot
 }
 
@@ -64,7 +64,7 @@ func TestRunWithFiltersDispatchesV2ProjectToTheV2Board(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if !strings.Contains(got, "Planned T001") || !strings.Contains(got, "Objectives: 1  Tasks: 1") {
+	if !strings.Contains(got, "Planned T-001") || !strings.Contains(got, "Objectives: 1  Tasks: 1") {
 		t.Errorf("V2 project did not reach the V2 board:\n%s", got)
 	}
 	if strings.Contains(got, "releases directory not found") {
@@ -78,8 +78,8 @@ func TestRunWithFiltersDispatchesV2ProjectToTheV2Board(t *testing.T) {
 // as "releases directory not found" instead.
 func TestRunWithFiltersV2LoadFailureReportsTheDiagnosticWithoutV1Fallback(t *testing.T) {
 	projectRoot := writeV2ProjectForDispatch(t)
-	testutil.WriteFile(t, filepath.Join(projectRoot, ".savepoint", "objectives", "O001-alpha", "tasks", "T001-first.md"),
-		"---\nid: T001\nobjective: O001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Untitled\n")
+	testutil.WriteFile(t, filepath.Join(projectRoot, ".savepoint", "objectives", "O-001-alpha", "tasks", "T-001-first.md"),
+		"---\nid: T-001\nobjective: O-001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Untitled\n")
 	var stdout bytes.Buffer
 
 	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
@@ -87,7 +87,7 @@ func TestRunWithFiltersV2LoadFailureReportsTheDiagnosticWithoutV1Fallback(t *tes
 	if err == nil {
 		t.Fatal("runWithFilters() error = nil, want the load diagnostic")
 	}
-	if !strings.Contains(err.Error(), "T001-first.md") || !strings.Contains(err.Error(), "missing required field title") {
+	if !strings.Contains(err.Error(), "T-001-first.md") || !strings.Contains(err.Error(), "missing required field title") {
 		t.Errorf("error = %q, want the file and the problem named", err.Error())
 	}
 	if strings.Contains(err.Error(), "releases directory not found") {

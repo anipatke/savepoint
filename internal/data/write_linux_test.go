@@ -18,7 +18,7 @@ import (
 func TestWriteObjectiveV2_midWriteFailureLeavesOriginalIntact(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Objective.md")
-	content := "---\nid: O005\ntitle: \"Large objective\"\nstatus: planned\n---\n\n" + strings.Repeat("authored body that must survive.\n", 300)
+	content := "---\nid: O-005\ntitle: \"Large objective\"\nstatus: planned\n---\n\n" + strings.Repeat("authored body that must survive.\n", 300)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}

@@ -808,9 +808,9 @@ func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
 // conversation, and next_action is prose those skills author, so neither is
 // a selection writer's to touch.
 type RouterSelectionV2 struct {
-	Release   string // R### selection, or empty to clear the Release context
-	Objective string // O### selection, or empty to clear the selection
-	Task      string // T### selection, or empty to clear the selection
+	Release   string // R-### selection, or empty to clear the Release context
+	Objective string // O-### selection, or empty to clear the selection
+	Task      string // T-### selection, or empty to clear the selection
 }
 
 // routerSelectionNoneV2 is the router's written spelling of "not selected",
@@ -821,17 +821,17 @@ type RouterSelectionV2 struct {
 const routerSelectionNoneV2 = "none"
 
 // validate rejects a selection before any file is opened, applying the same
-// three rules ReadStateV2 enforces on the way in: O###/T### shape, and a
+// three rules ReadStateV2 enforces on the way in: O-###/T-### shape, and a
 // Task never selected without the Objective that owns it.
 func (s RouterSelectionV2) validate() error {
-	if s.Release != "" && !releaseIDPatternV2.MatchString(s.Release) {
-		return fmt.Errorf("%w: router release %q must be a single R### selection", ErrV2InvalidID, s.Release)
+	if s.Release != "" && !matchesV2Identity(s.Release, 'R') {
+		return fmt.Errorf("%w: router release %q must be a single R-### selection", ErrV2InvalidID, s.Release)
 	}
-	if s.Objective != "" && !objectiveIDPattern.MatchString(s.Objective) {
-		return fmt.Errorf("%w: router objective %q must be a single O### selection", ErrV2InvalidID, s.Objective)
+	if s.Objective != "" && !matchesV2Identity(s.Objective, 'O') {
+		return fmt.Errorf("%w: router objective %q must be a single O-### selection", ErrV2InvalidID, s.Objective)
 	}
-	if s.Task != "" && !taskIDPatternV2.MatchString(s.Task) {
-		return fmt.Errorf("%w: router task %q must be a single T### selection", ErrV2InvalidID, s.Task)
+	if s.Task != "" && !matchesV2Identity(s.Task, 'T') {
+		return fmt.Errorf("%w: router task %q must be a single T-### selection", ErrV2InvalidID, s.Task)
 	}
 	if s.Task != "" && s.Objective == "" {
 		return fmt.Errorf("%w: router task %q selected with no objective", ErrV2InvalidOwnership, s.Task)
@@ -1104,7 +1104,7 @@ func CreateCheckV2(root string, index *V2Index, fields NewCheckV2) (*CheckV2, er
 func nextV2CheckID(index *V2Index) string {
 	next := 1
 	for id := range index.Checks {
-		n, err := strconv.Atoi(strings.TrimPrefix(id, "C"))
+		n, err := strconv.Atoi(strings.TrimPrefix(id, "C-"))
 		if err != nil {
 			continue
 		}
@@ -1112,7 +1112,7 @@ func nextV2CheckID(index *V2Index) string {
 			next = n + 1
 		}
 	}
-	return fmt.Sprintf("C%03d", next)
+	return fmt.Sprintf("C-%03d", next)
 }
 
 // v2CheckTempFile is the small file boundary needed by createV2CheckFile.
@@ -1328,7 +1328,7 @@ func issueV2Slug(title string) string {
 func nextV2IssueID(index *V2Index) string {
 	next := 1
 	for id := range index.Issues {
-		n, err := strconv.Atoi(strings.TrimPrefix(id, "I"))
+		n, err := strconv.Atoi(strings.TrimPrefix(id, "I-"))
 		if err != nil {
 			continue
 		}
@@ -1336,7 +1336,7 @@ func nextV2IssueID(index *V2Index) string {
 			next = n + 1
 		}
 	}
-	return fmt.Sprintf("I%03d", next)
+	return fmt.Sprintf("I-%03d", next)
 }
 
 // WriteIssueV2 patches only the status, resolution, duplicate_of,

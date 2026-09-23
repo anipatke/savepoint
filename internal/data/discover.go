@@ -185,8 +185,8 @@ func (d *Discover) ListDefects(root, release string) ([]DefectInfo, error) {
 
 // V2 record discovery layout, fixed by the V2 file model:
 //
-//	objectives/O###-slug/Objective.md
-//	objectives/O###-slug/tasks/T###-slug.md
+//	objectives/O-###-slug/Objective.md
+//	objectives/O-###-slug/tasks/T-###-slug.md
 const (
 	v2ObjectivesDirName = "objectives"
 	v2ObjectiveFileName = "Objective.md"
@@ -200,7 +200,7 @@ const (
 // DiscoverV2Releases confines discovery to root/releases and decodes the
 // optional Release record family. A release directory is identified by its
 // own Release.md record; the directory slug never supplies or changes the
-// declared R### identity. Missing releases/ and directories without a
+// declared R-### identity. Missing releases/ and directories without a
 // Release.md are valid, which keeps release-free V2 projects unchanged.
 func DiscoverV2Releases(root string) (map[string]*ReleaseV2, error) {
 	releases := map[string]*ReleaseV2{}

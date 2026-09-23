@@ -2,14 +2,8 @@ package data
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
-
-// objectiveIDPattern anchors V2 global Objective identity: O plus at least
-// three digits. Shared with task_v2.go for validating Objective ownership
-// and dependency references.
-var objectiveIDPattern = regexp.MustCompile(`^O[0-9]{3,}$`)
 
 // ObjectiveV2 is a strict V2 Objective record decoded by DecodeObjectiveV2.
 // Unlike V1 Task parsing, nothing here is healed into a valid-looking
@@ -18,8 +12,8 @@ type ObjectiveV2 struct {
 	ID        string
 	Title     string
 	Status    ColumnType
-	DependsOn []string  // O### references
-	Release   ReleaseID // optional R### Release reference
+	DependsOn []string  // O-### references
+	Release   ReleaseID // optional R-### Release reference
 	Evidence  *Evidence
 	Source    V2SourceDocument
 }
@@ -34,7 +28,7 @@ type objectiveV2Frontmatter struct {
 }
 
 // DecodeObjectiveV2 strictly decodes a V2 Objective record from content.
-// It requires a valid global O### ID, a non-empty title, a canonical
+// It requires a valid global O-### ID, a non-empty title, a canonical
 // lifecycle status, and well-formed Objective dependency IDs. Unknown or
 // missing values are rejected rather than defaulted into a completion-
 // capable state; that healing belongs to V1 only.
@@ -49,8 +43,8 @@ func DecodeObjectiveV2(path, content string) (*ObjectiveV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !objectiveIDPattern.MatchString(fields.ID) {
-		return nil, fmt.Errorf("%w: %s: objective id %q must match O plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesV2Identity(fields.ID, 'O') {
+		return nil, fmt.Errorf("%w: %s: objective id %q must match O- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 
 	if strings.TrimSpace(fields.Title) == "" {
@@ -62,8 +56,8 @@ func DecodeObjectiveV2(path, content string) (*ObjectiveV2, error) {
 	}
 	dependsOn := make([]string, 0, len(fields.DependsOn))
 	for _, ref := range fields.DependsOn {
-		if !objectiveIDPattern.MatchString(ref) {
-			return nil, fmt.Errorf("%w: %s: objective %s depends_on %q must match O plus at least three digits", ErrV2InvalidDependency, path, fields.ID, ref)
+		if !matchesV2Identity(ref, 'O') {
+			return nil, fmt.Errorf("%w: %s: objective %s depends_on %q must match O- plus at least three digits", ErrV2InvalidDependency, path, fields.ID, ref)
 		}
 		dependsOn = append(dependsOn, ref)
 	}

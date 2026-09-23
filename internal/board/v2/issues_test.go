@@ -20,14 +20,14 @@ func writeIssuesProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T001")
-	writeObjective(t, root, "O001", "Issue surface", "in_progress")
-	writeTask(t, root, "O001", "T001", "Task carrying follow-ups", "status: in_progress\nstage: audit\n")
-	writeCheck(t, root, "C001", "task", "T001", "CLEAR")
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "Issue surface", "in_progress")
+	writeTask(t, root, "O-001", "T-001", "Task carrying follow-ups", "status: in_progress\nstage: audit\n")
+	writeCheck(t, root, "C-001", "task", "T-001", "CLEAR")
 
-	writeBoardIssue(t, root, "I001", "A repair is needed", "defect", "open", `source: {kind: check, check: C001, actor: {role: checker, session: issue-fixture}, at: '2026-01-01T00:00:00Z'}
-tasks: [T001]
-checks: [C001]
+	writeBoardIssue(t, root, "I-001", "A repair is needed", "defect", "open", `source: {kind: check, check: C-001, actor: {role: checker, session: issue-fixture}, at: '2026-01-01T00:00:00Z'}
+tasks: [T-001]
+checks: [C-001]
 guardrail_ids: [FS-01]
 severity: high
 history:
@@ -35,25 +35,25 @@ history:
     actor: {role: checker, session: issue-fixture}
     kind: observed
     note: first observation
-    check: C001
+    check: C-001
   - at: '2026-01-02T00:00:00Z'
     actor: {role: executor, session: repair-fixture}
     kind: reopened
     note: the same symptom returned
 `)
-	writeBoardIssue(t, root, "I002", "A recorded drift", "drift", "in_progress", `source: {kind: report, actor: {role: owner, session: issue-fixture}, at: '2026-01-03T00:00:00Z'}
+	writeBoardIssue(t, root, "I-002", "A recorded drift", "drift", "in_progress", `source: {kind: report, actor: {role: owner, session: issue-fixture}, at: '2026-01-03T00:00:00Z'}
 `)
-	writeBoardIssue(t, root, "I003", "An accepted risk", "guardrail", "resolved", `source: {kind: report, actor: {role: owner, session: issue-fixture}, at: '2026-01-04T00:00:00Z'}
+	writeBoardIssue(t, root, "I-003", "An accepted risk", "guardrail", "resolved", `source: {kind: report, actor: {role: owner, session: issue-fixture}, at: '2026-01-04T00:00:00Z'}
 resolution: {disposition: accepted, actor: {role: owner, session: owner-fixture}, at: '2026-01-05T00:00:00Z', reason: 'the risk is deliberately accepted'}
 `)
-	writeBoardIssue(t, root, "I004", "A duplicate report", "verification", "resolved", `source: {kind: report, actor: {role: checker, session: issue-fixture}, at: '2026-01-06T00:00:00Z'}
-duplicate_of: I001
+	writeBoardIssue(t, root, "I-004", "A duplicate report", "verification", "resolved", `source: {kind: report, actor: {role: checker, session: issue-fixture}, at: '2026-01-06T00:00:00Z'}
+duplicate_of: I-001
 resolution: {disposition: duplicate, actor: {role: checker, session: checker-fixture}, at: '2026-01-06T01:00:00Z'}
 `)
-	writeBoardIssue(t, root, "I005", "A verified repair", "other", "resolved", `source: {kind: report, actor: {role: checker, session: issue-fixture}, at: '2026-01-07T00:00:00Z'}
-tasks: [T001]
-checks: [C001]
-resolution: {disposition: verified, check: C001, actor: {role: checker, session: checker-fixture}, at: '2026-01-07T01:00:00Z'}
+	writeBoardIssue(t, root, "I-005", "A verified repair", "other", "resolved", `source: {kind: report, actor: {role: checker, session: issue-fixture}, at: '2026-01-07T00:00:00Z'}
+tasks: [T-001]
+checks: [C-001]
+resolution: {disposition: verified, check: C-001, actor: {role: checker, session: checker-fixture}, at: '2026-01-07T01:00:00Z'}
 `)
 	return root
 }
@@ -78,7 +78,7 @@ func TestIssuesListUsesStableIdentityOrderAndShowsRecordedSeverity(t *testing.T)
 	got := issueScreen(model)
 
 	previous := -1
-	for _, id := range []string{"I001", "I002", "I003", "I004", "I005"} {
+	for _, id := range []string{"I-001", "I-002", "I-003", "I-004", "I-005"} {
 		at := strings.Index(got, id)
 		if at < 0 {
 			t.Fatalf("Issues overlay is missing %s:\n%s", id, got)
@@ -103,7 +103,7 @@ func TestIssuesFilterCyclesThroughEveryTypeAndBackToAll(t *testing.T) {
 		if !strings.Contains(got, "Filter: "+want) {
 			t.Fatalf("filter is missing %q:\n%s", want, got)
 		}
-		if strings.Contains(got, "Filter: "+want+"\n") && want == "DRIFT" && strings.Contains(got, "I001") {
+		if strings.Contains(got, "Filter: "+want+"\n") && want == "DRIFT" && strings.Contains(got, "I-001") {
 			t.Errorf("drift filter included the defect row:\n%s", got)
 		}
 	}
@@ -118,10 +118,10 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 	model := press(t, issueBoard(t, root), "i", "enter")
 	got := issueScreen(model)
 	for _, want := range []string{
-		"ISSUE DETAIL", "ID: I001", "Type: defect", "Status: open",
-		"SUMMARY", "The recorded summary for I001.", "Kind: check", "Check: C001",
-		"Actor: checker session issue-fixture", "LINKED TASKS", "T001 — Task carrying follow-ups",
-		"LINKED CHECKS", "C001 — CLEAR", "GUARDRAILS", "FS-01", "HISTORY",
+		"ISSUE DETAIL", "ID: I-001", "Type: defect", "Status: open",
+		"SUMMARY", "The recorded summary for I-001.", "Kind: check", "Check: C-001",
+		"Actor: checker session issue-fixture", "LINKED TASKS", "T-001 — Task carrying follow-ups",
+		"LINKED CHECKS", "C-001 — CLEAR", "GUARDRAILS", "FS-01", "HISTORY",
 		"first observation", "the same symptom returned",
 	} {
 		if !strings.Contains(got, want) {
@@ -129,7 +129,7 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 		}
 	}
 
-	// I001 is Open; I003 (accepted) is the first of three Resolved rows, so
+	// I-001 is Open; I-003 (accepted) is the first of three Resolved rows, so
 	// reaching it crosses into the Resolved column rather than scrolling down
 	// a single shared list.
 	accepted := press(t, model, "esc", "right", "right", "enter")
@@ -140,16 +140,16 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 
 	duplicate := press(t, accepted, "esc", "down", "enter")
 	duplicateText := issueScreen(duplicate)
-	if !strings.Contains(duplicateText, "Disposition: duplicate") || !strings.Contains(duplicateText, "Canonical: I001") {
+	if !strings.Contains(duplicateText, "Disposition: duplicate") || !strings.Contains(duplicateText, "Canonical: I-001") {
 		t.Errorf("duplicate detail does not name its canonical target:\n%s", duplicateText)
 	}
 	toCanonical := press(t, duplicate, "enter")
-	if !strings.Contains(issueScreen(toCanonical), "ID: I001") {
+	if !strings.Contains(issueScreen(toCanonical), "ID: I-001") {
 		t.Errorf("duplicate navigation did not open the canonical Issue:\n%s", issueScreen(toCanonical))
 	}
 	verified := press(t, issueBoard(t, root), "i", "right", "right", "down", "down", "enter")
 	verifiedText := issueScreen(verified)
-	if !strings.Contains(verifiedText, "Disposition: verified") || !strings.Contains(verifiedText, "Proof: Check C001") {
+	if !strings.Contains(verifiedText, "Disposition: verified") || !strings.Contains(verifiedText, "Proof: Check C-001") {
 		t.Errorf("verified disposition does not show its proof Check:\n%s", verifiedText)
 	}
 }
@@ -159,31 +159,31 @@ func TestIssueDetailShowsOriginLinksGuardrailsResolutionAndHistory(t *testing.T)
 // left/right moves focus between columns while up/down stays inside one.
 // TestIssuesColumnSortsMostSevereFirst covers the severity sort (blocker at
 // the top of a column, cosmetic-or-unrecorded at the bottom) independent of
-// the ID order the Issues were written in — I901 is written last but
+// the ID order the Issues were written in — I-901 is written last but
 // declares the most severe word, so a stable-ID-only ordering would leave it
 // at the bottom instead of the top.
 func TestIssuesColumnSortsMostSevereFirst(t *testing.T) {
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T001")
-	writeObjective(t, root, "O001", "Severity ordering", "in_progress")
-	writeTask(t, root, "O001", "T001", "Task carrying follow-ups", "status: planned\n")
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "Severity ordering", "in_progress")
+	writeTask(t, root, "O-001", "T-001", "Task carrying follow-ups", "status: planned\n")
 
-	writeBoardIssue(t, root, "I801", "A low-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+	writeBoardIssue(t, root, "I-801", "A low-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
 severity: low
 `)
-	writeBoardIssue(t, root, "I802", "An item with no severity", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+	writeBoardIssue(t, root, "I-802", "An item with no severity", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
 `)
-	writeBoardIssue(t, root, "I803", "A medium-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+	writeBoardIssue(t, root, "I-803", "A medium-severity item", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
 severity: medium
 `)
-	writeBoardIssue(t, root, "I901", "A blocking item written last", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
+	writeBoardIssue(t, root, "I-901", "A blocking item written last", "other", "open", `source: {kind: report, actor: {role: owner, session: severity-fixture}, at: '2026-01-01T00:00:00Z'}
 severity: blocker
 `)
 
 	got := issueScreen(press(t, issueBoard(t, root), "i"))
 	previous := -1
-	for _, id := range []string{"I901", "I803", "I801", "I802"} {
+	for _, id := range []string{"I-901", "I-803", "I-801", "I-802"} {
 		at := strings.Index(got, id)
 		if at < 0 {
 			t.Fatalf("Issues overlay is missing %s:\n%s", id, got)
@@ -264,31 +264,31 @@ func TestIssuesSplitIntoThreeStatusColumns(t *testing.T) {
 	}
 
 	toInProgress := press(t, issueBoard(t, root), "i", "right", "enter")
-	if !strings.Contains(issueScreen(toInProgress), "ID: I002") {
+	if !strings.Contains(issueScreen(toInProgress), "ID: I-002") {
 		t.Errorf("right did not focus the In Progress column:\n%s", issueScreen(toInProgress))
 	}
 
 	toResolved := press(t, issueBoard(t, root), "i", "right", "right", "down", "enter")
-	if !strings.Contains(issueScreen(toResolved), "ID: I004") {
+	if !strings.Contains(issueScreen(toResolved), "ID: I-004") {
 		t.Errorf("right right down did not reach the second Resolved row:\n%s", issueScreen(toResolved))
 	}
 
 	back := press(t, toResolved, "esc", "left", "left", "enter")
-	if !strings.Contains(issueScreen(back), "ID: I001") {
+	if !strings.Contains(issueScreen(back), "ID: I-001") {
 		t.Errorf("left left did not return focus to the Open column:\n%s", issueScreen(back))
 	}
 }
 
 func TestTaskScopedIssuesUseIndexedLinksAndRestoreBoardFocus(t *testing.T) {
 	root := writeIssuesProject(t)
-	model := focusTask(t, issueBoard(t, root), "T001")
+	model := focusTask(t, issueBoard(t, root), "T-001")
 	originalColumn, originalCard := model.FocusedColumn, model.FocusedCard
 	model = press(t, model, "I")
 	got := issueScreen(model)
-	if !strings.Contains(got, "ISSUES · T001") || !strings.Contains(got, "I001") || !strings.Contains(got, "I005") {
+	if !strings.Contains(got, "ISSUES · T-001") || !strings.Contains(got, "I-001") || !strings.Contains(got, "I-005") {
 		t.Errorf("task-scoped overlay is missing direct linked Issues:\n%s", got)
 	}
-	if strings.Contains(got, "I002") {
+	if strings.Contains(got, "I-002") {
 		t.Errorf("task-scoped overlay included an unlinked Issue:\n%s", got)
 	}
 

@@ -61,7 +61,7 @@ contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
 
 Use Issue capture when planning, implementation, or a Check surfaces a defect, drift, a guardrail gap, or other durable follow-up that does not belong inside Design or the current Objective's Tasks. “Defect” stays a word the user says; it maps to `type: defect` on the Issue record and does not reopen a separate defect workflow.
 
-- Issues live at `.savepoint/issues/I###-slug.md`.
+- Issues live at `.savepoint/issues/I-###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
 - The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may direct an `accepted` closure after visual inspection without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
 
@@ -85,7 +85,7 @@ Objective/Release outcomes after the required evidence exists.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
-- Check records are immutable, at `.savepoint/checks/C###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
+- Check records are immutable, at `.savepoint/checks/C-###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
 
 ## Code Style
 

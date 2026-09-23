@@ -65,9 +65,9 @@ When the owner chose a Release boundary in Idea, define it as a delivery promise
 
 For an opted-in Release:
 
-1. Allocate a stable global `R###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
+1. Allocate a stable global `R-###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
 2. Author the Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes what the delivery promises, not whether it has been published or deployed.
-3. Link each member Objective with one optional `release: R###` field. Derive membership from those Objective records; do not maintain a second membership list.
+3. Link each member Objective with one optional `release: R-###` field. Derive membership from those Objective records; do not maintain a second membership list.
 4. Keep Objectives and Tasks in their normal locations and ownership: a Release does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. Treat Release `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
 
@@ -77,21 +77,21 @@ Write the Objective file with this structure:
 
 ```markdown
 ---
-id: O###
+id: O-###
 title: Objective Title
 status: planned|in_progress|done
-depends_on: [O###]
-release: R###
+depends_on: [O-###]
+release: R-###
 last_check: optional-check-id
 freshness:
   state: current|stale|unknown
-  check: C###
+  check: C-###
   assessed_by: role/session
   assessed_at: '2026-09-19T00:00:00Z'
   basis: what was compared to reach this state
 ---
 
-# O###: Objective Title
+# O-###: Objective Title
 
 ## Outcome
 
@@ -128,16 +128,16 @@ Write each Task file with this structure, filled as a worked example rather than
 
 ```markdown
 ---
-id: T014
+id: T-014
 title: Resume unfinished work without changing project files
-objective: O008
+objective: O-008
 status: planned
-depends_on: [{task: T013, requires: clear}]
+depends_on: [{task: T-013, requires: clear}]
 owner_validation: {required: true}
 planned_by: {role: planner, session: planning-example}
 ---
 
-# T014: Resume unfinished work without changing project files
+# T-014: Resume unfinished work without changing project files
 
 ## Outcome
 
@@ -197,7 +197,7 @@ Pending execution: named cases, results, reviewed source basis, files read/chang
 New module or architecture delta beyond the documented Codebase Map, reconciled through the planner before Check.
 ```
 
-`title` and `objective` are separate required fields with different jobs. `title` is a short, plain-English phrase written for the task's owner; it must never be the Outcome text, a truncation of it, or a restatement of the technical objective. `objective` is always an `O###` reference to the owning Objective, never free text, and every Task belongs to exactly one Objective. `owner_validation.required` and `planned_by` are recorded at planning time, not left as placeholders.
+`title` and `objective` are separate required fields with different jobs. `title` is a short, plain-English phrase written for the task's owner; it must never be the Outcome text, a truncation of it, or a restatement of the technical objective. `objective` is always an `O-###` reference to the owning Objective, never free text, and every Task belongs to exactly one Objective. `owner_validation.required` and `planned_by` are recorded at planning time, not left as placeholders.
 
 Title readability itself — whether a generated title actually reads clearly to the owner — is evaluated by agent scenarios in E50; the checks in this repository assert only that `title` and `objective` are distinct required fields and that the no-reuse rule above is stated, not that any given title reads well.
 

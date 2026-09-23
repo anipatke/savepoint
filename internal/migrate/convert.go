@@ -129,7 +129,7 @@ type taskOutputFrontmatter struct {
 // the V1 epic detail source fresh from root. It returns file content ready
 // for a later write; it writes nothing itself. plan supplies the sibling
 // Objective targets needed to resolve a declared epic dependency to its
-// allocated O###.
+// allocated O-###.
 func ConvertObjective(root string, plan *ConversionPlan, target PlannedTarget) (string, error) {
 	if target.Kind != TargetObjective {
 		return "", fmt.Errorf("convert objective: target %s is not an objective target", target.GlobalID)
@@ -335,7 +335,7 @@ func legacyPrerequisiteBody(plan *ConversionPlan, taskGlobalID string) string {
 }
 
 // resolveObjectiveDependency maps a declared V1 epic dependency reference
-// (an epic directory id, e.g. "E01-example") to the allocated O### of the
+// (an epic directory id, e.g. "E01-example") to the allocated O-### of the
 // Objective converted from the same release's epic of that id.
 func resolveObjectiveDependency(plan *ConversionPlan, release, ref string) (string, bool) {
 	for _, t := range plan.Targets {
@@ -362,8 +362,8 @@ func resolveTaskStage(raw data.ProgressStage) (data.ProgressStage, bool) {
 	return "", false
 }
 
-// ownerObjectiveID extracts the O### owner from a Task target path shaped
-// "objectives/{O###}-{slug}/tasks/{T###}-{slug}", the layout plan.go always
+// ownerObjectiveID extracts the O-### owner from a Task target path shaped
+// "objectives/{O-###}-{slug}/tasks/{T-###}-{slug}", the layout plan.go always
 // builds — rather than re-deriving ownership by any other means.
 func ownerObjectiveID(targetPath string) (string, bool) {
 	parts := strings.Split(targetPath, "/")
@@ -371,10 +371,20 @@ func ownerObjectiveID(targetPath string) (string, bool) {
 		return "", false
 	}
 	seg := parts[1]
-	if dash := strings.IndexByte(seg, '-'); dash > 0 {
-		return seg[:dash], true
+	if !strings.HasPrefix(seg, "O-") {
+		return "", false
 	}
-	return seg, true
+	slugOffset := strings.IndexByte(seg[2:], '-')
+	if slugOffset < 3 {
+		return "", false
+	}
+	identityEnd := 2 + slugOffset
+	for _, digit := range seg[2:identityEnd] {
+		if digit < '0' || digit > '9' {
+			return "", false
+		}
+	}
+	return seg[:identityEnd], true
 }
 
 // unknownFields parses raw frontmatter YAML and returns every key not in

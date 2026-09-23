@@ -21,10 +21,10 @@ func writeValidProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T001")
-	writeObjective(t, root, "O001", "First objective", "planned")
-	writeTask(t, root, "O001", "T001", "Do the thing", "status: planned\n")
-	writeTask(t, root, "O001", "T002", "Already finished", "status: done\n")
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "First objective", "planned")
+	writeTask(t, root, "O-001", "T-001", "Do the thing", "status: planned\n")
+	writeTask(t, root, "O-001", "T-002", "Already finished", "status: done\n")
 	return root
 }
 
@@ -133,37 +133,37 @@ func writeBadgeProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T001")
-	writeObjective(t, root, "O001", "Ship the board", "in_progress")
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "Ship the board", "in_progress")
 
-	writeTask(t, root, "O001", "T001", "Planned with nothing recorded", "status: planned\n")
-	writeTask(t, root, "O001", "T002", "Planned and waiting on T001", "status: planned\ndepends_on:\n  - {task: T001, requires: clear}\n")
-	writeTask(t, root, "O001", "T003", "Being built right now", "status: in_progress\nstage: build\n")
-	writeTask(t, root, "O001", "T004", "Being tested, and the plan slipped",
+	writeTask(t, root, "O-001", "T-001", "Planned with nothing recorded", "status: planned\n")
+	writeTask(t, root, "O-001", "T-002", "Planned and waiting on T-001", "status: planned\ndepends_on:\n  - {task: T-001, requires: clear}\n")
+	writeTask(t, root, "O-001", "T-003", "Being built right now", "status: in_progress\nstage: build\n")
+	writeTask(t, root, "O-001", "T-004", "Being tested, and the plan slipped",
 		"status: in_progress\nstage: test\nreplan:\n  reason: \"the plan no longer matches\"\n  recorded_by: {role: planner, session: planner-fixture}\n  recorded_at: 2026-01-01T00:00:00Z\n")
 
-	writeCheck(t, root, "C001", "task", "T005", "NEEDS WORK")
-	writeTask(t, root, "O001", "T005", "At audit with a check that found problems", "status: in_progress\nstage: audit\nlast_check: C001\n")
+	writeCheck(t, root, "C-001", "task", "T-005", "NEEDS WORK")
+	writeTask(t, root, "O-001", "T-005", "At audit with a check that found problems", "status: in_progress\nstage: audit\nlast_check: C-001\n")
 
-	writeCheck(t, root, "C002", "task", "T006", "CLEAR")
-	writeTask(t, root, "O001", "T006", "At audit and waiting on the owner",
-		"status: in_progress\nstage: audit\nlast_check: C002\n"+currentFreshness("C002")+
+	writeCheck(t, root, "C-002", "task", "T-006", "CLEAR")
+	writeTask(t, root, "O-001", "T-006", "At audit and waiting on the owner",
+		"status: in_progress\nstage: audit\nlast_check: C-002\n"+currentFreshness("C-002")+
 			"owner_validation:\n  required: true\n")
 
-	writeCheck(t, root, "C003", "task", "T007", "CLEAR")
-	writeTask(t, root, "O001", "T007", "Done and cleared", "status: done\nlast_check: C003\n"+currentFreshness("C003"))
+	writeCheck(t, root, "C-003", "task", "T-007", "CLEAR")
+	writeTask(t, root, "O-001", "T-007", "Done and cleared", "status: done\nlast_check: C-003\n"+currentFreshness("C-003"))
 
-	writeCheck(t, root, "C004", "task", "T008", "NEEDS WORK")
-	writeTask(t, root, "O001", "T008", "Done because the owner accepted an exception",
-		"status: done\nlast_check: C004\nexception:\n  requirements: [\"TEST-02\"]\n  reason: \"shipped with a known gap\"\n  owner: \"the owner\"\n  recorded_at: 2026-01-03T00:00:00Z\n  check: C004\n")
+	writeCheck(t, root, "C-004", "task", "T-008", "NEEDS WORK")
+	writeTask(t, root, "O-001", "T-008", "Done because the owner accepted an exception",
+		"status: done\nlast_check: C-004\nexception:\n  requirements: [\"TEST-02\"]\n  reason: \"shipped with a known gap\"\n  owner: \"the owner\"\n  recorded_at: 2026-01-03T00:00:00Z\n  check: C-004\n")
 
-	writeCheck(t, root, "C005", "task", "T009", "CLEAR")
-	writeTask(t, root, "O001", "T009", "Done, but the check was never assessed", "status: done\nlast_check: C005\n")
+	writeCheck(t, root, "C-005", "task", "T-009", "CLEAR")
+	writeTask(t, root, "O-001", "T-009", "Done, but the check was never assessed", "status: done\nlast_check: C-005\n")
 
 	return root
 }
 
-// writeO900OutcomeProject mirrors the disposable O900 spread in a temporary
+// writeO900OutcomeProject mirrors the disposable O-900 spread in a temporary
 // project so regressions cannot silently drop one of its retained outcomes or
 // blockers. Four Tasks land in each lifecycle column, matching the live
 // fixture without reading or writing the repository's real project files.
@@ -171,45 +171,45 @@ func writeO900OutcomeProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O900", "T005")
-	writeObjective(t, root, "O900", "O900 outcome spread", "in_progress")
+	writeRouter(t, root, "task", "O-900", "T-005")
+	writeObjective(t, root, "O-900", "O-900 outcome spread", "in_progress")
 
-	writeTask(t, root, "O900", "T001", "Planned and ready", "status: planned\n")
-	writeTask(t, root, "O900", "T002", "Planned and waiting",
-		"status: planned\ndepends_on:\n  - {task: T001, requires: clear}\n")
-	writeTask(t, root, "O900", "T003", "Planned spare one", "status: planned\n")
-	writeTask(t, root, "O900", "T004", "Planned spare two", "status: planned\n")
+	writeTask(t, root, "O-900", "T-001", "Planned and ready", "status: planned\n")
+	writeTask(t, root, "O-900", "T-002", "Planned and waiting",
+		"status: planned\ndepends_on:\n  - {task: T-001, requires: clear}\n")
+	writeTask(t, root, "O-900", "T-003", "Planned spare one", "status: planned\n")
+	writeTask(t, root, "O-900", "T-004", "Planned spare two", "status: planned\n")
 
-	writeTask(t, root, "O900", "T005", "Build needs review",
-		"status: in_progress\nstage: build\nlast_check: C005\n"+staleFreshness("C005"))
-	writeTask(t, root, "O900", "T006", "Test was replanned",
+	writeTask(t, root, "O-900", "T-005", "Build needs review",
+		"status: in_progress\nstage: build\nlast_check: C-005\n"+staleFreshness("C-005"))
+	writeTask(t, root, "O-900", "T-006", "Test was replanned",
 		"status: in_progress\nstage: test\nreplan:\n  reason: \"fixture plan changed\"\n"+
 			"  recorded_by: {role: planner, session: board-fixture}\n  recorded_at: 2026-01-01T00:00:00Z\n")
-	writeCheck(t, root, "C007", "task", "T007", "NEEDS WORK")
-	writeTask(t, root, "O900", "T007", "Check needs work",
-		"status: in_progress\nstage: audit\nlast_check: C007\n")
-	writeCheck(t, root, "C008", "task", "T008", "CLEAR")
-	writeTask(t, root, "O900", "T008", "Check awaits owner",
-		"status: in_progress\nstage: audit\nlast_check: C008\n"+currentFreshness("C008")+
+	writeCheck(t, root, "C-007", "task", "T-007", "NEEDS WORK")
+	writeTask(t, root, "O-900", "T-007", "Check needs work",
+		"status: in_progress\nstage: audit\nlast_check: C-007\n")
+	writeCheck(t, root, "C-008", "task", "T-008", "CLEAR")
+	writeTask(t, root, "O-900", "T-008", "Check awaits owner",
+		"status: in_progress\nstage: audit\nlast_check: C-008\n"+currentFreshness("C-008")+
 			"owner_validation:\n  required: true\n")
 
-	writeTask(t, root, "O900", "T009", "Done with Check pending", "status: done\n")
-	writeCheck(t, root, "C010", "task", "T010", "CLEAR")
-	writeTask(t, root, "O900", "T010", "Done and checked",
-		"status: done\nlast_check: C010\n"+currentFreshness("C010"))
-	writeCheck(t, root, "C011", "task", "T011", "NEEDS WORK")
-	writeTask(t, root, "O900", "T011", "Done, owner accepted",
-		"status: done\nlast_check: C011\nexception:\n  requirements: [\"TEST-01\"]\n"+
+	writeTask(t, root, "O-900", "T-009", "Done with Check pending", "status: done\n")
+	writeCheck(t, root, "C-010", "task", "T-010", "CLEAR")
+	writeTask(t, root, "O-900", "T-010", "Done and checked",
+		"status: done\nlast_check: C-010\n"+currentFreshness("C-010"))
+	writeCheck(t, root, "C-011", "task", "T-011", "NEEDS WORK")
+	writeTask(t, root, "O-900", "T-011", "Done, owner accepted",
+		"status: done\nlast_check: C-011\nexception:\n  requirements: [\"TEST-01\"]\n"+
 			"  reason: \"fixture accepted the known gap\"\n  owner: \"the owner\"\n"+
-			"  recorded_at: 2026-01-03T00:00:00Z\n  check: C011\n")
-	writeTask(t, root, "O900", "T012", "Done, owner waived the Check",
-		"status: done\ncheck_waiver:\n  task: T012\n"+
+			"  recorded_at: 2026-01-03T00:00:00Z\n  check: C-011\n")
+	writeTask(t, root, "O-900", "T-012", "Done, owner waived the Check",
+		"status: done\ncheck_waiver:\n  task: T-012\n"+
 			"  reason: \"fixture owner waived the optional Task Check\"\n"+
 			"  actor: {role: owner, session: board-fixture}\n"+
 			"  recorded_at: 2026-01-03T00:00:00Z\n")
 
-	// C005 is deliberately stale, so the open build card renders REVIEW.
-	writeCheck(t, root, "C005", "task", "T005", "CLEAR")
+	// C-005 is deliberately stale, so the open build card renders REVIEW.
+	writeCheck(t, root, "C-005", "task", "T-005", "CLEAR")
 	return root
 }
 
@@ -227,39 +227,39 @@ func staleFreshness(check string) string {
 // one Task whose file sits under a different Objective's directory than the one
 // its record names.
 //
-// The router selects O003, so a board opened over this project starts filtered
+// The router selects O-003, so a board opened over this project starts filtered
 // to the Objective the router names.
 func writeNavigationProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O003", "T003")
+	writeRouter(t, root, "task", "O-003", "T-003")
 
-	// O001: every owned Task done, and its own integration Check current.
-	writeCheck(t, root, "C001", "objective", "O001", "CLEAR")
-	writeObjectiveExtra(t, root, "O001", "Finished and integrated", "done",
-		"last_check: C001\n"+currentFreshness("C001"))
-	writeCheck(t, root, "C002", "task", "T001", "CLEAR")
-	writeTask(t, root, "O001", "T001", "Finished work", "status: done\nlast_check: C002\n"+currentFreshness("C002"))
+	// O-001: every owned Task done, and its own integration Check current.
+	writeCheck(t, root, "C-001", "objective", "O-001", "CLEAR")
+	writeObjectiveExtra(t, root, "O-001", "Finished and integrated", "done",
+		"last_check: C-001\n"+currentFreshness("C-001"))
+	writeCheck(t, root, "C-002", "task", "T-001", "CLEAR")
+	writeTask(t, root, "O-001", "T-001", "Finished work", "status: done\nlast_check: C-002\n"+currentFreshness("C-002"))
 
-	// O002: every owned Task done, no integration Check of its own.
-	writeObjective(t, root, "O002", "Every task done, nothing integrated", "in_progress")
-	writeTask(t, root, "O002", "T002", "Also finished", "status: done\n")
+	// O-002: every owned Task done, no integration Check of its own.
+	writeObjective(t, root, "O-002", "Every task done, nothing integrated", "in_progress")
+	writeTask(t, root, "O-002", "T-002", "Also finished", "status: done\n")
 
-	// O003: waiting on O002, which is not done.
-	writeObjectiveExtra(t, root, "O003", "Waiting on the second", "planned", "depends_on: [\"O002\"]\n")
-	writeTask(t, root, "O003", "T003", "Blocked by an objective wait", "status: planned\n")
-	// Owned by O003, filed under O001's directory.
-	writeTaskInDir(t, root, "O001", "O003", "T004", "Filed somewhere else entirely", "status: planned\n")
+	// O-003: waiting on O-002, which is not done.
+	writeObjectiveExtra(t, root, "O-003", "Waiting on the second", "planned", "depends_on: [\"O-002\"]\n")
+	writeTask(t, root, "O-003", "T-003", "Blocked by an objective wait", "status: planned\n")
+	// Owned by O-003, filed under O-001's directory.
+	writeTaskInDir(t, root, "O-001", "O-003", "T-004", "Filed somewhere else entirely", "status: planned\n")
 
-	// O004, O005, O006: the remaining clearance states.
-	writeCheck(t, root, "C003", "objective", "O004", "NEEDS WORK")
-	writeObjectiveExtra(t, root, "O004", "Integration found problems", "in_progress", "last_check: C003\n")
-	writeCheck(t, root, "C004", "objective", "O005", "CLEAR")
-	writeObjectiveExtra(t, root, "O005", "Integration never assessed", "in_progress", "last_check: C004\n")
-	writeCheck(t, root, "C005", "objective", "O006", "CLEAR")
-	writeObjectiveExtra(t, root, "O006", "Integration has gone stale", "in_progress",
-		"last_check: C005\n"+staleFreshness("C005"))
+	// O-004, O-005, O-006: the remaining clearance states.
+	writeCheck(t, root, "C-003", "objective", "O-004", "NEEDS WORK")
+	writeObjectiveExtra(t, root, "O-004", "Integration found problems", "in_progress", "last_check: C-003\n")
+	writeCheck(t, root, "C-004", "objective", "O-005", "CLEAR")
+	writeObjectiveExtra(t, root, "O-005", "Integration never assessed", "in_progress", "last_check: C-004\n")
+	writeCheck(t, root, "C-005", "objective", "O-006", "CLEAR")
+	writeObjectiveExtra(t, root, "O-006", "Integration has gone stale", "in_progress",
+		"last_check: C-005\n"+staleFreshness("C-005"))
 
 	return root
 }
@@ -272,13 +272,13 @@ func writeObjectiveDependencyProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O002", "T002")
-	writeObjective(t, root, "O001", "Comes first", "in_progress")
-	writeTask(t, root, "O001", "T001", "The work the other objective waits on", "status: planned\n")
+	writeRouter(t, root, "task", "O-002", "T-002")
+	writeObjective(t, root, "O-001", "Comes first", "in_progress")
+	writeTask(t, root, "O-001", "T-001", "The work the other objective waits on", "status: planned\n")
 
-	testutil.WriteFile(t, objectivePath(root, "O002"),
-		"---\nid: O002\ntitle: \"Comes second\"\nstatus: planned\ndepends_on: [\"O001\"]\n---\n\n# Comes second\n")
-	writeTask(t, root, "O002", "T002", "Blocked by its own objective's wait", "status: planned\n")
+	testutil.WriteFile(t, objectivePath(root, "O-002"),
+		"---\nid: O-002\ntitle: \"Comes second\"\nstatus: planned\ndepends_on: [\"O-001\"]\n---\n\n# Comes second\n")
+	writeTask(t, root, "O-002", "T-002", "Blocked by its own objective's wait", "status: planned\n")
 
 	return root
 }
@@ -322,47 +322,47 @@ func writeEvidenceProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T002")
+	writeRouter(t, root, "task", "O-001", "T-002")
 
-	// O001's integration was checked twice; the rerun supersedes the first run.
-	writeCheck(t, root, "C010", "objective", "O001", "CLEAR")
-	writeCheckExtra(t, root, "C011", "objective", "O001", "CLEAR", "supersedes: C010\n")
-	writeObjectiveExtra(t, root, "O001", "Ship the evidence surface", "in_progress",
-		"depends_on: [\"O002\"]\nlast_check: C011\n"+currentFreshness("C011"))
-	writeObjective(t, root, "O002", "Groundwork nobody has started", "planned")
+	// O-001's integration was checked twice; the rerun supersedes the first run.
+	writeCheck(t, root, "C-010", "objective", "O-001", "CLEAR")
+	writeCheckExtra(t, root, "C-011", "objective", "O-001", "CLEAR", "supersedes: C-010\n")
+	writeObjectiveExtra(t, root, "O-001", "Ship the evidence surface", "in_progress",
+		"depends_on: [\"O-002\"]\nlast_check: C-011\n"+currentFreshness("C-011"))
+	writeObjective(t, root, "O-002", "Groundwork nobody has started", "planned")
 
-	writeCheck(t, root, "C001", "task", "T001", "CLEAR")
-	writeTask(t, root, "O001", "T001", "Cleared and accepted by the owner",
-		"status: done\nlast_check: C001\n"+currentFreshness("C001")+acceptedByOwner("C001"))
+	writeCheck(t, root, "C-001", "task", "T-001", "CLEAR")
+	writeTask(t, root, "O-001", "T-001", "Cleared and accepted by the owner",
+		"status: done\nlast_check: C-001\n"+currentFreshness("C-001")+acceptedByOwner("C-001"))
 
-	// T002's first run found problems; the rerun supersedes it.
-	writeCheck(t, root, "C002", "task", "T002", "NEEDS WORK")
-	writeCheckExtra(t, root, "C003", "task", "T002", "CLEAR", "supersedes: C002\n")
-	writeTaskBody(t, root, "O001", "T002", "Rechecked after the first run found problems",
-		"status: in_progress\nstage: audit\ndepends_on:\n  - {task: T001, requires: accepted}\n"+
-			"last_check: C003\n"+currentFreshness("C003"),
+	// T-002's first run found problems; the rerun supersedes it.
+	writeCheck(t, root, "C-002", "task", "T-002", "NEEDS WORK")
+	writeCheckExtra(t, root, "C-003", "task", "T-002", "CLEAR", "supersedes: C-002\n")
+	writeTaskBody(t, root, "O-001", "T-002", "Rechecked after the first run found problems",
+		"status: in_progress\nstage: audit\ndepends_on:\n  - {task: T-001, requires: accepted}\n"+
+			"last_check: C-003\n"+currentFreshness("C-003"),
 		"# Outcome\n\nThe board shows the record behind the badge.\n\n- [x] status: done\n- [ ] still open\n")
 
-	writeTask(t, root, "O001", "T003", "Waiting on work that is not done",
-		"status: planned\ndepends_on:\n  - {task: T004, requires: clear}\n")
-	writeTask(t, root, "O001", "T004", "Flagged for replan",
+	writeTask(t, root, "O-001", "T-003", "Waiting on work that is not done",
+		"status: planned\ndepends_on:\n  - {task: T-004, requires: clear}\n")
+	writeTask(t, root, "O-001", "T-004", "Flagged for replan",
 		"status: in_progress\nstage: build\nreplan:\n  reason: \"the approach no longer fits\"\n"+
 			"  recorded_by: {role: planner, session: planner-fixture}\n  recorded_at: 2026-01-04T00:00:00Z\n")
 
-	writeCheck(t, root, "C004", "task", "T005", "NEEDS WORK")
-	writeTask(t, root, "O001", "T005", "Closed under a recorded exception",
-		"status: done\nlast_check: C004\nexception:\n  requirements: [\"TEST-02\", \"TEST-05\"]\n"+
+	writeCheck(t, root, "C-004", "task", "T-005", "NEEDS WORK")
+	writeTask(t, root, "O-001", "T-005", "Closed under a recorded exception",
+		"status: done\nlast_check: C-004\nexception:\n  requirements: [\"TEST-02\", \"TEST-05\"]\n"+
 			"  reason: \"shipped with a known gap\"\n  owner: \"the owner\"\n"+
-			"  recorded_at: 2026-01-05T00:00:00Z\n  check: C004\n")
+			"  recorded_at: 2026-01-05T00:00:00Z\n  check: C-004\n")
 
-	writeCheck(t, root, "C005", "task", "T006", "CLEAR")
-	writeTask(t, root, "O001", "T006", "Waiting on the owner to accept",
-		"status: in_progress\nstage: audit\nlast_check: C005\n"+currentFreshness("C005")+
+	writeCheck(t, root, "C-005", "task", "T-006", "CLEAR")
+	writeTask(t, root, "O-001", "T-006", "Waiting on the owner to accept",
+		"status: in_progress\nstage: audit\nlast_check: C-005\n"+currentFreshness("C-005")+
 			"owner_validation:\n  required: true\n")
 
-	writeTask(t, root, "O001", "T007", "Nothing recorded against it yet", "status: planned\n")
+	writeTask(t, root, "O-001", "T-007", "Nothing recorded against it yet", "status: planned\n")
 
-	writeIssue(t, root, "I001", "The retry loop drops the last attempt", "defect", "C002", "T002")
+	writeIssue(t, root, "I-001", "The retry loop drops the last attempt", "defect", "C-002", "T-002")
 
 	return root
 }
@@ -383,45 +383,45 @@ func invalidProjectCases() []invalidProjectCase {
 		{
 			Name:      "task with no title",
 			Build:     writeTitlelessTask,
-			WantPath:  filepath.Join("objectives", "O001-fixture", "tasks", "T001-fixture.md"),
+			WantPath:  filepath.Join("objectives", "O-001-fixture", "tasks", "T-001-fixture.md"),
 			WantParts: []string{"missing required field title"},
 		},
 		{
 			Name: "duplicate objective id",
 			Build: func(t *testing.T, root string) {
-				testutil.WriteFile(t, filepath.Join(root, "objectives", "O001-again", "Objective.md"),
-					"---\nid: O001\ntitle: \"Second claim on O001\"\nstatus: planned\n---\n\n# Second\n")
+				testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-again", "Objective.md"),
+					"---\nid: O-001\ntitle: \"Second claim on O-001\"\nstatus: planned\n---\n\n# Second\n")
 			},
-			WantPath:  filepath.Join("objectives", "O001-again", "Objective.md"),
-			WantParts: []string{"declared more than once", "O001"},
+			WantPath:  filepath.Join("objectives", "O-001-again", "Objective.md"),
+			WantParts: []string{"declared more than once", "O-001"},
 		},
 		{
 			Name: "task owned by a missing objective",
 			Build: func(t *testing.T, root string) {
-				testutil.WriteFile(t, taskPath(root, "O001", "T003"),
-					"---\nid: T003\ntitle: \"Orphan work\"\nobjective: O999\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Orphan work\n")
+				testutil.WriteFile(t, taskPath(root, "O-001", "T-003"),
+					"---\nid: T-003\ntitle: \"Orphan work\"\nobjective: O-999\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Orphan work\n")
 			},
-			WantPath:  filepath.Join("objectives", "O001-fixture", "tasks", "T003-fixture.md"),
-			WantParts: []string{"missing objective", "O999"},
+			WantPath:  filepath.Join("objectives", "O-001-fixture", "tasks", "T-003-fixture.md"),
+			WantParts: []string{"missing objective", "O-999"},
 		},
 		{
 			Name: "task depending on a record that does not exist",
 			Build: func(t *testing.T, root string) {
-				writeTask(t, root, "O001", "T004", "Blocked work", "status: planned\ndepends_on:\n  - {task: T900, requires: clear}\n")
+				writeTask(t, root, "O-001", "T-004", "Blocked work", "status: planned\ndepends_on:\n  - {task: T-900, requires: clear}\n")
 			},
-			WantPath:  filepath.Join("objectives", "O001-fixture", "tasks", "T004-fixture.md"),
-			WantParts: []string{"T900"},
+			WantPath:  filepath.Join("objectives", "O-001-fixture", "tasks", "T-004-fixture.md"),
+			WantParts: []string{"T-900"},
 		},
 	}
 }
 
-// writeTitlelessTask replaces the fixture's T001 with a Task carrying no
+// writeTitlelessTask replaces the fixture's T-001 with a Task carrying no
 // title. DecodeTaskV2 refuses it, so a project containing it does not load at
 // all — which is what makes the epic's title requirement structural.
 func writeTitlelessTask(t *testing.T, root string) {
 	t.Helper()
-	testutil.WriteFile(t, taskPath(root, "O001", "T001"),
-		"---\nid: T001\nobjective: O001\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Untitled\n")
+	testutil.WriteFile(t, taskPath(root, "O-001", "T-001"),
+		"---\nid: T-001\nobjective: O-001\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Untitled\n")
 }
 
 // createPendingOperation records an incomplete migration operation over the

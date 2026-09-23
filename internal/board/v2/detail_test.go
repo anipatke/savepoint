@@ -75,15 +75,15 @@ func requireContains(t *testing.T, got string, want ...string) {
 }
 
 func TestTaskDetailNamesTheRecordAndItsLifecycle(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T002"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-002"))
 
 	requireContains(t, got,
 		"TASK DETAIL",
-		"ID: T002",
+		"ID: T-002",
 		"Title: Rechecked after the first run found problems",
 		"Status: in_progress",
 		"Stage: CHECK",
-		"Objective: O001 — Ship the evidence surface",
+		"Objective: O-001 — Ship the evidence surface",
 		"The board shows the record behind the badge.",
 	)
 }
@@ -91,25 +91,25 @@ func TestTaskDetailNamesTheRecordAndItsLifecycle(t *testing.T) {
 // A planned Task has no stage. The row is still rendered, because "no stage
 // recorded" is a fact about the record rather than a field the overlay dropped.
 func TestTaskDetailReportsAPlannedTaskHasNoStage(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T007"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-007"))
 
-	requireContains(t, got, "ID: T007", "Status: planned", "Stage: (none recorded)")
+	requireContains(t, got, "ID: T-007", "Status: planned", "Stage: (none recorded)")
 }
 
 func TestObjectiveDetailNamesItsTasksAndItsDependencies(t *testing.T) {
-	got := screen(openObjectiveDetail(t, writeEvidenceProject(t), "O001"))
+	got := screen(openObjectiveDetail(t, writeEvidenceProject(t), "O-001"))
 
 	requireContains(t, got,
 		"OBJECTIVE DETAIL",
-		"ID: O001",
+		"ID: O-001",
 		"Title: Ship the evidence surface",
 		"Status: in_progress",
 		"OWNED TASKS",
-		"T001 — Cleared and accepted by the owner (done)",
-		"T007 — Nothing recorded against it yet (planned)",
+		"T-001 — Cleared and accepted by the owner (done)",
+		"T-007 — Nothing recorded against it yet (planned)",
 		"OBJECTIVE DEPENDENCIES",
-		"O002 — Groundwork nobody has started (planned)",
-		"Objective O002 is not done yet.",
+		"O-002 — Groundwork nobody has started (planned)",
+		"Objective O-002 is not done yet.",
 		"BODY",
 		"# Ship the evidence surface",
 	)
@@ -118,23 +118,23 @@ func TestObjectiveDetailNamesItsTasksAndItsDependencies(t *testing.T) {
 	}
 }
 
-// Dependency state is the resolver's answer. T001 is done, currently cleared,
+// Dependency state is the resolver's answer. T-001 is done, currently cleared,
 // and accepted by its owner, so an accepted-level dependency on it is
-// satisfied; T004 is not done, so a clear-level dependency on it is not.
+// satisfied; T-004 is not done, so a clear-level dependency on it is not.
 func TestTaskDetailDependenciesCarryTheirLevelAndResolvedState(t *testing.T) {
 	root := writeEvidenceProject(t)
 
-	satisfied := screen(openTaskDetail(t, root, "T002"))
+	satisfied := screen(openTaskDetail(t, root, "T-002"))
 	requireContains(t, satisfied,
 		"DEPENDENCIES",
-		"T001 — Cleared and accepted by the owner (done) — requires accepted",
+		"T-001 — Cleared and accepted by the owner (done) — requires accepted",
 		"Satisfied.",
 	)
 
-	blocked := screen(openTaskDetail(t, root, "T003"))
+	blocked := screen(openTaskDetail(t, root, "T-003"))
 	requireContains(t, blocked,
-		"T004 — Flagged for replan (in_progress) — requires clear",
-		"Waiting on Task T004, which is not done yet.",
+		"T-004 — Flagged for replan (in_progress) — requires clear",
+		"Waiting on Task T-004, which is not done yet.",
 	)
 }
 
@@ -142,29 +142,29 @@ func TestTaskDetailDependenciesCarryTheirLevelAndResolvedState(t *testing.T) {
 // rerun marked as the one that counts and the run it replaced marked as
 // replaced. Neither is dropped.
 func TestCheckHistoryShowsTheWholeChainInRecordedOrder(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T002"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-002"))
 
 	requireContains(t, got,
-		"C002  NEEDS WORK  [superseded]",
-		"C003  CLEAR  [latest]",
+		"C-002  NEEDS WORK  [superseded]",
+		"C-003  CLEAR  [latest]",
 		"recorded by checker session checker-fixture on 2026-01-02T00:00:00Z",
 	)
 	// Scoped to the section, because the clearance sentence above it names the
 	// latest Check before the chain lists either of them.
 	history := got[strings.Index(got, "CHECKS"):]
-	if strings.Index(history, "C002") > strings.Index(history, "C003") {
+	if strings.Index(history, "C-002") > strings.Index(history, "C-003") {
 		t.Errorf("the Check chain is not in recorded order:\n%s", got)
 	}
 }
 
 func TestObjectiveCheckHistoryShowsItsOwnIntegrationChain(t *testing.T) {
-	got := screen(openObjectiveDetail(t, writeEvidenceProject(t), "O001"))
+	got := screen(openObjectiveDetail(t, writeEvidenceProject(t), "O-001"))
 
-	requireContains(t, got, "C010  CLEAR  [superseded]", "C011  CLEAR  [latest]")
+	requireContains(t, got, "C-010  CLEAR  [superseded]", "C-011  CLEAR  [latest]")
 }
 
 func TestARecordWithNoCheckSaysSoRatherThanShowingNothing(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T007"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-007"))
 
 	requireContains(t, got, "CHECKS", noCheckRecorded)
 }
@@ -177,7 +177,7 @@ func TestARecordWithNoCheckSaysSoRatherThanShowingNothing(t *testing.T) {
 func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 	assessed := &data.Freshness{
 		State:      data.FreshnessCurrent,
-		Check:      "C001",
+		Check:      "C-001",
 		AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "checker-fixture"},
 		AssessedAt: time.Date(2026, 1, 2, 1, 0, 0, 0, time.UTC),
 		Basis:      "reran the suite",
@@ -191,12 +191,12 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 		wantParts []string
 	}{
 		{"missing", data.Clearance{State: data.ClearanceMissing}, []string{"[ ] Check", "No Check has ever been recorded"}},
-		{"needs_work", data.Clearance{State: data.ClearanceNeedsWork, Check: "C001"}, []string{"Check (needs work)", "C001 recorded NEEDS WORK"}},
-		{"stale", data.Clearance{State: data.ClearanceStale, Check: "C001", Freshness: assessed}, []string{"Check (stale)", "clearance is stale"}},
-		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C001"}, []string{"Check (unverified)", "clearance is unknown"}},
-		{"unknown without checker provenance", data.Clearance{State: data.ClearanceUnknown, Check: "C001", Freshness: &selfAssessed},
+		{"needs_work", data.Clearance{State: data.ClearanceNeedsWork, Check: "C-001"}, []string{"Check (needs work)", "C-001 recorded NEEDS WORK"}},
+		{"stale", data.Clearance{State: data.ClearanceStale, Check: "C-001", Freshness: assessed}, []string{"Check (stale)", "clearance is stale"}},
+		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C-001"}, []string{"Check (unverified)", "clearance is unknown"}},
+		{"unknown without checker provenance", data.Clearance{State: data.ClearanceUnknown, Check: "C-001", Freshness: &selfAssessed},
 			[]string{"no independent checker session", "not independently established"}},
-		{"current", data.Clearance{State: data.ClearanceCurrent, Check: "C001", Freshness: assessed},
+		{"current", data.Clearance{State: data.ClearanceCurrent, Check: "C-001", Freshness: assessed},
 			[]string{"[✓] Check", "names it current", "Assessed current by checker session checker-fixture on 2026-01-02", "basis: reran the suite"}},
 	}
 
@@ -217,7 +217,7 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 // reports what a record already says.
 func TestDetailClaimsNoVerification(t *testing.T) {
 	root := writeEvidenceProject(t)
-	for _, taskID := range []string{"T001", "T002", "T003", "T004", "T005", "T006", "T007"} {
+	for _, taskID := range []string{"T-001", "T-002", "T-003", "T-004", "T-005", "T-006", "T-007"} {
 		got := strings.ToLower(screen(openTaskDetail(t, root, taskID)))
 		for _, claim := range []string{"verified that", "we checked", "confirmed that", "board verified"} {
 			if strings.Contains(got, claim) {
@@ -228,7 +228,7 @@ func TestDetailClaimsNoVerification(t *testing.T) {
 }
 
 func TestTaskDetailRendersAReplanByItsRecordedReason(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T004"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-004"))
 
 	requireContains(t, got,
 		"REPLAN",
@@ -238,14 +238,14 @@ func TestTaskDetailRendersAReplanByItsRecordedReason(t *testing.T) {
 }
 
 func TestTaskDetailRendersAnExceptionWithEveryRecordedFact(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T005"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-005"))
 
 	requireContains(t, got,
 		"EXCEPTION",
 		"Allowed by exception, not by clearance",
 		"shipped with a known gap",
 		"Requirements: TEST-02, TEST-05",
-		"Applies to: Check C004",
+		"Applies to: Check C-004",
 		"Recorded by owner the owner on 2026-01-05T00:00:00Z",
 	)
 }
@@ -253,29 +253,29 @@ func TestTaskDetailRendersAnExceptionWithEveryRecordedFact(t *testing.T) {
 func TestTaskDetailReportsOwnerValidationAndWhatWasAccepted(t *testing.T) {
 	root := writeEvidenceProject(t)
 
-	accepted := screen(openTaskDetail(t, root, "T001"))
-	requireContains(t, accepted, "OWNER VALIDATION", "Required: yes", "Accepted: Check C001, by owner session owner-fixture")
+	accepted := screen(openTaskDetail(t, root, "T-001"))
+	requireContains(t, accepted, "OWNER VALIDATION", "Required: yes", "Accepted: Check C-001, by owner session owner-fixture")
 
-	waiting := screen(openTaskDetail(t, root, "T006"))
+	waiting := screen(openTaskDetail(t, root, "T-006"))
 	requireContains(t, waiting, "Required: yes", "Accepted: "+notRecorded)
 
-	notRequired := screen(openTaskDetail(t, root, "T007"))
+	notRequired := screen(openTaskDetail(t, root, "T-007"))
 	requireContains(t, notRequired, "Required: no")
 }
 
-// The Issue link maps are the index's own: I001 names T002 as carrying its
-// repair and C002 as the run that observed it, and it is listed once rather
+// The Issue link maps are the index's own: I-001 names T-002 as carrying its
+// repair and C-002 as the run that observed it, and it is listed once rather
 // than once per link.
 func TestDetailListsTheIssuesLinkedToTheRecord(t *testing.T) {
 	root := writeEvidenceProject(t)
 
-	got := screen(openTaskDetail(t, root, "T002"))
-	requireContains(t, got, "ISSUES", "- I001 (defect, open): The retry loop drops the last attempt")
-	if count := strings.Count(got, "I001 (defect, open)"); count != 1 {
-		t.Errorf("I001 is listed %d times, want once:\n%s", count, got)
+	got := screen(openTaskDetail(t, root, "T-002"))
+	requireContains(t, got, "ISSUES", "- I-001 (defect, open): The retry loop drops the last attempt")
+	if count := strings.Count(got, "I-001 (defect, open)"); count != 1 {
+		t.Errorf("I-001 is listed %d times, want once:\n%s", count, got)
 	}
 
-	if unlinked := screen(openTaskDetail(t, root, "T007")); strings.Contains(unlinked, "ISSUES") {
+	if unlinked := screen(openTaskDetail(t, root, "T-007")); strings.Contains(unlinked, "ISSUES") {
 		t.Errorf("a record with no linked Issue renders an Issues section:\n%s", unlinked)
 	}
 }
@@ -283,7 +283,7 @@ func TestDetailListsTheIssuesLinkedToTheRecord(t *testing.T) {
 // The overlay scrolls, and both ends hold: a press past either end changes
 // nothing at all.
 func TestDetailScrollsAndClampsAtBothEnds(t *testing.T) {
-	model := press(t, focusTask(t, openSizedBoard(t, writeEvidenceProject(t), 100, 22), "T002"), "enter")
+	model := press(t, focusTask(t, openSizedBoard(t, writeEvidenceProject(t), 100, 22), "T-002"), "enter")
 	if model.Detail == nil {
 		t.Fatal("enter did not open the detail overlay")
 	}
@@ -315,7 +315,7 @@ func TestDetailScrollsAndClampsAtBothEnds(t *testing.T) {
 func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 	root := writeEvidenceProject(t)
 
-	fromColumns := focusTask(t, openSizedBoard(t, root, 130, 72), "T005")
+	fromColumns := focusTask(t, openSizedBoard(t, root, 130, 72), "T-005")
 	reopened := press(t, fromColumns, "enter", "down", "esc")
 	if reopened.Detail != nil {
 		t.Fatal("esc left the overlay open")
@@ -329,7 +329,7 @@ func TestClosingTheDetailRestoresTheSurfaceItWasOpenedFrom(t *testing.T) {
 		t.Error("closing the overlay did not return the board to the surface it was opened over")
 	}
 
-	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 130, 72), "left"), "O002")
+	fromSidebar := focusObjective(t, press(t, openSizedBoard(t, root, 130, 72), "left"), "O-002")
 	closed := press(t, fromSidebar, "v", "esc")
 	if !closed.SidebarFocused || closed.ObjectiveCursor != fromSidebar.ObjectiveCursor {
 		t.Errorf("closing left the sidebar cursor at %d (focused %v), want %d on the sidebar",
@@ -369,7 +369,7 @@ func TestTheOpenOverlayHoldsTheKeys(t *testing.T) {
 // frontmatter, checkboxes, and headings reaches the screen verbatim and changes
 // nothing the overlay says about the record.
 func TestTheRecordBodyIsDisplayedAndNotParsed(t *testing.T) {
-	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T002"))
+	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-002"))
 
 	requireContains(t, got, "BODY", "# Outcome", "- [x] status: done", "- [ ] still open")
 	// The body says "status: done"; the record says in_progress, and the record wins.
@@ -381,9 +381,9 @@ func TestTheRecordBodyIsDisplayedAndNotParsed(t *testing.T) {
 func TestLongAndWideBodyContentDoesNotWidenTheFrame(t *testing.T) {
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O001", "T001")
-	writeObjective(t, root, "O001", "Wide content", "in_progress")
-	writeTaskBody(t, root, "O001", "T001", "Carries a body nothing can wrap", "status: planned\n",
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "Wide content", "in_progress")
+	writeTaskBody(t, root, "O-001", "T-001", "Carries a body nothing can wrap", "status: planned\n",
 		strings.Repeat("x", 500)+"\n\n"+strings.Repeat("日本語のテキスト", 40)+"\n")
 
 	for _, width := range []int{80, 100, 120, 160} {
@@ -402,7 +402,7 @@ func TestOpeningScrollingAndClosingADetailWritesNothing(t *testing.T) {
 	root := writeEvidenceProject(t)
 	before := snapshotTree(t, root)
 
-	model := focusTask(t, openSizedBoard(t, root, 100, 20), "T002")
+	model := focusTask(t, openSizedBoard(t, root, 100, 20), "T-002")
 	model = press(t, model, "enter", "down", "down", "up", "esc")
 	model.SidebarFocused = true
 	model = press(t, model, "v", "down", "esc")
@@ -447,7 +447,7 @@ func snapshotTree(t *testing.T, root string) string {
 // an open overlay still renders exactly what it rendered before. Nothing on it
 // was being looked up at render time.
 func TestDetailRenderingReadsOnlyTheResolvedValue(t *testing.T) {
-	model := openTaskDetail(t, writeEvidenceProject(t), "T002")
+	model := openTaskDetail(t, writeEvidenceProject(t), "T-002")
 	// The board's body alone: the chrome around it does report the loaded
 	// counts, and removing the index legitimately changes those.
 	before := xansi.Strip(model.renderBody(120, 48))
@@ -462,26 +462,26 @@ func TestDetailRenderingReadsOnlyTheResolvedValue(t *testing.T) {
 // removed closes it rather than leaving a copy older than the project.
 func TestReloadRefreshesAnOpenDetailAndClosesADeletedOne(t *testing.T) {
 	root := writeEvidenceProject(t)
-	model := openTaskDetail(t, root, "T002")
-	requireContains(t, screen(model), "C003  CLEAR  [latest]")
+	model := openTaskDetail(t, root, "T-002")
+	requireContains(t, screen(model), "C-003  CLEAR  [latest]")
 
-	// A third run against T002, recorded while its overlay is open.
-	writeCheckExtra(t, root, "C006", "task", "T002", "NEEDS WORK", "supersedes: C003\n")
+	// A third run against T-002, recorded while its overlay is open.
+	writeCheckExtra(t, root, "C-006", "task", "T-002", "NEEDS WORK", "supersedes: C-003\n")
 	reloaded, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
 	refreshed := reloaded.(Model)
 	if refreshed.Detail == nil {
 		t.Fatal("a reload closed an overlay whose record still exists")
 	}
 	requireContains(t, screen(refreshed),
-		"C003  CLEAR  [superseded]",
-		"C006  NEEDS WORK  [latest]",
-		"Check C006 recorded NEEDS WORK.",
+		"C-003  CLEAR  [superseded]",
+		"C-006  NEEDS WORK  [latest]",
+		"Check C-006 recorded NEEDS WORK.",
 	)
 
 	// A record the reload no longer has: the overlay closes rather than keeping
 	// a copy older than the project.
-	open := openTaskDetail(t, root, "T007")
-	removeTask(t, root, "O001", "T007")
+	open := openTaskDetail(t, root, "T-007")
+	removeTask(t, root, "O-001", "T-007")
 	closed, _ := open.Update(loadCmd(root)().(projectLoadedMsg))
 	if closed.(Model).Detail != nil {
 		t.Error("a reload that removed the open record left its overlay open")
