@@ -8,9 +8,9 @@ last_audited: v2/E51-first-class-releases
 
 > Project-level architecture. Check-kept fresh: each Objective and Goal verification merges its reconciled delta into this document.
 
-> **Current V2 architecture:** E50's owner-approved migration activated schema 2 in this repository. `internal/data` owns the identity-keyed V2 index, Task/Objective/Issue/Check gates, first-class Goal completion through Release-compatible records, and the project-level `ResolveReleaseCutover` composition; board, doctor, resume, and migration use those boundaries without a second readiness policy.
+> **Current V2 architecture:** E50's owner-approved migration activated schema 2 in this repository. `internal/data` owns the identity-keyed V2 index, Task/Objective/Issue/Check gates, and first-class Goal completion through Release-compatible records; board, doctor, resume, and migration use those boundaries without a second readiness policy.
 >
-> **Historical V1 evidence:** The former V1 hierarchy, source readers, and runbooks remain byte-preserved under `.savepoint/archive/v1/` and are reachable only for migration, upgrade compatibility, or historical fixtures. They are not the active runtime architecture.
+> **Historical V1 evidence:** Former V1 project records remain byte-preserved under `.savepoint/archive/v1/`. The V1 readers retained in `internal/data` are used by `internal/migrate`; they are not part of ordinary runtime commands.
 >
 > **Visual identity** lives separately in `.savepoint/visual-identity.md` and is loaded only for TUI/theme/visual tasks.
 
@@ -18,13 +18,13 @@ last_audited: v2/E51-first-class-releases
 
 - **File-only.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools.
 - **Agent routing:** AGENTS.md → `.savepoint/router.md` → phase skills. See AGENTS.md Workflow section.
-- **Bundled Agent Skills:** The active V2 workflow uses `savepoint-idea`, `savepoint-design`, `savepoint-task`, and `savepoint-check`, with three non-triggerable shared references. The legacy V1 skills and audit method remain available only in the V1 scaffold/upgrade path and preserved history.
+- **Bundled Agent Skills:** The active V2 workflow uses `savepoint-idea`, `savepoint-design`, `savepoint-task`, and `savepoint-check`, with three non-triggerable shared references. Retired V1 workflow files are preserved only as historical evidence.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
   - Audit: 5–15KB.
   - Anything that breaks these bounds violates the wedge.
-- **Go data-reader boundary:** `internal/data` owns Savepoint file parsing and discovery for the Go implementation: Objective/Task/Check/Issue/Release models (the internal Release model backs the public Goal), markdown YAML extraction, V2 router state parsing, config/theme defaults, identity-keyed record discovery, lifecycle validation/defaulting, write-time status validation, and boundary error sentinels.
+- **Go data-reader boundary:** `internal/data` owns Savepoint file parsing and discovery for the Go implementation: Objective/Task/Check/Issue/Release models (the internal Release model backs the public Goal), markdown YAML extraction, V2 router state parsing, config/theme defaults, identity-keyed record discovery, lifecycle validation/defaulting, write-time status validation, and boundary error sentinels. Its `CheckRuntimeSchema` front door rejects schema 1 with the named migrate-required diagnostic, directing the owner to preview with `savepoint migrate --dry-run` and apply with `savepoint migrate --apply` without importing conversion code.
 - **V2 evidence and identity boundary:** `internal/data` strictly loads identity-keyed Objective, Task, Check, Issue, and Release-compatible Goal records through confined paths, preserves authored record content on managed writes, resolves numeric Check history and freshness (a CLEAR Check signed by a checker is current on its own; an optional freshness assessment naming that Check can only mark it stale or unknown), and owns canonical dependency, lifecycle, authority, acceptance, exception, and replan decisions. `internal/doctor` reports the same structural and evidence diagnostics without rewriting project files.
 - **V2 follow-up and integration boundary:** `internal/data` owns the mutable Issue family and bidirectional Check/Issue/Task links, while Objective and Goal completion remain derived from owned work, independent integration evidence, material Issue posture, and exact owner acceptance. The Goal is backed by the existing Release record and completion resolver. `internal/doctor`, `internal/board/v2`, and `internal/resume` report those decisions without duplicating policy. Issue resolution carries four dispositions — `verified` (Check-proven repair), `accepted` (owner risk decision), `duplicate` (points at a canonical Issue), and `escalated` (points at the Objective, `escalated_to: O-###`, the repair was promoted into) — each with its own proof obligation enforced by `internal/data`. Owner acceptance may close an Issue directly as `accepted` without a Check and without claiming technical `CLEAR`. Escalation is the Issue closure the planning workflow performs directly rather than `savepoint-check`: `savepoint-design` retires an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective, since that Objective's own mandatory Full Objective Check and owner acceptance become the proof.
 - **V2 agent workflow assets:** The four active skills and three non-triggerable shared references are byte-identical between the live and V2 scaffold trees. Task `planned_by` provenance and Check `executed_session` provenance are strict typed fields; the decoder rejects a Check that claims the executor and checker were the same session.
@@ -32,10 +32,10 @@ last_audited: v2/E51-first-class-releases
 - **V2 Goal boundary (Release-compatible storage):** A Goal is optional context grouping related Objectives under a navigable outcome; it does not own Tasks or publish, deploy, tag, or generate changelogs. Existing Goals remain stable `R-###` records under `.savepoint/releases/<slug>/Release.md`; Objective and router references retain `release: R-###`, and Goal Checks retain `scope.kind: release`. Membership comes from Objective records, and completion uses the existing Release-scoped Check resolver, material Issues, and exact owner acceptance. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
 - **Template assets** live under `templates/project-v2/` for the active workflow; the V1 scaffold tree and its retired skills are gone (O-021), and `savepoint migrate` converts a legacy project onto this same tree.
 - **Init command** (`savepoint init`) validates targets and scaffolds `templates/project-v2/`, including the four V2 skills, Idea/Design/Guardrails/router files, and schema version 2. Existing user content is preserved through the managed-guide boundary.
-- **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned V2 skills and shared references with provenance and recoverable writes; migration history and project records remain untouched.
+- **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned V2 skills and shared references with provenance; migration history and project records remain untouched.
 - **Board command** (`savepoint board`, and bare `savepoint`) loads the V2 index and router once, resolves the shared `data.Next`, and renders the Objective/Task/Check/Issue surface in TUI or deterministic non-TTY form. Goal context is optional and derived from Objective membership; V1 filters are refused for V2 projects.
 - **Doctor command** (`savepoint doctor`) runs read-only V2 structure, lifecycle, dependency, Issue, evidence, quality-gate, and canonical Goal-readiness diagnostics through the existing Release resolver, with named repair guidance and no automatic writes.
-- `internal/board/v2`, `internal/doctor`, and `internal/resume` consume the existing first-class Release records and canonical Release completion resolver for the public Goal context. The board's `g` key is the canonical Goal selector; `r` remains an undisplayed compatibility alias. Goal detail, the plain board, and resume expose that context; `ResolveReleaseCutover` only composes per-Goal decisions for E50 and is not a second policy.
+- `internal/board/v2`, `internal/doctor`, and `internal/resume` consume the existing first-class Release records and canonical Release completion resolver for the public Goal context. The board's `g` key is the canonical Goal selector; `r` remains an undisplayed compatibility alias. Goal detail, the plain board, and resume expose that context.
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
@@ -63,7 +63,7 @@ last_audited: v2/E51-first-class-releases
     ├── checks/                     ← immutable independent evidence
     ├── issues/                     ← durable follow-up records
     ├── archive/v1/                 ← byte-preserved historical source
-    └── migrations/v1-to-v2.yml    ← source hashes, mappings, recovery record
+    └── migrations/v1-to-v2.yml    ← source hashes and conversion mappings
 ```
 
 Goal records are optional first-class V2 contexts, stored as Release records:
@@ -124,7 +124,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 | `savepoint init`       | Scaffold `.savepoint/`, merge the managed agent guide block, print magic prompt to stdout + clipboard |
 | `savepoint board`      | Launch TUI; auto-falls-back to plain table on non-TTY                             |
 | `savepoint doctor`     | Integrity check + ad-hoc quality-gate run + Layer-2 prompt for AI semantic review |
-| `savepoint migrate [dir]` | Preview-first V1-to-V2 conversion with byte-preserved archives and recoverable apply |
+| `savepoint migrate [dir]` | Preview-first V1-to-V2 conversion; apply checks planned paths in Git before writing |
 | `savepoint resume [dir]` | Print the shared V2 Next projection without writing project files |
 | `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned agent skills and the managed agent-guide block without touching project state |
 | `--version` / `--help` | Standard global flags                                                             |
@@ -132,6 +132,12 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 - Bare `savepoint` prints help.
 - Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
+
+`migrate --apply` requires a Git work tree. Every planned write or removal
+path must be free of modified, untracked, or ignored files; apply then writes
+the converted files directly and sets `schema_version: 2` last. The conversion
+manifest records source hashes and mappings, and an error after partial writes
+reports the touched paths with Git commands to undo them.
 
 **Names:** npm package `savepoint`; binary `savepoint`. No `vk` alias.
 ## 7. Independent Check workflow
@@ -173,7 +179,7 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Border policy:** focus must not change geometry or introduce terminal-specific broken border rendering. Use one consistent box-border family across columns, cards, and overlays. If rounded borders render as dash bars or broken segments in Warp, prefer the single-line border style already allowed by `.savepoint/visual-identity.md`; do not mix rounded and single-line borders as an ad-hoc per-component workaround.
 
-**Board persistence and refresh:** Task status writes use canonical V2 frontmatter with mtime conflict checks. Startup and every reload share one load command (`data.LoadProject`, migration-state detection, router decoding, and `data.ResolveNext`); rendering performs no filesystem work. The board watches the V2 Objective/Task/Release-compatible Goal paths, preserves selection across reloads, and never infers completion or Goal readiness from sidebar position.
+**Board persistence and refresh:** Task status writes use canonical V2 frontmatter with mtime conflict checks. Startup and every reload check the project schema with `data.CheckRuntimeSchema`, load the identity-keyed records with `data.LoadV2Index`, decode router state, and resolve `data.ResolveNext`; rendering performs no filesystem work. The board watches the V2 Objective/Task/Release-compatible Goal paths, preserves selection across reloads, and never infers completion or Goal readiness from sidebar position.
 
 **Implementation modules:** see AGENTS.md Codebase Map.
 
@@ -230,7 +236,7 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 | Unit and package behavior | `go test ./...` | parser, lifecycle, gate, rendering, and filesystem branches |
 | Repository build | `make build` | Go binary and embedded template wiring |
 | Distribution | `make build-all`, `make dist`, `make package-check` | six declared platform/architecture targets and checksums |
-| Temporary-project integration | migration, board, doctor, resume tests | V2 loading, recovery, identity mapping, and non-TTY parity |
+| Temporary-project integration | migration, board, doctor, resume tests | schema refusal, V2 loading, identity mapping, and non-TTY parity |
 
 Quality gates are named in `.savepoint/config.yml`; coverage percentage alone
 never substitutes for acceptance evidence.

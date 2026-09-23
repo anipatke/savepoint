@@ -3,57 +3,9 @@ package data
 import (
 	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 )
-
-// Project is the schema-dispatched entry point for loading a .savepoint
-// project. LoadProject detects schema_version exactly once, before any
-// record discovery runs, then hands off to an isolated schema-specific
-// loader.
-type Project struct {
-	Root          string
-	SchemaVersion SchemaVersion
-	V1            *Discover
-	V2            *V2Index
-}
-
-// LoadProject detects the project schema from root's config.yml and
-// dispatches to the schema-specific loader. root is a .savepoint directory
-// path. Schema selection depends only on config.yml's schema_version field;
-// it never consults package, release, or .upgrade-manifest.yml versions.
-func LoadProject(root string) (*Project, error) {
-	configPath := filepath.Join(root, "config.yml")
-	version, err := ReadSchemaVersion(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	switch version {
-	case SchemaVersionV2:
-		return loadProjectV2(root)
-	default:
-		return loadProjectV1(root)
-	}
-}
-
-// loadProjectV1 isolates transitional V1 discovery behind the schema
-// dispatch boundary without changing Discover's existing behavior.
-func loadProjectV1(root string) (*Project, error) {
-	return &Project{Root: root, SchemaVersion: SchemaVersionV1, V1: NewDiscover()}, nil
-}
-
-// loadProjectV2 dispatches to the V2 identity-keyed project index. It
-// deliberately fails closed on any structural diagnostic from LoadV2Index
-// rather than falling back to V1 discovery.
-func loadProjectV2(root string) (*Project, error) {
-	index, err := LoadV2Index(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Project{Root: root, SchemaVersion: SchemaVersionV2, V2: index}, nil
-}
 
 // V2Index is the identity-keyed project index for a V2 project's Release,
 // Objective, and Task records, built by LoadV2Index. Records are looked up by

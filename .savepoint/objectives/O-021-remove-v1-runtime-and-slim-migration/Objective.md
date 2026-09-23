@@ -1,8 +1,9 @@
 ---
 id: O-021
 title: Remove the dead V1 runtime and slim the migration engine
-status: planned
+status: done
 release: R-006
+last_check: C-915
 ---
 
 # O-021: Remove the dead V1 runtime and slim the migration engine

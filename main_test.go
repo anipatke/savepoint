@@ -142,18 +142,16 @@ func TestMainInitScaffoldsV2ProjectWithEmptyValidIndex(t *testing.T) {
 		t.Fatalf("SchemaVersion = %v, want SchemaVersionV2", version)
 	}
 
-	project, err := data.LoadProject(filepath.Join(dir, ".savepoint"))
+	if err := data.CheckRuntimeSchema(dir); err != nil {
+		t.Fatalf("CheckRuntimeSchema() on fresh init error = %v", err)
+	}
+
+	index, err := data.LoadV2Index(filepath.Join(dir, ".savepoint"))
 	if err != nil {
-		t.Fatalf("LoadProject() on fresh init error = %v", err)
+		t.Fatalf("LoadV2Index() on fresh init error = %v", err)
 	}
-	if project.SchemaVersion != data.SchemaVersionV2 {
-		t.Errorf("Project.SchemaVersion = %v, want SchemaVersionV2", project.SchemaVersion)
-	}
-	if project.V2 == nil {
-		t.Fatal("Project.V2 index is nil")
-	}
-	if len(project.V2.Objectives) != 0 || len(project.V2.Tasks) != 0 || len(project.V2.Checks) != 0 || len(project.V2.Issues) != 0 {
-		t.Errorf("fresh init V2 index not empty: %+v", project.V2)
+	if len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
+		t.Errorf("fresh init V2 index not empty: %+v", index)
 	}
 }
 

@@ -43,6 +43,12 @@ history:
       Owner reported a parse error for Issue I-038: no closing frontmatter
       delimiter was found. The board displayed that no board is drawn because
       the project's records did not load.
+  - at: '2026-09-23T22:17:20Z'
+    actor: {role: owner, session: user-report}
+    kind: observed
+    note: >-
+      Owner reported another RELOAD issue link diagnostic: issue I-040 names
+      missing check C-914. Exact diagnostic is recorded in the Evidence section.
 ---
 
 # I-031: Frequent V2 board load errors for project records
@@ -65,6 +71,7 @@ reported symptoms without asserting a cause.
 - `npx savepoint board` failed with: `board: [invalid_v2] V2 project cannot be loaded safely: v2 record has a malformed or invalid global ID: objectives/O-001-release-validation-cutover/Objective.md: objective id "O-001" must match O plus at least three digits; repair the named record before cutover`
 - `parse error for issues/I-038-npx-board-rejects-canonical-objective-id.md: no closing frontmatter delimiter found`
 - `No board is drawn: this project's records did not load.`
+- `RELOAD v2 issue link names a record that does not exist: issues/I-040-data-loadproject-unreachable-v1-dispatch.md: issue I-040 names missing check C-914`
 
 ## Proof Needed
 

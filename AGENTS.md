@@ -121,33 +121,24 @@ make ci                        # CI full gate plus distribution and package chec
 
 | Module | Purpose |
 |--------|---------|
-| `main.go` | CLI entrypoint, --version, embedded template wiring for init and upgrade-assets, migrate dispatch, and resume dispatch: resolves the target directory and any pending migration state, loads the V2 project and router, resolves the `Next` projection, and renders it (`runResume`) |
-| `cmd/` | CLI command arg parsing and dispatch for init, board, doctor, upgrade-assets, migrate, and resume — argument parsing only, no record parsing, gate reading, or rendering (ARCH-01). It parses `board`'s V1 filters (`--release`, `--epic`) and V2 filter (`--objective`) without judging which applies; that is refused behind the dispatch, where the schema is known |
-| `internal/init/` | Target validation, scaffold writing from a caller-selected template tree (`init` defaults to `templates/project-v2`), upgrade-assets schema-version dispatch between `templates/project` and `templates/project-v2` via `data.ReadSchemaVersion`, upgrade provenance manifest, managed AGENTS.md merge/conflict behavior, and safe project asset refresh |
-| `internal/board/` | The board's schema dispatch — resolve the project root once, `data.LoadProject`, then run the V1 board or `internal/board/v2`, refusing a filter flag the resolved schema has no meaning for (CFG-01) — plus the whole V1 board: TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, audit register overlay with finding detail and linked-finding backlinks, shared board utilities |
-| `internal/board/v2/` | The V2 board, a sibling package no V1 board type or V1 record type is reachable from: model state, the single load command (`data.LoadProject`, `ReadStateV2`, `migrate.PendingOperation`, `data.ResolveNext`) startup and every reload share, the load-diagnostic screen for a project the V2 index refuses, the Objective sidebar — list, cursor, selection, per-Objective status/clearance/integration/dependency state, and Task filtering by ownership read from `index.ObjectiveTasks` — three columns of Task cards labelled by their title, the one badge mapping from typed `data` values (stage, clearance, gate blockers, waiver, exception) to glyph, label, and accent, the Next area — one compact block formatted from the single resolved `data.Next`, naming the rung, the selected records, `internal/resume`'s evidence and selection-diagnostic wording, an Issues count by type, and the action, with nothing on it derived from the index or moved by the sidebar's selection — the Task and Objective detail overlay, split into the resolution that reaches the index (identity, lifecycle, ownership, dependency decisions, clearance, the Check chain with latest and superseded marked, and the Issues the index's link maps hang off the record) and the rendering that reaches nothing, scrolls, and returns focus to the surface it was opened from — and non-TTY output leading with those same Next lines |
-| `internal/buildtool/` | Makefile helper, named Go-test gates and timing summaries, cross-compile including Windows targets, archives, distribution checksums |
-| `internal/doctor/` | Read-only project diagnostics, integrity checks, Goal readiness through the canonical Release completion resolver, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
-| `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers, audit-register models/loaders and finding backlink lookups, the V2 Next projection (`ResolveNext`): the precedence ladder and selection resolution over the E43/E44 gate resolvers, deriving one next action for a project without owning any gate rule itself, plus the Issues relevant to that selection (`Next.Issues`), resolved from the index's own Task/Check/Issue link maps |
-| `internal/resume/` | Deterministic, plain-text rendering of a resolved `data.Next` projection to an `io.Writer` (`resume.Render`): selected Objective/Task identity, implementation state, technical clearance, owner-wait, exception, dependency, and Issue phrasing, and the next action — with the evidence and freshness wording held once in its own file. It owns that wording for every surface reporting recorded V2 evidence, not just for its own narrative: `EvidenceLines`, `ActionPhrase`, and `SelectionPhrase` are exported so the V2 board's Next area states the same facts in the same words under a layout of its own, and `ClearancePhrase`, `DependencyPhrase`, `ObjectiveDependencyPhrase`, `ExceptionPhrase`, `ReplanPhrase`, `IssueLine`, and `ActorLabel` are exported for the board's detail overlay, which reports one record's own evidence rather than a whole projection. No filesystem, subprocess, network, or TTY access; no project root or index consulted |
-| `internal/migrate/` | One-time V1-to-V2 project conversion; first-class Release PRD/source mapping; the platform file replacement primitive that operation's writes go through; a read-only source inventory (exact-byte hashing, confined walk); role classification against the frozen fixture vocabulary; and the migrate command body: target validation, preview, decisions loading, guarded apply, interruption recovery, and no-op retry proof |
-| `internal/data/release_cutover.go` | Project-level E50 cutover composition: orders every declared Release's `ResolveReleaseCompletion` blockers without introducing a second readiness rule; no-Release projects remain valid |
-| `internal/board/v2/releases.go` | Optional `g` Goal selector (`r` is an undisplayed compatibility alias) and read-only Goal detail path; membership and readiness use existing Release-backed records and canonical data resolvers |
-| `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
-| `internal/styles/` | Atari-Noir palette, TUI styles |
-| `templates/` | Scaffold markdown, YAML, prompts, and defect workflow guidance |
-| `agent-skills/` | Phase-specific skill guides, including defect capture guidance |
+| `main.go` | Wires CLI commands, version output, and embedded V2 templates. Its resume path loads the V2 project and router, resolves `data.Next`, and renders the result. |
+| `cmd/` | Parses arguments and dispatches init, board, doctor, upgrade-assets, migrate, and resume commands. It leaves project records, gates, and rendering to `internal/` packages. |
+| `internal/init/` | Validates targets and scaffolds `templates/project-v2`. Upgrade-assets checks the project schema through `internal/data` and safely refreshes managed guidance and assets. |
+| `internal/board/` | Owns schema-aware board dispatch and rejects filter flags that do not apply to the project. V2 board rendering lives in `internal/board/v2`. |
+| `internal/board/v2/` | Implements the V2 TUI and non-TTY board, using the shared `data.Next` projection for the next action. It renders Objective, Task, and Goal navigation and details. |
+| `internal/buildtool/` | Runs named Go build and test gates and prepares cross-platform binaries, archives, and checksums. |
+| `internal/doctor/` | Runs read-only project diagnostics and configured quality gates. It reports Goal readiness through the canonical `internal/data` resolver and formats repair guidance. |
+| `internal/data/` | Loads projects and owns the shared schema-version check, V2 records, indexes, lifecycle and gate decisions, Goal completion, and the `Next` projection. The retained V1 readers are used by `internal/migrate` to parse conversion inputs. |
+| `internal/resume/` | Renders a resolved `data.Next` projection and shared evidence wording to plain text. It performs no filesystem, subprocess, network, or TTY access. |
+| `internal/migrate/` | Previews and converts V1 project files into V2 files and a source manifest. Apply requires a Git work tree and checks planned paths for modified, untracked, or ignored files before writing directly; a partial failure reports written paths and Git undo commands. |
+| `internal/testutil/` | Provides shared Go test fixtures and filesystem helpers for internal packages. |
+| `internal/styles/` | Defines the TUI palette and styles. |
+| `templates/` | Contains the V2 scaffold's Markdown, YAML, prompts, and workflow guidance. |
+| `agent-skills/` | Contains the four active V2 skills and their shared references. |
 
-The V2 `internal/data/` boundary owns the existing Release records behind the
-public Goal context, derived Goal membership, the canonical Release completion
-decision, and the `ResolveReleaseCutover` composition consumed by E50.
-`internal/doctor` and `internal/board/v2` report that same decision; they do
-not maintain a second Goal-readiness policy.
-
-After this repository's schema-2 migration, ordinary startup, board, doctor,
-resume, and init behavior is V2-only. The V1 readers and V1 board surfaces in
-the map are compatibility code reachable only from explicit migration or
-preserved historical fixtures.
+After schema-2 migration, ordinary board, resume, doctor, init, and
+upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
+`internal/data` are used by `internal/migrate` to parse legacy source projects.
 
 ## Context Budget
 

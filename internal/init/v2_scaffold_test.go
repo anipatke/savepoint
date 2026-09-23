@@ -256,29 +256,24 @@ func TestV2ScaffoldIntoPopulatedDirectoryPreservesExistingFiles(t *testing.T) {
 	}
 }
 
-// TestV2ScaffoldLoadsCleanThroughDataLoadProject proves the V2 tree is not
-// merely well-worded but structurally sound: scaffolded fresh, its
-// config.yml schema_version selects the V2 loader, and the loader accepts an
-// empty objectives/ tree with no diagnostic. No command wires this tree in
-// yet — Scaffold takes any fs.FS, so this exercises the tree directly.
-func TestV2ScaffoldLoadsCleanThroughDataLoadProject(t *testing.T) {
+// TestV2ScaffoldLoadsCleanThroughRuntimeSchemaAndIndex proves the V2 tree is
+// structurally sound: its schema passes the runtime gate and its empty
+// objectives/ tree loads without a diagnostic.
+func TestV2ScaffoldLoadsCleanThroughRuntimeSchemaAndIndex(t *testing.T) {
 	target := t.TempDir()
 	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
 	if err := Scaffold(templates, target, "myapp", false); err != nil {
 		t.Fatalf("Scaffold() from templates/project-v2 error = %v", err)
 	}
 
-	project, err := data.LoadProject(filepath.Join(target, ".savepoint"))
+	if err := data.CheckRuntimeSchema(target); err != nil {
+		t.Fatalf("data.CheckRuntimeSchema() on fresh V2 scaffold error = %v", err)
+	}
+	index, err := data.LoadV2Index(filepath.Join(target, ".savepoint"))
 	if err != nil {
-		t.Fatalf("data.LoadProject() on fresh V2 scaffold error = %v", err)
+		t.Fatalf("data.LoadV2Index() on fresh V2 scaffold error = %v", err)
 	}
-	if project.SchemaVersion != data.SchemaVersionV2 {
-		t.Errorf("SchemaVersion = %v, want SchemaVersionV2", project.SchemaVersion)
-	}
-	if project.V2 == nil {
-		t.Fatal("V2 index is nil")
-	}
-	if len(project.V2.Objectives) != 0 || len(project.V2.Tasks) != 0 || len(project.V2.Checks) != 0 || len(project.V2.Issues) != 0 {
-		t.Errorf("fresh V2 scaffold index not empty: %+v", project.V2)
+	if len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
+		t.Errorf("fresh V2 scaffold index not empty: %+v", index)
 	}
 }

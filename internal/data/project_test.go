@@ -11,118 +11,67 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestLoadProject(t *testing.T) {
+func TestCheckRuntimeSchema(t *testing.T) {
 	cases := []struct {
 		name          string
 		configContent string
 		omitConfig    bool
-		wantVersion   SchemaVersion
 		wantErr       error
 	}{
 		{
-			name:        "absent config selects transitional V1",
-			omitConfig:  true,
-			wantVersion: SchemaVersionV1,
+			name:       "absent config requires migration",
+			omitConfig: true,
+			wantErr:    ErrSchemaMigrationRequired,
 		},
 		{
-			name:          "absent schema_version selects transitional V1",
+			name:          "absent schema_version requires migration",
 			configContent: "theme:\n  bg: \"#000000\"\n",
-			wantVersion:   SchemaVersionV1,
+			wantErr:       ErrSchemaMigrationRequired,
 		},
 		{
-			name:          "explicit version 2 dispatches to the V2 index loader",
+			name:          "explicit schema version 2 passes the runtime gate",
 			configContent: "schema_version: 2\n",
-			wantVersion:   SchemaVersionV2,
 		},
 		{
-			name:          "malformed explicit version fails named, does not fall back to V1",
+			name:          "malformed explicit version fails with its named diagnostic",
 			configContent: "schema_version: nope\n",
 			wantErr:       ErrMalformedSchemaVersion,
 		},
 		{
-			name:          "unsupported explicit version fails named, does not fall back to V1",
+			name:          "unsupported explicit version fails with its named diagnostic",
 			configContent: "schema_version: 99\n",
 			wantErr:       ErrUnsupportedSchemaVersion,
 		},
 		{
-			name:          "unrelated version-shaped fields do not affect dispatch",
-			configContent: "theme:\n  bg: \"#000000\"\n",
-			wantVersion:   SchemaVersionV1,
+			name:          "unrelated version-shaped fields do not pass the schema gate",
+			configContent: "package_version: 2\n",
+			wantErr:       ErrSchemaMigrationRequired,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
+			savepointRoot := filepath.Join(root, ".savepoint")
+			testutil.MkdirAll(t, savepointRoot)
 			if !tc.omitConfig {
-				testutil.WriteFile(t, filepath.Join(root, "config.yml"), tc.configContent)
+				testutil.WriteFile(t, filepath.Join(savepointRoot, "config.yml"), tc.configContent)
 			}
 			// Package/release/upgrade-manifest content must never influence
-			// schema selection, even when it carries its own version fields.
-			testutil.WriteFile(t, filepath.Join(root, ".upgrade-manifest.yml"), "schema_version: 2\nversion: 1.3.1\n")
-			testutil.MkdirAll(t, filepath.Join(root, "releases", "v2", "epics"))
+			// the schema gate, even when it carries its own version fields.
+			testutil.WriteFile(t, filepath.Join(savepointRoot, ".upgrade-manifest.yml"), "schema_version: 2\nversion: 1.3.1\n")
 
-			project, err := LoadProject(root)
-
-			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("LoadProject() error = %v, want wrapping %v", err, tc.wantErr)
-				}
-				if project != nil {
-					t.Errorf("LoadProject() project = %+v, want nil on error", project)
+			err := CheckRuntimeSchema(root)
+			if tc.wantErr == nil {
+				if err != nil {
+					t.Fatalf("CheckRuntimeSchema() error = %v, want nil", err)
 				}
 				return
 			}
-
-			if err != nil {
-				t.Fatalf("LoadProject() unexpected error = %v", err)
-			}
-			if project.SchemaVersion != tc.wantVersion {
-				t.Errorf("LoadProject() SchemaVersion = %v, want %v", project.SchemaVersion, tc.wantVersion)
-			}
-			switch tc.wantVersion {
-			case SchemaVersionV2:
-				if project.V2 == nil {
-					t.Fatal("LoadProject() V2 index = nil, want non-nil for V2 dispatch")
-				}
-			default:
-				if project.V1 == nil {
-					t.Fatal("LoadProject() V1 discover adapter = nil, want non-nil for transitional V1 dispatch")
-				}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("CheckRuntimeSchema() error = %v, want wrapping %v", err, tc.wantErr)
 			}
 		})
-	}
-}
-
-// TestLoadProjectV1DiscoveryUnchanged proves the schema dispatch boundary
-// does not alter existing V1 Discover behavior: a project reachable via
-// LoadProject's V1 adapter still lists releases/epics/tasks exactly as
-// calling Discover directly would.
-func TestLoadProjectV1DiscoveryUnchanged(t *testing.T) {
-	root := t.TempDir()
-	savepointRoot := filepath.Join(root, ".savepoint")
-	testutil.SetupMinimalProject(t, savepointRoot, "v1", "E01-example")
-
-	project, err := LoadProject(savepointRoot)
-	if err != nil {
-		t.Fatalf("LoadProject() error = %v", err)
-	}
-	if project.SchemaVersion != SchemaVersionV1 {
-		t.Fatalf("LoadProject() SchemaVersion = %v, want SchemaVersionV1", project.SchemaVersion)
-	}
-
-	viaProject, err := project.V1.ListEpics(savepointRoot, "v1")
-	if err != nil {
-		t.Fatalf("project.V1.ListEpics() error = %v", err)
-	}
-
-	direct, err := NewDiscover().ListEpics(savepointRoot, "v1")
-	if err != nil {
-		t.Fatalf("NewDiscover().ListEpics() error = %v", err)
-	}
-
-	if len(viaProject) != len(direct) || len(viaProject) != 1 || viaProject[0].ID != direct[0].ID {
-		t.Errorf("ListEpics() via project = %+v, direct = %+v, want matching single-epic results", viaProject, direct)
 	}
 }
 
@@ -1421,16 +1370,16 @@ func TestLoadV2Index_issueDeferralStaysOpen(t *testing.T) {
 	}
 }
 
-func TestLoadProjectRejectsDirectoryReadFailure(t *testing.T) {
+func TestCheckRuntimeSchemaRejectsDirectoryReadFailure(t *testing.T) {
 	root := t.TempDir()
-	configPath := filepath.Join(root, "config.yml")
+	configPath := filepath.Join(root, ".savepoint", "config.yml")
 	testutil.MkdirAll(t, configPath) // a directory where config.yml should be a file
 
-	_, err := LoadProject(root)
+	err := CheckRuntimeSchema(root)
 	if err == nil {
-		t.Fatal("LoadProject() error = nil, want error reading config.yml")
+		t.Fatal("CheckRuntimeSchema() error = nil, want error reading config.yml")
 	}
-	if errors.Is(err, ErrMalformedSchemaVersion) || errors.Is(err, ErrUnsupportedSchemaVersion) {
-		t.Errorf("LoadProject() error = %v, want a read failure, not a schema diagnostic", err)
+	if errors.Is(err, ErrMalformedSchemaVersion) || errors.Is(err, ErrUnsupportedSchemaVersion) || errors.Is(err, ErrSchemaMigrationRequired) {
+		t.Errorf("CheckRuntimeSchema() error = %v, want a read failure, not a schema diagnostic", err)
 	}
 }

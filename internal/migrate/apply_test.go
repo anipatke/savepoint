@@ -37,13 +37,16 @@ func copyFixtureProject(t *testing.T, fixture string) string {
 	return dst
 }
 
-func mustLoadProject(t *testing.T, root string) *data.Project {
+func mustLoadV2Index(t *testing.T, root string) *data.V2Index {
 	t.Helper()
-	project, err := data.LoadProject(filepath.Join(root, ".savepoint"))
-	if err != nil {
-		t.Fatalf("LoadProject(%s) error = %v", root, err)
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		t.Fatalf("CheckRuntimeSchema(%s) error = %v", root, err)
 	}
-	return project
+	index, err := data.LoadV2Index(filepath.Join(root, ".savepoint"))
+	if err != nil {
+		t.Fatalf("LoadV2Index(%s) error = %v", root, err)
+	}
+	return index
 }
 
 func mustExist(t *testing.T, path string) {
@@ -120,9 +123,9 @@ func TestApply_v1BasicEndToEnd(t *testing.T) {
 		t.Error("Design.md changed; preserved-in-place documents must stay byte-identical")
 	}
 
-	project := mustLoadProject(t, root)
-	if project.SchemaVersion != data.SchemaVersionV2 || len(project.V2.Objectives) != 1 || len(project.V2.Tasks) != 1 {
-		t.Errorf("migrated project = schema %d, %d Objectives, %d Tasks; want V2, 1, 1", project.SchemaVersion, len(project.V2.Objectives), len(project.V2.Tasks))
+	index := mustLoadV2Index(t, root)
+	if len(index.Objectives) != 1 || len(index.Tasks) != 1 {
+		t.Errorf("migrated index = %d Objectives, %d Tasks; want 1, 1", len(index.Objectives), len(index.Tasks))
 	}
 	mustNotExist(t, filepath.Join(root, ".savepoint", "archive", "v1", "archive"))
 }
@@ -133,12 +136,12 @@ func TestApply_v1HistoryKeepsReleaseScopedIDs(t *testing.T) {
 	if _, err := Apply(root, plan); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
-	project := mustLoadProject(t, root)
-	if project.SchemaVersion != data.SchemaVersionV2 || len(project.V2.Tasks) != 2 {
-		t.Fatalf("migrated project = schema %d, %d Tasks; want V2 and two active Tasks", project.SchemaVersion, len(project.V2.Tasks))
+	index := mustLoadV2Index(t, root)
+	if len(index.Tasks) != 2 {
+		t.Fatalf("migrated index = %d Tasks; want two active Tasks", len(index.Tasks))
 	}
 	seen := map[string]bool{}
-	for id := range project.V2.Tasks {
+	for id := range index.Tasks {
 		if seen[id] {
 			t.Errorf("global Task ID %s allocated more than once", id)
 		}

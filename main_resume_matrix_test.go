@@ -358,17 +358,13 @@ func resolveNextFromDisk(t *testing.T, dir string) data.Next {
 	t.Helper()
 
 	savepointRoot := filepath.Join(dir, ".savepoint")
-	version, err := data.ReadSchemaVersion(filepath.Join(savepointRoot, "config.yml"))
-	if err != nil {
-		t.Fatalf("ReadSchemaVersion() error = %v", err)
-	}
-	if version != data.SchemaVersionV2 {
-		t.Fatalf("SchemaVersion = %v, want V2 for a matrix fixture", version)
+	if err := data.CheckRuntimeSchema(dir); err != nil {
+		t.Fatalf("CheckRuntimeSchema() error = %v, want nil for a matrix fixture", err)
 	}
 
-	project, err := data.LoadProject(savepointRoot)
+	index, err := data.LoadV2Index(savepointRoot)
 	if err != nil {
-		t.Fatalf("LoadProject() error = %v", err)
+		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 
 	routerContent, err := os.ReadFile(filepath.Join(savepointRoot, "router.md"))
@@ -380,7 +376,7 @@ func resolveNextFromDisk(t *testing.T, dir string) data.Next {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
 
-	return data.ResolveNext(data.NextInput{Index: project.V2, Router: router})
+	return data.ResolveNext(data.NextInput{Index: index, Router: router})
 }
 
 // minimalSecondConsumer is deliberately not internal/resume: it reads

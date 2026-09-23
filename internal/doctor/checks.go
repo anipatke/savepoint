@@ -59,10 +59,8 @@ type releaseDiagnostics struct {
 }
 
 // releaseDiagnosticsForIndex is the V2-only form used by the live doctor
-// runtime. It accepts the already loaded index rather than schema-dispatching
-// through data.LoadProject, keeping legacy discovery out of ordinary health
-// checks while the compatibility helper above remains available to historical
-// doctor tests.
+// runtime. It accepts the already loaded index, keeping project loading and
+// legacy discovery outside ordinary health checks.
 func releaseDiagnosticsForIndex(root string, index *data.V2Index) releaseDiagnostics {
 	if index == nil || len(index.Releases) == 0 {
 		return releaseDiagnostics{}
@@ -349,8 +347,8 @@ func v2ConsistencyDiagnosticName(kind data.ConsistencyDiagnosticKind) string {
 	}
 }
 
-// v2DiagnosticName maps a data.LoadProject error to the stable diagnostic
-// name doctor reports it under. Every V2 structural sentinel in
+// v2DiagnosticName maps V2 runtime errors to the stable diagnostic name
+// doctor reports them under. Every V2 structural sentinel in
 // internal/data/errors.go has a name here so a project's diagnostic name
 // never changes between doctor runs.
 func v2DiagnosticName(err error) string {
