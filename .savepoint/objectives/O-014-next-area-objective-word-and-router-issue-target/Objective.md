@@ -49,6 +49,21 @@ reference one. A missing, blank, `none`, or unknown router Release is invalid;
 an Objective without a valid Release reference is invalid. The previously
 unassigned O-016, O-017, and O-019 records were assigned to R-006.
 
+Fourth, the router and the board state two different "next" actions. The
+board's Next is computed by `data.ResolveNext` from the records. The router's
+`next_action` is hand-written prose that no V2 code reads. It is decoded
+into `RouterStateV2.NextAction` but only the unreachable V1 board renders it.
+Agents still act on it, because AGENTS.md tells them to start from the
+router. On 2026-09-23, after the owner closed T-020 and O-018 (C-910), the
+router still selected `objective: O-018, task: T-020` with a `next_action`
+asking for O-018's Full Objective Check. The board's Next showed T-006
+instead: the selected Task was done, so the Release ladder silently fell
+through to the lowest-ID in-progress Task in R-006. The executor agent
+followed the stale prose until the owner pointed at the board. No role owns
+advancing the router after an owner closure, and no surface says that the
+router selects finished records. The owner added this to O-014's scope on
+2026-09-23 instead of opening a separate Issue.
+
 ## Success Conditions
 
 - `nextLines`/`renderNext` show one lifecycle word for `next.Objective` the
@@ -86,6 +101,24 @@ unassigned O-016, O-017, and O-019 records were assigned to R-006.
   selection behavior for valid Release/Objective/Task values, the `ResolveNext`
   ladder's precedence, and non-TTY parity are unchanged for projects that
   never select an Issue.
+- There is one next action. The router no longer carries a free-text
+  `next_action`; it holds only `state` and the Release/Objective/Task/Issue
+  selection. An existing router that still has `next_action` keeps loading,
+  and the field is ignored and reported once as retired (for example by
+  doctor), never rendered as a competing instruction.
+- Agents obtain the next action from the same `data.Next` projection the
+  board shows, by running the read-only `savepoint resume`. AGENTS.md, the
+  router template, and the phase skills name `savepoint resume` as the one
+  permitted CLI command for agents and replace "act on the router's
+  next_action" with "act on `savepoint resume`'s Next".
+- When the router selects a Task or Objective that is already `done`, the
+  board's Next area, non-TTY output, `savepoint resume`, and doctor all state
+  that the selection is stale and name the record, alongside whatever Next
+  the records support. The resolver never silently substitutes other work
+  without that diagnostic.
+- Advancing the router after an owner closure has a named owner in the
+  skills: the role that records or acts on the closure updates the selection,
+  and the stale-selection diagnostic catches any miss.
 - Active documentation (Design.md Section 8's Next-area contract) is
   reconciled to state the implemented word vocabulary precisely.
 - Focused board/data tests, `git diff --check`, `make build`, and `make test`
@@ -119,6 +152,19 @@ unassigned O-016, O-017, and O-019 records were assigned to R-006.
   repair path rather than a silent unscoped fallback.
 - Keep `router.md`'s YAML shape backward compatible: an existing V2 router
   with no `issue:` key must keep decoding exactly as it does today.
+- `data.ResolveNext` is the only source of the next action. The stale-selection
+  diagnostic extends `SelectionDiagnostic` (a new kind such as
+  `SelectionDone`) rather than a board- or resume-side check, so every
+  surface reports it from the same value. `internal/resume` owns its wording.
+- Retiring `next_action` removes the only prose channel agents used to
+  hand off intent. Settle during Task planning whether any of that intent
+  (for example "request a Task Check or record a waiver") is already fully
+  expressed by `data.Next`'s rungs, and add a rung or phrase only where it is
+  not. Do not reintroduce free text.
+- Allowing agents to run `savepoint resume` changes the "never run savepoint
+  commands" rule. The exception is `resume` alone, which is read-only and
+  performs no writes, so it cannot break the owner-only authority over status
+  changes.
 
 ## Boundaries
 
@@ -138,8 +184,14 @@ unassigned O-016, O-017, and O-019 records were assigned to R-006.
   reference a declared Release; reconcile loading, writing, diagnostics,
   current records, and active guidance with that rule while keeping membership
   derived from `Objective.release`.
-- Design.md Section 8 reconciliation for the exact word vocabulary and the
-  selected-Objective precedence.
+- Retiring the router's `next_action` (`internal/data/router_v2.go`, the V2
+  router template, this repository's router), a stale-selection diagnostic in
+  `internal/data/next.go` rendered by board, resume, and doctor, and
+  AGENTS.md, scaffold guidance, and phase-skill updates that make
+  `savepoint resume` the agent's source of the next action and name who
+  advances the router after an owner closure.
+- Design.md Section 8 reconciliation for the exact word vocabulary, the
+  selected-Objective precedence, and the single-Next contract.
 
 **Out of scope:**
 
