@@ -31,6 +31,18 @@ Release, Objective, and Task, but nothing for an Issue — there is no way to
 point the board or `savepoint resume` at one specific Issue the way the other
 three record kinds can already be targeted.
 
+Third, the Next area ignores the router's selected Objective when that
+Objective has no Tasks yet. On 2026-09-23, after O016 closed, the router
+selected O018 in R006, which had no Tasks. Next still showed "Planned T006 —
+Preserve existing project records" from O013. The selected Objective only
+wins in two cases: the router also names an unfinished `task`, or the
+Objective has Tasks and is waiting on its integration Check. Otherwise the
+ready search picks the lowest-numbered startable Task in the whole project
+(or Release). It considers a Task-less Objective for planning only after
+every ready Task. Task IDs are global, so planning O018's Tasks will not fix
+this: their numbers will still sort after T006. The owner added this
+behavior to O014's scope on 2026-09-23 instead of opening a separate Issue.
+
 ## Success Conditions
 
 - `nextLines`/`renderNext` show one lifecycle word for `next.Objective` the
@@ -49,9 +61,20 @@ three record kinds can already be targeted.
 - Selecting an Issue through the router is readable by the board/resume
   without inventing a second selection mechanism alongside
   `data.ResolveSelection`.
-- Existing Release/Objective/Task selection behavior, the `ResolveNext`
-  ladder's precedence, and non-TTY parity are unchanged for any project that
-  never selects an Issue.
+- When the router selects an Objective and names no Task, Next reflects
+  that Objective ahead of ready work elsewhere in the project or Release. If
+  the Objective has no Tasks, Next asks for it to be planned. If it has a
+  startable Task, Next offers that Task. The only exceptions are the rungs
+  that already outrank Objective selection, such as a pending migration or
+  a selected unfinished Task. Board, non-TTY, and `savepoint resume` output
+  agree because they share the one `data.Next` projection.
+- When the router selects no Objective, Next falls back to the existing
+  project-wide (or Release-scoped) search in ID order, and the result is
+  unchanged.
+- Apart from the selected-Objective rule above, existing
+  Release/Objective/Task selection behavior, the `ResolveNext` ladder's
+  precedence, and non-TTY parity are unchanged for any project that never
+  selects an Issue.
 - Active documentation (Design.md Section 8's Next-area contract) is
   reconciled to state the implemented word vocabulary precisely.
 - Focused board/data tests, `git diff --check`, `make build`, and `make test`
@@ -70,6 +93,14 @@ three record kinds can already be targeted.
   rung) or stays a pure view-context the way Release selection narrows scope
   without being "the" next action is an open interface question — settle it
   during readiness/Task planning for this Objective, not here.
+- The selected-Objective rule is a `ResolveNext` precedence change owned by
+  `internal/data/next.go`. The board and resume only render its result. The
+  exact rung placement is an owner product decision to confirm before Task
+  detailing: whether a selected Objective's integration Check, its own ready
+  Tasks, and its planning request each outrank project-wide ready work, and
+  how a selected Objective with unmet dependencies or only blocked Tasks
+  reports. Keep the rule consistent with O020, which requires the canonical
+  Next resolver to keep respecting explicit router selection.
 - Keep `router.md`'s YAML shape backward compatible: an existing V2 router
   with no `issue:` key must keep decoding exactly as it does today.
 
@@ -84,12 +115,18 @@ three record kinds can already be targeted.
   `internal/data/write.go`'s `RouterSelectionV2`): decode, validate, write,
   and the "none" sentinel, plus whatever minimal board surface is needed to
   set it.
-- Design.md Section 8 reconciliation for the exact word vocabulary.
+- Next honors the router-selected Objective ahead of unrelated ready work
+  (`internal/data/next.go` ladder, plus the matching resume/board phrasing
+  if a new rung or Next kind is introduced).
+- Design.md Section 8 reconciliation for the exact word vocabulary and the
+  selected-Objective precedence.
 
 **Out of scope:**
 
 - Changing Issue lifecycle states, severity, or type vocabulary.
 - Changing the existing Task lifecycle words (`Build`/`Test`/`Check`/`Planned`/`Done`).
-- Any Objective, Task, Release, or Issue gate or completion-policy change.
+- Any Objective, Task, Release, or Issue gate or completion-policy change
+  (the Next precedence change above decides what to show, not what may
+  start or complete).
 - Renaming Release to Goals (O013's scope) or any other unrelated Next-area
   or router surface not named above.
