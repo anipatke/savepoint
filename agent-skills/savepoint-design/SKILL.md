@@ -85,7 +85,7 @@ status: planned|in_progress|done
 depends_on: [O-###]
 release: R-###
 last_check: optional-check-id
-freshness:
+freshness:  # optional; only to mark the latest Check stale or unknown
   state: current|stale|unknown
   check: C-###
   assessed_by: role/session

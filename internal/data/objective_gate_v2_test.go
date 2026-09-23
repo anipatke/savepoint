@@ -104,6 +104,7 @@ func TestResolveObjectiveCompletion_eachClearanceStateBlocksWithADistinctReason(
 		{
 			name:     "unknown",
 			build:    func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-001", Basis: "not reassessed"}},
 			wantKind: GateBlockClearanceUnknown,
 		},
 		{
@@ -316,8 +317,9 @@ func TestResolveObjectiveDependency_eachClearanceStateBlocksWithItsOwnReason(t *
 			build: func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultNeedsWork) },
 		},
 		{
-			name:  "unknown",
-			build: func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultClear) },
+			name:     "unknown",
+			build:    func(index *V2Index) { mustObjectiveCheck(index, "C-001", "O-002", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-001", Basis: "not reassessed"}},
 		},
 		{
 			name:     "stale",

@@ -123,9 +123,8 @@ func TestRender_checkNeeded(t *testing.T) {
 
 // TestRender_clearanceStatesAreDistinct proves missing, needs_work, stale,
 // unknown, and current each render in their own words — plus the sixth
-// sentence, for the CLEAR Check whose current assessment lacks independent
-// checker provenance — naming the Check and the recorded freshness basis when
-// one exists.
+// sentence, for a CLEAR Check no checker session signed — naming the Check
+// and the recorded freshness basis when one exists.
 func TestRender_clearanceStatesAreDistinct(t *testing.T) {
 	assessedAt := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	cases := []struct {
@@ -137,19 +136,19 @@ func TestRender_clearanceStatesAreDistinct(t *testing.T) {
 		{"needs_work", &data.Clearance{State: data.ClearanceNeedsWork, Check: "C001"}, "Check C001 recorded NEEDS WORK."},
 		{"stale", &data.Clearance{State: data.ClearanceStale, Check: "C002", Freshness: &data.Freshness{
 			State: data.FreshnessStale, Check: "C002", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "S1"}, AssessedAt: assessedAt, Basis: "diff review",
-		}}, "Check C002 is recorded CLEAR, but its freshness assessment does not name it current — clearance is stale. Assessed stale by checker session S1 on 2026-09-01, basis: diff review."},
-		{"unknown", &data.Clearance{State: data.ClearanceUnknown, Check: "C003"}, "Check C003 is recorded CLEAR, but no freshness assessment has ever been recorded for it — clearance is unknown."},
-		// ResolveClearance also reports a CLEAR Check whose current assessment
-		// carries no independent checker session as unknown, but with that
-		// assessment attached. It is a different fact to act on, so it gets its
-		// own sentence. Both V2 decoders refuse the shapes that produce it, so
-		// it is unreachable from a project on disk and proven here instead.
-		{"unknown without checker provenance", &data.Clearance{State: data.ClearanceUnknown, Check: "C005", Freshness: &data.Freshness{
-			State: data.FreshnessCurrent, Check: "C005", AssessedBy: data.Actor{Role: data.ActorRoleExecutor, Session: "S3"}, AssessedAt: assessedAt, Basis: "self-reported",
-		}}, "Check C005 is recorded CLEAR and its freshness assessment names it current, but that evidence carries no independent checker session — clearance is not independently established. Assessed current by executor session S3 on 2026-09-01, basis: self-reported."},
+		}}, "Check C002 is recorded CLEAR, but a freshness assessment marks it stale — clearance is stale. Assessed stale by checker session S1 on 2026-09-01, basis: diff review."},
+		{"unknown", &data.Clearance{State: data.ClearanceUnknown, Check: "C003", Freshness: &data.Freshness{
+			State: data.FreshnessUnknown, Check: "C003", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "S4"}, AssessedAt: assessedAt, Basis: "not reassessed",
+		}}, "Check C003 is recorded CLEAR, but a freshness assessment marks it unknown — clearance is unknown. Assessed unknown by checker session S4 on 2026-09-01, basis: not reassessed."},
+		// ResolveClearance also reports a CLEAR Check no checker session signed
+		// as unknown. It is a different fact to act on, so it gets its own
+		// sentence. The V2 Check decoder refuses that shape, so it is
+		// unreachable from a project on disk and proven here instead.
+		{"unknown without checker provenance", &data.Clearance{State: data.ClearanceUnknown, Check: "C005"},
+			"Check C005 is recorded CLEAR, but no independent checker session signed it — clearance is not independently established."},
 		{"current", &data.Clearance{State: data.ClearanceCurrent, Check: "C004", Freshness: &data.Freshness{
 			State: data.FreshnessCurrent, Check: "C004", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "S2"}, AssessedAt: assessedAt, Basis: "reran the suite",
-		}}, "Check C004 is recorded CLEAR and its freshness assessment names it current. Assessed current by checker session S2 on 2026-09-01, basis: reran the suite."},
+		}}, "Check C004 is recorded CLEAR. Assessed current by checker session S2 on 2026-09-01, basis: reran the suite."},
 	}
 
 	seen := make(map[string]bool, len(cases))
@@ -182,7 +181,7 @@ func TestRender_ownerValidationRequired(t *testing.T) {
 	want := "Task: T050 — Needs owner\n" +
 		"Implementation: Status in_progress, stage audit.\n" +
 		"\n" +
-		"Technical clearance: Check C010 is recorded CLEAR and its freshness assessment names it current. Assessed current by checker session S1 on 2026-09-01, basis: reviewed diff.\n" +
+		"Technical clearance: Check C010 is recorded CLEAR. Assessed current by checker session S1 on 2026-09-01, basis: reviewed diff.\n" +
 		"Owner wait: Owner acceptance is required: the owner has not yet accepted Check C010.\n" +
 		"\n" +
 		"Next action: Ask the owner to accept the current Check.\n"

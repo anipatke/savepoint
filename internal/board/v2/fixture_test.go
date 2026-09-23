@@ -156,7 +156,7 @@ func writeBadgeProject(t *testing.T) string {
 		"status: done\nlast_check: C-004\nexception:\n  requirements: [\"TEST-02\"]\n  reason: \"shipped with a known gap\"\n  owner: \"the owner\"\n  recorded_at: 2026-01-03T00:00:00Z\n  check: C-004\n")
 
 	writeCheck(t, root, "C-005", "task", "T-009", "CLEAR")
-	writeTask(t, root, "O-001", "T-009", "Done, but the check was never assessed", "status: done\nlast_check: C-005\n")
+	writeTask(t, root, "O-001", "T-009", "Done, but the check was marked unknown", "status: done\nlast_check: C-005\n"+unknownFreshness("C-005"))
 
 	return root
 }
@@ -219,6 +219,15 @@ func staleFreshness(check string) string {
 		"\n  assessed_at: 2026-01-02T01:00:00Z\n  basis: \"the code moved on\"\n"
 }
 
+// unknownFreshness is an assessment that names its Check and marks it
+// unknown, which is what ResolveClearance reads as unknown. A CLEAR Check with
+// no assessment at all is current on its own.
+func unknownFreshness(check string) string {
+	return "freshness:\n  state: unknown\n  check: " + check +
+		"\n  assessed_by: {role: checker, session: checker-fixture}" +
+		"\n  assessed_at: 2026-01-02T01:00:00Z\n  basis: \"not reassessed\"\n"
+}
+
 // writeNavigationProject builds the project the sidebar exists for: six
 // Objectives covering every clearance state, an Objective whose Tasks are all
 // done without its own integration Check, an Objective waiting on another, and
@@ -254,7 +263,7 @@ func writeNavigationProject(t *testing.T) string {
 	writeCheck(t, root, "C-003", "objective", "O-004", "NEEDS WORK")
 	writeObjectiveExtra(t, root, "O-004", "Integration found problems", "in_progress", "last_check: C-003\n")
 	writeCheck(t, root, "C-004", "objective", "O-005", "CLEAR")
-	writeObjectiveExtra(t, root, "O-005", "Integration never assessed", "in_progress", "last_check: C-004\n")
+	writeObjectiveExtra(t, root, "O-005", "Integration marked unknown", "in_progress", "last_check: C-004\n"+unknownFreshness("C-004"))
 	writeCheck(t, root, "C-005", "objective", "O-006", "CLEAR")
 	writeObjectiveExtra(t, root, "O-006", "Integration has gone stale", "in_progress",
 		"last_check: C-005\n"+staleFreshness("C-005"))

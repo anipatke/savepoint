@@ -188,13 +188,14 @@ func TestCheckReleaseReadiness_reportsMissingUnknownStaleNeedsWorkAndAcceptance(
 			name:       "unknown",
 			releaseID:  "R-003",
 			checkBlock: "unknown",
+			releaseFM:  "freshness: {state: unknown, check: C-030, assessed_by: {role: checker, session: freshness-3}, assessed_at: '2026-09-14T00:00:00Z', basis: not reassessed}\n",
 			want:       "[v2-release-clearance-unknown]",
 		},
 		{
 			name:       "stale",
 			releaseID:  "R-004",
 			checkBlock: "stale",
-			releaseFM:  "freshness: {state: current, check: C-040, assessed_by: {role: checker, session: freshness-4}, assessed_at: '2026-09-14T00:00:00Z', basis: old}\n",
+			releaseFM:  "freshness: {state: stale, check: C-041, assessed_by: {role: checker, session: freshness-4}, assessed_at: '2026-09-14T00:00:00Z', basis: code changed}\n",
 			want:       "[v2-release-clearance-stale]",
 		},
 		{
@@ -865,9 +866,8 @@ func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 }
 
 // TestCheckProject_MissingCheckVersusStaleVersusUnknownEvidence proves a done
-// Task with no recorded Check, one whose Check carries no freshness
-// assessment, and one whose freshness assessment names a superseded Check
-// all land under the missing-evidence health category rather than malformed
+// Task with no recorded Check, one whose freshness assessment marks its Check
+// unknown, and one whose freshness assessment marks its Check stale all land under the missing-evidence health category rather than malformed
 // data, and that their messages distinguish which of the three it is (E48
 // T-006 AC: "A target with no recorded Check and a target with a stale or
 // unknown freshness assessment report under missing evidence, distinguished
@@ -881,18 +881,18 @@ func TestCheckProject_MissingCheckVersusStaleVersusUnknownEvidence(t *testing.T)
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-alpha.md"),
 		"---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Alpha\n")
 
-	// T-002: done, latest Check is CLEAR but carries no freshness assessment — clearance unknown.
+	// T-002: done, latest Check is CLEAR but freshness marks it unknown — clearance unknown.
 	writeV2Check(t, root, "C-001", "{kind: task, id: T-002}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-002-beta.md"),
-		"---\nid: T-002\ntitle: \"Beta\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n---\n\n# Beta\n")
+		"---\nid: T-002\ntitle: \"Beta\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n"+
+			"freshness: {state: unknown, check: C-001, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: not reassessed}\n"+
+			"---\n\n# Beta\n")
 
-	// T-003: done, latest Check is CLEAR but the freshness assessment names an
-	// earlier, superseded Check — clearance stale.
-	writeV2Check(t, root, "C-002", "{kind: task, id: T-003}", "CLEAR", "")
-	writeV2Check(t, root, "C-003", "{kind: task, id: T-003}", "CLEAR", "C-002")
+	// T-003: done, latest Check is CLEAR but freshness marks it stale — clearance stale.
+	writeV2Check(t, root, "C-003", "{kind: task, id: T-003}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-003-gamma.md"),
 		"---\nid: T-003\ntitle: \"Gamma\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n"+
-			"freshness: {state: current, check: C-002, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: reviewed}\n"+
+			"freshness: {state: stale, check: C-003, assessed_by: {role: checker, session: s}, assessed_at: '2026-09-14T00:00:00Z', basis: code changed}\n"+
 			"---\n\n# Gamma\n")
 
 	problems := RunV2Checks(root).Project

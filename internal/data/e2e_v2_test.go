@@ -122,7 +122,8 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want allowed by owner acceptance, not exception", accepted)
 	}
 
-	// --- a rerun supersedes the prior acceptance and freshness ---
+	// --- a rerun supersedes the prior acceptance; its CLEAR is current on
+	//     its own, but the owner has not accepted it yet ---
 	writeScenarioCheck(t, root, "C-003", CheckScopeTask, "T-002", "sess-2", checkedAt.Add(24*time.Hour), c002.ID)
 
 	index, err = LoadV2Index(root)
@@ -130,12 +131,12 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
 	rerunClearance := ResolveClearance(index, "T-002")
-	if rerunClearance.State != ClearanceStale {
-		t.Fatalf("T-002 clearance after rerun = %q, want stale (freshness still names the superseded Check)", rerunClearance.State)
+	if rerunClearance.State != ClearanceCurrent || rerunClearance.Check != "C-003" {
+		t.Fatalf("T-002 clearance after rerun = %+v, want current on C-003 (a CLEAR re-check needs no freshness record)", rerunClearance)
 	}
 	blockedAgain := ResolveTaskCompletion(index, "T-002")
-	if blockedAgain.Allowed {
-		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want blocked again after the rerun supersedes the accepted Check", blockedAgain)
+	if blockedAgain.Allowed || len(blockedAgain.Blockers) != 1 || blockedAgain.Blockers[0].Kind != GateBlockOwnerAcceptance {
+		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want blocked on owner acceptance after the rerun supersedes the accepted Check", blockedAgain)
 	}
 
 	// --- evidence writes preserve authored content throughout ---
@@ -277,18 +278,17 @@ func TestE44_EpicScenario(t *testing.T) {
 		t.Fatalf("InspectIssueConsistency() = %+v, want none while the verified proof is still latest", got)
 	}
 
-	// --- a later Objective-scoped Check leaves O-001's own clearance stale
-	//     (freshness still names the superseded Check) and the Issue's
-	//     verified proof superseded, without rewriting any record ---
+	// --- a later CLEAR Objective-scoped Check keeps O-001 cleared on its
+	//     own but leaves the Issue's verified proof superseded, without
+	//     rewriting any record ---
 	writeScenarioCheck(t, root, "C-003", CheckScopeObjective, "O-001", "sess-2", checkedAt.Add(24*time.Hour), co1.ID)
 
 	index, err = LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	objectiveProblems := InspectObjectiveConsistency(index)
-	if len(objectiveProblems) != 1 || objectiveProblems[0].Kind != ObjectiveConsistencyDoneWithoutClearance || objectiveProblems[0].Objective != "O-001" {
-		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O-001", objectiveProblems)
+	if objectiveProblems := InspectObjectiveConsistency(index); len(objectiveProblems) != 0 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want none (the later CLEAR Check is current on its own)", objectiveProblems)
 	}
 	issueProblems := InspectIssueConsistency(index)
 	if len(issueProblems) != 1 || issueProblems[0].Kind != IssueConsistencyProofSuperseded || issueProblems[0].Issue != issueID {

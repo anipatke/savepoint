@@ -169,11 +169,11 @@ func TestARecordWithNoCheckSaysSoRatherThanShowingNothing(t *testing.T) {
 	requireContains(t, got, "CHECKS", noCheckRecorded)
 }
 
-// Each clearance state gets its own sentence, including the one ResolveClearance
-// reports as unknown-with-an-assessment: a CLEAR Check whose current assessment
-// carries no independent checker session. That shape is unreachable from a
-// project on disk — both V2 decoders refuse it — so it is proven here, over the
-// resolved value the board would be handed.
+// Each clearance state gets its own sentence, including the second one
+// ResolveClearance reports as unknown: a CLEAR Check no checker session signed.
+// That shape is unreachable from a project on disk — the V2 Check decoder
+// refuses it — so it is proven here, over the resolved value the board would
+// be handed.
 func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 	assessed := &data.Freshness{
 		State:      data.FreshnessCurrent,
@@ -182,8 +182,8 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 		AssessedAt: time.Date(2026, 1, 2, 1, 0, 0, 0, time.UTC),
 		Basis:      "reran the suite",
 	}
-	selfAssessed := *assessed
-	selfAssessed.AssessedBy = data.Actor{Role: data.ActorRoleExecutor, Session: "executor-fixture"}
+	markedUnknown := *assessed
+	markedUnknown.State = data.FreshnessUnknown
 
 	cases := []struct {
 		name      string
@@ -193,11 +193,11 @@ func TestDetailClearanceStatesReadDistinctly(t *testing.T) {
 		{"missing", data.Clearance{State: data.ClearanceMissing}, []string{"[ ] Check", "No Check has ever been recorded"}},
 		{"needs_work", data.Clearance{State: data.ClearanceNeedsWork, Check: "C-001"}, []string{"Check (needs work)", "C-001 recorded NEEDS WORK"}},
 		{"stale", data.Clearance{State: data.ClearanceStale, Check: "C-001", Freshness: assessed}, []string{"Check (stale)", "clearance is stale"}},
-		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C-001"}, []string{"Check (unverified)", "clearance is unknown"}},
-		{"unknown without checker provenance", data.Clearance{State: data.ClearanceUnknown, Check: "C-001", Freshness: &selfAssessed},
+		{"unknown", data.Clearance{State: data.ClearanceUnknown, Check: "C-001", Freshness: &markedUnknown}, []string{"Check (unverified)", "clearance is unknown"}},
+		{"unknown without checker provenance", data.Clearance{State: data.ClearanceUnknown, Check: "C-001"},
 			[]string{"no independent checker session", "not independently established"}},
 		{"current", data.Clearance{State: data.ClearanceCurrent, Check: "C-001", Freshness: assessed},
-			[]string{"[✓] Check", "names it current", "Assessed current by checker session checker-fixture on 2026-01-02", "basis: reran the suite"}},
+			[]string{"[✓] Check", "C-001 is recorded CLEAR.", "Assessed current by checker session checker-fixture on 2026-01-02", "basis: reran the suite"}},
 	}
 
 	rendered := map[string]string{}

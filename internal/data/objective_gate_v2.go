@@ -50,12 +50,12 @@ func ResolveObjectiveCompletion(index *V2Index, objectiveID string) GateDecision
 	case ClearanceNeedsWork:
 		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceNeedsWork, Detail: fmt.Sprintf("latest check %s recorded NEEDS WORK", clearance.Check)})
 	case ClearanceStale:
-		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("freshness assessment does not name latest check %s as current", clearance.Check)})
+		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("freshness assessment marks latest check %s stale", clearance.Check)})
 	case ClearanceUnknown:
 		if untrustedCurrentClearance(index, objectiveID, clearance.Check) {
 			blockers = append(blockers, GateBlocker{Kind: GateBlockCheckerAuthority, Detail: fmt.Sprintf("latest check %s lacks independent checker provenance", clearance.Check)})
 		} else {
-			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("no freshness assessment recorded for latest check %s", clearance.Check)})
+			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("freshness assessment marks latest check %s unknown", clearance.Check)})
 		}
 	case ClearanceCurrent:
 		if ownerValidationRequired(objective.Evidence) && !ownerAcceptedCheck(objective.Evidence, clearance.Check) {

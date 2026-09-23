@@ -200,15 +200,15 @@ func TestResolveTaskDependencyV2_doneButNotClearedUnsatisfied(t *testing.T) {
 				mustCheck(index, "C-001", "T-001", CheckResultClear)
 			},
 			wantClearance: ClearanceUnknown,
+			evidence:      &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-001", Basis: "not reassessed"}},
 		},
 		{
 			name: "stale",
 			buildEvidence: func(index *V2Index) {
 				mustCheck(index, "C-001", "T-001", CheckResultClear)
-				mustCheck(index, "C-002", "T-001", CheckResultClear)
 			},
 			wantClearance: ClearanceStale,
-			evidence:      &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", Basis: "names the superseded check"}},
+			evidence:      &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", Basis: "code changed after the check"}},
 		},
 		{
 			name:          "missing",
@@ -303,8 +303,8 @@ func TestResolveTaskDependencyV2_acceptedUnsatisfiedWhenAcceptanceBoundToSuperse
 // TestResolveTaskDependencyV2_chainAcrossSeveralTasks proves each dependency
 // in a chain is resolved independently against the live index rather than a
 // cached judgement: T-003 depends on T-002, which depends on T-001. T-001 is
-// done and current; T-002 is done but only unknown (no freshness assessment),
-// so T-002's own dependency on T-001 is satisfied while T-003's dependency on
+// done and current; T-002 is done but its freshness assessment marks its
+// Check unknown, so T-002's own dependency on T-001 is satisfied while T-003's dependency on
 // T-002 is not.
 func TestResolveTaskDependencyV2_chainAcrossSeveralTasks(t *testing.T) {
 	index := newV2TestIndex()
@@ -317,6 +317,7 @@ func TestResolveTaskDependencyV2_chainAcrossSeveralTasks(t *testing.T) {
 	index.Tasks["T-002"] = &TaskV2{
 		ID: "T-002", Objective: "O-001", Status: ColumnDone,
 		DependsOn: []TaskDependencyV2{{Task: "T-001", Requires: TaskDependencyClear}},
+		Evidence:  &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-002", Basis: "not reassessed"}},
 	}
 	index.Tasks["T-003"] = &TaskV2{
 		ID: "T-003", Objective: "O-001", Status: ColumnDone,
@@ -330,7 +331,7 @@ func TestResolveTaskDependencyV2_chainAcrossSeveralTasks(t *testing.T) {
 
 	gotT3onT2 := ResolveTaskDependencyV2(index, index.Tasks["T-003"].DependsOn[0])
 	if gotT3onT2.Satisfied {
-		t.Fatalf("T-003 -> T-002 satisfied = true, want false (T-002 has no freshness assessment)")
+		t.Fatalf("T-003 -> T-002 satisfied = true, want false (T-002 freshness is unknown)")
 	}
 	if gotT3onT2.Block == nil || gotT3onT2.Block.Kind != DependencyBlockNotCleared || gotT3onT2.Block.Clearance != ClearanceUnknown {
 		t.Fatalf("Block = %+v, want {Kind: not_cleared, Clearance: unknown}", gotT3onT2.Block)

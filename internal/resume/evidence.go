@@ -67,25 +67,27 @@ func ClearancePhrase(clearance *data.Clearance) string {
 	case data.ClearanceNeedsWork:
 		return fmt.Sprintf("Check %s recorded NEEDS WORK.", clearance.Check)
 	case data.ClearanceStale:
-		phrase := fmt.Sprintf("Check %s is recorded CLEAR, but its freshness assessment does not name it current — clearance is stale.", clearance.Check)
+		phrase := fmt.Sprintf("Check %s is recorded CLEAR, but a freshness assessment marks it stale — clearance is stale.", clearance.Check)
 		if clearance.Freshness != nil {
 			phrase += " " + freshnessBasisPhrase(clearance.Freshness)
 		}
 		return phrase
 	case data.ClearanceUnknown:
 		// ResolveClearance reports two different facts as unknown rather than
-		// growing a sixth state: a CLEAR Check nobody has assessed at all, and
-		// a CLEAR Check whose current assessment lacks independent checker
-		// provenance. The second one carries the assessment it distrusts, which
-		// is how they are told apart here — and they are two different things
-		// to act on, so they get two different sentences.
-		if clearance.Freshness == nil {
-			return fmt.Sprintf("Check %s is recorded CLEAR, but no freshness assessment has ever been recorded for it — clearance is unknown.", clearance.Check)
+		// growing a sixth state: a freshness assessment that marks the CLEAR
+		// Check unknown, and a CLEAR Check no checker session signed. They are
+		// two different things to act on, so they get two different sentences.
+		if clearance.Freshness != nil && clearance.Freshness.State == data.FreshnessUnknown {
+			return fmt.Sprintf("Check %s is recorded CLEAR, but a freshness assessment marks it unknown — clearance is unknown. %s",
+				clearance.Check, freshnessBasisPhrase(clearance.Freshness))
 		}
-		return fmt.Sprintf("Check %s is recorded CLEAR and its freshness assessment names it current, but that evidence carries no independent checker session — clearance is not independently established. %s",
-			clearance.Check, freshnessBasisPhrase(clearance.Freshness))
+		phrase := fmt.Sprintf("Check %s is recorded CLEAR, but no independent checker session signed it — clearance is not independently established.", clearance.Check)
+		if clearance.Freshness != nil {
+			phrase += " " + freshnessBasisPhrase(clearance.Freshness)
+		}
+		return phrase
 	case data.ClearanceCurrent:
-		phrase := fmt.Sprintf("Check %s is recorded CLEAR and its freshness assessment names it current.", clearance.Check)
+		phrase := fmt.Sprintf("Check %s is recorded CLEAR.", clearance.Check)
 		if clearance.Freshness != nil {
 			phrase += " " + freshnessBasisPhrase(clearance.Freshness)
 		}

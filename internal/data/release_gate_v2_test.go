@@ -77,7 +77,7 @@ func TestResolveReleaseCompletion_requiresMemberObjectivesAndCurrentAcceptance(t
 	}
 
 	index = releaseGateIndex()
-	index.Objectives["O-001"].Evidence = nil
+	index.Objectives["O-001"].Evidence.Freshness.State = FreshnessStale
 	got = ResolveReleaseCompletion(index, "R-001")
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockReleaseObjectiveIncomplete {
 		t.Fatalf("incomplete-objective decision = %+v, want objective blocker", got)
@@ -116,14 +116,14 @@ func TestResolveReleaseCompletion_refusesEveryNonCurrentReleaseState(t *testing.
 		{
 			name: "unknown",
 			configure: func(index *V2Index) {
-				index.Releases["R-001"].Evidence.Freshness = nil
+				index.Releases["R-001"].Evidence.Freshness.State = FreshnessUnknown
 			},
 			wantKind: GateBlockClearanceUnknown,
 		},
 		{
 			name: "stale",
 			configure: func(index *V2Index) {
-				index.Releases["R-001"].Evidence.Freshness.Check = "C-001"
+				index.Releases["R-001"].Evidence.Freshness.State = FreshnessStale
 			},
 			wantKind: GateBlockClearanceStale,
 		},
@@ -175,7 +175,9 @@ func TestResolveReleaseCompletion_requiresIssueResolutionOrScopedException(t *te
 	}
 }
 
-func TestResolveReleaseCompletion_supersededAcceptanceAndFreshnessDoNotCarryForward(t *testing.T) {
+// Owner acceptance of a superseded Check does not carry forward to the newer
+// run; the newer CLEAR Check is itself current, so only acceptance blocks.
+func TestResolveReleaseCompletion_supersededAcceptanceDoesNotCarryForward(t *testing.T) {
 	index := releaseGateIndex()
 	index.Checks["C-003"] = &CheckV2{
 		ID: "C-003", Scope: CheckScope{Kind: CheckScopeRelease, ID: "R-001"},
@@ -189,8 +191,8 @@ func TestResolveReleaseCompletion_supersededAcceptanceAndFreshnessDoNotCarryForw
 	}
 
 	got := ResolveReleaseCompletion(index, "R-001")
-	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceStale {
-		t.Fatalf("superseded decision = %+v, want stale Release clearance", got)
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockOwnerAcceptance {
+		t.Fatalf("superseded decision = %+v, want owner acceptance of C-003", got)
 	}
 }
 

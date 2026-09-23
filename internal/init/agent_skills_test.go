@@ -925,8 +925,8 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 			"Goal `done` requires at least one member Objective",
 			"The checker never supplies that acceptance",
 			"cannot support completion",
-			"Stale or unknown freshness blocks normal completion",
-			"never waived through by re-asserting",
+			"A freshness assessment is optional",
+			"That blocks normal completion until a new Check runs",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state closure phrase %q", tree, path, phrase)

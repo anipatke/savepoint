@@ -48,14 +48,16 @@ func TestResolveClearance_needsWorkFromLatestCheck(t *testing.T) {
 	}
 }
 
-func TestResolveClearance_unknownWhenNoFreshness(t *testing.T) {
+// A CLEAR Check signed by a checker is current on its own; no separate
+// freshness assessment is required.
+func TestResolveClearance_currentWhenNoFreshness(t *testing.T) {
 	index := newV2TestIndex()
 	mustCheck(index, "C-001", "T-001", CheckResultClear)
 	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001"}
 
 	got := ResolveClearance(index, "T-001")
-	if got.State != ClearanceUnknown {
-		t.Fatalf("State = %q, want unknown", got.State)
+	if got.State != ClearanceCurrent {
+		t.Fatalf("State = %q, want current", got.State)
 	}
 	if got.Check != "C-001" {
 		t.Errorf("Check = %q, want C-001", got.Check)
@@ -117,18 +119,23 @@ func TestResolveClearance_reviewedBasisDoesNotAffectCurrentClearance(t *testing.
 	}
 }
 
-func TestResolveClearance_staleWhenFreshnessNamesADifferentCheck(t *testing.T) {
+// A freshness assessment naming a superseded Check says nothing about the
+// newer run, so a later CLEAR re-check is current even over a stale note.
+func TestResolveClearance_newerCheckSupersedesFreshnessNamingAnOlderCheck(t *testing.T) {
 	index := newV2TestIndex()
 	mustCheck(index, "C-001", "T-001", CheckResultClear)
 	mustCheck(index, "C-002", "T-001", CheckResultClear) // supersedes C-001 as the latest
 	index.Tasks["T-001"] = &TaskV2{
 		ID: "T-001", Objective: "O-001",
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", Basis: "stale basis"}},
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", Basis: "stale basis"}},
 	}
 
 	got := ResolveClearance(index, "T-001")
-	if got.State != ClearanceStale {
-		t.Fatalf("State = %q, want stale (freshness names a superseded check)", got.State)
+	if got.State != ClearanceCurrent {
+		t.Fatalf("State = %q, want current (freshness names a superseded check)", got.State)
+	}
+	if got.Freshness != nil {
+		t.Errorf("Freshness = %+v, want nil (the assessment names an older check)", got.Freshness)
 	}
 	if got.Check != "C-002" {
 		t.Errorf("Check = %q, want C-002 (the actual latest)", got.Check)
@@ -483,15 +490,13 @@ func TestResolveTaskCompletion_eachClearanceStateBlocksWithADistinctReason(t *te
 		{
 			name:     "unknown",
 			build:    func(index *V2Index) { mustCheck(index, "C-001", "T-001", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-001", Basis: "not reassessed"}},
 			wantKind: GateBlockClearanceUnknown,
 		},
 		{
-			name: "stale",
-			build: func(index *V2Index) {
-				mustCheck(index, "C-001", "T-001", CheckResultClear)
-				mustCheck(index, "C-002", "T-001", CheckResultClear)
-			},
-			evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", Basis: "names the superseded check"}},
+			name:     "stale",
+			build:    func(index *V2Index) { mustCheck(index, "C-001", "T-001", CheckResultClear) },
+			evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", Basis: "code changed after the check"}},
 			wantKind: GateBlockClearanceStale,
 		},
 	}
@@ -544,7 +549,9 @@ func TestResolveClearance_rejectsExecutorCheckAndFreshnessAsCurrent(t *testing.T
 	}
 }
 
-func TestResolveTaskCompletion_requiresIndependentCheckerForCurrentFreshness(t *testing.T) {
+// A checker's CLEAR Check is sufficient on its own, so a "current" note from
+// someone else adds nothing and takes nothing away.
+func TestResolveTaskCompletion_checkerClearStandsWithoutCheckerFreshness(t *testing.T) {
 	index := newV2TestIndex()
 	check := mustCheck(index, "C-001", "T-001", CheckResultClear)
 	check.CheckedBy = Actor{Role: ActorRoleChecker, Session: "checker-1"}
@@ -558,8 +565,8 @@ func TestResolveTaskCompletion_requiresIndependentCheckerForCurrentFreshness(t *
 	}
 
 	decision := ResolveTaskCompletion(index, "T-001")
-	if decision.Allowed || len(decision.Blockers) != 1 || decision.Blockers[0].Kind != GateBlockCheckerAuthority {
-		t.Fatalf("ResolveTaskCompletion() = %+v, want checker-authority blocker", decision)
+	if !decision.Allowed {
+		t.Fatalf("ResolveTaskCompletion() = %+v, want allowed on the checker's CLEAR Check", decision)
 	}
 }
 

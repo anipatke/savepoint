@@ -104,12 +104,12 @@ func resolveReleaseCompletionForRecord(index *V2Index, release *ReleaseV2) GateD
 	case ClearanceNeedsWork:
 		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceNeedsWork, Detail: fmt.Sprintf("latest Release Check %s recorded NEEDS WORK", clearance.Check)}}}
 	case ClearanceStale:
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("Release freshness does not name latest Check %s as current", clearance.Check)}}}
+		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("Release freshness assessment marks latest Check %s stale", clearance.Check)}}}
 	case ClearanceUnknown:
 		if untrustedCurrentClearance(index, release.ID, clearance.Check) {
 			return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockCheckerAuthority, Detail: fmt.Sprintf("latest Release Check %s lacks independent checker provenance", clearance.Check)}}}
 		}
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("no freshness assessment recorded for latest Release Check %s", clearance.Check)}}}
+		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("Release freshness assessment marks latest Check %s unknown", clearance.Check)}}}
 	case ClearanceCurrent:
 		// Continue with material Issue and owner-acceptance composition below.
 	}

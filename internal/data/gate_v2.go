@@ -14,18 +14,19 @@ import (
 type ClearanceState string
 
 const (
-	// ClearanceCurrent means the target's latest Check is CLEAR and a
-	// freshness assessment names that same Check with state: current.
+	// ClearanceCurrent means the target's latest Check is CLEAR, signed by a
+	// checker, and no freshness assessment marks that same Check stale or
+	// unknown. A passing Check needs no separate freshness record.
 	ClearanceCurrent ClearanceState = "current"
 	// ClearanceNeedsWork means the target's latest Check recorded NEEDS
 	// WORK.
 	ClearanceNeedsWork ClearanceState = "needs_work"
-	// ClearanceStale means the latest Check is CLEAR but the freshness
-	// assessment names a different Check, or does not assert current for
-	// the latest one.
+	// ClearanceStale means the latest Check is CLEAR but a freshness
+	// assessment naming it records state: stale.
 	ClearanceStale ClearanceState = "stale"
-	// ClearanceUnknown means the latest Check is CLEAR but the target
-	// carries no freshness assessment at all.
+	// ClearanceUnknown means the latest Check is CLEAR but a freshness
+	// assessment naming it records state: unknown, or the Check lacks
+	// checker provenance.
 	ClearanceUnknown ClearanceState = "unknown"
 	// ClearanceMissing means the target has no recorded Check.
 	ClearanceMissing ClearanceState = "missing"
@@ -46,8 +47,8 @@ type Clearance struct {
 // decision for every reachable state rather than an error: a target with no
 // evidence and no Check resolves to missing, never a failure. Check.Reviewed
 // is optional scope metadata and is deliberately not consulted here; CLEAR is
-// established by the Check's independent checker provenance and current
-// freshness assessment.
+// established by the Check's independent checker provenance, and a freshness
+// assessment can only withdraw it.
 func ResolveClearance(index *V2Index, targetID string) Clearance {
 	latestCheckID := index.LatestCheck[targetID]
 	if latestCheckID == "" {
@@ -59,40 +60,36 @@ func ResolveClearance(index *V2Index, targetID string) Clearance {
 		return Clearance{State: ClearanceNeedsWork, Check: latestCheckID}
 	}
 
+	// A freshness assessment only matters when it names the latest Check; one
+	// naming an older Check is superseded by the newer run.
 	freshness := evidenceFreshness(index, targetID)
-	if freshness == nil {
-		return Clearance{State: ClearanceUnknown, Check: latestCheckID}
+	if freshness != nil && freshness.Check != latestCheckID {
+		freshness = nil
+	}
+	if freshness != nil {
+		switch freshness.State {
+		case FreshnessStale:
+			return Clearance{State: ClearanceStale, Check: latestCheckID, Freshness: freshness}
+		case FreshnessUnknown:
+			return Clearance{State: ClearanceUnknown, Check: latestCheckID, Freshness: freshness}
+		}
 	}
 
-	if freshness.Check == latestCheckID && freshness.State == FreshnessCurrent {
-		if independentCheckerProvenance(latestCheck, freshness) {
-			return Clearance{State: ClearanceCurrent, Check: latestCheckID, Freshness: freshness}
-		}
-		// A current claim without checker provenance is not a stale claim: it
-		// is unknown whether the recorded CLEAR result was independently
-		// checked. Keep the five-state clearance vocabulary and fail closed.
+	// A CLEAR Check from a checker is current on its own; no separate
+	// freshness assessment is required. Without checker provenance it is
+	// unknown whether the result was independently checked, so fail closed.
+	if !isCheckerActor(latestCheck.CheckedBy) {
 		return Clearance{State: ClearanceUnknown, Check: latestCheckID, Freshness: freshness}
 	}
-
-	return Clearance{State: ClearanceStale, Check: latestCheckID, Freshness: freshness}
+	return Clearance{State: ClearanceCurrent, Check: latestCheckID, Freshness: freshness}
 }
 
-// independentCheckerProvenance is the authority boundary for a CLEAR Check.
-// Both the recorded Check and the freshness assessment must identify a
-// checker session. Savepoint deliberately does not authenticate either
-// session; it only refuses to treat executor, planner, or owner self-report
-// as clearance evidence.
-func independentCheckerProvenance(check *CheckV2, freshness *Freshness) bool {
-	return check != nil && check.Result == CheckResultClear && isCheckerActor(check.CheckedBy) &&
-		freshness != nil && freshness.State == FreshnessCurrent && isCheckerActor(freshness.AssessedBy)
-}
-
+// untrustedCurrentClearance reports a CLEAR Check that no checker signed.
+// Savepoint deliberately does not authenticate the session; it only refuses
+// to treat executor, planner, or owner self-report as clearance evidence.
 func untrustedCurrentClearance(index *V2Index, targetID, checkID string) bool {
 	check := index.Checks[checkID]
-	freshness := evidenceFreshness(index, targetID)
-	return check != nil && check.Result == CheckResultClear && freshness != nil &&
-		freshness.Check == checkID && freshness.State == FreshnessCurrent &&
-		!independentCheckerProvenance(check, freshness)
+	return check != nil && check.Result == CheckResultClear && !isCheckerActor(check.CheckedBy)
 }
 
 // evidenceFreshness looks up targetID's recorded freshness assessment,
@@ -136,11 +133,11 @@ const (
 	// GateBlockClearanceNeedsWork means the Task's latest Check recorded
 	// NEEDS WORK.
 	GateBlockClearanceNeedsWork GateBlockKind = "clearance_needs_work"
-	// GateBlockClearanceStale means the Task's freshness assessment does not
-	// name its latest Check as current.
+	// GateBlockClearanceStale means a freshness assessment marks the Task's
+	// latest Check stale.
 	GateBlockClearanceStale GateBlockKind = "clearance_stale"
-	// GateBlockClearanceUnknown means the Task's latest Check is CLEAR but
-	// carries no freshness assessment.
+	// GateBlockClearanceUnknown means a freshness assessment marks the Task's
+	// latest CLEAR Check unknown.
 	GateBlockClearanceUnknown GateBlockKind = "clearance_unknown"
 	// GateBlockOwnerAcceptance means the Task declares owner_validation.
 	// required and the owner has not accepted the current Check.
@@ -149,8 +146,8 @@ const (
 	// state AdvanceTaskLifecycleState recognizes, or, for an Objective
 	// completion decision, that one of its owned Tasks is not done.
 	GateBlockInvalidState GateBlockKind = "invalid_state"
-	// GateBlockCheckerAuthority means a CLEAR Check or its current freshness
-	// assessment was not recorded by an identified checker session.
+	// GateBlockCheckerAuthority means a CLEAR Check was not recorded by an
+	// identified checker session.
 	GateBlockCheckerAuthority GateBlockKind = "checker_authority"
 	// GateBlockObjectiveDependency means the Task's owning Objective has an
 	// unsatisfied Objective dependency; ObjectiveDependency names which one
@@ -359,12 +356,12 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 	case ClearanceNeedsWork:
 		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceNeedsWork, Detail: fmt.Sprintf("latest check %s recorded NEEDS WORK", clearance.Check)})
 	case ClearanceStale:
-		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("freshness assessment does not name latest check %s as current", clearance.Check)})
+		blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("freshness assessment marks latest check %s stale", clearance.Check)})
 	case ClearanceUnknown:
 		if untrustedCurrentClearance(index, taskID, clearance.Check) {
 			blockers = append(blockers, GateBlocker{Kind: GateBlockCheckerAuthority, Detail: fmt.Sprintf("latest check %s lacks independent checker provenance", clearance.Check)})
 		} else {
-			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("no freshness assessment recorded for latest check %s", clearance.Check)})
+			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("freshness assessment marks latest check %s unknown", clearance.Check)})
 		}
 	case ClearanceCurrent:
 		if ownerValidationRequired(task.Evidence) && !ownerAcceptedCheck(task.Evidence, clearance.Check) {

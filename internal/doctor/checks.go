@@ -157,19 +157,19 @@ func releaseBlockerProblem(release *data.ReleaseV2, blocker data.GateBlocker, la
 	case data.GateBlockClearanceMissing:
 		name = "v2-release-clearance-missing"
 		detail = fmt.Sprintf("Release evidence is missing: %s", blocker.Detail)
-		repair = fmt.Sprintf("Record a Release-scoped Check and current freshness evidence for %s; doctor does not create evidence", release.ID)
+		repair = fmt.Sprintf("Record a Release-scoped Check for %s; doctor does not create evidence", release.ID)
 	case data.GateBlockClearanceNeedsWork:
 		name = "v2-release-clearance-needs-work"
 		detail = fmt.Sprintf("Release evidence needs work: %s", blocker.Detail)
-		repair = fmt.Sprintf("Resolve the findings from the Release Check for %s, then record a fresh CLEAR Check and freshness assessment", release.ID)
+		repair = fmt.Sprintf("Resolve the findings from the Release Check for %s, then record a fresh CLEAR Check", release.ID)
 	case data.GateBlockClearanceStale:
 		name = "v2-release-clearance-stale"
 		detail = fmt.Sprintf("Release evidence is stale: %s", blocker.Detail)
-		repair = fmt.Sprintf("Record a current freshness assessment for the latest Release Check on %s", release.ID)
+		repair = fmt.Sprintf("Run a new Release Check on %s; a freshness assessment marks the latest one stale", release.ID)
 	case data.GateBlockClearanceUnknown:
 		name = "v2-release-clearance-unknown"
 		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)
-		repair = fmt.Sprintf("Record freshness evidence assessed by an independent checker for the latest Release Check on %s", release.ID)
+		repair = fmt.Sprintf("Run a new Release Check on %s; a freshness assessment marks the latest one unknown", release.ID)
 	case data.GateBlockCheckerAuthority:
 		name = "v2-release-checker-authority"
 		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)

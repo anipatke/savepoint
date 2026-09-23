@@ -539,11 +539,10 @@ func TestResolveNext_checkNeeded_needsWork(t *testing.T) {
 func TestResolveNext_checkNeeded_stale(t *testing.T) {
 	index := newV2TestIndex()
 	mustCheck(index, "C-001", "T-001", CheckResultClear)
-	mustCheck(index, "C-002", "T-001", CheckResultClear) // supersedes C-001 as the latest
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
 	index.Tasks["T-001"] = &TaskV2{
 		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
-		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "stale basis"}},
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessStale, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, Basis: "code changed after the check"}},
 	}
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
@@ -558,7 +557,10 @@ func TestResolveNext_checkNeeded_unknown(t *testing.T) {
 	index := newV2TestIndex()
 	mustCheck(index, "C-001", "T-001", CheckResultClear)
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
-	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit}
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnInProgress, Stage: StageAudit,
+		Evidence: &Evidence{Freshness: &Freshness{State: FreshnessUnknown, Check: "C-001", Basis: "not reassessed"}},
+	}
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 

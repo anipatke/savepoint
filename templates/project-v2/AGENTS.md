@@ -97,6 +97,7 @@ outcomes after the required evidence exists.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
+- A CLEAR Check signed by a checker is current on its own. A freshness assessment is optional and only marks the latest Check `stale` or `unknown`.
 - Check records are immutable, at `.savepoint/checks/C-###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
 
 ## Existing Codebase Adoption

@@ -143,10 +143,10 @@ func TestV2ConsistencyRepair(t *testing.T) {
 		name     string
 		contains string
 	}{
-		{"v2-done-without-clearance", "Record a Check and a current freshness assessment"},
+		{"v2-done-without-clearance", "Record a CLEAR Check before treating the Task as done"},
 		{"v2-acceptance-superseded", "owner accept the Task's actual latest Check"},
 		{"v2-evidence-contradicts-status", "Advance the Task's status to done"},
-		{"v2-objective-done-without-clearance", "Record an Objective-scoped Check"},
+		{"v2-objective-done-without-clearance", "Record a CLEAR Objective-scoped Check"},
 		{"v2-objective-done-with-incomplete-task", "Finish the named owned Task"},
 		{"v2-issue-verified-proof-superseded", "Record a fresh proof Check"},
 		{"unknown-name", "Review the Task's recorded evidence"},

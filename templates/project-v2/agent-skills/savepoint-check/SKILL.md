@@ -82,7 +82,8 @@ whole block when there is no review scope metadata to record. When the block is
 present, `reviewed.files` and `reviewed.dependencies` use real path or
 content-hash entries, or explicit `[]` when that category is absent. This
 metadata does not establish technical clearance: `CLEAR` depends on the
-independent checker recorded on the Check and a current freshness assessment.
+independent checker recorded on the Check. A CLEAR Check is current on its
+own; no separate freshness assessment is needed.
 `issues` lists the `I-###` references this run opened. `supersedes` names the
 prior `C-###` this run replaces, or stays empty on a first run. The record body
 carries outcome coverage, test and command results, negative and boundary
@@ -98,7 +99,7 @@ Each run writes a new record with a new `C-###`. A recheck never edits the super
 - A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count.
 - An Objective closes only after every Task it owns is done, the mandatory Objective integration Check is current, and every material Issue linked to that current Check is resolved (including explicit owner acceptance recorded as an Issue resolution), with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
 - A Goal Check is mandatory whenever a Goal exists. It reviews cross-Objective integration for the existing `R-###` identity, reuses ordinary Issues for material findings, and does not invent a parallel audit. Goal `done` requires at least one member Objective, every member Objective complete, current CLEAR integration evidence, resolved or explicitly excepted material Issues, and the owner's acceptance of that exact current Check. The checker never supplies that acceptance, and Goal `done` does not mean published or deployed.
-- A record lacking sufficient scope or evidence cannot support completion. Stale or unknown freshness blocks normal completion; it is never waived through by re-asserting "current" without a fresh assessment.
+- A record lacking sufficient scope or evidence cannot support completion. A freshness assessment is optional: record one only to mark the latest Check `stale` or `unknown` (for example, when code changed after it). That blocks normal completion until a new Check runs.
 - A recorded owner exception can grant completion despite an unmet requirement, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance, and it applies only to the Check it names.
 
 ## Issue Capture
