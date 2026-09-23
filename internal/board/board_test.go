@@ -5,10 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -190,24 +188,5 @@ func TestRunWithFiltersRejectsV1FiltersWithoutStartingBoard(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Errorf("stdout = %q, want no V1 board rendered", stdout.String())
-	}
-}
-
-func TestRunWithFiltersRefusesPendingOperationBeforeBoard(t *testing.T) {
-	projectRoot := writeV2ProjectForDispatch(t)
-	if _, err := migrate.CreateOperation(projectRoot, "op-dispatch-pending", nil, nil, time.Now()); err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
-	var stdout bytes.Buffer
-
-	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
-	if err == nil {
-		t.Fatal("runWithFilters() error = nil, want pending recovery refusal")
-	}
-	if !strings.Contains(err.Error(), "op-dispatch-pending") || !strings.Contains(err.Error(), "migrate --recover") {
-		t.Errorf("error = %q, want operation ID and recovery command", err.Error())
-	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout = %q, want no board rendered", stdout.String())
 	}
 }

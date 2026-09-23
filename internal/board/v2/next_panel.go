@@ -33,9 +33,6 @@ func nextLines(next data.Next) []string {
 	if next.Objective != nil {
 		return []string{next.Objective.ID + " — " + next.Objective.Title}
 	}
-	if next.Kind == data.NextPendingMigration {
-		return []string{"Migration in progress (" + next.Migration.OperationID + ")"}
-	}
 	return []string{"Nothing selected yet"}
 }
 

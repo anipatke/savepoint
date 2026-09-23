@@ -123,15 +123,14 @@ func stripDebugFlag(args []string) ([]string, bool) {
 }
 
 func runDoctorChecks(_ cmd.DoctorOptions) (int, error) {
-	projectRoot, err := migrate.FindProjectRoot(".")
+	projectRoot, err := data.FindProjectRoot(".")
 	if err != nil {
 		return 2, fmt.Errorf("savepoint root not found: %w", err)
 	}
 	root := filepath.Join(projectRoot, ".savepoint")
 
-	preflight := migrate.PreflightCutover(projectRoot, migrate.CutoverPreflightOptions{})
-	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
-		return 1, fmt.Errorf("doctor: %s", diagnostic)
+	if err := data.CheckRuntimeSchema(projectRoot); err != nil {
+		return 1, fmt.Errorf("doctor: %s", err)
 	}
 
 	report := doctor.RunV2Checks(root)
@@ -175,7 +174,6 @@ func migrateRunner(ctx context.Context, opts cmd.MigrateOptions) (int, error) {
 		Dir:            opts.Dir,
 		Write:          opts.WillWrite(),
 		DecisionsFile:  opts.DecisionsFile,
-		Recover:        opts.Recover,
 		Stdout:         os.Stdout,
 		Now:            time.Now,
 		NewOperationID: migrate.NewOperationID,
@@ -190,33 +188,28 @@ func resumeRunner(ctx context.Context, opts cmd.ResumeOptions) (int, error) {
 }
 
 // runResume performs one `savepoint resume` invocation: it resolves opts.Dir
-// exactly as migrate does (ARCH-03), runs the read-only cutover preflight
-// before interpreting any records, and gives pending migrations or legacy
-// projects named recovery/migration guidance instead of rendering them as V2.
-// For an intact V2 project it loads the project, reads its V2 router, resolves
-// the Next projection, and renders it to stdout. It performs no write on any
-// path, including every failure path: every read here is os.ReadFile,
-// os.Stat, or a pure computation, never a write. The V1-project case reports
-// through stdout as an explanatory message (exit 1, no error); every other
-// nonzero path returns an error so the dispatch above prints it to stderr.
+// exactly as migrate does (ARCH-03), runs the small runtime schema check
+// before interpreting any records, and gives a legacy project named migration
+// guidance instead of rendering it as V2. For an intact V2 project it loads
+// the project, reads its V2 router, resolves the Next projection, and renders
+// it to stdout. It performs no write on any path, including every failure
+// path: every read here is os.ReadFile, os.Stat, or a pure computation,
+// never a write. The schema-1 case reports through stdout as an explanatory
+// message (exit 1, no error); every other nonzero path returns an error so
+// the dispatch above prints it to stderr.
 func runResume(dir string, stdout io.Writer) (int, error) {
-	root, err := migrate.ResolveTarget(dir)
+	root, err := data.ResolveTarget(dir)
 	if err != nil {
 		return 1, resumeTargetError(dir, err)
 	}
 	savepointRoot := filepath.Join(root, ".savepoint")
 
-	preflight := migrate.PreflightCutover(root, migrate.CutoverPreflightOptions{})
-	if preflight.Pending != nil {
-		fmt.Fprintf(stdout, "resume: %s\n", preflight.Pending.RecoveryGuidance())
-		return 1, nil
-	}
-	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
-		if preflight.Plan != nil && !preflight.Plan.SchemaAlreadyV2 {
-			fmt.Fprintf(stdout, "resume: %s\n", diagnostic)
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		if errors.Is(err, data.ErrSchemaMigrationRequired) {
+			fmt.Fprintf(stdout, "resume: %s\n", err)
 			return 1, nil
 		}
-		return 1, fmt.Errorf("resume: %s", diagnostic)
+		return 1, fmt.Errorf("resume: %s", err)
 	}
 
 	index, err := data.LoadV2Index(savepointRoot)
@@ -241,15 +234,14 @@ func runResume(dir string, stdout io.Writer) (int, error) {
 	return 0, nil
 }
 
-// resumeTargetError names migrate.ResolveTarget's two target diagnostics for
-// the command the user actually ran. Resolution is shared read-only behavior
-// (ARCH-03), but its sentinels spell "migrate:", so without this a failed
-// `savepoint resume /typo` reports a migrate error for a resume invocation.
+// resumeTargetError names data.ResolveTarget's two target diagnostics for
+// the command the user actually ran, so a failed `savepoint resume /typo`
+// reports a resume-specific message rather than a generic wrapped error.
 func resumeTargetError(dir string, err error) error {
 	switch {
-	case errors.Is(err, migrate.ErrTargetMissing):
+	case errors.Is(err, data.ErrTargetMissing):
 		return fmt.Errorf("resume: target directory does not exist: %s", dir)
-	case errors.Is(err, migrate.ErrTargetNotSavepoint):
+	case errors.Is(err, data.ErrTargetNotSavepoint):
 		return fmt.Errorf("resume: target directory is not a Savepoint project: %s has no .savepoint directory", dir)
 	default:
 		return fmt.Errorf("resume: %w", err)

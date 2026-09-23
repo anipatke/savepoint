@@ -186,33 +186,16 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 	return Selection{Release: release, Objective: objective, Task: task}, nil
 }
 
-// MigrationState is the smallest injected fact ResolveNext needs about an
-// in-flight conversion: whether one is pending, and which operation. It
-// exists so the projection can outrank every other rung on an incomplete
-// migration without importing internal/migrate itself — that package already
-// imports internal/data, so the reverse import would close a cycle. main.go
-// fills this from migrate.PendingOperation at the same point it resolves the
-// project root.
-type MigrationState struct {
-	Pending     bool
-	OperationID string
-}
-
 // NextKind names the rung of the precedence ladder a Next value landed on.
 // The global values are evaluated in their existing order; Release-specific
 // values are reached only after a valid Release context has narrowed the
 // candidate records.
-// ResolveNext: pending migration outranks everything, because a project
-// midway through conversion holds records whose meaning is not yet settled;
-// owner validation sits below check-needed because asking the owner to
-// accept work with no current technical clearance would invert the
+// ResolveNext: owner validation sits below check-needed because asking the
+// owner to accept work with no current technical clearance would invert the
 // authority model E43 established.
 type NextKind string
 
 const (
-	// NextPendingMigration means an incomplete migration operation exists;
-	// every other rung is unreachable until it resolves.
-	NextPendingMigration NextKind = "pending_migration"
 	// NextReplan means the selected Task carries a recorded replan flag.
 	NextReplan NextKind = "replan"
 	// NextDependency means the selected Task is blocked on an unsatisfied
@@ -263,10 +246,9 @@ const (
 // read from. Every field beyond Kind is populated only when the rung makes
 // it meaningful — GateDecision only for a rung read from ResolveTaskStart,
 // ResolveTaskAdvance, ResolveTaskCompletion, or ResolveObjectiveCompletion,
-// Clearance only for a rung read from ResolveClearance, and Migration only
-// for NextPendingMigration. Nothing here is computed by this package: every
-// readiness claim is a value obtained from the existing E43/E44 resolvers
-// and carried forward whole (STYLE-07, DATA-02).
+// and Clearance only for a rung read from ResolveClearance. Nothing here is
+// computed by this package: every readiness claim is a value obtained from
+// the existing E43/E44 resolvers and carried forward whole (STYLE-07, DATA-02).
 type Next struct {
 	Kind      NextKind
 	Release   *ReleaseV2
@@ -281,8 +263,6 @@ type Next struct {
 	// NextCheckNeeded, NextOwnerValidationRequired, NextObjectiveIntegration,
 	// and the Release-specific evidence rungs.
 	Clearance *Clearance
-	// Migration is set only when Kind is NextPendingMigration.
-	Migration MigrationState
 
 	// SelectionDiagnostic is set whenever the router's contextual hint did not
 	// resolve, regardless of which rung was ultimately reached: an unresolved
@@ -297,14 +277,12 @@ type Next struct {
 	Issues []*IssueV2
 }
 
-// NextInput carries everything ResolveNext reads: the project's index, the
-// decoded router hint, and injected migration state. ResolveNext performs no
-// discovery, no filesystem access, and no write; it consults only these
-// three values.
+// NextInput carries everything ResolveNext reads: the project's index and the
+// decoded router hint. ResolveNext performs no discovery, no filesystem
+// access, and no write; it consults only these two values.
 type NextInput struct {
-	Index     *V2Index
-	Router    *RouterStateV2
-	Migration MigrationState
+	Index  *V2Index
+	Router *RouterStateV2
 }
 
 // ResolveNext computes the one next action for a V2 project: the precedence
@@ -314,10 +292,6 @@ type NextInput struct {
 // read as an empty project and an empty selection rather than panicking; see
 // the boundary note in the body.
 func ResolveNext(input NextInput) Next {
-	if input.Migration.Pending {
-		return Next{Kind: NextPendingMigration, Migration: input.Migration}
-	}
-
 	index, router := input.Index, input.Router
 	// A nil index or router is a caller whose load has not completed, or did
 	// not succeed. Reading them as an empty project and an empty selection

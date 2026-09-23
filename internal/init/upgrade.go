@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/migrate"
 )
 
 type UpgradeAction string
@@ -191,14 +190,6 @@ func UpgradeProjectAssets(v2Templates fs.FS, targetDir string, dryRun, force boo
 	}
 
 	if version != data.SchemaVersionV2 {
-		// A pending migration has already claimed the project. Surface its
-		// recovery instruction even though the ordinary V1 upgrade refusal below
-		// would otherwise be enough; neither path may touch the project.
-		if !dryRun {
-			if err := refusePendingMigration(absTarget); err != nil {
-				return nil, err
-			}
-		}
 		return &UpgradeReport{Actions: []UpgradeEntry{{
 			Path:   filepath.ToSlash(filepath.Join(".savepoint", "config.yml")),
 			Action: ActionInfo,
@@ -252,13 +243,6 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 	// write and only then: an upgrade that changes nothing must touch nothing,
 	// and a probe file would be an observable change to .savepoint/ itself.
 	write = beforeFirstWrite(write, func() error { return ensureManifestWritable(absTarget) })
-
-	// An incomplete migration operation owns the project until it finishes:
-	// its backup holds the pre-migration copies of the very assets this
-	// upgrade would refresh. The guard runs at the same first-write boundary
-	// as the manifest check above, so a dry run — which never reaches a real
-	// write — keeps previewing normally.
-	write = beforeFirstWrite(write, func() error { return refusePendingMigration(absTarget) })
 
 	var report UpgradeReport
 
@@ -376,22 +360,6 @@ func beforeFirstWrite(write assetWriter, guard func() error) assetWriter {
 		}
 		return write(path, content)
 	}
-}
-
-// refusePendingMigration reports the incomplete migration operation guarding
-// absTarget, if any — the same read-only detector the board's write commands
-// and doctor's diagnostics consult, so a migration midway through relocating
-// and archiving project files is never disturbed by an unrelated asset
-// refresh.
-func refusePendingMigration(absTarget string) error {
-	report, err := migrate.PendingOperation(absTarget)
-	if err != nil {
-		return err
-	}
-	if report == nil {
-		return nil
-	}
-	return fmt.Errorf("migrate: operation %s is incomplete: %s", report.OperationID, report.RecoveryGuidance())
 }
 
 // ensureManifestWritable reports whether the manifest can be committed, without

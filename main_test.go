@@ -14,7 +14,6 @@ import (
 
 	"github.com/opencode/savepoint/internal/data"
 	savepointinit "github.com/opencode/savepoint/internal/init"
-	"github.com/opencode/savepoint/internal/migrate"
 )
 
 func TestMainVersionFlagPrintsVersion(t *testing.T) {
@@ -491,6 +490,7 @@ func normalizeMigratePreview(output string) string {
 
 func TestMainMigrateApplyWritesAndActivatesSchema(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--apply"}, "")
 
@@ -546,37 +546,6 @@ func TestMainMigrateDecisionsFileResolvesAmbiguity(t *testing.T) {
 	}
 }
 
-func TestMainMigrateRecoverWithNoPendingOperation(t *testing.T) {
-	dir := copyMigrateFixture(t)
-
-	result := runMainForTest(t, []string{"migrate", dir, "--recover"}, "")
-
-	if result.err != nil {
-		t.Fatalf("savepoint migrate --recover failed: %v\nstderr: %s", result.err, result.stderr)
-	}
-	if !strings.Contains(result.stdout, "no incomplete migration operation found") {
-		t.Fatalf("stdout = %q, want a report that nothing is pending", result.stdout)
-	}
-}
-
-func TestMainMigrateRecoverReportsPendingOperation(t *testing.T) {
-	dir := copyMigrateFixture(t)
-
-	op, err := migrate.CreateOperation(dir, "op-test-recover", nil, nil, time.Now())
-	if err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
-
-	result := runMainForTest(t, []string{"migrate", dir, "--recover"}, "")
-
-	if result.err != nil {
-		t.Fatalf("savepoint migrate --recover failed: %v\nstderr: %s", result.err, result.stderr)
-	}
-	if !strings.Contains(result.stdout, op.Journal.OperationID) {
-		t.Fatalf("stdout = %q, want the pending operation named", result.stdout)
-	}
-}
-
 func TestMainMigrateMissingDirectory(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist")
 
@@ -612,6 +581,7 @@ func TestMainMigrateUnwritableDirectory(t *testing.T) {
 	}
 
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	if err := os.Chmod(dir, 0500); err != nil {
 		t.Fatal(err)
 	}
@@ -625,6 +595,27 @@ func TestMainMigrateUnwritableDirectory(t *testing.T) {
 	if !strings.Contains(result.stderr, "target directory is not writable") {
 		t.Fatalf("stderr = %q, want a named unwritable-directory error", result.stderr)
 	}
+}
+
+func initMigrateGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not available; migration apply requires git")
+	}
+	run := func(args ...string) {
+		t.Helper()
+		command := exec.Command(gitPath, args...)
+		command.Dir = dir
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.name", "Savepoint Test")
+	run("config", "user.email", "savepoint-test@example.invalid")
+	run("add", "-A")
+	run("commit", "-qm", "fixture baseline")
 }
 
 func TestMainUpgradeAssetsStillWorksAfterMigrateAdded(t *testing.T) {

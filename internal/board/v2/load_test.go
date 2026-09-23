@@ -155,26 +155,6 @@ func TestLoadProjectRouterDiagnostics(t *testing.T) {
 	}
 }
 
-func TestLoadProjectPendingMigrationIsReportedFromMigrate(t *testing.T) {
-	root := writeValidProject(t)
-	operationID := createPendingOperation(t, root)
-
-	loaded := loadProject(root)
-
-	if loaded.Failed() {
-		t.Fatalf("loadProject() diagnostic = %q, want a pending migration reported rather than refused", loaded.Diagnostic)
-	}
-	if !loaded.State.Migration.Pending || loaded.State.Migration.OperationID != operationID {
-		t.Errorf("Migration = %+v, want the pending operation %q", loaded.State.Migration, operationID)
-	}
-	if !strings.Contains(loaded.State.MigrationGuidance, operationID) {
-		t.Errorf("MigrationGuidance = %q, want migrate's own guidance naming the operation", loaded.State.MigrationGuidance)
-	}
-	if loaded.State.Next.Kind != data.NextPendingMigration {
-		t.Errorf("Next.Kind = %q, want %q", loaded.State.Next.Kind, data.NextPendingMigration)
-	}
-}
-
 // TestLoadCmdReturnsTheSameSingleMessage proves startup and every later reload
 // share one load path: the command is a wrapper over loadProject and returns
 // its one message type.

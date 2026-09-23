@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-func TestRunCommand_previewAndRecoveryReportAreReadOnlyOnReadable0555Project(t *testing.T) {
+func TestRunCommand_previewIsReadOnlyOnReadable0555Project(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("directory permissions are not enforced the same way on Windows")
 	}
@@ -25,16 +26,16 @@ func TestRunCommand_previewAndRecoveryReportAreReadOnlyOnReadable0555Project(t *
 	}
 	t.Cleanup(func() { _ = os.Chmod(root, 0755) })
 
-	oldProbe := targetWriteabilityProbe
-	defer func() { targetWriteabilityProbe = oldProbe }()
+	before := snapshotTree(t, root)
+	var preview strings.Builder
 	probeCalls := 0
+	oldProbe := targetWriteabilityProbe
 	targetWriteabilityProbe = func(string) error {
 		probeCalls++
 		return nil
 	}
+	t.Cleanup(func() { targetWriteabilityProbe = oldProbe })
 
-	before := snapshotTree(t, root)
-	var preview strings.Builder
 	code, err := RunCommand(CommandOptions{
 		Dir:            root,
 		Stdout:         &preview,
@@ -48,28 +49,12 @@ func TestRunCommand_previewAndRecoveryReportAreReadOnlyOnReadable0555Project(t *
 		t.Fatalf("preview output = %q, want the preview report", preview.String())
 	}
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
-
-	var recovery strings.Builder
-	code, err = RunCommand(CommandOptions{
-		Dir:     root,
-		Recover: true,
-		Stdout:  &recovery,
-	})
-	if err != nil || code != 0 {
-		t.Fatalf("recovery report on a readable 0555 project: code = %d, err = %v\n%s", code, err, recovery.String())
-	}
-	if !strings.Contains(recovery.String(), "no incomplete migration operation found") {
-		t.Fatalf("recovery output = %q, want the no-pending report", recovery.String())
-	}
-	assertSnapshotsEqual(t, before, snapshotTree(t, root))
-
 	if probeCalls != 0 {
-		t.Fatalf("preview/recovery invoked the apply-only writeability probe %d time(s)", probeCalls)
+		t.Fatalf("preview invoked the apply-only writeability probe %d time(s)", probeCalls)
 	}
 }
 
 func TestRunCommand_applyWriteabilityProbePreservesPreExistingSentinelAndPrefix(t *testing.T) {
-	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	sentinelPath := filepath.Join(root, ".savepoint-migrate-write-test")
 	prefixPath := filepath.Join(root, ".savepoint-migrate-write-test-occupied")
@@ -89,15 +74,16 @@ func TestRunCommand_applyWriteabilityProbePreservesPreExistingSentinelAndPrefix(
 		Stdout:         &output,
 		Now:            fixedClock(time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)),
 		NewOperationID: fixedOperationID("probe-collision"),
+		RunGit:         cleanGitStub,
 	})
 	if err != nil || code != 0 {
 		t.Fatalf("apply with pre-existing probe names: code = %d, err = %v\n%s", code, err, output.String())
 	}
+	if !strings.Contains(output.String(), "Undo from the project root with: git --literal-pathspecs restore") {
+		t.Fatalf("apply output = %q, want the Git undo command", output.String())
+	}
 
-	for path, want := range map[string][]byte{
-		sentinelPath: sentinel,
-		prefixPath:   prefix,
-	} {
+	for path, want := range map[string][]byte{sentinelPath: sentinel, prefixPath: prefix} {
 		got, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatalf("read preserved probe collision %s: %v", path, readErr)
@@ -106,7 +92,6 @@ func TestRunCommand_applyWriteabilityProbePreservesPreExistingSentinelAndPrefix(
 			t.Fatalf("probe collision %s changed: got %q, want %q", path, got, want)
 		}
 	}
-
 	matches, err := filepath.Glob(filepath.Join(root, ".savepoint-migrate-write-test-*"))
 	if err != nil {
 		t.Fatalf("glob probe files: %v", err)
@@ -116,114 +101,264 @@ func TestRunCommand_applyWriteabilityProbePreservesPreExistingSentinelAndPrefix(
 	}
 }
 
-func TestRunCommand_recoverApplyAcrossInvocationsUsesRecordedOperation(t *testing.T) {
+func TestRunCommand_applyGitRefusalsHappenBeforeAnyWrite(t *testing.T) {
+	cases := []struct {
+		name     string
+		runGit   GitCommand
+		wantErr  error
+		wantText string
+	}{
+		{
+			name: "git missing",
+			runGit: func(string, ...string) (string, error) {
+				return "", ErrGitUnavailable
+			},
+			wantErr:  ErrGitUnavailable,
+			wantText: "install git",
+		},
+		{
+			name: "outside work tree",
+			runGit: func(string, ...string) (string, error) {
+				return "fatal: not a git repository", errors.New("exit status 128")
+			},
+			wantErr:  ErrNotGitWorkTree,
+			wantText: "git init",
+		},
+		{
+			name: "dirty migration path",
+			runGit: func(_ string, args ...string) (string, error) {
+				if args[0] == "rev-parse" {
+					return "true\n", nil
+				}
+				return " M .savepoint/config.yml\n", nil
+			},
+			wantErr:  ErrDirtyGitPaths,
+			wantText: "stage and commit or stash",
+		},
+		{
+			name: "untracked migration source",
+			runGit: func(_ string, args ...string) (string, error) {
+				if args[0] == "rev-parse" {
+					return "true\n", nil
+				}
+				return "?? .savepoint/releases/v1/epics/E01-example/E01-Detail.md\n", nil
+			},
+			wantErr:  ErrDirtyGitPaths,
+			wantText: "stage and commit or stash",
+		},
+		{
+			name: "ignored migration path",
+			runGit: func(_ string, args ...string) (string, error) {
+				if args[0] == "rev-parse" {
+					return "true\n", nil
+				}
+				return "!! .savepoint/config.yml\n", nil
+			},
+			wantErr:  ErrDirtyGitPaths,
+			wantText: "move ignored files",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := copyFixtureProject(t, "v1-basic")
+			before := snapshotTree(t, root)
+			probeCalls := 0
+			oldProbe := targetWriteabilityProbe
+			targetWriteabilityProbe = func(string) error {
+				probeCalls++
+				return nil
+			}
+			t.Cleanup(func() { targetWriteabilityProbe = oldProbe })
+
+			code, err := RunCommand(CommandOptions{Dir: root, Write: true, RunGit: tc.runGit})
+			if code != 1 || !errors.Is(err, tc.wantErr) {
+				t.Fatalf("RunCommand() = %d, %v; want exit 1 with %v", code, err, tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantText) {
+				t.Fatalf("RunCommand() error = %q, want next step %q", err, tc.wantText)
+			}
+			if probeCalls != 0 {
+				t.Fatalf("writeability probe ran %d time(s) before Git refusal", probeCalls)
+			}
+			assertSnapshotsEqual(t, before, snapshotTree(t, root))
+		})
+	}
+}
+
+func TestRunCommand_secondApplyReportsAlreadyMigratedWithoutGit(t *testing.T) {
 	root := copyFixtureProject(t, "v1-basic")
-	firstAt := time.Date(2026, 9, 19, 10, 11, 12, 0, time.UTC)
-	interruptFirstCommand(t, root, firstAt, "op-recorded")
-
-	pending, err := PendingOperation(root)
-	if err != nil || pending == nil {
-		t.Fatalf("PendingOperation() = %+v, %v, want an interrupted operation", pending, err)
+	if _, err := Apply(root, mustPlan(t, root)); err != nil {
+		t.Fatalf("initial Apply() error = %v", err)
 	}
-	if pending.Journal.Plan == nil {
-		t.Fatal("pending journal has no original plan; recovery would need a fresh invocation's volatile state")
-	}
-	if pending.Journal.Plan.OperationID != "op-recorded" || !pending.Journal.Plan.GeneratedAt.Equal(firstAt) {
-		t.Fatalf("recorded plan = operation %q at %v, want op-recorded at %v", pending.Journal.Plan.OperationID, pending.Journal.Plan.GeneratedAt, firstAt)
-	}
-
+	before := snapshotTree(t, root)
+	gitCalls := 0
 	var output strings.Builder
-	laterAt := firstAt.Add(24 * time.Hour)
 	code, err := RunCommand(CommandOptions{
-		Dir:            root,
-		Write:          true,
-		Recover:        true,
-		Stdout:         &output,
-		Now:            fixedClock(laterAt),
-		NewOperationID: fixedOperationID("op-fresh-must-not-be-used"),
+		Dir:    root,
+		Write:  true,
+		Stdout: &output,
+		RunGit: func(string, ...string) (string, error) {
+			gitCalls++
+			return "", ErrGitUnavailable
+		},
 	})
 	if err != nil || code != 0 {
-		t.Fatalf("separate Recover+Write invocation: code = %d, err = %v\n%s", code, err, output.String())
+		t.Fatalf("second --apply = %d, %v\n%s", code, err, output.String())
 	}
-	if !strings.Contains(output.String(), "resumed and completed migration operation op-recorded") {
-		t.Fatalf("recovery output = %q, want the recorded operation ID", output.String())
+	if !strings.Contains(output.String(), "already migrated") {
+		t.Fatalf("second --apply output = %q, want already-migrated message", output.String())
 	}
-
-	manifestBytes, err := os.ReadFile(filepath.Join(root, ".savepoint", "migrations", "v1-to-v2.yml"))
-	if err != nil {
-		t.Fatalf("read migration manifest: %v", err)
+	if gitCalls != 0 {
+		t.Fatalf("second --apply called git %d times, want a no-op", gitCalls)
 	}
-	manifest, err := UnmarshalManifest(manifestBytes)
-	if err != nil {
-		t.Fatalf("parse migration manifest: %v", err)
-	}
-	if manifest.OperationID != "op-recorded" || !manifest.GeneratedAt.Equal(firstAt) {
-		t.Fatalf("manifest volatile fields = operation %q at %v, want op-recorded at %v", manifest.OperationID, manifest.GeneratedAt, firstAt)
-	}
-	if report, reportErr := PendingOperation(root); reportErr != nil || report != nil {
-		t.Fatalf("PendingOperation() after recovery = %+v, %v, want none", report, reportErr)
-	}
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
 }
 
-func TestRunCommand_recoverApplyAcrossInvocationsRejectsEditedSource(t *testing.T) {
-	root := copyFixtureProject(t, "v1-basic")
-	firstAt := time.Date(2026, 9, 19, 11, 0, 0, 0, time.UTC)
-	interruptFirstCommand(t, root, firstAt, "op-edited-source")
-
-	source := filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T002-follow-up.md")
-	original, err := os.ReadFile(source)
+func TestRunCommand_realGitApplyIsReversibleAndRejectsDirtyPaths(t *testing.T) {
+	gitPath, err := exec.LookPath("git")
 	if err != nil {
-		t.Fatalf("read source before edit: %v", err)
+		t.Skip("git is not available; real Git migration integration test skipped")
 	}
-	edited := append(append([]byte{}, original...), []byte("\nuser edit after interruption\n")...)
-	if err := os.WriteFile(source, edited, 0644); err != nil {
-		t.Fatalf("edit source after interruption: %v", err)
-	}
+	root := copyFixtureProject(t, "v1-history")
+	initGitRepository(t, gitPath, root)
+	before := snapshotTree(t, root)
 
+	var preview strings.Builder
+	code, err := RunCommand(CommandOptions{Dir: root, Stdout: &preview})
+	if err != nil || code != 0 || !strings.Contains(preview.String(), "Migration preview") {
+		t.Fatalf("preview in a clean Git project: code = %d, err = %v\n%s", code, err, preview.String())
+	}
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+
+	plan := mustPlan(t, root)
 	var output strings.Builder
-	code, err := RunCommand(CommandOptions{
-		Dir:            root,
-		Write:          true,
-		Recover:        true,
-		Stdout:         &output,
-		Now:            fixedClock(firstAt.Add(48 * time.Hour)),
-		NewOperationID: fixedOperationID("op-must-not-be-used"),
-	})
-	if code == 0 || !errors.Is(err, ErrSourceConflict) {
-		t.Fatalf("recovery after a source edit: code = %d, err = %v, want ErrSourceConflict", code, err)
+	code, err = RunCommand(CommandOptions{Dir: root, Write: true, Stdout: &output})
+	if err != nil || code != 0 {
+		t.Fatalf("apply in a clean Git project: code = %d, err = %v\n%s", code, err, output.String())
 	}
-	got, err := os.ReadFile(source)
-	if err != nil {
-		t.Fatalf("read edited source after refusal: %v", err)
+	if !strings.Contains(output.String(), gitUndoCommand(plan)) {
+		t.Fatalf("apply output omitted the undo command %q:\n%s", gitUndoCommand(plan), output.String())
 	}
-	if string(got) != string(edited) {
-		t.Fatal("source edit was not preserved after recovery refused it")
+	wantChanged := make(map[string]bool)
+	for _, path := range plannedGitPaths(plan) {
+		wantChanged[path] = true
 	}
-}
-
-func interruptFirstCommand(t *testing.T, root string, at time.Time, operationID string) {
-	t.Helper()
-	oldHook := afterPublishWriteHook
-	calls := 0
-	stop := errors.New("test interruption after first published output")
-	afterPublishWriteHook = func(string) error {
-		calls++
-		if calls == 1 {
-			return stop
+	gotChanged := gitStatusPathsFor(t, gitPath, root, plannedGitPaths(plan))
+	if len(gotChanged) != len(wantChanged) {
+		t.Fatalf("Git changed paths = %v, want exactly planned paths %v", gotChanged, wantChanged)
+	}
+	for path := range wantChanged {
+		if !gotChanged[path] {
+			t.Errorf("Git status omitted planned change %s", path)
 		}
-		return nil
 	}
-	defer func() { afterPublishWriteHook = oldHook }()
 
-	var output strings.Builder
-	code, err := RunCommand(CommandOptions{
-		Dir:            root,
-		Write:          true,
-		Stdout:         &output,
-		Now:            fixedClock(at),
-		NewOperationID: fixedOperationID(operationID),
-	})
-	if code == 0 || !errors.Is(err, stop) {
-		t.Fatalf("interrupted first invocation: code = %d, err = %v, want the injected interruption", code, err)
+	tracked, untracked := gitUndoPathGroups(plan)
+	runGitTest(t, gitPath, root, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, tracked...)...)
+	runGitTest(t, gitPath, root, append([]string{"--literal-pathspecs", "clean", "-fdx", "--"}, untracked...)...)
+	if remaining := gitStatusPaths(t, gitPath, root); len(remaining) != 0 {
+		t.Fatalf("Git status after printed undo sequence = %v, want clean", remaining)
+	}
+	assertProjectContentEqual(t, before, snapshotTree(t, root))
+
+	configPath := filepath.Join(root, ".savepoint", "config.yml")
+	config, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, append(config, []byte("# owner edit\n")...), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dirtyBefore := snapshotTree(t, root)
+	code, err = RunCommand(CommandOptions{Dir: root, Write: true, Stdout: &output})
+	if code != 1 || !errors.Is(err, ErrDirtyGitPaths) {
+		t.Fatalf("apply with an uncommitted .savepoint edit = %d, %v; want dirty-path refusal", code, err)
+	}
+	assertProjectContentEqual(t, dirtyBefore, snapshotTree(t, root))
+}
+
+func cleanGitStub(_ string, args ...string) (string, error) {
+	if len(args) > 0 && args[0] == "rev-parse" {
+		return "true\n", nil
+	}
+	return "", nil
+}
+
+func initGitRepository(t *testing.T, gitPath, root string) {
+	t.Helper()
+	runGitTest(t, gitPath, root, "init", "-q")
+	runGitTest(t, gitPath, root, "config", "user.name", "Savepoint Test")
+	runGitTest(t, gitPath, root, "config", "user.email", "savepoint-test@example.invalid")
+	runGitTest(t, gitPath, root, "add", "-Af")
+	runGitTest(t, gitPath, root, "commit", "-qm", "fixture baseline")
+}
+
+func runGitTest(t *testing.T, gitPath, root string, args ...string) string {
+	t.Helper()
+	command := exec.Command(gitPath, args...)
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return string(output)
+}
+
+func gitStatusPaths(t *testing.T, gitPath, root string) map[string]bool {
+	t.Helper()
+	status := runGitTest(t, gitPath, root, "status", "--porcelain", "--untracked-files=all", "--no-renames")
+	return parseGitStatusPaths(t, status)
+}
+
+func gitStatusPathsFor(t *testing.T, gitPath, root string, paths []string) map[string]bool {
+	t.Helper()
+	changed := make(map[string]bool)
+	for _, path := range paths {
+		status := runGitTest(t, gitPath, root, "--literal-pathspecs", "status", "--porcelain", "--untracked-files=all", "--ignored=matching", "--no-renames", "--", path)
+		if strings.TrimSpace(status) != "" {
+			changed[path] = true
+		}
+	}
+	return changed
+}
+
+func parseGitStatusPaths(t *testing.T, status string) map[string]bool {
+	t.Helper()
+	paths := make(map[string]bool)
+	for _, line := range strings.Split(strings.TrimSpace(status), "\n") {
+		if line == "" {
+			continue
+		}
+		if len(line) < 4 {
+			t.Fatalf("unexpected git status line %q", line)
+		}
+		paths[line[3:]] = true
+	}
+	return paths
+}
+
+func assertProjectContentEqual(t *testing.T, before, after treeSnapshot) {
+	t.Helper()
+	projectFiles := func(snapshot treeSnapshot) map[string][]byte {
+		files := make(map[string][]byte, len(snapshot))
+		for path, item := range snapshot {
+			if path == ".git" || strings.HasPrefix(path, ".git"+string(filepath.Separator)) {
+				continue
+			}
+			files[path] = item.content
+		}
+		return files
+	}
+	want, got := projectFiles(before), projectFiles(after)
+	if len(want) != len(got) {
+		t.Fatalf("project file count changed: before %d, after %d", len(want), len(got))
+	}
+	for path, content := range want {
+		if gotContent, ok := got[path]; !ok {
+			t.Errorf("%s was present before and missing after", path)
+		} else if !bytes.Equal(content, gotContent) {
+			t.Errorf("%s content changed", path)
+		}
 	}
 }

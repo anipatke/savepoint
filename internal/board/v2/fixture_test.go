@@ -4,9 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -422,17 +420,6 @@ func writeTitlelessTask(t *testing.T, root string) {
 	t.Helper()
 	testutil.WriteFile(t, taskPath(root, "O-001", "T-001"),
 		"---\nid: T-001\nobjective: O-001\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Untitled\n")
-}
-
-// createPendingOperation records an incomplete migration operation over the
-// project root holding root, and returns its operation ID.
-func createPendingOperation(t *testing.T, root string) string {
-	t.Helper()
-	operation, err := migrate.CreateOperation(filepath.Dir(root), "op-test-board-fixture", nil, nil, time.Now())
-	if err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
-	return operation.Journal.OperationID
 }
 
 // removeTask deletes a Task file, for tests that reload a project whose records

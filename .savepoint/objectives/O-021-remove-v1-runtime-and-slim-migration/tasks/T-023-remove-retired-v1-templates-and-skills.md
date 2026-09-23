@@ -3,14 +3,20 @@ id: T-023
 title: Remove retired V1 templates and skills
 objective: O-021
 planned_by: {role: planner, session: o021-design-20260923}
-status: in_progress
-stage: audit
+status: done
 complexity_tier: medium
 complexity_reason: "The files themselves are unused, but many init contract tests pin V1 and V2 template trees together, so the tests must be narrowed to V2 without losing the V2 guarantees they also carry."
 depends_on: [{task: T-022, requires: clear}]
 owner_validation:
     required: false
     accepted_check: ""
+check_waiver:
+    task: T-023
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-23T10:49:28Z"
 ---
 
 # T-023: Remove retired V1 templates and skills

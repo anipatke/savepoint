@@ -5,17 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // writeResumeV2Project writes a minimal, valid V2 project whose router
 // selects a planned Task with no dependencies — the one rung every other
 // resume fixture below varies from: a Task that ResolveTaskStart allows,
-// reached through the ordinary schema/router/index path rather than the
-// pending-migration shortcut.
+// reached through the ordinary schema/router/index path.
 func writeResumeV2Project(t *testing.T, root string) {
 	t.Helper()
 	savepointDir := filepath.Join(root, ".savepoint")
@@ -155,25 +152,22 @@ func TestMainResumeUnresolvableSelectionStillExitsZero(t *testing.T) {
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
-func TestMainResumePendingMigrationPrintsRecoveryGuidanceAndLeavesOperationUnchanged(t *testing.T) {
+// TestMainResumeV1ProjectWithLegacyMigrationJournalGetsTheSameMigrateRouteMessage
+// proves a leftover journal file does not change the generic schema-1 route.
+func TestMainResumeV1ProjectWithLegacyMigrationJournalGetsTheSameMigrateRouteMessage(t *testing.T) {
 	dir := t.TempDir()
 	writeMigrateMinimalProject(t, dir)
-	op, err := migrate.CreateOperation(dir, "op-test-resume-pending", nil, nil, time.Now())
-	if err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
+	legacyDir := filepath.Join(dir, ".savepoint", ".migration", "op-test-resume-pending")
+	testutil.WriteFile(t, filepath.Join(legacyDir, "operation.yml"), "legacy journal\n")
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"resume", dir}, "")
 
 	if result.err == nil {
-		t.Fatal("savepoint resume over a pending migration exited zero, want a recovery refusal")
+		t.Fatal("savepoint resume over a V1 project with a pending operation succeeded, want a nonzero exit")
 	}
-	if !strings.Contains(result.stdout, op.Journal.OperationID) || !strings.Contains(result.stdout, "migrate --recover") {
-		t.Fatalf("stdout = %q, want recovery guidance naming the pending operation", result.stdout)
-	}
-	if strings.Contains(result.stdout, "Migration:") {
-		t.Fatalf("stdout = %q, want no ordinary Migration rung while recovery is pending", result.stdout)
+	if !strings.Contains(result.stdout, "schema_version 1") || !strings.Contains(result.stdout, "savepoint migrate") {
+		t.Fatalf("stdout = %q, want the ordinary schema-1 migrate-route message", result.stdout)
 	}
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }

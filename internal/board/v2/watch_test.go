@@ -22,7 +22,6 @@ func TestV2WatchSetIncludesLiveFilesAndExcludesHistoricalTrees(t *testing.T) {
 		"releases/R-001-first/Release.md",
 		"router.md",
 		"config.yml",
-		".migration/op/operation.yml",
 	}
 	for _, rel := range watched {
 		if !isV2WatchedPath(root, filepath.Join(root, filepath.FromSlash(rel))) {
@@ -34,6 +33,7 @@ func TestV2WatchSetIncludesLiveFilesAndExcludesHistoricalTrees(t *testing.T) {
 		"defects/D001.md",
 		"audit/register.md",
 		"migrations/v1-to-v2.yml",
+		".migration/op/operation.yml",
 	} {
 		if isV2WatchedPath(root, filepath.Join(root, filepath.FromSlash(rel))) {
 			t.Errorf("%s is excluded from the V2 watch set but was accepted", rel)
@@ -110,29 +110,6 @@ func TestV2WatcherDebouncesRapidWrites(t *testing.T) {
 	case msg := <-second:
 		t.Fatalf("rapid write burst produced a second reload message: %T", msg)
 	case <-time.After(200 * time.Millisecond):
-	}
-}
-
-func TestV2WatcherReportsMigrationAppearingAndCompleting(t *testing.T) {
-	root := writeValidProject(t)
-	watcher, err := newV2Watcher(root)
-	if err != nil {
-		t.Fatalf("newV2Watcher() error = %v", err)
-	}
-	t.Cleanup(func() { _ = watcher.Close() })
-
-	operationID := createPendingOperation(t, root)
-	awaitV2FileChange(t, watchV2Files(watcher, root))
-	if loaded := loadProject(root); loaded.State.Next.Kind != data.NextPendingMigration {
-		t.Fatalf("Next.Kind while migration %s is present = %q, want pending migration", operationID, loaded.State.Next.Kind)
-	}
-
-	if err := os.RemoveAll(filepath.Join(filepath.Dir(root), ".savepoint", ".migration", operationID)); err != nil {
-		t.Fatalf("remove migration operation: %v", err)
-	}
-	awaitV2FileChange(t, watchV2Files(watcher, root))
-	if loaded := loadProject(root); loaded.Failed() || loaded.State.Next.Kind == data.NextPendingMigration {
-		t.Fatalf("load after migration completion = diagnostic %q, Next %q; want ordinary project state", loaded.Diagnostic, loaded.State.Next.Kind)
 	}
 }
 

@@ -204,9 +204,8 @@ type Conflict struct {
 // stable ID derivation and the blocking-versus-advisory classification: this
 // file only detects ambiguities as it walks the project.
 
-// Clock and OperationIDSource are injected so Plan and its callers can
-// render byte-identical output across repeated runs in tests, and so a real
-// apply can record when and under which operation a plan was produced.
+// Clock and OperationIDSource are injected so issue dates, converted bytes,
+// and preview output stay byte-identical across repeated test runs.
 type Clock func() time.Time
 type OperationIDSource func() string
 

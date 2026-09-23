@@ -31,17 +31,6 @@ func actionFailure(err error, subject string) tea.Msg {
 	return actionMsg{err: err}
 }
 
-func writeGuard(root string) (string, bool) {
-	migration, guidance, err := pendingMigration(root)
-	if err != nil {
-		return err.Error(), true
-	}
-	if migration.Pending {
-		return guidance, true
-	}
-	return "", false
-}
-
 func freshV2Index(root string) (*data.V2Index, error) {
 	index, err := data.LoadV2Index(root)
 	if err != nil {
@@ -56,10 +45,6 @@ func freshV2Index(root string) (*data.V2Index, error) {
 // or different Check.
 func writeOwnerAcceptanceCmd(root string, target actionTarget) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return actionFailure(err, "owner acceptance")
@@ -113,10 +98,6 @@ func setOwnerAcceptance(evidence **data.Evidence, checkID string) {
 // exception. It does not make executor or checker transitions available.
 func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return actionFailure(err, "exception completion")
@@ -165,10 +146,6 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 // exactly the same authority the board's other lifecycle writes require.
 func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return actionFailure(err, "task advance")
@@ -245,14 +222,9 @@ func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 // writeTaskRetreatCmd is Backspace on a focused Task: move it one lifecycle
 // step backward. Retreat carries no Check gate — only the owner's own
 // keypress reaches it, matching AGENTS.md's "only the user may retreat a
-// Task to an earlier status" — but it is still refused outright while a
-// migration is pending, the same as every other board write.
+// Task to an earlier status".
 func writeTaskRetreatCmd(root, taskID string) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return actionFailure(err, "task retreat")
@@ -288,13 +260,9 @@ func taskLifecycleMessage(taskID string, status data.ColumnType, stage data.Prog
 // writeSelectionCmd re-reads both the V2 index and router before passing only
 // the requested selection to data.WriteRouterStateV2. The data writer owns
 // byte preservation and its final freshness check; this command owns the
-// board's pending-migration and target-validity boundary.
+// target-validity boundary.
 func writeSelectionCmd(root string, selection data.RouterSelectionV2, expectedMtime ...time.Time) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{err: fmt.Errorf("write refused: %s", message)}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return actionFailure(err, "selection")
@@ -349,14 +317,6 @@ func releaseSelectionFailure(err error, subject string) actionMsg {
 // rewrites next_action prose.
 func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) tea.Cmd {
 	return func() tea.Msg {
-		if message, refused := writeGuard(root); refused {
-			return actionMsg{
-				err:             fmt.Errorf("write refused: %s", message),
-				reload:          true,
-				releaseRollback: true,
-			}
-		}
-
 		index, err := freshV2Index(root)
 		if err != nil {
 			return releaseSelectionFailure(err, "Goal selection")

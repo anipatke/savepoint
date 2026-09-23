@@ -37,7 +37,7 @@ func renderText(next data.Next) string {
 
 // identityLines names the selected Objective and/or Task and its recorded
 // implementation state. It renders nothing for a rung with no selection —
-// pending migration and plan-next-Objective both carry neither.
+// plan-next-Objective carries neither.
 func identityLines(next data.Next) []string {
 	lines := ReleaseIdentityLines(next)
 	if next.Objective != nil {
@@ -79,10 +79,6 @@ func rungLines(next data.Next) []string {
 // second copy of the evidence vocabulary (STYLE-07, STYLE-09).
 func EvidenceLines(next data.Next) []string {
 	switch next.Kind {
-	case data.NextPendingMigration:
-		return []string{
-			fmt.Sprintf("Migration: an operation is in progress (%s). Every other action is on hold until it resolves.", next.Migration.OperationID),
-		}
 	case data.NextReplan:
 		return []string{"Replan: " + replanBlockerPhrase(next.GateDecision)}
 	case data.NextDependency:
@@ -259,8 +255,6 @@ func issueLines(issues []*data.IssueV2) []string {
 // is the divergence the shared projection exists to prevent.
 func ActionPhrase(next data.Next) string {
 	switch next.Kind {
-	case data.NextPendingMigration:
-		return "Wait for the pending migration to finish; nothing else is actionable until it resolves."
 	case data.NextReplan:
 		return "Resolve the recorded replan before resuming build, test, or audit."
 	case data.NextDependency:

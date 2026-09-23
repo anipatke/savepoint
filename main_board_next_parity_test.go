@@ -35,12 +35,6 @@ func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			test.build(t, dir)
-			if test.wantKind == data.NextPendingMigration {
-				// The live V2-only router refuses to render an interrupted
-				// migration; it prints recovery guidance before either board or
-				// resume can interpret indexed records.
-				return
-			}
 
 			want := resolveNextFromDisk(t, dir)
 			if want.Kind != test.wantKind {
@@ -75,10 +69,6 @@ func TestMigratedReleaseFlowsThroughDoctorBoardSelectorPlainAndResume(t *testing
 	}
 	if len(index.Releases) != 1 {
 		t.Fatalf("migrated Releases = %d, want one first-class Release", len(index.Releases))
-	}
-	cutover := data.ResolveReleaseCutover(index)
-	if cutover.Allowed || len(cutover.Blockers) == 0 {
-		t.Fatalf("migrated cutover decision = %+v, want the incomplete fixture Release blocked", cutover)
 	}
 	problems := doctor.RunV2Checks(savepointRoot).Releases
 	if len(problems) == 0 {
@@ -127,12 +117,6 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			test.build(t, dir)
-			if test.wantKind == data.NextPendingMigration {
-				// A pending migration is a recovery state, not a V2 board
-				// projection. The live command contract is tested by the focused
-				// resume/dispatch tests; do not ask the built board to render it.
-				return
-			}
 
 			want := resolveNextFromDisk(t, dir)
 

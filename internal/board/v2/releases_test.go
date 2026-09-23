@@ -425,33 +425,6 @@ func TestReleaseSelectionConflictRollsBackAndReloads(t *testing.T) {
 	}
 }
 
-func TestReleaseSelectionPendingMigrationRefusesWithoutPartialContext(t *testing.T) {
-	root := writeReleaseBoardProject(t)
-	model := openSizedBoard(t, root, 130, 48)
-	operationID := createPendingOperation(t, root)
-	opened, _ := model.Update(keyMsg(goalSelectorKey))
-	selector := opened.(Model)
-	selector = press(t, selector, "j")
-	updated, cmd := selector.Update(keyMsg("enter"))
-	switched := updated.(Model)
-	action, ok := cmd().(actionMsg)
-	if !ok || action.err == nil || !strings.Contains(action.err.Error(), operationID) {
-		t.Fatalf("pending migration message = %#v, want operation %s named", action, operationID)
-	}
-	reloaded, reloadCmd := switched.Update(action)
-	rolledBack := reloaded.(Model)
-	if rolledBack.SelectedRelease != "R-001" {
-		t.Errorf("pending migration rollback selected %q, want prior R-001", rolledBack.SelectedRelease)
-	}
-	final := applyBoardCommands(t, rolledBack, reloadCmd)
-	if !final.State.Migration.Pending || final.SelectedRelease != "" {
-		t.Errorf("pending migration state = %+v, selected %q; want migration held and no partial Release", final.State.Migration, final.SelectedRelease)
-	}
-	if !strings.Contains(final.StatusMessage, operationID) {
-		t.Errorf("pending migration status = %q, want refusal reason retained", final.StatusMessage)
-	}
-}
-
 func TestReleaseReloadPreservesFocusAndDiagnosesRemovedSelection(t *testing.T) {
 	root := writeReleaseBoardProject(t)
 	model := openSizedBoard(t, root, 130, 48)

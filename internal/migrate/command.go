@@ -1,6 +1,6 @@
 // Package migrate's command.go is the behavior behind `savepoint migrate`:
-// target validation, the recover report, decisions loading, preview, and the
-// guarded hand-off to Apply. It lives here rather than in main.go so the
+// target validation, decisions loading, preview, and the guarded hand-off to
+// Apply. It lives here rather than in main.go so the
 // command's real body is exercised by tests (ARCH-01 keeps cmd/ and main.go
 // to argument parsing and dispatch) and so the clock and operation-ID source
 // stay injectable — the same injection Plan already requires to render
@@ -17,19 +17,36 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // Distinct migrate target diagnostics, so a caller (and a test) can tell a
 // missing directory apart from an unwritable one or one that is not a
-// Savepoint project at all, per FS-06.
+// Savepoint project at all, per FS-06. ErrTargetMissing and
+// ErrTargetNotSavepoint are internal/data's own sentinels: the runtime
+// callers that just need to locate a project (board, resume, doctor,
+// upgrade-assets) read them from internal/data directly, without importing
+// this package, and migrate keeps these names so its own existing callers
+// and tests are unaffected.
 var (
-	ErrTargetMissing      = errors.New("migrate: target directory does not exist")
-	ErrTargetNotSavepoint = errors.New("migrate: target directory is not a Savepoint project")
+	ErrTargetMissing      = data.ErrTargetMissing
+	ErrTargetNotSavepoint = data.ErrTargetNotSavepoint
 	ErrTargetUnwritable   = errors.New("migrate: target directory is not writable")
+	ErrGitUnavailable     = errors.New("migrate: git is not available on PATH")
+	ErrNotGitWorkTree     = errors.New("migrate: project is not inside a git work tree")
+	ErrDirtyGitPaths      = errors.New("migrate: migration paths have uncommitted or untracked changes")
 )
+
+// GitCommand runs git with dir as its working directory and returns combined
+// output. RunCommand injects it so clean-tree refusals can be tested without
+// requiring git in unit tests.
+type GitCommand func(dir string, args ...string) (string, error)
 
 // CommandOptions is everything RunCommand needs: the parsed user intent, the
 // stream to report on, and the two injected sources that make a run
@@ -41,70 +58,32 @@ type CommandOptions struct {
 	// command layer and is deliberately not duplicated here.
 	Write         bool
 	DecisionsFile string
-	Recover       bool
 
 	Stdout         io.Writer
 	Now            Clock
 	NewOperationID OperationIDSource
+	RunGit         GitCommand
 }
 
 // ResolveTarget validates dir as a migration target and returns its absolute
-// path. Unlike data.Discover.FindSavepointRoot, it checks dir itself rather
-// than walking up through parent directories: migrate must never silently
-// operate on an unrelated ancestor project.
+// path. It is a thin wrapper over data.ResolveTarget, the one implementation
+// every runtime caller and migrate itself now share.
 func ResolveTarget(dir string) (string, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", ErrTargetMissing, dir, err)
-	}
-
-	info, statErr := os.Stat(abs)
-	if statErr != nil {
-		if os.IsNotExist(statErr) {
-			return "", fmt.Errorf("%w: %s", ErrTargetMissing, dir)
-		}
-		return "", fmt.Errorf("%w: %s: %v", ErrTargetMissing, dir, statErr)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%w: %s is not a directory", ErrTargetMissing, dir)
-	}
-
-	savepointDir := filepath.Join(abs, ".savepoint")
-	if sInfo, sErr := os.Stat(savepointDir); sErr != nil || !sInfo.IsDir() {
-		return "", fmt.Errorf("%w: %s has no .savepoint directory", ErrTargetNotSavepoint, dir)
-	}
-
-	return abs, nil
+	return data.ResolveTarget(dir)
 }
 
 // FindProjectRoot locates the nearest Savepoint project while walking from
-// start toward the filesystem root. This is the live command counterpart to
-// the legacy data.Discover root helper: it only identifies the project
-// boundary and never discovers or parses V1 records.
+// start toward the filesystem root. It is a thin wrapper over
+// data.FindProjectRoot, the one implementation every runtime caller and
+// migrate itself now share.
 func FindProjectRoot(start string) (string, error) {
-	dir, err := filepath.Abs(start)
-	if err != nil {
-		return "", fmt.Errorf("resolve project root: %w", err)
-	}
-
-	for {
-		info, statErr := os.Stat(filepath.Join(dir, ".savepoint"))
-		if statErr == nil && info.IsDir() {
-			return dir, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("%w: %s has no .savepoint directory", ErrTargetNotSavepoint, start)
-		}
-		dir = parent
-	}
+	return data.FindProjectRoot(start)
 }
 
 // targetWriteabilityProbe is injected in tests so preview tests can prove the
 // write-only preflight is never called. It is deliberately separate from
 // ResolveTarget: resolving a target is a read-only operation shared by
-// preview and recovery-report modes.
+// preview and apply.
 var targetWriteabilityProbe = probeTargetWriteability
 
 func probeTargetWriteability(root string) (err error) {
@@ -145,34 +124,6 @@ func RunCommand(opts CommandOptions) (int, error) {
 		return 1, err
 	}
 
-	if opts.Recover {
-		code, done, err := reportRecovery(opts, root)
-		if done {
-			return code, err
-		}
-	}
-
-	if opts.Write {
-		if err := ensureTargetWritable(root); err != nil {
-			return 1, err
-		}
-		// A pending operation is authoritative. Do not build a fresh plan:
-		// doing so would generate a new operation ID/time and would also see
-		// the pending operation's already-created destinations as collisions.
-		pending, pendingErr := PendingOperation(root)
-		if pendingErr != nil {
-			return 1, pendingErr
-		}
-		if pending != nil {
-			result, applyErr := Apply(root, nil)
-			if applyErr != nil {
-				return 1, applyErr
-			}
-			fmt.Fprintln(opts.Stdout, applyOutcomeMessage(result))
-			return 0, nil
-		}
-	}
-
 	var decisions Decisions
 	if opts.DecisionsFile != "" {
 		decisions, err = ReadDecisionsFile(opts.DecisionsFile, opts.Now())
@@ -187,6 +138,10 @@ func RunCommand(opts CommandOptions) (int, error) {
 	}
 
 	if plan.SchemaAlreadyV2 {
+		if opts.Write {
+			fmt.Fprintln(opts.Stdout, "project is already migrated (schema_version: 2); nothing to do")
+			return 0, nil
+		}
 		fmt.Fprint(opts.Stdout, FormatPreview(plan))
 		return 0, nil
 	}
@@ -208,17 +163,23 @@ func RunCommand(opts CommandOptions) (int, error) {
 		fmt.Fprint(opts.Stdout, FormatPreview(plan))
 		return 1, unresolvedAmbiguityError(plan)
 	}
+	if err := ensureCleanGitTree(root, plan, opts.RunGit); err != nil {
+		return 1, err
+	}
+	if err := ensureTargetWritable(root); err != nil {
+		return 1, err
+	}
 
 	result, err := Apply(root, plan)
 	if err != nil {
 		return 1, err
 	}
-	fmt.Fprintln(opts.Stdout, applyOutcomeMessage(result))
+	fmt.Fprintln(opts.Stdout, applyOutcomeMessage(result, plan))
 	return 0, nil
 }
 
-// NewOperationID generates a fresh, effectively-unique operation directory
-// name for a real migration run. Tests inject their own deterministic
+// NewOperationID generates the run identifier shown in migration previews.
+// It is not persisted as recovery state. Tests inject their own deterministic
 // OperationIDSource; this is the one production callers use.
 func NewOperationID() string {
 	var suffix [4]byte
@@ -238,40 +199,135 @@ func (o CommandOptions) withDefaults() CommandOptions {
 	if o.NewOperationID == nil {
 		o.NewOperationID = NewOperationID
 	}
+	if o.RunGit == nil {
+		o.RunGit = defaultGitCommand
+	}
 	return o
-}
-
-// reportRecovery prints the pending-operation report --recover asks for. It
-// returns done=true when the invocation is finished (a preview-mode
-// --recover reports and stops); an --apply --recover run falls through to the
-// recorded-operation recovery path before any fresh planning.
-func reportRecovery(opts CommandOptions, root string) (code int, done bool, err error) {
-	report, pendingErr := PendingOperation(root)
-	if pendingErr != nil {
-		return 1, true, pendingErr
-	}
-	if report == nil {
-		fmt.Fprintln(opts.Stdout, "savepoint migrate --recover: no incomplete migration operation found")
-	} else {
-		fmt.Fprintln(opts.Stdout, report.RecoveryGuidance())
-	}
-	if !opts.Write {
-		return 0, true, nil
-	}
-	return 0, false, nil
 }
 
 func unresolvedAmbiguityError(plan *ConversionPlan) error {
 	return fmt.Errorf("migrate: unresolved blocking ambiguities: %s", strings.Join(plan.UnresolvedBlockingIDs, ", "))
 }
 
-func applyOutcomeMessage(result *ApplyResult) string {
+func applyOutcomeMessage(result *ApplyResult, plan *ConversionPlan) string {
 	switch {
 	case result.AlreadyMigrated:
-		return "project is already at schema_version: 2; nothing to migrate"
-	case result.Resumed:
-		return fmt.Sprintf("resumed and completed migration operation %s", result.OperationID)
+		return "project is already migrated (schema_version: 2); nothing to do"
 	default:
-		return fmt.Sprintf("migration complete: operation %s", result.OperationID)
+		return fmt.Sprintf("migration complete. Undo from the project root with: %s", gitUndoCommand(plan))
 	}
+}
+
+func ensureCleanGitTree(root string, plan *ConversionPlan, runGit GitCommand) error {
+	inside, err := runGit(root, "rev-parse", "--is-inside-work-tree")
+	if errors.Is(err, ErrGitUnavailable) {
+		return fmt.Errorf("%w: install git, then retry `savepoint migrate --apply`", ErrGitUnavailable)
+	}
+	if err != nil || strings.TrimSpace(inside) != "true" {
+		return fmt.Errorf("%w: run `git init` in the project or move it inside a git work tree", ErrNotGitWorkTree)
+	}
+
+	paths := plannedGitPaths(plan)
+	args := []string{"status", "--porcelain", "--untracked-files=all", "--ignored=matching", "--no-renames", "--"}
+	args = append(args, paths...)
+	status, err := runGit(root, args...)
+	if err != nil {
+		return fmt.Errorf("migrate: inspect git status for migration paths: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return fmt.Errorf("%w: %s; stage and commit or stash changed paths, and move ignored files out of planned paths before retrying `savepoint migrate --apply`", ErrDirtyGitPaths, strings.TrimSpace(status))
+	}
+	return nil
+}
+
+func defaultGitCommand(dir string, args ...string) (string, error) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return "", ErrGitUnavailable
+	}
+	commandArgs := append([]string{"--literal-pathspecs"}, args...)
+	command := exec.Command(gitPath, commandArgs...)
+	command.Dir = dir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return string(output), nil
+}
+
+func plannedGitPaths(plan *ConversionPlan) []string {
+	paths := []string{".savepoint/config.yml", manifestRelPath()}
+	for _, target := range plan.Targets {
+		paths = append(paths, savepointPath(target.InstallPath()))
+	}
+	for _, document := range plan.Documents {
+		paths = append(paths, savepointPath(document.TargetPath))
+	}
+	for _, archive := range plan.Archives {
+		paths = append(paths, archive.ArchivePath, archive.SourcePath)
+	}
+	return uniqueSortedPaths(paths)
+}
+
+func uniqueSortedPaths(paths []string) []string {
+	seen := make(map[string]struct{}, len(paths))
+	unique := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
+		if _, exists := seen[path]; exists {
+			continue
+		}
+		seen[path] = struct{}{}
+		unique = append(unique, path)
+	}
+	sort.Strings(unique)
+	return unique
+}
+
+func gitUndoCommand(plan *ConversionPlan) string {
+	tracked, untracked := gitUndoPathGroups(plan)
+	return "git --literal-pathspecs restore --source=HEAD --staged --worktree -- " + shellJoin(tracked) +
+		" && git --literal-pathspecs clean -fdx -- " + shellJoin(untracked)
+}
+
+func gitUndoPathGroups(plan *ConversionPlan) (tracked, untracked []string) {
+	if planHasSource(plan, ".savepoint/config.yml") {
+		tracked = append(tracked, ".savepoint/config.yml")
+	} else {
+		untracked = append(untracked, ".savepoint/config.yml")
+	}
+	untracked = append(untracked, manifestRelPath())
+	for _, target := range plan.Targets {
+		untracked = append(untracked, savepointPath(target.InstallPath()))
+	}
+	for _, document := range plan.Documents {
+		path := savepointPath(document.TargetPath)
+		if document.Kind == DocumentRouter {
+			tracked = append(tracked, path)
+		} else {
+			untracked = append(untracked, path)
+		}
+	}
+	for _, archive := range plan.Archives {
+		tracked = append(tracked, archive.SourcePath)
+		untracked = append(untracked, archive.ArchivePath)
+	}
+	return uniqueSortedPaths(tracked), uniqueSortedPaths(untracked)
+}
+
+func planHasSource(plan *ConversionPlan, path string) bool {
+	for _, source := range plan.Sources {
+		if source.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func shellJoin(paths []string) string {
+	quoted := make([]string, len(paths))
+	for i, path := range paths {
+		quoted[i] = "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+	}
+	return strings.Join(quoted, " ")
 }

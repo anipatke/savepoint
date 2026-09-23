@@ -16,7 +16,6 @@ type QualityGateReport struct {
 type DiagnosticReport struct {
 	ConfigCheck   error
 	RouterCheck   error
-	Migration     []Problem
 	Project       []Problem
 	Releases      []Problem
 	ReleaseNotes  []string
@@ -84,7 +83,6 @@ func (r *DiagnosticReport) HealthFindings() []HealthFinding {
 			Repair:   SuggestRepair(r.RouterCheck),
 		})
 	}
-	findings = append(findings, problemFindings(r.Migration)...)
 	findings = append(findings, problemFindings(r.Project)...)
 	findings = append(findings, problemFindings(r.Releases)...)
 	findings = append(findings, problemFindings(r.Structure)...)
@@ -170,9 +168,6 @@ func (r *DiagnosticReport) Format() string {
 
 	sectionHeader(&b, "Router Check")
 	printSingleCheck(&b, "router", r.RouterCheck)
-
-	sectionHeader(&b, "Migration Check")
-	printProblems(&b, "migration", r.Migration)
 
 	sectionHeader(&b, "Project Check")
 	printProblems(&b, "project", r.Project)

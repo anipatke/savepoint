@@ -5,9 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -27,7 +25,6 @@ func TestDiagnosticReport_FormatContainsSections(t *testing.T) {
 	sections := []string{
 		"Config Check",
 		"Router Check",
-		"Migration Check",
 		"Project Check",
 		"Structure Check",
 		"Dependency Check",
@@ -68,42 +65,6 @@ func listFiles(t *testing.T, dir string) []string {
 		t.Fatal(err)
 	}
 	return files
-}
-
-func TestDiagnosticReport_MigrationOperationIncompleteIsAProblemAndWritesNothing(t *testing.T) {
-	projectDir := t.TempDir()
-	root := filepath.Join(projectDir, ".savepoint")
-	if err := os.MkdirAll(root, 0755); err != nil {
-		t.Fatal(err)
-	}
-	entries := []migrate.JournalEntry{{Path: "objectives/O-001.md", Action: migrate.ActionCreate}}
-	if _, err := migrate.CreateOperation(projectDir, "op-9", nil, entries, time.Now()); err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
-
-	before := listFiles(t, projectDir)
-
-	report := RunV2Checks(root)
-	if !report.HasProblems() {
-		t.Fatal("RunV2Checks() should report a problem for an incomplete migration operation")
-	}
-	output := report.Format()
-	if !strings.Contains(output, "op-9") {
-		t.Errorf("report.Format() = %q, want it to name the operation", output)
-	}
-	if !strings.Contains(output, "--recover") {
-		t.Errorf("report.Format() = %q, want the recovery command", output)
-	}
-
-	after := listFiles(t, projectDir)
-	if len(before) != len(after) {
-		t.Fatalf("RunV2Checks() changed the file set: before=%v after=%v", before, after)
-	}
-	for i := range before {
-		if before[i] != after[i] {
-			t.Fatalf("RunV2Checks() changed the file set: before=%v after=%v", before, after)
-		}
-	}
 }
 
 func TestDiagnosticReport_NoReleaseOmitsReleaseSection(t *testing.T) {

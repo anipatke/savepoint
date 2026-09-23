@@ -8,24 +8,18 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/migrate"
 )
 
 // ProjectState is everything one load of a V2 project produced: the
-// identity-keyed index, the decoded V2 router, the injected migration state
-// with the guidance that explains it, and the one next action resolved from
-// those three. Nothing here is derived by this package — Next is
+// identity-keyed index, the decoded V2 router, and the one next action
+// resolved from those two. Nothing here is derived by this package — Next is
 // data.ResolveNext's own value, carried whole.
 type ProjectState struct {
 	Index       *data.V2Index
 	Router      *data.RouterStateV2
 	RouterMtime time.Time
 	Issues      IssueCatalog
-	Migration   data.MigrationState
-	// MigrationGuidance is migrate.PendingOperation's own explanation of the
-	// incomplete conversion, empty when none is pending.
-	MigrationGuidance string
-	Next              data.Next
+	Next        data.Next
 }
 
 // objectiveCount and taskCount report what the load put into the index. A nil
@@ -74,24 +68,10 @@ func loadCmd(root string) tea.Cmd {
 // diagnostic it hit. It is the body loadCmd wraps, called directly only where
 // there is no Bubble Tea program to run it in (the non-TTY path).
 //
-// A pending migration is read first and answered on its own: a project midway
-// through conversion holds records whose meaning is not yet settled, so they
-// are not loaded and not interpreted, exactly as `savepoint resume` treats the
-// same state. Everything else is the ordinary path: load the index, decode the
-// router, resolve the next action.
+// The board is only ever reached after the command dispatch above has
+// already confirmed schema 2 (runWithFilters), so this is the ordinary path
+// alone: load the index, decode the router, resolve the next action.
 func loadProject(root string) projectLoadedMsg {
-	migration, guidance, err := pendingMigration(root)
-	if err != nil {
-		return projectLoadedMsg{Diagnostic: err.Error()}
-	}
-	if migration.Pending {
-		return projectLoadedMsg{State: ProjectState{
-			Migration:         migration,
-			MigrationGuidance: guidance,
-			Next:              data.ResolveNext(data.NextInput{Migration: migration}),
-		}}
-	}
-
 	index, err := data.LoadV2Index(root)
 	if err != nil {
 		return projectLoadedMsg{Diagnostic: err.Error()}
@@ -113,22 +93,6 @@ func loadProject(root string) projectLoadedMsg {
 		Issues:      issueCatalog(index),
 		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
 	}}
-}
-
-// pendingMigration reads the incomplete-migration detector the V1 board,
-// upgrade-assets, and doctor all consult, so the V2 board reports the same
-// boundary rather than growing a second policy. root is the project's
-// .savepoint directory; the project directory PendingOperation expects is one
-// level up.
-func pendingMigration(root string) (data.MigrationState, string, error) {
-	report, err := migrate.PendingOperation(filepath.Dir(root))
-	if err != nil {
-		return data.MigrationState{}, "", err
-	}
-	if report == nil {
-		return data.MigrationState{}, "", nil
-	}
-	return data.MigrationState{Pending: true, OperationID: report.OperationID}, report.RecoveryGuidance(), nil
 }
 
 // readRouter reads and strictly decodes the project's V2 router. Both an

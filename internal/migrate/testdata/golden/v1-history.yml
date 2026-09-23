@@ -1,5 +1,5 @@
 fixture: v1-history
-note: Converted output of this fixture under the fixed clock and operation id in end_to_end_test.go. Regenerate only through the documented procedure at regenerateGoldenEnv; a mismatch is a behavior change to review, not a file to refresh.
+note: Converted output under the fixed clock in end_to_end_test.go. The manifest omits apply-recovery generated_at and operation_id fields; this is the intentional golden diff for T-025. Regenerate only through the documented procedure at regenerateGoldenEnv; other mismatches are behavior changes to review.
 files:
     - path: .savepoint/Idea.md
       content: |
@@ -197,8 +197,6 @@ files:
     - path: .savepoint/migrations/v1-to-v2.yml
       content: |
         manifest_schema_version: 1
-        generated_at: 2026-09-18T12:00:00Z
-        operation_id: op-e2e-fixed
         sources:
             - path: .savepoint/Design.md
               sha256: e7fe9986d4433568986f9df7062c2c4edb4cf79dad409751fc5eeed4e91d6c55

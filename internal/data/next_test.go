@@ -269,24 +269,6 @@ func TestResolveSelection_readsNoFilesystem(t *testing.T) {
 	}
 }
 
-// TestResolveNext_pendingMigrationOutranksEverything proves rung one wins
-// even over a project that would otherwise land on NextExecute.
-func TestResolveNext_pendingMigrationOutranksEverything(t *testing.T) {
-	index := newV2TestIndex()
-	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
-	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
-	index.ObjectiveTasks["O-001"] = []string{"T-001"}
-	router := &RouterStateV2{State: RouterPhaseIdea}
-
-	next := ResolveNext(NextInput{Index: index, Router: router, Migration: MigrationState{Pending: true, OperationID: "op-1"}})
-	if next.Kind != NextPendingMigration {
-		t.Fatalf("Kind = %q, want pending_migration even though a ready task exists", next.Kind)
-	}
-	if next.Migration.OperationID != "op-1" {
-		t.Errorf("Migration = %+v, want OperationID op-1 carried through", next.Migration)
-	}
-}
-
 // TestResolveNext_replanOutranksExecution proves a replan flag reports
 // NextReplan rather than NextExecute, even though the Task has no
 // dependency and would otherwise be ready to start.
@@ -303,21 +285,6 @@ func TestResolveNext_replanOutranksExecution(t *testing.T) {
 	next := ResolveNext(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
 		t.Fatalf("Kind = %q, want replan", next.Kind)
-	}
-}
-
-func TestResolveNext_pendingMigrationOutranksSelectedRelease(t *testing.T) {
-	index := releaseGateIndex()
-	index.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{
-		AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
-	}
-
-	next := ResolveNext(NextInput{
-		Index: index, Router: &RouterStateV2{Release: "R-001"},
-		Migration: MigrationState{Pending: true, OperationID: "op-release"},
-	})
-	if next.Kind != NextPendingMigration || next.Migration.OperationID != "op-release" {
-		t.Fatalf("next = %+v, want pending migration before Release work", next)
 	}
 }
 
@@ -907,9 +874,8 @@ func TestResolveNext_noIssuesLeavesNilNotEmpty(t *testing.T) {
 
 // TestNext_packageDoesNotImportMigrate proves internal/data does not import
 // internal/migrate. internal/migrate already imports internal/data for the
-// V2 records it converts into, so the reverse import would close a cycle —
-// which is exactly why MigrationState exists as an injected value instead.
-// Mirrors internal/migrate's own TestReplaceFile_doesNotReachAtomicWrite.
+// V2 records it converts into and the project-root helpers it shares, so the
+// reverse import would close a cycle.
 func TestNext_packageDoesNotImportMigrate(t *testing.T) {
 	if _, err := os.Stat("next.go"); err != nil {
 		t.Skipf("package source is not beside the test binary: %v", err)
@@ -969,16 +935,6 @@ func TestResolveNext_nilInputsReturnAValueRatherThanPanicking(t *testing.T) {
 		{"nil router", NextInput{Index: index}, NextPlanObjective},
 		{"both nil", NextInput{}, NextPlanObjective},
 		{"zero value", NextInput{}, NextPlanObjective},
-		{
-			name:  "both nil with migration pending",
-			input: NextInput{Migration: MigrationState{Pending: true, OperationID: "op-1"}},
-			want:  NextPendingMigration,
-		},
-		{
-			name:  "nil index with migration pending",
-			input: NextInput{Router: router, Migration: MigrationState{Pending: true, OperationID: "op-2"}},
-			want:  NextPendingMigration,
-		},
 	}
 
 	for _, tc := range cases {

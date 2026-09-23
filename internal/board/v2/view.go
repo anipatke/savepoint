@@ -137,7 +137,7 @@ func (m Model) renderNarrowNotice(w int) string {
 
 // renderBoard assembles the surfaces around the columns, then gives the columns
 // whatever height is left. Measuring the chrome rather than subtracting a
-// constant means a surface above the board — the migration line, or a Next
+// constant means a surface above the board — the reload diagnostic, or a Next
 // area that grew a line because a clearance phrase wrapped — cannot silently
 // push the columns past the bottom of the terminal.
 func (m Model) renderBoard(w, h int) string {
@@ -149,15 +149,12 @@ func (m Model) renderBoard(w, h int) string {
 
 // boardChrome is everything drawn above and below the board's body. It is built
 // rather than measured by a constant so a surface that grew a line — the
-// migration line, or a Next area whose clearance phrase wrapped — cannot
+// reload diagnostic, or a Next area whose clearance phrase wrapped — cannot
 // silently push the body past the bottom of the terminal.
 func (m Model) boardChrome(w int) (above, below []string) {
 	above = []string{m.renderHeader(w), m.renderSelection(w)}
 	if m.ReloadDiagnostic != "" {
 		above = append(above, m.renderReloadDiagnostic(w))
-	}
-	if m.State.Migration.Pending {
-		above = append(above, m.renderMigration(w))
 	}
 	above = append(above, m.renderNext(w), styles.Divider.Render(strings.Repeat("─", w)))
 	below = []string{styles.Divider.Render(strings.Repeat("─", w)), m.renderPhaseRow(w), "", m.renderStatusBar(w)}
@@ -276,12 +273,6 @@ func (m Model) selectedReleaseRecord() *data.ReleaseV2 {
 		return nil
 	}
 	return m.State.Index.Releases[m.SelectedRelease]
-}
-
-// renderMigration reports an incomplete conversion with the recovery guidance
-// migrate.PendingOperation produced, rather than a board's own summary of it.
-func (m Model) renderMigration(w int) string {
-	return lipgloss.NewStyle().Width(w).Render(styles.HeaderIcon.Render("MIGRATION") + "  " + m.State.MigrationGuidance)
 }
 
 // renderColumns draws the three columns side by side, each holding the cards

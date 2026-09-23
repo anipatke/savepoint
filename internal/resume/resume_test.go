@@ -11,16 +11,6 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
-// TestRender_pendingMigration is the golden rendering for rung one: pending
-// migration outranks every other rung and carries no Task or Objective.
-func TestRender_pendingMigration(t *testing.T) {
-	next := data.Next{Kind: data.NextPendingMigration, Migration: data.MigrationState{Pending: true, OperationID: "OP001"}}
-	want := "Migration: an operation is in progress (OP001). Every other action is on hold until it resolves.\n" +
-		"\n" +
-		"Next action: Wait for the pending migration to finish; nothing else is actionable until it resolves.\n"
-	assertRenderEquals(t, next, want)
-}
-
 // TestRender_replan is the golden rendering for rung two: a recorded replan
 // flag, reported by its own reason.
 func TestRender_replan(t *testing.T) {
@@ -547,7 +537,6 @@ func assertRenderEquals(t *testing.T, next data.Next, want string) {
 func allRungFixtures() []data.Next {
 	assessedAt := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	return []data.Next{
-		{Kind: data.NextPendingMigration, Migration: data.MigrationState{Pending: true, OperationID: "OP001"}},
 		{
 			Kind: data.NextReplan,
 			Task: &data.TaskV2{ID: "T010", Title: "Some task", Status: data.ColumnInProgress, Stage: data.StageBuild},

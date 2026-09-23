@@ -11,8 +11,8 @@ import (
 )
 
 // ManifestV1ToV2 is the model behind .savepoint/migrations/v1-to-v2.yml: the
-// source hashes a rerun revalidates against, the legacy-to-global identity
-// map, the archive references, the typed legacy prerequisites active work
+// source hashes, the legacy-to-global identity map, the archive references,
+// the typed legacy prerequisites active work
 // depends on, and the owner decisions that resolved any ambiguity. It is a
 // pure projection of a ConversionPlan plus the inventory Plan already read;
 // building one never touches the filesystem, and writing one is create-only
@@ -21,23 +21,19 @@ type ManifestV1ToV2 struct {
 	// ManifestSchemaVersion is this manifest file's own shape version. It is
 	// independent of the project's config.yml schema_version and must never
 	// be confused with it (see data.ReadSchemaVersion's doc comment).
-	ManifestSchemaVersion int       `yaml:"manifest_schema_version"`
-	GeneratedAt           time.Time `yaml:"generated_at"`
-	OperationID           string    `yaml:"operation_id"`
-
-	Sources             []ManifestSource             `yaml:"sources"`
-	Identities          []ManifestIdentity           `yaml:"identities"`
-	Archives            []ManifestArchive            `yaml:"archives"`
-	LegacyPrerequisites []ManifestLegacyPrerequisite `yaml:"legacy_prerequisites,omitempty"`
-	WaivedReferences    []ManifestWaivedReference    `yaml:"waived_references,omitempty"`
-	Decisions           []ManifestDecision           `yaml:"decisions,omitempty"`
+	ManifestSchemaVersion int                          `yaml:"manifest_schema_version"`
+	Sources               []ManifestSource             `yaml:"sources"`
+	Identities            []ManifestIdentity           `yaml:"identities"`
+	Archives              []ManifestArchive            `yaml:"archives"`
+	LegacyPrerequisites   []ManifestLegacyPrerequisite `yaml:"legacy_prerequisites,omitempty"`
+	WaivedReferences      []ManifestWaivedReference    `yaml:"waived_references,omitempty"`
+	Decisions             []ManifestDecision           `yaml:"decisions,omitempty"`
 }
 
 const manifestSchemaVersion = 1
 
-// ManifestSource is one inventoried V1 file's recorded identity for
-// freshness revalidation: apply re-hashes every path here before its first
-// write and aborts with a named conflict on any mismatch.
+// ManifestSource is one inventoried V1 file's exact source hash, retained as
+// provenance alongside the identity and archive mappings.
 type ManifestSource struct {
 	Path   string `yaml:"path"`
 	SHA256 string `yaml:"sha256"`
@@ -103,8 +99,6 @@ type ManifestDecision struct {
 func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 	m := &ManifestV1ToV2{
 		ManifestSchemaVersion: manifestSchemaVersion,
-		GeneratedAt:           plan.GeneratedAt,
-		OperationID:           plan.OperationID,
 	}
 
 	for _, s := range plan.Sources {
@@ -183,8 +177,7 @@ func (m *ManifestV1ToV2) Marshal() ([]byte, error) {
 	return yaml.Marshal(m)
 }
 
-// UnmarshalManifest parses previously written v1-to-v2.yml content, so a
-// rerun can compare its recorded source hashes against a fresh inventory.
+// UnmarshalManifest parses the provenance recorded in v1-to-v2.yml.
 func UnmarshalManifest(content []byte) (*ManifestV1ToV2, error) {
 	var m ManifestV1ToV2
 	if err := yaml.Unmarshal(content, &m); err != nil {

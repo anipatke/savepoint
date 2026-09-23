@@ -6,11 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/opencode/savepoint/internal/data"
 	savepointinit "github.com/opencode/savepoint/internal/init"
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
 	"github.com/opencode/savepoint/internal/testutil"
 )
@@ -71,12 +69,6 @@ func resumeMatrixCases() []matrixCase {
 			wantKind:                data.NextReady,
 			wantAction:              "Start Task T-001.",
 			wantSelectionDiagnostic: data.SelectionReleaseNotFound,
-		},
-		{
-			name:       "pending migration outranks everything",
-			build:      matrixBuildPendingMigration,
-			wantKind:   data.NextPendingMigration,
-			wantAction: "Wait for the pending migration to finish",
 		},
 		{
 			name:       "recorded replan blocks a planned task",
@@ -144,14 +136,6 @@ func resumeMatrixCases() []matrixCase {
 			wantKind:   data.NextPlanObjective,
 			wantAction: "Plan the next Objective",
 		},
-	}
-}
-
-func matrixBuildPendingMigration(t *testing.T, dir string) {
-	t.Helper()
-	writeMigrateMinimalProject(t, dir)
-	if _, err := migrate.CreateOperation(dir, "op-matrix-pending", nil, nil, time.Now()); err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
 	}
 }
 
@@ -367,20 +351,11 @@ func matrixBuildFreshInitScaffold(t *testing.T, dir string) {
 }
 
 // resolveNextFromDisk loads dir exactly as runResume's own read order does —
-// pending migration first, then schema version, project, and router — and
-// returns the resolved projection directly, so the matrix can assert
-// next.Kind, next.Objective, and next.Task without parsing them back out of
-// rendered prose.
+// schema version, then project and router — and returns the resolved
+// projection directly, so the matrix can assert next.Kind, next.Objective,
+// and next.Task without parsing them back out of rendered prose.
 func resolveNextFromDisk(t *testing.T, dir string) data.Next {
 	t.Helper()
-
-	pending, err := migrate.PendingOperation(dir)
-	if err != nil {
-		t.Fatalf("PendingOperation() error = %v", err)
-	}
-	if pending != nil {
-		return data.ResolveNext(data.NextInput{Migration: data.MigrationState{Pending: true, OperationID: pending.OperationID}})
-	}
 
 	savepointRoot := filepath.Join(dir, ".savepoint")
 	version, err := data.ReadSchemaVersion(filepath.Join(savepointRoot, "config.yml"))
@@ -495,7 +470,7 @@ func TestResumeMatrix_everyRungReachedExactlyOnce(t *testing.T) {
 	}
 
 	for _, kind := range []data.NextKind{
-		data.NextPendingMigration, data.NextReplan, data.NextDependency, data.NextExecute,
+		data.NextReplan, data.NextDependency, data.NextExecute,
 		data.NextCheckNeeded, data.NextOwnerValidationRequired, data.NextObjectiveIntegration,
 		data.NextReady, data.NextPlanObjective,
 	} {
@@ -536,17 +511,11 @@ func TestResumeMatrix_runResumeThroughTheRealCommandAlsoWritesNothingTwice(t *te
 			if err != nil {
 				t.Fatalf("runResume() error = %v", err)
 			}
-			wantCode := 0
-			if tc.wantKind == data.NextPendingMigration {
-				wantCode = 1
-				if !strings.Contains(first.String(), "migrate --recover") {
-					t.Fatalf("pending runResume() output = %q, want recovery guidance", first.String())
-				}
-			} else if !strings.Contains(first.String(), "Next action:") {
+			if !strings.Contains(first.String(), "Next action:") {
 				t.Fatalf("runResume() output = %q, want the ordinary Next action", first.String())
 			}
-			if code != wantCode {
-				t.Fatalf("runResume() code = %d, want %d", code, wantCode)
+			if code != 0 {
+				t.Fatalf("runResume() code = %d, want 0", code)
 			}
 
 			var second strings.Builder
@@ -554,8 +523,8 @@ func TestResumeMatrix_runResumeThroughTheRealCommandAlsoWritesNothingTwice(t *te
 			if err != nil {
 				t.Fatalf("second runResume() error = %v", err)
 			}
-			if code != wantCode {
-				t.Fatalf("second runResume() code = %d, want %d", code, wantCode)
+			if code != 0 {
+				t.Fatalf("second runResume() code = %d, want 0", code)
 			}
 			if second.String() != first.String() {
 				t.Fatalf("second runResume() output = %q, want byte-identical to the first %q", second.String(), first.String())

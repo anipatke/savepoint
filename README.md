@@ -209,13 +209,18 @@ npx savepoint migrate --apply
 
 The preview reports planned records, identity mappings, archived source,
 conflicts, and decisions that still need an owner. Nothing is written unless
-`--apply` is used. Legacy Release PRDs become accountable `R-###` records that
-the V2 board presents as Goals, plus exact archive mappings; historical
-completion is displayed as historical evidence, never as a fabricated current
-Check. If a migration is interrupted,
-`--recover` reports the pending operation and can resume it without
-overwriting user edits. E50's live cutover remains a separate maintainer
-decision after the migrated copy's Goal readiness is clear.
+`--apply` is used. Applying requires Git and clean planned paths. It refuses
+changed, untracked, or ignored files at those paths; stage and commit or stash
+changes, and move ignored files out before retrying. Legacy Release PRDs
+become accountable `R-###` records that the V2 board presents as Goals, with
+exact archive mappings; historical completion is displayed as historical
+evidence, never as a fabricated current Check. The migration writes converted
+files directly, removes archived source files, records the source hashes and
+mappings in `.savepoint/migrations/`, and
+sets `schema_version: 2` last, creating `config.yml` at that final step when
+the V1 project did not have one. If apply stops partway through, it lists the
+paths it changed and prints a Git command scoped to those paths to restore
+tracked inputs and remove generated outputs before retrying.
 
 For existing projects, refresh only the shipped Savepoint assets with:
 

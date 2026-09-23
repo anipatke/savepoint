@@ -21,16 +21,14 @@ var (
 	ErrCaseCollision     = errors.New("migrate: paths collide on a case-insensitive filesystem")
 )
 
-// migrationStateDir is the migration operation's own working state, not
-// project source; Inventory never walks into it.
-const migrationStateDir = ".migration"
+// legacyMigrationStateDir holds journals created by older migration builds.
+// They are inert historical files and are never conversion sources.
+const legacyMigrationStateDir = ".migration"
 
 // archiveDirName is the byte-preserved archive migration itself creates
 // under .savepoint/ (see archivePathFor in plan.go, the single source of
-// truth this name is shared with). Inventory never walks into it either: a
-// resumed apply calls Plan again, and without this exclusion a prior partial
-// apply's already-written archive content would be re-inventoried as a
-// brand-new, unclassified V1 source on every resume.
+// truth this name is shared with). Inventory never walks into generated
+// archive content, so archived V1 sources cannot be mistaken for live input.
 const archiveDirName = "archive"
 
 // SourceFile is one project-owned source file, recorded from its exact bytes
@@ -47,7 +45,7 @@ type SourceFile struct {
 }
 
 // Inventory walks the project-owned source under projectRoot — .savepoint/
-// content (excluding its own .savepoint/.migration/ operation state), the
+// content (excluding legacy .savepoint/.migration/ journals), the
 // managed AGENTS.md, and agent-skills/ — and returns one SourceFile per file
 // found, hashed from its exact bytes with no write of any kind. AGENTS.md and
 // agent-skills/ are each optional; their absence is expected V1 shape and
@@ -70,10 +68,9 @@ func Inventory(projectRoot string) ([]SourceFile, error) {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", relPath, err)
 		}
-		sum := sha256.Sum256(content)
 		files = append(files, SourceFile{
 			Path:   filepath.ToSlash(relPath),
-			SHA256: hex.EncodeToString(sum[:]),
+			SHA256: hashBytes(content),
 			Size:   info.Size(),
 			Mode:   info.Mode(),
 		})
@@ -101,11 +98,16 @@ func Inventory(projectRoot string) ([]SourceFile, error) {
 	return files, nil
 }
 
+func hashBytes(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
 // walkTree walks rootAbs/relRoot, calling addFile with the absolute and
 // project-relative path of every regular file found. A missing relRoot is not
 // an error, since agent-skills/ in particular may not exist in a given V1
-// project. .savepoint/.migration/ is skipped entirely — it is the migration
-// operation's own state, never project source.
+// project. Legacy .savepoint/.migration/ journals are skipped entirely and
+// never treated as conversion source.
 func walkTree(rootAbs, relRoot string, addFile func(absPath, relPath string) error) error {
 	absRoot := filepath.Join(rootAbs, relRoot)
 	switch _, err := os.Lstat(absRoot); {
@@ -116,8 +118,8 @@ func walkTree(rootAbs, relRoot string, addFile func(absPath, relPath string) err
 	}
 
 	skipDirs := map[string]bool{
-		filepath.Join(".savepoint", migrationStateDir): true,
-		filepath.Join(".savepoint", archiveDirName):    true,
+		filepath.Join(".savepoint", legacyMigrationStateDir): true,
+		filepath.Join(".savepoint", archiveDirName):          true,
 	}
 
 	return filepath.WalkDir(absRoot, func(absPath string, entry fs.DirEntry, err error) error {

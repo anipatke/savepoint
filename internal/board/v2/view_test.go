@@ -80,20 +80,6 @@ func TestViewDiagnosticScreenDrawsNoColumns(t *testing.T) {
 	}
 }
 
-func TestViewReportsPendingMigration(t *testing.T) {
-	root := writeValidProject(t)
-	operationID := createPendingOperation(t, root)
-
-	got := openBoard(t, root, "").View()
-
-	if !strings.Contains(got, "MIGRATION") || !strings.Contains(got, operationID) {
-		t.Errorf("view does not report the pending migration:\n%s", got)
-	}
-	if !strings.Contains(got, "savepoint migrate --recover") {
-		t.Errorf("view does not carry migrate's own recovery guidance:\n%s", got)
-	}
-}
-
 func TestViewBeforeFirstLoadDrawsNoBoard(t *testing.T) {
 	model := NewModel(Options{Root: writeValidProject(t)})
 

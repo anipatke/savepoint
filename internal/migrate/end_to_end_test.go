@@ -33,7 +33,6 @@ import (
 
 	"github.com/opencode/savepoint/cmd"
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/doctor"
 	"github.com/opencode/savepoint/internal/migrate"
 	"gopkg.in/yaml.v3"
 )
@@ -45,10 +44,8 @@ var e2eFixtures = []string{"v1-basic", "v1-history"}
 const (
 	fixtureRoot = "../data/testdata/migration"
 
-	// The injected clock and operation ID. Both are fixed so converted
-	// content — which embeds a generated-at date in Issue history and in the
-	// v1-to-v2.yml manifest — renders byte-identically on every run, which is
-	// what makes the golden comparison below meaningful.
+	// The injected clock and operation ID. The clock fixes generated dates in
+	// converted Issue history; the operation ID remains part of preview output.
 	e2eOperationID = "op-e2e-fixed"
 )
 
@@ -57,7 +54,7 @@ var e2eClock = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 // e2ePreparedFixtures holds one converted result per frozen fixture. Unix
 // read-only assertions share these protected results; Windows consumers use
 // private copies because read-only directory modes do not prevent new files.
-// Command, preview, recovery, no-op, and other mutating scenarios keep fresh
+// Command, preview, no-op, and other mutating scenarios keep fresh
 // source project copies on every platform.
 var e2ePreparedFixtures = map[string]string{}
 
@@ -136,13 +133,20 @@ func runMigrateCommand(args ...string) (int, string, error) {
 			Dir:            opts.Dir,
 			Write:          opts.WillWrite(),
 			DecisionsFile:  opts.DecisionsFile,
-			Recover:        opts.Recover,
 			Stdout:         &out,
 			Now:            func() time.Time { return e2eClock },
 			NewOperationID: func() string { return e2eOperationID },
+			RunGit:         alwaysCleanGit,
 		})
 	})
 	return code, out.String(), err
+}
+
+func alwaysCleanGit(_ string, args ...string) (string, error) {
+	if len(args) > 0 && args[0] == "rev-parse" {
+		return "true\n", nil
+	}
+	return "", nil
 }
 
 // migrateFixture copies fixture into a temp directory and applies the
@@ -358,7 +362,7 @@ func TestEndToEnd_sharedMigratedResultsAreReadOnly(t *testing.T) {
 	}
 }
 
-func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
+func TestEndToEnd_releaseRecordsAndManifestMappingsAgree(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
@@ -424,49 +428,6 @@ func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
 				mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
 			}
 
-			cutover := data.ResolveReleaseCutover(index)
-			for releaseID := range index.Releases {
-				canonical := data.ResolveReleaseCompletion(index, releaseID)
-				if canonical.Allowed {
-					continue
-				}
-				found := false
-				for _, blocker := range cutover.Blockers {
-					if blocker.ReleaseID == releaseID {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("project cutover gate omitted canonical blocker for Release %s: %+v", releaseID, canonical)
-				}
-			}
-
-			problems := doctor.RunV2Checks(filepath.Join(root, ".savepoint")).Releases
-			for _, blocker := range cutover.Blockers {
-				matched := false
-				for _, problem := range problems {
-					if strings.Contains(problem.Message, "release "+blocker.ReleaseID) && strings.Contains(problem.Message, string(blocker.Gate.Kind)) {
-						matched = true
-						break
-					}
-				}
-				// Doctor uses stable diagnostic names rather than the raw gate
-				// kind; the Release identity must still be present in every
-				// canonical refusal.
-				if !matched {
-					for _, problem := range problems {
-						if strings.Contains(problem.Message, "release "+blocker.ReleaseID) {
-							matched = true
-							break
-						}
-					}
-				}
-				if !matched {
-					t.Errorf("doctor omitted cutover blocker for Release %s: %+v; problems = %+v", blocker.ReleaseID, blocker.Gate, problems)
-				}
-			}
-
 			if fixture == "v1-history" {
 				historical := index.Releases["R-001"]
 				if historical == nil || historical.LegacyCompletion == nil {
@@ -474,9 +435,6 @@ func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
 				}
 				if historicalDecision := data.ResolveReleaseCompletion(index, "R-001"); !historicalDecision.AllowedByLegacyCompletion {
 					t.Fatalf("R-001 historical decision = %+v, want allowed by archived history", historicalDecision)
-				}
-				if cutover.Allowed {
-					t.Fatalf("v1-history cutover = %+v, want blocked by its active Release", cutover)
 				}
 			}
 		})
@@ -496,6 +454,11 @@ func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *te
 	plan := planFor(t, root)
 	if !plan.Appliable {
 		t.Fatalf("repository-copy plan is not appliable: ambiguities = %+v", plan.Ambiguities)
+	}
+	for _, archive := range plan.Archives {
+		if archive.SourcePath == configRelPath {
+			t.Fatalf("repository-copy plan archives the schema config: %+v", archive)
+		}
 	}
 	var plannedReleases []migrate.PlannedTarget
 	for _, target := range plan.Targets {
@@ -1032,8 +995,9 @@ func TestEndToEnd_goldenConvertedOutput(t *testing.T) {
 }
 
 // TestEndToEnd_goldenIsReproducible is the byte-for-byte rerun half of AC9:
-// a second independent migration of the same fixture, under the same injected
-// clock and operation ID, produces identical converted content.
+// independent migrations of the same fixture under the same injected clock
+// produce identical converted content. Apply identifiers remain preview
+// metadata and are not stored in the migration manifest.
 func TestEndToEnd_goldenIsReproducible(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range e2eFixtures {

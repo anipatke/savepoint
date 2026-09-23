@@ -8,7 +8,7 @@ import (
 
 	xterm "github.com/charmbracelet/x/term"
 	boardv2 "github.com/opencode/savepoint/internal/board/v2"
-	"github.com/opencode/savepoint/internal/migrate"
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // Filters is the board's live filter surface. Objective is the only filter
@@ -29,17 +29,17 @@ func RunWithFilters(filters Filters) error {
 }
 
 // runWithFilters is the board's live dispatch point. It resolves the project
-// root once, runs the read-only cutover preflight before any V2 rendering or
-// watcher starts, and hands only a valid V2 project to the V2 board. Legacy
-// projects and pending/invalid projects receive a named refusal instead of a
-// fallback into V1 discovery.
+// root once, runs the small schema check before any V2 rendering or watcher
+// starts, and hands only a schema-2 project to the V2 board, which performs
+// its own single load. Legacy and invalid projects receive a named refusal
+// instead of a fallback into V1 discovery.
 //
 // start, stdout, and isTTY are parameters rather than process state so the
 // dispatch is exercised against a temporary project directory without
 // depending on the working directory (ARCH-03).
 func runWithFilters(start string, filters Filters, stdout io.Writer, isTTY bool) error {
 	debugf("board dispatch: finding savepoint root from %q", start)
-	projectRoot, err := migrate.FindProjectRoot(start)
+	projectRoot, err := data.FindProjectRoot(start)
 	if err != nil {
 		return err
 	}
@@ -50,9 +50,8 @@ func runWithFilters(start string, filters Filters, stdout io.Writer, isTTY bool)
 		return fmt.Errorf("--release and --epic are schema_version 1 filters and are unavailable in the V2-only runtime; use --objective")
 	}
 
-	preflight := migrate.PreflightCutover(projectRoot, migrate.CutoverPreflightOptions{})
-	if diagnostic := preflight.RuntimeDiagnostic(); diagnostic != "" {
-		return fmt.Errorf("board: %s", diagnostic)
+	if err := data.CheckRuntimeSchema(projectRoot); err != nil {
+		return fmt.Errorf("board: %s", err)
 	}
 	return runV2Board(root, filters, stdout, isTTY)
 }

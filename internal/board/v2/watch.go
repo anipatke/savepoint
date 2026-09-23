@@ -13,9 +13,8 @@ const v2WatchDebounce = 100 * time.Millisecond
 
 // These are the live V2 roots. They are data rather than a collection of
 // path tests spread through the watcher so the file model stays visible in
-// one place. .migration is operational state, not a user record family: it
-// is watched only so PendingOperation can change the next action on screen.
-var v2WatchDirectories = []string{"objectives", "checks", "issues", "releases", ".migration"}
+// one place.
+var v2WatchDirectories = []string{"objectives", "checks", "issues", "releases"}
 var v2WatchFiles = []string{"router.md", "config.yml"}
 
 // These trees contain historical or V1 material. They are deliberately not

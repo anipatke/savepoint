@@ -3,7 +3,8 @@ id: T-025
 title: Apply migration on a clean git tree
 objective: O-021
 planned_by: {role: planner, session: o021-design-20260923}
-status: planned
+status: in_progress
+stage: audit
 complexity_tier: high
 complexity_reason: "Replaces the migration write path users rely on, removes ~2k lines of recovery code and its tests, and must keep conversion output byte-identical on both golden fixtures across platforms."
 depends_on: [{task: T-024, requires: clear}]
@@ -113,7 +114,29 @@ at handoff. Owner validation per the User Check above.
 
 ## Technical Evidence
 
-Pending execution.
+**Extra reads beyond the Context Files:**
+
+- `.savepoint/objectives/O-021-remove-v1-runtime-and-slim-migration/tasks/T-024-check-the-schema-without-migrate.md` — read to verify T-025's `requires: clear` dependency. It contains T-024's explicit owner waiver (recorded at `2026-09-23T11:11:35Z`); the owner reaffirmed that waiver in this conversation at `2026-09-23T11:15:05Z` and directed its evidence to the mandatory Full Objective Check. This waiver satisfies the downstream dependency and does not claim technical `CLEAR`.
+- Targeted `rg` search results in `internal/data/release_gate_v2_test.go` — needed to identify the remaining tests of `ResolveReleaseCutover` before removing the resolver and its implementation file.
+- Repository-wide Go reference search for `PendingOperation`, `PreflightCutover`, `ResolveReleaseCutover`, `ReplaceFile`, and recovery-only manifest fields — needed to find every compile-time consumer before deleting those APIs and files.
+- The same search identified out-of-context consumers to reconcile before deletion: `main_test.go` recovery dispatch cases, `main_board_next_parity_test.go` and `internal/data/release_gate_v2_test.go` Release-cutover tests, `internal/data/next_test.go`'s stale replace-primitive comment, `internal/board/v2/watch.go`'s stale pending-operation comment, and the three platform-specific replace test files. These references must be checked so removed APIs do not leave compile failures or stale claims.
+- `main_test.go`, `main_board_next_parity_test.go`, `internal/data/release_gate_v2_test.go`, `internal/board/v2/watch.go`, and `internal/data/next_test.go` — inspected only the matching tests/comments to remove obsolete recovery/cutover claims and the import-graph test comment after deleting those APIs.
+- `internal/board/v2/watch_test.go` — targeted search found `.migration` in the excluded-path cases; inspect those exact cases before dropping the obsolete watcher directory.
+- `internal/board/v2/watch_test.go` — read and updated the relevant watch-set cases so `.migration` is explicitly excluded now that it no longer carries live operation state.
+- `internal/init/upgrade_test.go` — inspect the matching recovery-guidance assertion found by the symbol scan to determine whether it describes a live caller or retired journal behavior.
+- `internal/init/upgrade_test.go` — read the matching test body; it creates a journal only to verify upgrade-assets ignores leftovers, so replace that deleted-API setup with an inert historical directory fixture and remove the obsolete `--recover` claim.
+- `internal/migrate/inventory.go` and `internal/migrate/inventory_test.go` — inspect the remaining `.migration` exclusion so its comment and test describe inert journals left by earlier versions rather than active operation state.
+- `main_board_test.go` and `main_resume_test.go` — the affected-package compile surfaced two remaining fixtures calling deleted `migrate.CreateOperation`; inspect those tests and replace them with inert legacy journal files so they continue proving runtime callers ignore leftovers.
+- `internal/data`'s `ReadSchemaVersion` implementation — targeted symbol lookup and definition read at `2026-09-23T12:01:44Z`; confirmed that a missing `config.yml` is a supported V1 shape and the schema reader is read-only. This explained the repository-copy E2E case and led to creating `config.yml` during final schema activation.
+
+**Execution evidence:**
+
+- Clean-tree refusal coverage: `go test ./internal/migrate ./cmd -count=1` passed. Unit cases cover missing Git, a non-worktree, modified and untracked planned paths, and ignored planned paths; refusals happen before the writeability probe. The real-Git integration test previews read-only, applies from a committed fixture, checks every planned path, runs the matching path-scoped restore/clean operations, confirms a clean tree, then proves a modified `.savepoint/config.yml` is refused without project-file changes.
+- Apply ordering and retry coverage: the migration tests pass for direct creates/replacements, archive copies and removals, manifest before schema activation, written-path error reporting, missing-config creation as the final write, and already-migrated no-op behavior.
+- Conversion preservation: both golden fixtures and repository-copy migration passed as part of the full suite; recovery-only manifest fields and journal/cutover/replace code are removed while source hashes, identities, archives, and decisions remain.
+- `git diff --check` passed after implementation.
+- Latest `make test-full` passed on Go `go1.26.2 linux/amd64`, including the full Go suite and Linux, Darwin, and Windows builds; completion evidence recorded at `2026-09-23T12:15:58Z`. Two earlier full-gate attempts reported a root-package setup failure. `go test . -count=1` and direct `go test -json -count=1 ./...` both passed, and the complete `make test-full` rerun passed.
+- The independent Task Check is explicitly waived by the owner; its evidence routes to the mandatory Full Objective Check. Owner acceptance and marking T-025 `done` remain pending.
 
 ## Drift Notes
 

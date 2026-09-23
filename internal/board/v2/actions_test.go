@@ -201,45 +201,6 @@ func TestSelectionCommandOnlyChangesRouterSelectionAndReloads(t *testing.T) {
 	}
 }
 
-func TestWritesRefusePendingMigrationWithoutChangingFiles(t *testing.T) {
-	root := writeEvidenceProject(t)
-	path := taskPath(root, "O-001", "T-006")
-	before, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if operationID := createPendingOperation(t, root); operationID == "" {
-		t.Fatal("pending operation has no ID")
-	}
-
-	for _, name := range []string{"acceptance", "selection"} {
-		t.Run(name, func(t *testing.T) {
-			var msg teaMsg
-			switch name {
-			case "acceptance":
-				msg = writeOwnerAcceptanceCmd(root, actionTarget{Kind: DetailTask, ID: "T-006"})()
-			case "selection":
-				msg = writeSelectionCmd(root, data.RouterSelectionV2{Objective: "O-001", Task: "T-006"})()
-			}
-			result := msg.(actionMsg)
-			if result.err == nil || !strings.Contains(result.err.Error(), "savepoint migrate --recover") {
-				t.Fatalf("result = %#v, want migration recovery guidance", result)
-			}
-			after, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(after) != string(before) {
-				t.Error("pending migration write changed task bytes")
-			}
-		})
-	}
-}
-
-// teaMsg keeps the pending-migration table compact while still making the
-// command result assertion explicit at each call site.
-type teaMsg interface{}
-
 func hasAction(actions []BoardAction, kind ActionKind) bool {
 	for _, action := range actions {
 		if action.Kind == kind {

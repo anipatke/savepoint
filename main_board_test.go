@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -159,22 +157,20 @@ func TestMainDoctorV1ProjectRefusesBeforeChecks(t *testing.T) {
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }
 
-func TestMainDoctorPendingMigrationPrintsRecoveryGuidance(t *testing.T) {
+// TestMainDoctorV2ProjectIgnoresLegacyMigrationJournal proves doctor ignores
+// inert .savepoint/.migration files left by an earlier migration build.
+func TestMainDoctorV2ProjectIgnoresLegacyMigrationJournal(t *testing.T) {
 	dir := t.TempDir()
 	writeBoardV2Project(t, dir)
-	if _, err := migrate.CreateOperation(dir, "op-doctor-pending", nil, nil, time.Now()); err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
+	legacyDir := filepath.Join(dir, ".savepoint", ".migration", "op-doctor-pending")
+	testutil.WriteFile(t, filepath.Join(legacyDir, "operation.yml"), "legacy journal\n")
 
 	result := runMainInDirForTest(t, dir, []string{"doctor"})
 
-	if result.err == nil {
-		t.Fatal("savepoint doctor with a pending migration exited zero, want recovery refusal")
+	if strings.Contains(result.stdout, "op-doctor-pending") || strings.Contains(result.stderr, "op-doctor-pending") {
+		t.Fatalf("doctor output named the leftover operation directory:\nstdout: %s\nstderr: %s", result.stdout, result.stderr)
 	}
-	if !strings.Contains(result.stderr, "op-doctor-pending") || !strings.Contains(result.stderr, "migrate --recover") {
-		t.Fatalf("stderr = %q, want recovery guidance", result.stderr)
-	}
-	if result.stdout != "" {
-		t.Fatalf("stdout = %q, want no quality-gate report", result.stdout)
+	if !strings.Contains(result.stdout, "savepoint doctor report") {
+		t.Fatalf("stdout = %q, want the ordinary doctor report for a schema-2 project", result.stdout)
 	}
 }

@@ -3,8 +3,8 @@ package migrate
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 )
 
 // TestBuildManifest_roundTripsThroughYAML proves BuildManifest's projection
@@ -37,11 +37,8 @@ func TestBuildManifest_roundTripsThroughYAML(t *testing.T) {
 	if len(got.LegacyPrerequisites) != len(p.Prereqs) {
 		t.Errorf("round-tripped LegacyPrerequisites = %d entries, want %d", len(got.LegacyPrerequisites), len(p.Prereqs))
 	}
-	if got.OperationID != p.OperationID {
-		t.Errorf("round-tripped OperationID = %q, want %q", got.OperationID, p.OperationID)
-	}
-	if !got.GeneratedAt.Equal(p.GeneratedAt) {
-		t.Errorf("round-tripped GeneratedAt = %v, want %v", got.GeneratedAt, p.GeneratedAt)
+	if strings.Contains(string(content), "operation_id:") || strings.Contains(string(content), "generated_at:") {
+		t.Errorf("manifest retained apply-recovery fields:\n%s", content)
 	}
 }
 
@@ -80,7 +77,7 @@ func TestWriteManifestCreateOnly_refusesToOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "migrations", "v1-to-v2.yml")
 
-	m := &ManifestV1ToV2{ManifestSchemaVersion: manifestSchemaVersion, OperationID: "op-1", GeneratedAt: time.Now()}
+	m := &ManifestV1ToV2{ManifestSchemaVersion: manifestSchemaVersion}
 	if err := WriteManifestCreateOnly(path, m); err != nil {
 		t.Fatalf("first WriteManifestCreateOnly() error = %v", err)
 	}
@@ -90,7 +87,7 @@ func TestWriteManifestCreateOnly_refusesToOverwrite(t *testing.T) {
 		t.Fatalf("read written manifest: %v", err)
 	}
 
-	m2 := &ManifestV1ToV2{ManifestSchemaVersion: manifestSchemaVersion, OperationID: "op-2", GeneratedAt: time.Now()}
+	m2 := &ManifestV1ToV2{ManifestSchemaVersion: manifestSchemaVersion}
 	if err := WriteManifestCreateOnly(path, m2); err == nil {
 		t.Fatal("second WriteManifestCreateOnly() error = nil, want a refusal: the manifest is create-only")
 	}

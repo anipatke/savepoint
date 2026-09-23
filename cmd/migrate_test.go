@@ -39,7 +39,7 @@ func TestRunMigrateDefaults(t *testing.T) {
 	if got.Dir != "." {
 		t.Fatalf("Dir = %q, want .", got.Dir)
 	}
-	if got.Apply || got.DryRun || got.Recover {
+	if got.Apply || got.DryRun {
 		t.Fatalf("options = %+v, want every flag false by default", got)
 	}
 	if got.WillWrite() {
@@ -84,10 +84,15 @@ func TestRunMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
 	}
 }
 
-func TestRunMigrateParsesRecover(t *testing.T) {
-	got := runMigrateOptions(t, []string{"--recover"})
-	if !got.Recover {
-		t.Fatal("Recover = false, want true")
+func TestRunMigrateRejectsRemovedRecoverFlag(t *testing.T) {
+	code, err := RunMigrate(context.Background(), []string{"--recover"}, &bytes.Buffer{}, func(context.Context, MigrateOptions) (int, error) {
+		return 0, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown migrate flag") {
+		t.Fatalf("RunMigrate(--recover) error = %v, want an unknown-flag refusal", err)
+	}
+	if code != 2 {
+		t.Fatalf("RunMigrate(--recover) code = %d, want 2", code)
 	}
 }
 

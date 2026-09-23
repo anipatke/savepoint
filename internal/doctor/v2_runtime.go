@@ -17,7 +17,6 @@ func RunV2Checks(root string) *DiagnosticReport {
 	report := &DiagnosticReport{}
 	report.ConfigCheck = CheckConfig(root)
 	report.RouterCheck = checkRouterV2(root)
-	report.Migration = CheckMigration(root)
 	report.Gates.Results = runQualityGatesV2(root)
 
 	version, err := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))

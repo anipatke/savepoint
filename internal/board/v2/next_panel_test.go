@@ -55,16 +55,6 @@ func TestNextPanelFallsBackToTheObjectiveWithNoTaskSelected(t *testing.T) {
 	}
 }
 
-// TestNextPanelPendingMigrationNamesTheOperation covers rung one: no Task or
-// Objective is named while a migration operation is in progress, and the
-// panel still says which one.
-func TestNextPanelPendingMigrationNamesTheOperation(t *testing.T) {
-	got := nextPanelText(data.Next{Kind: data.NextPendingMigration, Migration: data.MigrationState{Pending: true, OperationID: "OP001"}})
-	if !strings.Contains(got, "OP001") {
-		t.Errorf("panel does not name the pending operation:\n%s", got)
-	}
-}
-
 // TestNextPanelNothingSelectedYet covers a fresh project with no Objective
 // and no Task at all: the panel says so plainly rather than rendering blank
 // or a raw rung identifier.

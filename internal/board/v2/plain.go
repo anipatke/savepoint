@@ -37,11 +37,6 @@ func renderPlain(state ProjectState, selected string) string {
 		fmt.Fprintln(&b, line)
 	}
 	fmt.Fprintln(&b)
-	if state.Migration.Pending {
-		// The Next area already states that an operation is in progress; this
-		// is migrate's own recovery guidance, which is a different sentence.
-		fmt.Fprintf(&b, "Recovery: %s\n", state.MigrationGuidance)
-	}
 	fmt.Fprintf(&b, "Objectives: %d  Tasks: %d\n", state.objectiveCount(), state.taskCount())
 	if release := selectedRelease(state); release != "" {
 		fmt.Fprintf(&b, "Selected %s: %s\n", goalLabel, release)

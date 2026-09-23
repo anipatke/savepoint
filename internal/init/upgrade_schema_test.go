@@ -9,10 +9,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -374,37 +372,6 @@ func TestUpgradeProjectAssets_secondRunIsNoOp(t *testing.T) {
 				if e.Action != ActionUnchanged && e.Action != ActionSkipped && e.Action != ActionInfo {
 					t.Errorf("second run action %v for %q, want unchanged/skipped/info", e.Action, e.Path)
 				}
-			}
-		})
-	}
-}
-
-// TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees proves the
-// pending-migration guard fires before either the V1 refusal or the V2 asset
-// walk, so an incomplete operation always owns the project.
-func TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees(t *testing.T) {
-	cases := []struct{ name, config string }{
-		{name: "v1", config: ""},
-		{name: "v2", config: "schema_version: 2\n"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			dir := schemaProject(t, c.config)
-			if _, err := migrate.CreateOperation(dir, "op-1", nil, []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}, time.Now()); err != nil {
-				t.Fatalf("CreateOperation() error = %v", err)
-			}
-			v2 := v1v2Templates()
-
-			_, err := UpgradeProjectAssets(v2, dir, false, false)
-			if err == nil {
-				t.Fatal("UpgradeProjectAssets() error = nil, want refusal while migration operation is incomplete")
-			}
-			if !strings.Contains(err.Error(), "op-1") {
-				t.Errorf("error = %q, want it to name the operation op-1", err.Error())
-			}
-
-			if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-idea", "SKILL.md")); !os.IsNotExist(err) {
-				t.Errorf("refused upgrade wrote agent-skills/savepoint-idea/SKILL.md, stat err = %v", err)
 			}
 		})
 	}

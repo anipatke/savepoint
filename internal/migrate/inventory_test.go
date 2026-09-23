@@ -82,13 +82,12 @@ func TestInventory_hashesRawBytesNotAHealedReparse(t *testing.T) {
 	}
 }
 
-// TestInventory_excludesMigrationState proves .savepoint/.migration/ — the
-// migration operation's own working state — never appears in the inventory,
-// while a sibling file in .savepoint/ does.
-func TestInventory_excludesMigrationState(t *testing.T) {
+// TestInventory_excludesLegacyMigrationDirectory proves old .savepoint/.migration/
+// journals are not reinterpreted as project source, while sibling files are.
+func TestInventory_excludesLegacyMigrationDirectory(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), "# Router\n")
-	writeFile(t, filepath.Join(root, ".savepoint", migrationStateDir, "journal.yml"), "state: probing\n")
+	writeFile(t, filepath.Join(root, ".savepoint", legacyMigrationStateDir, "journal.yml"), "state: probing\n")
 
 	files, err := Inventory(root)
 	if err != nil {
@@ -99,8 +98,8 @@ func TestInventory_excludesMigrationState(t *testing.T) {
 		if f.Path == ".savepoint/router.md" {
 			continue
 		}
-		if filepath.Dir(f.Path) == filepath.ToSlash(filepath.Join(".savepoint", migrationStateDir)) {
-			t.Errorf("Inventory() reported %s under .savepoint/%s, want it excluded", f.Path, migrationStateDir)
+		if filepath.Dir(f.Path) == filepath.ToSlash(filepath.Join(".savepoint", legacyMigrationStateDir)) {
+			t.Errorf("Inventory() reported %s under .savepoint/%s, want it excluded", f.Path, legacyMigrationStateDir)
 		}
 	}
 	if len(files) != 1 {

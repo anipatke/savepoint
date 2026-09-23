@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/opencode/savepoint/internal/data"
-	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -55,65 +54,6 @@ func TestCheckConfigValid(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "quality_gates:\n  block_on_failure: true\ntheme:\n  bg: \"#000\"\n")
 	if err := CheckConfig(root); err != nil {
 		t.Fatalf("CheckConfig() = %v, want nil", err)
-	}
-}
-
-// --- CheckMigration ---
-
-func TestCheckMigration_noneExists(t *testing.T) {
-	root := t.TempDir()
-	if problems := CheckMigration(root); len(problems) != 0 {
-		t.Fatalf("CheckMigration() = %v, want no problems when nothing is pending", problems)
-	}
-}
-
-func TestCheckMigration_incompleteOperationIsNamedDiagnostic(t *testing.T) {
-	projectDir := t.TempDir()
-	root := filepath.Join(projectDir, ".savepoint")
-	if err := os.MkdirAll(root, 0755); err != nil {
-		t.Fatal(err)
-	}
-	entries := []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}
-	if _, err := migrate.CreateOperation(projectDir, "op-1", nil, entries, time.Now()); err != nil {
-		t.Fatalf("CreateOperation() error = %v", err)
-	}
-	problems := CheckMigration(root)
-	if len(problems) != 1 {
-		t.Fatalf("CheckMigration() = %v, want exactly one problem", problems)
-	}
-	p := problems[0]
-	if !strings.Contains(p.Message, "migrate-operation-incomplete") {
-		t.Errorf("Message = %q, want the migrate-operation-incomplete diagnostic name", p.Message)
-	}
-	if !strings.Contains(p.Message, "op-1") {
-		t.Errorf("Message = %q, want it to name the operation", p.Message)
-	}
-	if !strings.Contains(p.Message, "--recover") {
-		t.Errorf("Message = %q, want the recovery command", p.Message)
-	}
-	if !strings.Contains(p.Repair, "migrate --recover") {
-		t.Errorf("Repair = %q, want the recovery command and no write of its own", p.Repair)
-	}
-}
-
-func TestCheckMigration_multipleOperationsIsNamedDiagnostic(t *testing.T) {
-	projectDir := t.TempDir()
-	root := filepath.Join(projectDir, ".savepoint")
-	if err := os.MkdirAll(root, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := migrate.CreateOperation(projectDir, "op-a", nil, nil, time.Now()); err != nil {
-		t.Fatalf("CreateOperation(op-a) error = %v", err)
-	}
-	if _, err := migrate.CreateOperation(projectDir, "op-b", nil, nil, time.Now()); err != nil {
-		t.Fatalf("CreateOperation(op-b) error = %v", err)
-	}
-	problems := CheckMigration(root)
-	if len(problems) != 1 {
-		t.Fatalf("CheckMigration() = %v, want exactly one problem", problems)
-	}
-	if !strings.Contains(problems[0].Message, "migrate-multiple-operations") {
-		t.Errorf("Message = %q, want the migrate-multiple-operations diagnostic name", problems[0].Message)
 	}
 }
 
