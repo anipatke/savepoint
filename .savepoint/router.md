@@ -16,9 +16,9 @@ canonical workflow source; this router records state and next action only.
 ```yaml
 state: task
 release: R-006
-objective: O-018
-task: T-020
-next_action: "T-020 is implemented and at stage audit: request an optional Task Check or record an explicit owner waiver, then run O-018's mandatory Full Objective Check."
+objective: O-013
+task: T-006
+next_action: "T-006 is in progress at stage build: continue implementation with savepoint-task, then T-007 and T-008 before O-013's mandatory Full Objective Check."
 ```
 
 ## State → action

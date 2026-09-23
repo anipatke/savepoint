@@ -1,7 +1,7 @@
 ---
 id: O-013
 title: Rename Release context to Goals
-status: planned
+status: in_progress
 depends_on: [O-012]
 release: R-006
 ---
