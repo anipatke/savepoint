@@ -7,6 +7,7 @@ status: done
 complexity_tier: high
 complexity_reason: "Replaces the migration write path users rely on, removes ~2k lines of recovery code and its tests, and must keep conversion output byte-identical on both golden fixtures across platforms."
 depends_on: [{task: T-024, requires: clear}]
+last_check: C-913
 owner_validation:
     required: true
     accepted_check: C-913
@@ -141,10 +142,11 @@ at handoff. Owner validation per the User Check above.
 - Conversion preservation: both golden fixtures and repository-copy migration passed as part of the full suite; recovery-only manifest fields and journal/cutover/replace code are removed while source hashes, identities, archives, and decisions remain.
 - `git diff --check` passed after implementation.
 - Latest `make test-full` passed on Go `go1.26.2 linux/amd64`, including the full Go suite and Linux, Darwin, and Windows builds; completion evidence recorded at `2026-09-23T12:15:58Z`. Two earlier full-gate attempts reported a root-package setup failure. `go test . -count=1` and direct `go test -json -count=1 ./...` both passed, and the complete `make test-full` rerun passed.
-- The independent Task Check is explicitly waived by the owner; its evidence routes to the mandatory Full Objective Check. Owner acceptance and marking T-025 `done` remain pending.
+- Superseded: the owner first waived the independent Task Check. The owner later requested one, which ran as C-912 (NEEDS WORK), followed by re-check C-913 (CLEAR). The waiver no longer applies.
 - Follow-up capture: created `.savepoint/issues/I-038-npx-board-rejects-canonical-objective-id.md` for the reported board failure. T-025 remains at `stage: audit`; no runtime or package code was changed because V2 runtime loading is outside this Task's boundary.
 - C-912 remediation (I-039), `2026-09-23T21:00:42Z`: the owner requested the fix after C-912 returned NEEDS WORK. `gitUndoCommand` in `internal/migrate/command.go` now prints only the `git clean` step when no planned path is tracked, because `git restore` rejects an empty pathspec. The new test `TestRunCommand_printedUndoWorksWithNoTrackedPlannedPaths` applies a committed project that has only `Design.md`, runs the exact printed undo string through `sh -c`, and asserts a clean tree and unchanged content. It fails without the fix (`fatal: you must specify path(s) to restore`) and passes with it. `git diff --check` passed. A fresh `make test-full` passed (go1.26.2 linux/amd64, Linux, Darwin, and Windows builds). The fix was made in the C-912 checker session, so the re-check must run in a different session.
 - Owner acceptance, `2026-09-23T21:25:00Z`: the owner stated in conversation "I accept C-913, mark T-025 done and commit". C-913 is CLEAR and supersedes C-912. The agent recorded `owner_validation.accepted_check: C-913` and `status: done` on the owner's instruction.
+- Clearance under the updated rule (commit `0124163`): a CLEAR Check signed by a checker is now current on its own, with no separate freshness assessment. T-025 therefore resolves as `current` on C-913 without a `freshness` block. The board shows `[✓] CHECK` in place of the earlier `[!] REVIEW`, which came from the missing freshness note. The owner acceptance of C-913 stands.
 
 ## Drift Notes
 
