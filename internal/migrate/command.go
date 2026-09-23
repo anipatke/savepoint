@@ -286,8 +286,14 @@ func uniqueSortedPaths(paths []string) []string {
 
 func gitUndoCommand(plan *ConversionPlan) string {
 	tracked, untracked := gitUndoPathGroups(plan)
+	clean := "git --literal-pathspecs clean -fdx -- " + shellJoin(untracked)
+	if len(tracked) == 0 {
+		// git restore refuses an empty pathspec, and `&&` would then skip
+		// the clean, so a plan with nothing tracked prints the clean alone.
+		return clean
+	}
 	return "git --literal-pathspecs restore --source=HEAD --staged --worktree -- " + shellJoin(tracked) +
-		" && git --literal-pathspecs clean -fdx -- " + shellJoin(untracked)
+		" && " + clean
 }
 
 func gitUndoPathGroups(plan *ConversionPlan) (tracked, untracked []string) {

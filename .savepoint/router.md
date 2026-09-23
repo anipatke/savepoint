@@ -17,8 +17,8 @@ canonical workflow source; this router records state and next action only.
 state: task
 release: R-006
 objective: O-021
-task: T-025
-next_action: "T-024 is at stage: audit — internal/data project-root helpers and runtime schema check added, board/resume/doctor/init switched off internal/migrate, the pending-migration rung removed, make build && make test-fast green. Owner: request an optional Task Check or waive it and route to the mandatory Full Objective Check."
+task: T-026
+next_action: "T-025 is done (owner accepted C-913). Next: execute T-026 (reconcile guidance with the smaller code base), then the mandatory Full Objective Check for O-021."
 ```
 
 ## State → action

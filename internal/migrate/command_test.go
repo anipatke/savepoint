@@ -278,6 +278,53 @@ func TestRunCommand_realGitApplyIsReversibleAndRejectsDirtyPaths(t *testing.T) {
 	assertProjectContentEqual(t, dirtyBefore, snapshotTree(t, root))
 }
 
+// A project with no config.yml, router, or archived source has no tracked
+// planned path; the printed undo must still run as-is and clean the tree
+// (I-039).
+func TestRunCommand_printedUndoWorksWithNoTrackedPlannedPaths(t *testing.T) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not available; real Git undo test skipped")
+	}
+	shPath, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh is not available; printed undo command cannot be run as-is")
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".savepoint", "Design.md"), []byte("# Design\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	initGitRepository(t, gitPath, root)
+	before := snapshotTree(t, root)
+
+	plan := mustPlan(t, root)
+	if tracked, _ := gitUndoPathGroups(plan); len(tracked) != 0 {
+		t.Fatalf("fixture has tracked planned paths %v; want none", tracked)
+	}
+	var output strings.Builder
+	code, err := RunCommand(CommandOptions{Dir: root, Write: true, Stdout: &output})
+	if err != nil || code != 0 {
+		t.Fatalf("apply: code = %d, err = %v\n%s", code, err, output.String())
+	}
+	const marker = "Undo from the project root with: "
+	_, undo, found := strings.Cut(strings.TrimSpace(output.String()), marker)
+	if !found {
+		t.Fatalf("apply output has no undo command:\n%s", output.String())
+	}
+	command := exec.Command(shPath, "-c", undo)
+	command.Dir = root
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("printed undo %q failed: %v\n%s", undo, err, out)
+	}
+	if remaining := gitStatusPaths(t, gitPath, root); len(remaining) != 0 {
+		t.Fatalf("Git status after printed undo = %v, want clean", remaining)
+	}
+	assertProjectContentEqual(t, before, snapshotTree(t, root))
+}
+
 func cleanGitStub(_ string, args ...string) (string, error) {
 	if len(args) > 0 && args[0] == "rev-parse" {
 		return "true\n", nil

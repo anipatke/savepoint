@@ -3,14 +3,14 @@ id: T-025
 title: Apply migration on a clean git tree
 objective: O-021
 planned_by: {role: planner, session: o021-design-20260923}
-status: in_progress
-stage: audit
+status: done
 complexity_tier: high
 complexity_reason: "Replaces the migration write path users rely on, removes ~2k lines of recovery code and its tests, and must keep conversion output byte-identical on both golden fixtures across platforms."
 depends_on: [{task: T-024, requires: clear}]
 owner_validation:
     required: true
-    accepted_check: ""
+    accepted_check: C-913
+    accepted_by: {role: owner, session: user}
 ---
 
 # T-025: Apply migration on a clean git tree
@@ -128,6 +128,11 @@ at handoff. Owner validation per the User Check above.
 - `internal/migrate/inventory.go` and `internal/migrate/inventory_test.go` — inspect the remaining `.migration` exclusion so its comment and test describe inert journals left by earlier versions rather than active operation state.
 - `main_board_test.go` and `main_resume_test.go` — the affected-package compile surfaced two remaining fixtures calling deleted `migrate.CreateOperation`; inspect those tests and replace them with inert legacy journal files so they continue proving runtime callers ignore leftovers.
 - `internal/data`'s `ReadSchemaVersion` implementation — targeted symbol lookup and definition read at `2026-09-23T12:01:44Z`; confirmed that a missing `config.yml` is a supported V1 shape and the schema reader is read-only. This explained the repository-copy E2E case and led to creating `config.yml` during final schema activation.
+- `agent-skills/references/issue-capture.md` — entered because the owner reported a board-loading defect outside T-025's scope; its search-before-create rule and role boundaries govern recording the follow-up.
+- Targeted search of `.savepoint/issues/` and the matching records `I-022` and `I-024` — needed to check whether the canonical hyphenated-ID rejection duplicates an existing Issue; I-022 is owner-accepted as redundant with O-018 and I-024 concerns Task ID allocation, so neither captures this report.
+- Targeted `rg` matches in `internal/data/identity_v2.go`, `internal/data/objective_v2.go`, and `internal/data/identity_v2_test.go` — needed to compare the reported diagnostic with the checked-out V2 grammar; the source accepts `O-001` and its diagnostic says `O-` plus at least three digits, while the reported CLI diagnostic omits the hyphen, pointing to a stale or differently built CLI as a possibility.
+- `.savepoint/issues/I-038-npx-board-rejects-canonical-objective-id.md` — inspected after the owner reported that board loading failed on this new Issue; found the missing closing frontmatter delimiter and corrected it before any further board load attempt.
+- `.savepoint/issues/I-038-npx-board-rejects-canonical-objective-id.md` — reread after the owner confirmed the board loads and directed resolution; needed to verify its open state and append the exact owner-directed accepted closure without claiming technical clearance.
 
 **Execution evidence:**
 
@@ -137,6 +142,9 @@ at handoff. Owner validation per the User Check above.
 - `git diff --check` passed after implementation.
 - Latest `make test-full` passed on Go `go1.26.2 linux/amd64`, including the full Go suite and Linux, Darwin, and Windows builds; completion evidence recorded at `2026-09-23T12:15:58Z`. Two earlier full-gate attempts reported a root-package setup failure. `go test . -count=1` and direct `go test -json -count=1 ./...` both passed, and the complete `make test-full` rerun passed.
 - The independent Task Check is explicitly waived by the owner; its evidence routes to the mandatory Full Objective Check. Owner acceptance and marking T-025 `done` remain pending.
+- Follow-up capture: created `.savepoint/issues/I-038-npx-board-rejects-canonical-objective-id.md` for the reported board failure. T-025 remains at `stage: audit`; no runtime or package code was changed because V2 runtime loading is outside this Task's boundary.
+- C-912 remediation (I-039), `2026-09-23T21:00:42Z`: the owner requested the fix after C-912 returned NEEDS WORK. `gitUndoCommand` in `internal/migrate/command.go` now prints only the `git clean` step when no planned path is tracked, because `git restore` rejects an empty pathspec. The new test `TestRunCommand_printedUndoWorksWithNoTrackedPlannedPaths` applies a committed project that has only `Design.md`, runs the exact printed undo string through `sh -c`, and asserts a clean tree and unchanged content. It fails without the fix (`fatal: you must specify path(s) to restore`) and passes with it. `git diff --check` passed. A fresh `make test-full` passed (go1.26.2 linux/amd64, Linux, Darwin, and Windows builds). The fix was made in the C-912 checker session, so the re-check must run in a different session.
+- Owner acceptance, `2026-09-23T21:25:00Z`: the owner stated in conversation "I accept C-913, mark T-025 done and commit". C-913 is CLEAR and supersedes C-912. The agent recorded `owner_validation.accepted_check: C-913` and `status: done` on the owner's instruction.
 
 ## Drift Notes
 
