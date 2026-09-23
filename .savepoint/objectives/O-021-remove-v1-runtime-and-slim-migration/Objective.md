@@ -64,18 +64,23 @@ tax.
   and `main.go`'s `board`/`resume` paths do not import `internal/migrate`.
   A shared schema-version check in `internal/data` (building on
   `data.ReadSchemaVersion`) returns one named diagnostic for a V1 project
-  ("schema_version 1: run `savepoint migrate`") and for a project with an
-  interrupted migration, if interruption remains a reachable state.
+  ("schema_version 1: run `savepoint migrate`"). An interrupted apply leaves
+  `schema_version: 1` and uncommitted changes, which `migrate --apply` refuses
+  until the owner restores the tree with git, so no separate
+  interrupted-migration state exists.
 - `savepoint migrate` still converts both golden fixtures (`v1-basic`,
   `v1-history`) to byte-identical output, or the golden files are updated
   in the same change with an explained diff. Preview stays the default.
-- `migrate --apply` refuses to run unless the target is inside a git work
-  tree with no uncommitted changes under `.savepoint/` (or the owner-chosen
-  alternative below). It writes the converted tree directly and states
-  how to undo (`git checkout -- .savepoint && git clean -fd .savepoint`).
+- `migrate --apply` refuses to run unless every path the plan writes or
+  removes is inside a git work tree with no uncommitted or untracked
+  changes. It writes the converted tree directly and states how to undo
+  with git.
 - The journal, per-file backup/stage/install/verify steps, journal-based
-  recovery, and `replace_windows.go` are removed, unless the owner decides
-  to keep any of them (see Owner Decisions).
+  recovery, pending-operation detection, the `NextPendingMigration` rung,
+  the cutover preflight, and the platform replace primitive
+  (`replace*.go`) are removed.
+- The V1 template trees, this repository's retired V1 skills, and the
+  pre-V2 audit-skill upgrade shim are removed with the tests that pin them.
 - The V1 `data` readers that migration still needs (discovery, task/defect/
   epic parsing, audit finding loading) stay and are covered by migration
   tests. Nothing else in `data` is V1-only.
@@ -96,40 +101,42 @@ tax.
   apply step changes.
 - **Golden fixtures are the contract.** They are the proof that slimming did
   not change conversion output.
-- **Sequencing with active work.** O-013 (Release → Goals wording) is in
-  progress and edits the V2 board and data. Phase 1 (deleting V1 board,
-  doctor, and data code) mostly touches different files and can run first.
-  Phases 2–3 touch `data`, `board/v2` load, and `doctor` startup and should
-  start after O-013 lands. O-020's board writes must not build on anything
-  removed here.
-- **Suggested Task split** (detailed when this Objective becomes next):
-  1. Delete the unreachable V1 board, V1 doctor checks, unused V1 `data`
-     functions, and unused V2 writers, with their tests.
-  2. Replace `PreflightCutover`/`PendingOperation` in runtime commands with
-     the `data` schema gate, and drop `migrate` imports outside `main`'s
-     migrate dispatch.
-  3. Replace the journal-based apply with a clean-git precondition and
-     direct writes. Delete the journal, recovery, and platform replace code.
-     Keep the golden and conversion tests.
-  4. Reconcile AGENTS.md, Design.md, README "Safe migration", and scaffold
-     guidance. Record the line-count deltas.
+- **Sequencing with active work.** O-013 edited the same V2 board and data
+  files, so O-021 starts only after O-013 (done 2026-09-23; Confirmed
+  Decision 4).
+  O-014, O-019, and O-020 then plan against the smaller code base.
+- **Task order.** Deletions come first (T-022 code, T-023 assets), so later
+  Tasks never edit files that are about to disappear. The runtime schema gate
+  (T-024) lands before the apply rewrite (T-025), because it is what removes
+  every runtime caller of the journal. T-026 reconciles guidance and records
+  the size reduction.
 
-## Owner Decisions Required Before Task Detailing
+## Confirmed Decisions
 
-1. **V1 support policy.** Keep `savepoint migrate` in the current release
-   line, or freeze it at a tagged version ("install vX.Y, migrate, then
-   upgrade") and delete `internal/migrate` entirely in a later Objective?
-   This Objective assumes it is kept, but slimmed.
-2. **Apply safety model.** A clean git tree as a hard precondition (recommended).
-   Or: allow non-git projects by writing a single timestamped
-   `.savepoint.bak/` copy before converting, which is still far smaller than
-   the journal.
-3. **V1 `upgrade-assets`.** `upgrade-assets` still dispatches to the V1
-   template tree for schema-1 projects, and `init` carries
-   `retire_v1_skills.go` and `migrate_audit_skill.go`. Keep these for V1
-   users who haven't migrated, or refuse and point them at `migrate`?
-4. **Release membership.** Assigned to R-006 alongside the other open V2
-   Objectives. Leave it there, or make it unassigned.
+The owner confirmed this design on 2026-09-23:
+
+1. **Keep `savepoint migrate`, slimmed.** Conversion logic and golden
+   fixtures stay in the current release line. The transaction machinery goes,
+   and `migrate` leaves runtime command paths. Removing `internal/migrate`
+   entirely is not planned.
+2. **A clean git tree is the apply safety model.** `migrate --apply` refuses
+   unless every path the plan writes or removes is inside a git work tree with
+   no uncommitted or untracked changes. It then writes directly. Undo is a git
+   restore. There is no non-git fallback and no backup copy. Preview
+   (`--dry-run`, the default) needs no git.
+3. **Extra V1 leftovers are in scope:** the V1 template trees
+   (`templates/project/`, `templates/release/v1/`) and `UpgradeProjectAssets`'
+   unused `v1Templates` parameter; this repository's nine retired V1 skill
+   folders in `agent-skills/` plus `agent-skills/references/audit-method.md`
+   and the tests that pin them; and the pre-V2 audit-skill upgrade shim
+   (`internal/init/migrate_audit_skill.go`). `retire_v1_skills.go` stays,
+   because migrated projects still need it on their first V2 upgrade.
+   `agent-skills/bubbletea-tui-design/` stays.
+4. **Sequencing:** O-021 runs after O-013 completes and before O-014, O-019,
+   and O-020. It stays in R-006.
+
+`upgrade-assets` already refuses a V1 project and points at `migrate`, so no
+separate decision on it was needed.
 
 ## Boundaries
 
@@ -144,10 +151,16 @@ V2 board features; rewriting archived V1 records or immutable Checks;
 editing `.savepoint/archive/v1/`; broad test-suite trimming beyond tests of
 deleted code (a separate Objective can review the 5:1 test ratio in
 `internal/init` and wording-contract tests); removing `internal/migrate`
-entirely (see Owner Decision 1).
+entirely (Confirmed Decision 1); a non-git apply path (Confirmed
+Decision 2).
 
 ## Planning Handoff
 
-This is a proposed Objective, not the current router selection. The router
-is unchanged. Settle the four Owner Decisions above, then detail Tasks against
-the code as it stands after O-013 lands.
+Tasks T-022 to T-026 are detailed and owned by this Objective. T-021 is
+skipped because superseded O-018 planning prose already used that number for
+a Task that was never created. O-013 completed on 2026-09-23 (`a6283d5`,
+owner exception on C-911). O-021 carries no `depends_on` on it: the
+ordering was only to avoid concurrent edits, and an exception closure does
+not satisfy a `clear` Objective dependency. Once the owner
+approves this plan, the router moves to `state: task`, `objective: O-021`,
+`task: T-022`.

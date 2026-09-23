@@ -14,9 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: design
+state: task
 release: R-006
-next_action: "O-013 closed by owner exception on C-911 (I-035, I-036 accepted). Select the next R-006 Objective with savepoint-design."
+objective: O-021
+task: T-022
+next_action: "Execute T-022 with savepoint-task: delete the code deadcode reports unreachable from the savepoint binary, with its tests, then hand off with make build && make test-fast."
 ```
 
 ## State → action
