@@ -44,7 +44,7 @@ func renderPlain(state ProjectState, selected string) string {
 	}
 	fmt.Fprintf(&b, "Objectives: %d  Tasks: %d\n", state.objectiveCount(), state.taskCount())
 	if release := selectedRelease(state); release != "" {
-		fmt.Fprintf(&b, "Selected release: %s\n", release)
+		fmt.Fprintf(&b, "Selected %s: %s\n", goalLabel, release)
 	}
 	if selected != "" {
 		// "Selected", not "Objective": the Next area's own Objective line names

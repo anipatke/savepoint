@@ -50,12 +50,25 @@ func renderDetail(detail RecordDetail, width, height, offset int) string {
 	bodyH := columnBodyHeight(height)
 
 	lines := []string{
-		styles.ColumnTitleFocused.Render(string(detail.Kind) + " DETAIL"),
+		styles.ColumnTitleFocused.Render(detailHeading(detail.Kind)),
 		styles.Divider.Render(strings.Repeat("─", textW)),
 	}
 	lines = append(lines, detailWindow(detailLines(detail, textW), detailBudget(bodyH), offset)...)
 
 	return frameColumn(lines, textW, bodyH, true)
+}
+
+func detailHeading(kind DetailKind) string {
+	return detailKindLabel(kind) + " DETAIL"
+}
+
+// detailKindLabel is the public name of a detail kind: the Release-backed
+// kind is presented as a Goal.
+func detailKindLabel(kind DetailKind) string {
+	if kind == DetailRelease {
+		return strings.ToUpper(goalLabel)
+	}
+	return string(kind)
 }
 
 // detailLines is the overlay's whole content, already folded to width, in the
@@ -66,7 +79,7 @@ func detailLines(detail RecordDetail, width int) []string {
 
 	switch detail.Kind {
 	case DetailRelease:
-		lines = append(lines, detailSection("RELEASE PROMISE", releasePromiseLines(detail), width)...)
+		lines = append(lines, detailSection(strings.ToUpper(goalLabel)+" PROMISE", releasePromiseLines(detail), width)...)
 		lines = append(lines, detailSection("MEMBER OBJECTIVES", releaseObjectiveLines(detail.MemberObjectives), width)...)
 	case DetailObjective:
 		lines = append(lines, detailSection("OWNED TASKS", refLines(detail.OwnedTasks), width)...)
@@ -78,7 +91,7 @@ func detailLines(detail RecordDetail, width int) []string {
 	waived := detail.Evidence != nil && detail.Evidence.CheckWaiver != nil
 	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived, detail.ByException), width)...)
 	if detail.Kind == DetailRelease {
-		lines = append(lines, detailSection("RELEASE READINESS", releaseReadinessLines(detail), width)...)
+		lines = append(lines, detailSection(strings.ToUpper(goalLabel)+" READINESS", releaseReadinessLines(detail), width)...)
 		lines = append(lines, detailSection("OWNER VALIDATION", releaseOwnerValidationLines(detail), width)...)
 	} else {
 		lines = append(lines, detailSection("OWNER VALIDATION", ownerValidationLines(detail.Evidence), width)...)
@@ -142,7 +155,7 @@ func releaseObjectiveLines(entries []ReleaseObjectiveProgress) []string {
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		return []string{"(no member Objectives)"}
+		return []string{"(no Objectives in this Goal)"}
 	}
 	return lines
 }
@@ -169,7 +182,7 @@ func objectiveCompletionPhrase(decision data.GateDecision) string {
 func releaseReadinessLines(detail RecordDetail) []string {
 	decision := detail.ReleaseDecision
 	if decision == nil {
-		return []string{"No Release completion decision was resolved."}
+		return []string{"No Goal completion decision was resolved."}
 	}
 	if decision.AllowedByLegacyCompletion {
 		return []string{resume.HistoricalCompletionPhrase(detail.ID, decision.LegacyCompletion)}
@@ -186,7 +199,7 @@ func releaseReadinessLines(detail RecordDetail) []string {
 		lines = append(lines, resume.ReleaseBlockerPhrase(blocker))
 	}
 	if len(lines) == 0 {
-		return []string{"Release completion is not currently allowed."}
+		return []string{"Goal completion is not currently allowed."}
 	}
 	return lines
 }
@@ -195,10 +208,10 @@ func releaseReadinessLines(detail RecordDetail) []string {
 // explicit. Unlike Task and Objective records, a Release does not need an
 // owner_validation.required flag to require acceptance.
 func releaseOwnerValidationLines(detail RecordDetail) []string {
-	lines := []string{"Required: yes (Release completion)"}
+	lines := []string{"Required: yes (Goal completion)"}
 	checkID := detail.Clearance.Check
 	if checkID == "" {
-		return append(lines, "Accepted: (not recorded; a current Release Check is required first)")
+		return append(lines, "Accepted: (not recorded; a current Goal Check is required first)")
 	}
 
 	if detail.Evidence != nil && detail.Evidence.OwnerValidation != nil {

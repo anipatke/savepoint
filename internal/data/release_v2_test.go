@@ -141,6 +141,53 @@ func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 	}
 }
 
+func TestLoadV2Index_routerReleaseSelectionResolvesExistingRecords(t *testing.T) {
+	root := t.TempDir()
+	writeV2ReleaseFixture(t, root, "R-001-existing", "R-001", "Existing release one")
+	writeV2ReleaseFixture(t, root, "R-002-existing", "R-002", "Existing release two")
+	writeV2ObjectiveWithRelease(t, root, "O-001-existing", "O-001", "Existing objective one", "R-001")
+	writeV2ObjectiveWithRelease(t, root, "O-002-existing", "O-002", "Existing objective two", "R-002")
+	writeV2TaskFixture(t, root, "O-001-existing", "T-001-existing.md", "T-001", "Existing task one", "O-001")
+	writeV2TaskFixture(t, root, "O-002-existing", "T-002-existing.md", "T-002", "Existing task two", "O-002")
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+
+	readRouter := func(release, objective, task string) *RouterStateV2 {
+		t.Helper()
+		content := "## Current state\n\n```yaml\nstate: task\nrelease: " + release + "\nobjective: " + objective + "\ntask: " + task + "\nnext_action: \"Build " + task + "\"\n```\n"
+		router, err := NewRouterReader().ReadStateV2(content)
+		if err != nil {
+			t.Fatalf("ReadStateV2() error = %v", err)
+		}
+		return router
+	}
+
+	selection, diagnostic := ResolveSelection(index, readRouter("R-001", "O-001", "T-001"))
+	if diagnostic != nil {
+		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+	}
+	if selection.Release == nil || selection.Release.ID != "R-001" {
+		t.Errorf("selected Release = %+v, want R-001", selection.Release)
+	}
+	if selection.Objective == nil || selection.Objective.ID != "O-001" {
+		t.Errorf("selected Objective = %+v, want O-001", selection.Objective)
+	}
+	if selection.Task == nil || selection.Task.ID != "T-001" {
+		t.Errorf("selected Task = %+v, want T-001", selection.Task)
+	}
+
+	selection, diagnostic = ResolveSelection(index, readRouter("R-001", "O-002", "T-002"))
+	if diagnostic == nil || diagnostic.Kind != SelectionReleaseMismatch {
+		t.Fatalf("mismatched Release selection diagnostic = %+v, want SelectionReleaseMismatch", diagnostic)
+	}
+	if selection.Release == nil || selection.Release.ID != "R-001" || selection.Objective != nil || selection.Task != nil {
+		t.Errorf("mismatched selection = %+v, want only R-001 without substituted Objective or Task", selection)
+	}
+}
+
 func TestLoadV2Index_releaseIdentitySurvivesDirectorySlugChange(t *testing.T) {
 	root := t.TempDir()
 	writeV2ReleaseFixture(t, root, "R-001-before", "R-001", "Stable identity")

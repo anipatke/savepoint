@@ -35,7 +35,8 @@ undifferentiated file, and never given a fourth home:
 2. The shared Quick/Full evidence mechanics move nowhere new — they are
    already written once, for every project, in
    `agent-skills/references/check-method.md`. Quick is optional for a requested
-   Task Check; Full is mandatory for Objective and Release integration checks.
+   Task Check; Full is mandatory for Objective and Goal integration checks
+   (serialized as `scope.kind: release` for existing V2 records).
    Do not copy that method's prose into a project file.
 3. Whatever remains — project-specific prose describing a manual
    verification workflow that has no home in either of the above — becomes

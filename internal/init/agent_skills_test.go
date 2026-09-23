@@ -911,8 +911,8 @@ func TestSavepointCheckSkillScopes(t *testing.T) {
 		if !strings.Contains(content, "integration across the Objective's owned Tasks and reconciliation against Design") {
 			t.Errorf("%s: %s does not scope an Objective Check to integration and Design reconciliation", tree, path)
 		}
-		if !strings.Contains(content, "a Release Check uses `scope.kind: release` to evaluate integration across all member Objectives") {
-			t.Errorf("%s: %s does not scope a Release Check to cross-Objective integration", tree, path)
+		if !strings.Contains(content, "a Goal Check uses the compatibility value `scope.kind: release` to evaluate integration across all member Objectives") {
+			t.Errorf("%s: %s does not scope a Goal Check to cross-Objective integration", tree, path)
 		}
 	}
 }
@@ -931,7 +931,7 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 			"complete a technical Task",
 			"no unexcepted material blocker",
 			"owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check",
-			"Release `done` requires at least one member Objective",
+			"Goal `done` requires at least one member Objective",
 			"The checker never supplies that acceptance",
 			"cannot support completion",
 			"Stale or unknown freshness blocks normal completion",
@@ -944,13 +944,13 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 	}
 }
 
-func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
+func TestV2SkillsTeachOptionalGoalWorkflow(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		idea := string(readSkillFile(t, root, "savepoint-idea"))
 		for _, phrase := range []string{
-			"Release is optional planning context",
-			"navigable delivery/package promise",
-			"Ask whether the owner needs a navigable delivery/package promise across multiple Objectives",
+			"Goal is optional planning context",
+			"related Objectives grouped under a navigable outcome",
+			"Ask whether the owner wants a Goal to group related Objectives",
 			"otherwise continue with Objective → Task",
 		} {
 			if !strings.Contains(idea, phrase) {
@@ -960,14 +960,14 @@ func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
 
 		design := string(readSkillFile(t, root, "savepoint-design"))
 		for _, phrase := range []string{
-			"## Optional Release Boundary",
+			"## Optional Goal Boundary",
 			"stable global `R-###` identity from the first unused number",
-			"Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
-			"one optional `release: R-###` field",
+			"Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
+			"existing optional `release: R-###` compatibility field",
 			"do not maintain a second membership list",
-			"continue through Idea → Design → Task → Check with no missing-record error or extra phase",
+			"without a Goal, continue through Idea → Design → Task → Check with no missing-record error",
 			"current CLEAR integration evidence exists",
-			"not whether it has been published or deployed",
+			"not whether anything has been published or deployed",
 		} {
 			if !strings.Contains(design, phrase) {
 				t.Errorf("%s: savepoint-design missing Release design phrase %q", tree, phrase)
@@ -983,7 +983,7 @@ func TestV2SkillsTeachOptionalReleaseWorkflow(t *testing.T) {
 			"cross-Objective integration",
 			"creates or reuses ordinary Issues",
 			"never records owner acceptance on the owner's behalf",
-			"Release `done` does not mean published or deployed",
+			"Goal `done` does not mean published or deployed",
 		} {
 			if !strings.Contains(check, phrase) {
 				t.Errorf("%s: savepoint-check missing Release Check phrase %q", tree, phrase)

@@ -3,12 +3,20 @@ id: T-008
 title: Align active guidance with Goals
 objective: O-013
 planned_by: {role: planner, session: goals-terminology-20260921}
-status: planned
+status: done
 complexity_tier: medium
 complexity_reason: "The active repository guide, architecture, public README, workflow skills, and shipped V2 copies must change together while historical evidence remains byte-preserved."
 depends_on: [{task: T-007, requires: clear}]
 owner_validation:
     required: false
+    accepted_check: ""
+check_waiver:
+    task: T-008
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-23T09:37:49Z"
 ---
 
 # T-008: Align active guidance with Goals
@@ -82,8 +90,75 @@ before O-013 can close.
 
 ## Technical Evidence
 
-Pending execution: changed/no-change document inventory, search output, template
-parity result, command results, files read/changed, and limitations.
+Start evidence: T-007 is `done` with an explicit Task-check waiver recorded at
+2026-09-23T09:13:53Z; its `requires: clear` dependency is satisfied. O-013 is
+`in_progress`, so T-008 may begin.
+
+Extra read before start:
+
+- T-007 task record — verify the declared `requires: clear` dependency because
+  the router selects T-008 but its `next_action` text still describes T-006.
+- T-006 task record — use its completed preservation evidence as the
+  compatibility baseline called for by T-008's implementation plan.
+- `.savepoint/objectives/O-013-rename-release-to-goals/Objective.md` — check
+  O-013 boundaries/readiness before beginning its final Task.
+- `.savepoint/Design.md` sections 2, 3, 6, 7, 8, 10, and 13, and the named
+  rule rows in `.savepoint/Guardrails.md` — apply T-008's design references and
+  documentation/template policies.
+
+Extra reads during verification:
+
+- `internal/init/agent_skills_test.go` — read only the failing Goal/Release
+  contract assertions after the first `make test` showed that active V2 skill
+  expectations still required the retired public Release wording. Updated
+  those assertions to require Goal wording and the preserved serialized scope.
+- `internal/init/v2_scaffold_test.go` — read only the failing scaffold-guide
+  assertions after the same run; adjusted the active template wording to retain
+  the load-bearing absence statement and avoid the legacy `phase` vocabulary.
+
+Criterion evidence and document inventory:
+
+- `README.md`, root `AGENTS.md`, `.savepoint/Design.md`, and
+  `.savepoint/Guardrails.md` now use Goal/Goals for public V2 context, board,
+  and integration-check terminology. Compatibility notes retain `R-###`,
+  `.savepoint/releases/<slug>/Release.md`, `release:` references, internal
+  Release resolver names, and `scope.kind: release` without implying a schema
+  migration.
+- `templates/project-v2/AGENTS.md`, the four active V2 skills, and three shared
+  references describe the optional Goal boundary and mandatory Goal Check
+  semantics. The board key is `g`; `r` is documented only as a hidden
+  compatibility alias. Owner waiver/acceptance remains distinct from technical
+  `CLEAR`; Goal completion does not publish, deploy, tag, or create changelogs.
+- All seven live workflow skill/reference files compare byte-identically with
+  their `templates/project-v2/` copies (`cmp -s`: seven matches).
+- Exact-path stale-public-wording search found no remaining Release Check,
+  optional Release, or Release-selector instructions. Remaining Release hits
+  are compatibility serialization (`release:`, `scope.kind: release`),
+  internal resolver/model names, and generic release-gate wording.
+- No archived V1 material, immutable Check, Issue, or historical evidence was
+  edited. No production behavior or persisted schema was changed. The
+  documentation contract assertions in `internal/init/agent_skills_test.go`
+  now assert Goal terminology while retaining the serialization contract.
+
+Verification:
+
+- `make build` — passed.
+- Initial `make test` — failed only on active-doc assertions that still pinned
+  the old Release vocabulary and a scaffold phrase split across lines. Updated
+  the V2 documentation assertions and restored the scaffold's exact
+  load-bearing absence sentence.
+- Focused contract tests via `go test ./internal/init -run
+  'TestSavepointCheckSkillScopes|TestSavepointCheckSkillClosureRules|TestV2SkillsTeachOptionalGoalWorkflow|TestV2ScaffoldAgentsGuideIsLiveAndUsesV2Vocabulary|TestV2AgentsGuideCarriesExistingCodebaseAdoptionSection' -count=1`
+  — passed. Elevated access was required for Go's build cache; no repository
+  files were changed by that access.
+- Final `make build` and full `make test` (`./...`) — passed; migration was
+  the slowest package at 1m55.641s.
+- `git diff --check` — passed.
+
+Handoff: implementation and audit evidence are complete. T-008 remains
+`in_progress` at `stage: audit`; awaiting the owner's choice of an independent
+optional Task Check or an explicit Task-check waiver. Only the owner may mark
+the Task `done`.
 
 ## Drift Notes
 

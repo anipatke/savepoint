@@ -51,19 +51,19 @@ func resumeMatrixCases() []matrixCase {
 			name:       "selected Release needs its integration Check",
 			build:      matrixBuildReleaseCheckNeeded,
 			wantKind:   data.NextReleaseCheckNeeded,
-			wantAction: "Record a fresh Release Check for R-001.",
+			wantAction: "Record a fresh Goal Check for R-001.",
 		},
 		{
 			name:       "selected Release waits for owner validation",
 			build:      matrixBuildReleaseOwnerValidation,
 			wantKind:   data.NextReleaseOwnerValidationRequired,
-			wantAction: "Ask the owner to accept the current Release Check.",
+			wantAction: "Ask the owner to accept the current Goal Check.",
 		},
 		{
 			name:       "selected Release is ready",
 			build:      matrixBuildReleaseReady,
 			wantKind:   data.NextReleaseReady,
-			wantAction: "Record Release R-001 as done.",
+			wantAction: "Record Goal R-001 as done.",
 		},
 		{
 			name:                    "missing Release selection keeps global work available",

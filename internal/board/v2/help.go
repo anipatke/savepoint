@@ -22,7 +22,7 @@ func renderHelp(model Model, width, height int) string {
 		fitLine(strings.Repeat("─", textWidth), textWidth),
 		helpRow("↑↓ / j k", "move within the focused surface"),
 		helpRow("←→ / h l", "move between columns, and into/out of Objectives at the edge"),
-		helpRow("r", "open the Release selector"),
+		helpRow(goalSelectorKey, "open the Goal selector"),
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
 		helpRow("?", "close this help"),

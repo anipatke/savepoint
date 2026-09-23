@@ -29,26 +29,35 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 - Every Task records per-criterion evidence and runs its configured gate before handoff.
 - Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
-- CI runs the full gate with `make ci`. A Full Objective or Release Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- CI runs the full gate with `make ci`. A Full Objective or Goal Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
 - Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
   carry an explicit owner waiver naming the Task, reason, actor, and time.
   That waiver is not technical `CLEAR` and does not waive any acceptance
-  criterion, guardrail, Objective Check, or Release Check.
+  criterion, guardrail, Objective Check, or Goal Check.
 - The Full Objective Check is mandatory before an Objective can close. It is
   the V2 higher-level integration gate and covers every owned Task, including
   Tasks whose optional Task Check was waived, plus cross-Task integration and
   Design reconciliation.
-- A Release Check is mandatory whenever a Release exists. It covers all member
+- A Goal Check is mandatory whenever a Goal exists. It covers all member
   Objectives and cross-Objective integration, followed by exact owner
   acceptance of the current Check.
 
-## Optional Releases
+## Optional Goals
 
-A Release is an optional delivery boundary, not another public state. Ask for one during Idea only when the owner needs a navigable delivery/package promise across multiple Objectives. Without one, the normal Idea → Design → Task → Check path remains complete and must not report a missing Release record.
+A Goal is an optional delivery context for related Objectives, not another
+workflow state or a required step. Without one, the ordinary Idea → Design →
+Task → Check path remains complete. In the V2 board, `g` opens the Goal
+selector; `r` remains an undisplayed compatibility alias.
 
-When an owner opts in, Design gives the Release a stable `R-###` identity and an outcome, success conditions, and Objective links. Objectives carry the single optional `release: R-###` reference; Releases do not nest files, own Tasks, or maintain a second membership list. Release `done` means current CLEAR integration evidence plus the owner's acceptance of that exact Check, not published or deployed.
+Existing storage is unchanged: Goals use stable `R-###` records under
+`.savepoint/releases/` (`Release.md`), Objective `release:` references, router
+`release:` selections, and Check `scope.kind: release`. These names are a
+compatibility boundary, not the public board vocabulary. Goals group
+Objectives, do not own Tasks, and do not publish, deploy, tag, or generate
+changelogs. A Goal Check retains the existing cross-Objective integration and
+exact-owner-acceptance requirements.
 
 ## Terminology
 
@@ -72,19 +81,19 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget (a Task's own `## Context Files`), `status: in_progress` + `stage: build` setting, per-criterion evidence, and the handoff decision between an optional Task Check and the mandatory Full Objective Check.
 
-**Stop. Prompt the user before continuing.** Only the user may mark a Task `status: done` or retreat a Task to an earlier status. An explicit owner decision may close an Issue as `accepted` without a Check; that decision does not waive a mandatory Objective or Release Check.
+**Stop. Prompt the user before continuing.** Only the user may mark a Task `status: done` or retreat a Task to an earlier status. An explicit owner decision may close an Issue as `accepted` without a Check; that decision does not waive a mandatory Objective or Goal Check.
 
 ## Check
 
 `savepoint-check` is the only role that can write a Check record or close an
 Issue as `verified`. The owner may explicitly close an Issue as `accepted`
 without a Check; this does not claim technical `CLEAR` or waive a mandatory
-Objective or Release Check. The owner closes Tasks and accepts
-Objective/Release outcomes after the required evidence exists.
+Objective or Goal Check. The owner closes Tasks and accepts Objective/Goal
+outcomes after the required evidence exists.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
-- A Release Check is mandatory whenever a Release exists and covers cross-Objective integration before exact owner acceptance.
+- A Goal Check is mandatory whenever a Goal exists and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
@@ -100,7 +109,7 @@ What exists goes to `.savepoint/Design.md`: concrete structure to Components/Cod
 
 Adoption does not rewrite user-authored files. `savepoint init` may add or refresh the Savepoint-managed block in an existing agent guide, preserving every byte outside that block; all other Savepoint files are added under `.savepoint/`.
 
-This guidance degrades when optional files are absent: a V2 project ships no Concept, no Health-Check, no procedures file, and no Release record, and none of those are required before adoption can proceed. Their absence is normal, not a finding.
+This guidance degrades when optional files are absent: a V2 project may have no Goal (stored as an `R-###` Release record), no Concept, no Health-Check, or no procedures file, and none is required before adoption can proceed. Their absence is normal, not a finding.
 
 ## Code Style
 
@@ -110,7 +119,7 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 
 ```bash
 make build && make test-fast   # ordinary Task handoff
-make test-full                 # migration/platform-sensitive Task or Full Objective/Release Check
+make test-full                 # migration/platform-sensitive Task or Full Objective/Goal Check
 make ci                        # CI full gate plus distribution and package checks
 ```
 

@@ -35,15 +35,19 @@ Savepoint makes those boundaries explicit:
   hidden in a prompt or a chat transcript.
 - **Check at the right level.** A Task Check is optional and may be explicitly
   waived by the owner. The mandatory Full Objective Check verifies every owned
-  Task and its integration; a Release Check is mandatory whenever a Release
+  Task and its integration; a Goal Check is mandatory whenever a Goal
   exists.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
-- **Use Releases when they help.** A V2 project may add stable `R-###` Release
-  records to group Objectives, show one delivery context on the board, and
-  require an independent Release Check plus owner acceptance before marking
-  that delivery promise done. Releases are optional and do not publish,
-  deploy, tag, or generate changelogs.
+- **Use Goals when they help.** A V2 project may add an optional Goal to group
+  related Objectives under a navigable delivery promise. A mandatory Full Goal
+  Check and owner acceptance are required before marking it done. Goals do not
+  publish, deploy, tag, or generate changelogs.
+
+Existing V2 projects keep the compatibility storage names: stable `R-###`
+identities under `.savepoint/releases/` as `Release.md`, Objective `release:`
+references, router `release:` selections, and Check `scope.kind: release`. The
+V2 board presents these records as Goals; no data migration is required.
 
 Savepoint does not replace Git, your test runner, or human judgment. It gives
 those things a shared workflow.
@@ -51,12 +55,12 @@ those things a shared workflow.
 ## The workflow
 
 ```text
-IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  RELEASE CHECK*
+IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  GOAL CHECK*
   intent       architecture    bounded      mandatory Full           mandatory Full
   & outcome    & guardrails    execution     integration              cross-Objective
                                       ╰─ optional Quick Task Check
                                          or explicit owner waiver
-                                      *when a Release exists
+                                      *when a Goal exists
 ```
 
 ### Idea
@@ -86,7 +90,7 @@ requests it. If the owner skips that local review, the Task evidence records an
 explicit waiver; the waiver is not technical `CLEAR` and does not waive any
 acceptance criterion or guardrail. Before an Objective closes, a mandatory
 Full Objective Check verifies every owned Task, cross-Task integration, and
-Design reconciliation. When a Release exists, a mandatory Full Release Check
+Design reconciliation. When a Goal exists, a mandatory Full Goal Check
 verifies cross-Objective integration before the owner accepts that exact Check.
 
 ## Quick start
@@ -154,8 +158,9 @@ project:
   current build/test/audit stage.
 - **Detail views** expose acceptance criteria, dependencies, evidence, and
   issues without leaving the terminal.
-- **Release context** is optional: press `r` to switch the visible Release;
-  membership comes from each Objective's `release: R-###` field.
+- **Goal context** is optional: press `g` to switch the visible Goal (`r` remains
+  an undisplayed compatibility alias); membership comes from each Objective's
+  existing `release: R-###` field.
 - **Router priority** lets you focus the next task without rewriting the
   history of the project.
 
@@ -177,7 +182,7 @@ Savepoint uses Markdown and YAML as its source of truth:
 │   └── O-001-example/
 │       ├── Objective.md
 │       └── tasks/
-├── releases/               # Optional V2 delivery promises (R-###)
+├── releases/               # Compatibility storage for optional V2 Goals (R-###)
 │   └── R-001-example/Release.md
 ├── checks/                # Independent verification evidence
 └── issues/                # Durable follow-up and discovered problems
@@ -190,6 +195,9 @@ The files are intentionally ordinary. You can read them in an editor, review
 them in a pull request, diff them with Git, or recover from them without a
 Savepoint server.
 
+The board calls these delivery contexts Goals. Existing record filenames and
+fields remain Release-compatible (`Release.md`, `R-###`, and `release:`).
+
 ## Safe migration
 
 Existing V1 projects can be moved to V2 with a preview-first workflow:
@@ -201,12 +209,13 @@ npx savepoint migrate --apply
 
 The preview reports planned records, identity mappings, archived source,
 conflicts, and decisions that still need an owner. Nothing is written unless
-`--apply` is used. Release PRDs become accountable `R-###` records plus exact
-archive mappings; historical completion is displayed as historical evidence,
-never as a fabricated current Check. If a migration is interrupted,
+`--apply` is used. Legacy Release PRDs become accountable `R-###` records that
+the V2 board presents as Goals, plus exact archive mappings; historical
+completion is displayed as historical evidence, never as a fabricated current
+Check. If a migration is interrupted,
 `--recover` reports the pending operation and can resume it without
 overwriting user edits. E50's live cutover remains a separate maintainer
-decision after the migrated copy's Release readiness is clear.
+decision after the migrated copy's Goal readiness is clear.
 
 For existing projects, refresh only the shipped Savepoint assets with:
 

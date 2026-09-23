@@ -44,7 +44,7 @@ If a rule can block a Check's verdict or require remediation, it must be defined
 | TEST-01 | Required | Every changed behavior must have named outcome evidence: a test or an explicit scenario validation. |
 | TEST-02 | Required | Bug fixes must include a regression test or an explicit failing scenario that proves the bug. |
 | TEST-03 | Required | "Existing tests cover it" is acceptable only when the exact test file and case names are recorded. |
-| TEST-04 | Required | If an optional Task Check is skipped, Task evidence must carry an explicit owner waiver; the waiver never replaces the mandatory Objective or Release Check. |
+| TEST-04 | Required | If an optional Task Check is skipped, Task evidence must carry an explicit owner waiver; the waiver never replaces the mandatory Objective or Goal Check. |
 
 ### Code Style
 
@@ -63,6 +63,6 @@ If a rule can block a Check's verdict or require remediation, it must be defined
 
 ## Savepoint Check Enforcement
 
-`savepoint-check` applies these rules through `agent-skills/references/check-method.md`: Quick evidence is optional and applies only to a requested Task Check; Full evidence is mandatory for an Objective Check and for a Release Check whenever a Release exists. Code style rules are Guideline severity throughout — they inform review but never block a Check's verdict by themselves.
+`savepoint-check` applies these rules through `agent-skills/references/check-method.md`: Quick evidence is optional and applies only to a requested Task Check; Full evidence is mandatory for an Objective Check and for a Goal Check whenever a Goal exists. Code style rules are Guideline severity throughout — they inform review but never block a Check's verdict by themselves.
 
 Required waivers must be explicit and documented. Blocker exceptions require direct owner approval.

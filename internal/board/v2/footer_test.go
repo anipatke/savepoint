@@ -10,15 +10,18 @@ import (
 // every key omitted here, stays available in Help (see actions_test.go's
 // TestHelpListsOnlyFocusedOwnerCapabilities).
 
-func TestFooterOmitsReleaseHintWithoutARelease(t *testing.T) {
+func TestFooterOmitsGoalHintWithoutAGoal(t *testing.T) {
 	model := openSizedBoard(t, writeValidProject(t), 130, 40)
-	if strings.Contains(model.hints(), "r:releases") {
-		t.Errorf("footer offers the Release selector with no Release in the project:\n%q", model.hints())
+	if strings.Contains(model.hints(), "g:goals") {
+		t.Errorf("footer offers the Goal selector with no Goal in the project:\n%q", model.hints())
 	}
 
 	withRelease := releaseBoard(t)
-	if !strings.Contains(withRelease.hints(), "r:releases") {
-		t.Errorf("footer omits the Release selector when a Release exists:\n%q", withRelease.hints())
+	if !strings.Contains(withRelease.hints(), "g:goals") {
+		t.Errorf("footer omits the Goal selector when a Goal exists:\n%q", withRelease.hints())
+	}
+	if strings.Contains(withRelease.hints(), "r:releases") {
+		t.Errorf("footer exposes the legacy alias:\n%q", withRelease.hints())
 	}
 }
 

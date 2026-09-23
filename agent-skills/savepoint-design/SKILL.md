@@ -54,22 +54,24 @@ Apply this contract to every implementation, not only to migration work:
 - The Full Objective Check is mandatory before Objective closure. It reviews
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.
-- A Release Check is mandatory whenever a Release exists, and exact owner
+- A Goal Check is mandatory whenever a Goal exists, and exact owner
   acceptance of its current Check remains required.
-- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective/Release Checks require the full gate through `make ci` or `make test-full`.
+- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective/Goal Checks require the full gate through `make ci` or `make test-full`.
 - Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
-## Optional Release Boundary
+## Optional Goal Boundary
 
-When the owner chose a Release boundary in Idea, define it as a delivery promise that can be navigated across its member Objectives. A Release is still optional: when no Release is useful, create no Release record and continue through Idea → Design → Task → Check with no missing-record error or extra phase.
+When the owner chooses a Goal in Idea, define it as optional context grouping related Objectives under a navigable outcome. It is not another workflow phase; without a Goal, continue through Idea → Design → Task → Check with no missing-record error. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
-For an opted-in Release:
+Existing V2 storage remains Release-compatible: Goals use stable `R-###` identities in `.savepoint/releases/<slug>/Release.md`; Objectives and router selection retain the `release: R-###` field, and Goal Checks retain `scope.kind: release`. The V2 board uses `g` as the canonical Goal selector; `r` is an undisplayed compatibility alias.
+
+For an opted-in Goal:
 
 1. Allocate a stable global `R-###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
-2. Author the Release sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes what the delivery promises, not whether it has been published or deployed.
-3. Link each member Objective with one optional `release: R-###` field. Derive membership from those Objective records; do not maintain a second membership list.
-4. Keep Objectives and Tasks in their normal locations and ownership: a Release does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
-5. Treat Release `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
+2. Author the Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes the grouped Objectives' result, not whether anything has been published or deployed.
+3. Link each member Objective with the existing optional `release: R-###` compatibility field. Derive membership from those Objective records; do not maintain a second membership list.
+4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
+5. Treat Goal `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
 
 ## Objective Artifact Template
 
@@ -118,7 +120,7 @@ Interfaces, data ownership, and constraints this Objective must respect.
 - Excluded work
 ```
 
-Omit `release` when an Objective is intentionally unassigned; it is a reference to a first-class Release identity, not free-form release text.
+Omit `release` when an Objective is intentionally unassigned; it is the compatibility field referencing a first-class Goal identity, not free-form text.
 
 Task membership is derived from which Tasks name this Objective as their owner. Do not also maintain a second, manually kept list of member Tasks in the Objective body — that list drifts from the Tasks themselves and becomes a second source of truth.
 
@@ -186,7 +188,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective/Release Checks.
+Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective/Goal Checks.
 
 ## Technical Evidence
 
@@ -244,7 +246,7 @@ When any of these is not yet true, that gap is the thing to resolve next — eit
 - Write only `Design.md`, `Guardrails.md`, the current Objective, the next Objective's detailed Tasks, and the routing handoff. Do not write production code, and do not detail backlog beyond the next Objective.
 - An unknown implementation approach becomes a bounded research Task with a named decision deliverable, not a speculative plan.
 - Split a Task that carries multiple unrelated outcomes or an unresolved architectural decision.
-- Do not create a Release merely to fill the template, and do not add a Release-owned Task list or a separate release helper document.
+- Do not create a Goal merely to fill the template, and do not add a Goal-owned Task list or a separate Goal helper document.
 - `title` must never be the Outcome text, a truncation of it, or a restatement of the technical objective; it is a short, plain-English phrase for the task's owner.
 - Route product choices to the owner; do not settle them by inference. Technical readiness does not require the owner to review code.
 - Reference `agent-skills/references/check-method.md` for verification method; do not restate it here.

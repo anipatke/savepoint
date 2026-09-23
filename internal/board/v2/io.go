@@ -359,34 +359,34 @@ func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) 
 
 		index, err := freshV2Index(root)
 		if err != nil {
-			return releaseSelectionFailure(err, "release selection")
+			return releaseSelectionFailure(err, "Goal selection")
 		}
 		if release == "" {
-			return releaseSelectionFailure(fmt.Errorf("release selection requires a live Release"), "release selection")
+			return releaseSelectionFailure(fmt.Errorf("Goal selection requires a live Goal"), "Goal selection")
 		}
 		if _, ok := index.Releases[release]; !ok {
-			return releaseSelectionFailure(fmt.Errorf("selection target %s is no longer present", release), "release selection")
+			return releaseSelectionFailure(fmt.Errorf("selection target %s is no longer present", release), "Goal selection")
 		}
 
 		path := filepath.Join(root, "router.md")
 		info, err := os.Stat(path)
 		if err != nil {
-			return releaseSelectionFailure(err, "release selection")
+			return releaseSelectionFailure(err, "Goal selection")
 		}
 		expected := info.ModTime()
 		if len(expectedMtime) > 0 && !expectedMtime[0].IsZero() {
 			if !info.ModTime().Equal(expectedMtime[0]) {
-				return releaseSelectionFailure(data.ErrMtimeConflict, "release selection")
+				return releaseSelectionFailure(data.ErrMtimeConflict, "Goal selection")
 			}
 			expected = expectedMtime[0]
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return releaseSelectionFailure(err, "release selection")
+			return releaseSelectionFailure(err, "Goal selection")
 		}
 		router, err := data.NewRouterReader().ReadStateV2(string(content))
 		if err != nil {
-			return releaseSelectionFailure(err, "release selection")
+			return releaseSelectionFailure(err, "Goal selection")
 		}
 		selection := data.RouterSelectionV2{
 			Release:   release,
@@ -398,14 +398,14 @@ func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) 
 			selection.Task = ""
 		}
 		if err := validateSelectionAgainstIndex(index, selection); err != nil {
-			return releaseSelectionFailure(err, "release selection")
+			return releaseSelectionFailure(err, "Goal selection")
 		}
 		if err := data.WriteRouterStateV2(root, selection, expected); err != nil {
 			return releaseSelectionFailure(err, "router.md")
 		}
 
 		return actionMsg{
-			message: fmt.Sprintf("Release selected: %s.", release),
+			message: fmt.Sprintf("Goal selected: %s.", release),
 			reload:  true,
 		}
 	}
@@ -427,7 +427,7 @@ func validateSelectionAgainstIndex(index *data.V2Index, selection data.RouterSel
 			if objectiveRelease == "" {
 				objectiveRelease = "(none)"
 			}
-			return fmt.Errorf("selection target %s belongs to Release %s, not %s", selection.Objective, objectiveRelease, selection.Release)
+			return fmt.Errorf("selection target %s belongs to Goal %s, not %s", selection.Objective, objectiveRelease, selection.Release)
 		}
 	}
 	if selection.Task != "" {

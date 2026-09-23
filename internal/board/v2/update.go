@@ -110,7 +110,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if action, ok := m.actionForKey(key); ok {
 		return m, m.runAction(action)
 	}
-	if key == "r" {
+	if key == goalSelectorKey || key == goalSelectorAlias {
 		m.openReleaseSelector()
 		return m, nil
 	}
@@ -580,11 +580,11 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	if wasLoaded && snapshot.SelectedRelease != "" && snapshot.RouterRelease == routerRelease(msg.State) &&
 		!releaseExists(msg.State.Index, snapshot.SelectedRelease) {
-		m.noteStatus(fmt.Sprintf("Release %s no longer exists; selection cleared.", snapshot.SelectedRelease))
+		m.noteStatus(fmt.Sprintf("%s %s no longer exists; selection cleared.", goalLabel, snapshot.SelectedRelease))
 	}
 	m.refreshDetail()
 	if snapshot.DetailID != "" && m.Detail == nil && recordExists(msg.State.Index, snapshot.DetailKind, snapshot.DetailID) == false {
-		m.noteStatus(fmt.Sprintf("%s %s no longer exists; detail closed.", snapshot.DetailKind, snapshot.DetailID))
+		m.noteStatus(fmt.Sprintf("%s %s no longer exists; detail closed.", detailKindLabel(snapshot.DetailKind), snapshot.DetailID))
 	}
 	m.refreshIssues()
 	if snapshot.IssueScopedTask != "" && !taskExists(msg.State.Index, snapshot.IssueScopedTask) {

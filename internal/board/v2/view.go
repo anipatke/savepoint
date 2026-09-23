@@ -251,13 +251,13 @@ func (m Model) renderHeader(w int) string {
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
 }
 
-// renderSelection states the optional Release context alone — a bold
-// capitalized "RELEASE:" label with the record's own ID and title in plain
+// renderSelection states the optional Goal context alone — a bold
+// capitalized "GOAL:" label with the record's own ID and title in plain
 // white after it. It carries no Objective language at all: which Objective the columns
 // are filtered to is the sidebar's own purple-accented selection marker
 // (glyphSelected), not restated here. Nothing here is truncated by fitLine: a
 // styled line carries ANSI codes fitLine's rune count would miscount, so
-// overflow is left to the terminal to wrap. With no Release selected, this
+// overflow is left to the terminal to wrap. With no Goal selected, this
 // line is blank.
 func (m Model) renderSelection(w int) string {
 	if m.SelectedRelease == "" {
@@ -267,7 +267,7 @@ func (m Model) renderSelection(w int) string {
 	if r := m.selectedReleaseRecord(); r != nil {
 		releaseText += " — " + r.Title
 	}
-	text := styles.HeaderWhiteBold.Render("RELEASE:") + " " + styles.HeaderWhite.Render(releaseText)
+	text := styles.HeaderWhiteBold.Render(strings.ToUpper(goalLabel)+":") + " " + styles.HeaderWhite.Render(releaseText)
 	return styles.RootLine.Width(w).Render(text)
 }
 
@@ -379,7 +379,7 @@ func (m Model) hints() string {
 		// esc and q both only close Help here; neither reaches the global quit.
 		return "esc/q:close"
 	case m.ReleaseOverlay:
-		return "↑↓ / j k:release  enter:select  v:detail  esc/q:cancel"
+		return "↑↓ / j k:Goal  enter:select  v:detail  esc/q:cancel"
 	case m.Issues != nil && m.Issues.Detail != nil:
 		if m.Issues.Detail.DuplicateTarget != nil {
 			return "↑↓:scroll  enter:canonical  esc:back  q:quit"
@@ -398,13 +398,13 @@ func (m Model) hints() string {
 	}
 }
 
-// releaseHint offers the Release selector only when a Release actually
+// releaseHint offers the Goal selector only when a Goal actually
 // exists to select.
 func (m Model) releaseHint() string {
 	if len(m.Releases) == 0 {
 		return ""
 	}
-	return "r:releases"
+	return goalSelectorKey + ":" + strings.ToLower(goalsLabel)
 }
 
 // detailHint offers opening a record only when the focused surface actually

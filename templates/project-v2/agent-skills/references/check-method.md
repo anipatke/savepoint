@@ -12,8 +12,12 @@ do not run it themselves.
 
 Read and apply this method completely whenever a Check is run. A Task Check is
 optional and runs only when requested or selected by the owner; the Full
-Objective Check is mandatory at Objective closure, and the Full Release Check
-is mandatory whenever a Release exists.
+Objective Check is mandatory at Objective closure, and the Full Goal Check is
+mandatory whenever a Goal exists.
+
+Goal Checks retain the existing serialized `scope.kind: release` and `R-###`
+identity. The V2 board presents these optional contexts as Goals; `g` is the
+canonical selector and `r` remains an undisplayed compatibility alias.
 
 Where this method names `.savepoint/Guardrails.md` or an optional project
 verification procedure, use them when the project has them and skip the
@@ -35,7 +39,7 @@ the Objective's Tasks and reconciliation against Design. It is mandatory and
 must inspect every owned Task, including Tasks whose optional Task Check was
 waived. A Task-only clearance never substitutes for the Objective's own Check.
 
-A Release Check is also mandatory whenever a Release exists. It uses Full
+A Goal Check is also mandatory whenever a Goal exists. It uses Full
 evidence to evaluate every member Objective and cross-Objective integration;
 the owner's acceptance of that exact current Check remains a separate step.
 
@@ -49,7 +53,7 @@ Both modes apply the method below at different reach:
   at every Task handoff.
 - **Full** — run for the mandatory Objective Check. Scope adds every member
   Task's outcome, cross-Task integration, and reconciliation against Design.
-  Use the same Full depth for the mandatory Release Check, extending scope to
+  Use the same Full depth for the mandatory Goal Check, extending scope to
   every member Objective and cross-Objective integration.
 
 Both modes apply `.savepoint/Guardrails.md` when the project has it and skip
@@ -275,7 +279,7 @@ direct type or lint checks when the default gate excludes scoped files. Run
 `git diff --check`, `make build`, and `make test` unless the invoking skill
 names a narrower approved gate. Apply the evidence mode the invoking skill
 requires: Quick only for a requested Task Check, Full for the mandatory
-Objective or Release Check. Treat passing
+Objective or Goal Check. Treat passing
 tests and gates as supporting evidence, never as a substitute for acceptance
 review.
 

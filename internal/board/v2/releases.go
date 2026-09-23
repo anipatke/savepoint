@@ -11,7 +11,13 @@ import (
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-const releaseActiveMarker = "►"
+const (
+	goalLabel           = "Goal"
+	goalsLabel          = "Goals"
+	goalSelectorKey     = "g"
+	goalSelectorAlias   = "r"
+	releaseActiveMarker = "►"
+)
 
 // orderedReleaseIDs is the selector's one source of ordering. The index is a
 // map because identity lookup is the data contract; the board presents it in
@@ -79,12 +85,12 @@ func renderReleaseSelector(index *data.V2Index, releases []string, cursor, width
 	}
 
 	lines := []string{
-		styles.ColumnTitleFocused.Render("SELECT RELEASE"),
+		styles.ColumnTitleFocused.Render("SELECT " + strings.ToUpper(goalLabel)),
 		strings.Repeat("─", inner),
 	}
 
 	if len(releases) == 0 {
-		lines = append(lines, styles.TaskItem.Render("(none)"))
+		lines = append(lines, styles.TaskItem.Render("(no "+goalsLabel+" in this project)"))
 	} else {
 		start, end := releaseWindow(releases, cursor, height)
 		if start > 0 {

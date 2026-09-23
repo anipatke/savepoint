@@ -126,7 +126,7 @@ func EvidenceLines(next data.Next) []string {
 // values and never reaches back to an index.
 func releaseIntegrationLines(next data.Next) []string {
 	if next.GateDecision == nil || len(next.GateDecision.Blockers) == 0 {
-		return []string{"Release readiness: integration is not complete."}
+		return []string{"Goal readiness: integration is not complete."}
 	}
 
 	lines := make([]string, 0, len(next.GateDecision.Blockers))
@@ -135,7 +135,7 @@ func releaseIntegrationLines(next data.Next) []string {
 			lines = append(lines, "Owner wait: "+OwnerWaitPhrase(clearanceCheckID(next.Clearance)))
 			continue
 		}
-		lines = append(lines, "Release readiness: "+ReleaseBlockerPhrase(blocker))
+		lines = append(lines, "Goal readiness: "+ReleaseBlockerPhrase(blocker))
 	}
 	return lines
 }
@@ -277,11 +277,11 @@ func ActionPhrase(next data.Next) string {
 		return releaseIntegrationNextActionPhrase(next)
 	case data.NextReleaseCheckNeeded:
 		if id := releaseID(next); id != "" {
-			return fmt.Sprintf("Record a fresh Release Check for %s.", id)
+			return fmt.Sprintf("Record a fresh Goal Check for %s.", id)
 		}
-		return "Record a fresh Release Check."
+		return "Record a fresh Goal Check."
 	case data.NextReleaseOwnerValidationRequired:
-		return "Ask the owner to accept the current Release Check."
+		return "Ask the owner to accept the current Goal Check."
 	case data.NextReleaseReady:
 		return releaseReadyNextActionPhrase(next)
 	case data.NextReady:
@@ -329,19 +329,19 @@ func releaseIntegrationNextActionPhrase(next data.Next) string {
 	switch {
 	case hasObjectiveBlock:
 		if id != "" {
-			return fmt.Sprintf("Complete the member Objectives of Release %s before recording its Release Check.", id)
+			return fmt.Sprintf("Complete the member Objectives of Goal %s before recording its Goal Check.", id)
 		}
-		return "Complete the member Objectives before recording the Release Check."
+		return "Complete the member Objectives before recording the Goal Check."
 	case hasIssueBlock:
 		if id != "" {
-			return fmt.Sprintf("Resolve the material Issues blocking Release %s before completing it.", id)
+			return fmt.Sprintf("Resolve the material Issues blocking Goal %s before completing it.", id)
 		}
-		return "Resolve the material Issues blocking the Release before completing it."
+		return "Resolve the material Issues blocking the Goal before completing it."
 	default:
 		if id != "" {
-			return fmt.Sprintf("Resolve the integration blockers for Release %s.", id)
+			return fmt.Sprintf("Resolve the integration blockers for Goal %s.", id)
 		}
-		return "Resolve the Release integration blockers."
+		return "Resolve the Goal integration blockers."
 	}
 }
 
@@ -350,27 +350,27 @@ func releaseReadyNextActionPhrase(next data.Next) string {
 	if next.GateDecision != nil {
 		if next.GateDecision.AllowedByLegacyCompletion {
 			if id != "" {
-				return fmt.Sprintf("Review the archived historical completion for Release %s; it is already marked done.", id)
+				return fmt.Sprintf("Review the archived historical completion for Goal %s; it is already marked done.", id)
 			}
-			return "Review the archived historical Release completion; it is already marked done."
+			return "Review the archived historical Goal completion; it is already marked done."
 		}
 		if next.GateDecision.AllowedByException {
 			if id != "" {
-				return fmt.Sprintf("Record Release %s as done under the recorded exception.", id)
+				return fmt.Sprintf("Record Goal %s as done under the recorded exception.", id)
 			}
-			return "Record the Release as done under the recorded exception."
+			return "Record the Goal as done under the recorded exception."
 		}
 	}
 	if next.Release != nil && next.Release.Status == data.ColumnDone {
 		if id != "" {
-			return fmt.Sprintf("Release %s is already done; no further Release action is required.", id)
+			return fmt.Sprintf("Goal %s is already done; no further Goal action is required.", id)
 		}
-		return "The Release is already done; no further Release action is required."
+		return "The Goal is already done; no further Goal action is required."
 	}
 	if id != "" {
-		return fmt.Sprintf("Record Release %s as done.", id)
+		return fmt.Sprintf("Record Goal %s as done.", id)
 	}
-	return "Record the Release as done."
+	return "Record the Goal as done."
 }
 
 func blockers(decision *data.GateDecision) []data.GateBlocker {

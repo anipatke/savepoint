@@ -29,6 +29,17 @@ func TestRunWithoutTTYLeadsWithNextAndReportsCounts(t *testing.T) {
 	}
 }
 
+func TestRunWithoutTTYLabelsSelectedReleaseAsGoal(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	var stdout bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &stdout, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := stdout.String(); !strings.Contains(got, "Selected Goal: R-001") {
+		t.Errorf("plain output omits the selected Goal label:\n%s", got)
+	}
+}
+
 func TestRunWithoutTTYStripsAuthoredTerminalControls(t *testing.T) {
 	root := writeValidProject(t)
 	writeTask(t, root, "O-001", "T-001", `\u001b[31mred\u001b[0m\tname`, "status: planned\n")

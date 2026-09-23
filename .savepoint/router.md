@@ -14,11 +14,9 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: task
+state: design
 release: R-006
-objective: O-013
-task: T-006
-next_action: "T-006 is in progress at stage build: continue implementation with savepoint-task, then T-007 and T-008 before O-013's mandatory Full Objective Check."
+next_action: "O-013 closed by owner exception on C-911 (I-035, I-036 accepted). Select the next R-006 Objective with savepoint-design."
 ```
 
 ## State → action
@@ -28,7 +26,7 @@ next_action: "T-006 is in progress at stage build: continue implementation with 
 | `idea` | `savepoint-idea` | Capture intent and boundaries in `.savepoint/Idea.md`. |
 | `design` | `savepoint-design` | Reconcile architecture, guardrails, and Objective plan. |
 | `task` | `savepoint-task` | Execute the active Task within its Context Files; choose an optional Task Check or route evidence to the mandatory Full Objective Check. |
-| `check` | `savepoint-check` | Independently verify a requested Task or the mandatory Objective/Release scope and record immutable evidence. |
+| `check` | `savepoint-check` | Independently verify a requested Task or the mandatory Objective/Goal scope and record immutable evidence. |
 
 `REPLAN REQUIRED` is not a fifth state. It routes the current plan back to
 `design` while preserving partial work and the executor's current lifecycle.
@@ -42,12 +40,12 @@ next_action: "T-006 is in progress at stage build: continue implementation with 
 - A Task Check is optional and may be skipped only with an explicit owner
   waiver recorded in the Task evidence; that waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory before Objective completion, and a
-  Release Check is mandatory whenever a Release exists.
+  Goal Check is mandatory whenever a Goal exists.
 - Issues are durable follow-up records, not a fourth task column or router
   state. A checker closes a proven Issue as `verified`; the owner may explicitly close one as `accepted`, and the planner may close a promoted Issue as `escalated`.
-- Releases are optional delivery boundaries. Their membership and completion
-  are derived by `internal/data`; they do not publish, deploy, tag, or create
-  changelogs.
+- Goals are optional delivery contexts, stored as `R-###` Release records.
+  Their membership and completion are derived by `internal/data`; they do not
+  publish, deploy, tag, or create changelogs.
 
 ## Migration boundary
 

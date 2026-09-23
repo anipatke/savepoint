@@ -9,7 +9,7 @@ description: Guides Savepoint idea intake when router state is idea, turning a r
 
 Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. This skill owns intent and boundary only: what is being built, for whom, the core experience, what's in and out of scope, and how success is judged. It does not design a solution.
 
-Release is optional planning context, not a required phase. Use it only when the owner needs a navigable delivery/package promise that spans multiple Objectives.
+Goal is optional planning context, not a required phase. Use it only when the owner wants related Objectives grouped under a navigable outcome. Existing V2 Goals remain stored as `R-###` Release records with `release:` references; in the V2 board, `g` is the canonical selector and `r` remains an undisplayed compatibility alias. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 ## Trigger
 
@@ -28,7 +28,7 @@ Read nothing else. Design.md, Guardrails.md, Objective or Task files, and untarg
 
 1. Read the router and any existing `.savepoint/Idea.md`.
 2. Accept a single rough sentence as a valid starting input. Do not require a prepared requirements document, research document, or a completed template before the conversation starts.
-3. Ask whether the owner needs a navigable delivery/package promise across multiple Objectives. Treat Release as optional: carry that boundary forward only when the owner says it is useful; otherwise continue with Objective → Task. Do not infer a Release from project size or make it a prerequisite for a small project.
+3. Ask whether the owner wants a Goal to group related Objectives. Treat it as optional: carry that context forward only when the owner says it is useful; otherwise continue with Objective → Task. Do not infer a Goal from project size or make it a prerequisite for a small project.
 4. Ask focused questions to fill each Idea section: Intent, User, Core Experience, Scope, Out of Scope, Success Criteria.
 5. When a question turns on material product uncertainty — a choice only the owner can make, not one inferable from context — ask the owner directly. Do not resolve product choices by inference.
 6. When grounding the idea against an existing project, read only the targeted evidence needed for that grounding; do not let it turn into designing a solution.

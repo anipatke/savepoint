@@ -59,7 +59,8 @@ history:
 
 An optional Task Check may be absent under an explicit owner waiver; that
 absence is not an Issue and does not waive the mandatory Full Objective Check
-or, when a Release exists, the mandatory Release Check.
+or, when a Goal exists, the mandatory Goal Check (`scope.kind: release` in
+existing Check records).
 
 ## Search Before Creating
 
@@ -70,7 +71,7 @@ Before allocating an `I-###`, look for an existing Issue matching the same sympt
 A resolved Issue records exactly one disposition:
 
 - **verified** — the Issue was repaired, and the repair is proven by a Check that recorded `CLEAR`.
-- **accepted** — an explicit owner decision to close the Issue, including after visual inspection. Record the reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective or Release Check. An agent may record the owner's exact decision but may not infer acceptance.
+- **accepted** — an explicit owner decision to close the Issue, including after visual inspection. Record the reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective or Goal Check. An agent may record the owner's exact decision but may not infer acceptance.
 - **duplicate** — the same problem as another, canonical Issue. It names that Issue and proves nothing itself.
 - **escalated** — the Issue's repair was promoted into a tracked Objective. It names that Objective in `escalated_to` and proves nothing itself; the Objective's own mandatory Check and owner acceptance carry the proof from here, not a later re-verification of this Issue.
 

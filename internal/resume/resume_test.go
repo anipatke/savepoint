@@ -280,32 +280,32 @@ func TestRender_releaseRungsKeepPromiseEvidenceAndActionDistinct(t *testing.T) {
 		{
 			name: "integration",
 			next: data.Next{Kind: data.NextReleaseIntegration, Release: release, GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockReleaseObjectiveIncomplete, Objective: "O001", Detail: "member objective is not complete"}}}},
-			want: []string{"Release: R001 — First delivery", "Release outcome: Ship the promised outcome.", "Release readiness: Member Objective O001 is not complete", "Complete the member Objectives of Release R001"},
+			want: []string{"Goal: R001 — First delivery", "Goal outcome: Ship the promised outcome.", "Goal readiness: Member Objective O001 is not complete", "Complete the member Objectives of Goal R001"},
 		},
 		{
 			name: "check needed",
 			next: data.Next{Kind: data.NextReleaseCheckNeeded, Release: release, Clearance: &data.Clearance{State: data.ClearanceStale, Check: "C003", Freshness: current.Freshness}},
-			want: []string{"Technical clearance:", "clearance is stale", "Record a fresh Release Check for R001"},
+			want: []string{"Technical clearance:", "clearance is stale", "Record a fresh Goal Check for R001"},
 		},
 		{
 			name: "owner wait",
 			next: data.Next{Kind: data.NextReleaseOwnerValidationRequired, Release: release, Clearance: current, GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockOwnerAcceptance}}}},
-			want: []string{"Technical clearance:", "Owner wait: Owner acceptance is required", "Ask the owner to accept the current Release Check"},
+			want: []string{"Technical clearance:", "Owner wait: Owner acceptance is required", "Ask the owner to accept the current Goal Check"},
 		},
 		{
 			name: "ready",
 			next: data.Next{Kind: data.NextReleaseReady, Release: release, Clearance: current, GateDecision: &data.GateDecision{Allowed: true}},
-			want: []string{"Release readiness: Check C003 is current and accepted by owner session owner-1", "Record Release R001 as done"},
+			want: []string{"Goal readiness: Check C003 is current and accepted by owner session owner-1", "Record Goal R001 as done"},
 		},
 		{
 			name: "done by exception",
 			next: data.Next{Kind: data.NextReleaseReady, Release: release, GateDecision: &data.GateDecision{Allowed: true, AllowedByException: true, Exception: &data.Exception{Owner: "owner-1", Check: "C003", Reason: "accepted risk"}}},
-			want: []string{"Completion: Allowed by exception, not by clearance", "accepted risk", "Record Release R001 as done under the recorded exception"},
+			want: []string{"Completion: Allowed by exception, not by clearance", "accepted risk", "Record Goal R001 as done under the recorded exception"},
 		},
 		{
 			name: "historical completion",
 			next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R001", Title: "First delivery", Status: data.ColumnDone}, GateDecision: &data.GateDecision{Allowed: true, AllowedByLegacyCompletion: true, LegacyCompletion: &data.LegacyCompletionReference{ArchivePath: ".savepoint/archive/release.md"}}},
-			want: []string{"Historical completion: Release R001", "not a new V2 CLEAR Check", "Review the archived historical completion"},
+			want: []string{"Historical completion: Goal R001", "not a new V2 CLEAR Check", "Review the archived historical completion"},
 		},
 	}
 
@@ -327,10 +327,10 @@ func TestRender_releaseSelectionDiagnosticsKeepGlobalAction(t *testing.T) {
 		diagnostic *data.SelectionDiagnostic
 		want       []string
 	}{
-		{"missing", &data.SelectionDiagnostic{Kind: data.SelectionReleaseNotFound, Release: "R999", ID: "R999"}, []string{"Release R999", "does not exist", "Next action:"}},
-		{"archived", &data.SelectionDiagnostic{Kind: data.SelectionReleaseArchived, Release: "R001", ID: "R001"}, []string{"Release R001", "historical", "Next action:"}},
-		{"unassigned", &data.SelectionDiagnostic{Kind: data.SelectionObjectiveUnassigned, Release: "R001", Objective: "O001"}, []string{"Objective O001", "inside Release R001", "no Release reference", "Next action:"}},
-		{"mismatch", &data.SelectionDiagnostic{Kind: data.SelectionReleaseMismatch, Release: "R001", Objective: "O001", ObjectiveRelease: "R002"}, []string{"Objective O001", "Release R001", "Release R002", "Next action:"}},
+		{"missing", &data.SelectionDiagnostic{Kind: data.SelectionReleaseNotFound, Release: "R999", ID: "R999"}, []string{"Goal R999", "does not exist", "Next action:"}},
+		{"archived", &data.SelectionDiagnostic{Kind: data.SelectionReleaseArchived, Release: "R001", ID: "R001"}, []string{"Goal R001", "historical", "Next action:"}},
+		{"unassigned", &data.SelectionDiagnostic{Kind: data.SelectionObjectiveUnassigned, Release: "R001", Objective: "O001"}, []string{"Objective O001", "inside Goal R001", "no Goal reference", "Next action:"}},
+		{"mismatch", &data.SelectionDiagnostic{Kind: data.SelectionReleaseMismatch, Release: "R001", Objective: "O001", ObjectiveRelease: "R002"}, []string{"Objective O001", "Goal R001", "Goal R002", "Next action:"}},
 	}
 
 	for _, test := range cases {

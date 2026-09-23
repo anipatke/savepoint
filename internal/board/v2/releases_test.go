@@ -71,19 +71,19 @@ func TestReleaseSelectorOpensOverTheBoardAndStartsOnCurrentRelease(t *testing.T)
 	model := releaseBoard(t)
 	before := snapshotProject(t, model.Root)
 
-	updated, cmd := model.Update(keyMsg("r"))
+	updated, cmd := model.Update(keyMsg(goalSelectorKey))
 	if cmd != nil {
 		t.Fatal("opening the selector returned a command")
 	}
 	opened := updated.(Model)
 	if !opened.ReleaseOverlay {
-		t.Fatal("r did not open the Release selector")
+		t.Fatal("g did not open the Goal selector")
 	}
 	if opened.ReleaseCursor != 0 || opened.SelectedRelease != "R-001" {
 		t.Errorf("selector state = cursor %d, selected %q; want current R-001 at cursor 0", opened.ReleaseCursor, opened.SelectedRelease)
 	}
 	view := xansi.Strip(opened.View())
-	for _, want := range []string{"SELECT RELEASE", "R-001", "First release", "S A V E P O I N T"} {
+	for _, want := range []string{"SELECT GOAL", "R-001", "First release", "S A V E P O I N T"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("selector view missing %q:\n%s", want, view)
 		}
@@ -99,25 +99,59 @@ func TestReleaseSelectorOpensOverTheBoardAndStartsOnCurrentRelease(t *testing.T)
 	}
 }
 
+func TestLegacyReleaseKeyRemainsAnUndisclosedGoalSelectorAlias(t *testing.T) {
+	model := releaseBoard(t)
+	opened, cmd := model.Update(keyMsg(goalSelectorAlias))
+	selector := opened.(Model)
+	if cmd != nil || !selector.ReleaseOverlay {
+		t.Fatalf("legacy r alias opened %t and returned command %t; want the Goal selector with no command", selector.ReleaseOverlay, cmd != nil)
+	}
+	selectorView := xansi.Strip(selector.View())
+	if !strings.Contains(selectorView, "SELECT GOAL") {
+		t.Errorf("legacy alias opened the wrong selector:\n%s", selectorView)
+	}
+	if strings.Contains(selectorView, "r:open") || strings.Contains(selectorView, "r:releases") {
+		t.Errorf("legacy alias is exposed in selector UI:\n%s", selectorView)
+	}
+}
+
+func TestGoalSelectorFitsNarrowBoardWidths(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	for _, width := range []int{32, 48} {
+		model := openSizedBoard(t, root, width, 40)
+		opened, _ := model.Update(keyMsg(goalSelectorKey))
+		selector := opened.(Model)
+		view := xansi.Strip(selector.View())
+		if !selector.ReleaseOverlay || !strings.Contains(view, "SELECT GOAL") {
+			t.Errorf("width %d did not render the Goal selector:\n%s", width, view)
+		}
+		for lineNo, line := range strings.Split(view, "\n") {
+			if got := lipgloss.Width(line); got > width {
+				t.Errorf("selector line %d is %d cells wide at terminal width %d: %q", lineNo+1, got, width, line)
+			}
+		}
+	}
+}
+
 func TestReleaseSelectorOpensReadOnlyReleaseDetail(t *testing.T) {
 	model := releaseBoard(t)
 	before := snapshotProject(t, model.Root)
 
-	detail := press(t, model, "r", "v")
+	detail := press(t, model, goalSelectorKey, "v")
 	if detail.ReleaseOverlay || detail.Detail == nil || detail.Detail.Kind != DetailRelease {
 		t.Fatalf("release detail state = overlay %t, detail %+v; want a Release detail", detail.ReleaseOverlay, detail.Detail)
 	}
 	view := xansi.Strip(detail.View())
 	for _, want := range []string{
-		"RELEASE DETAIL",
+		"GOAL DETAIL",
 		"ID: R-001",
 		"Title: First release",
-		"RELEASE PROMISE",
+		"GOAL PROMISE",
 		"Outcome: Ship the promised delivery.",
 		"MEMBER OBJECTIVES",
 		"O-001 — First objective (planned)",
 		"Tasks 0/1 done",
-		"RELEASE READINESS",
+		"GOAL READINESS",
 		"CHECKS",
 	} {
 		if !strings.Contains(view, want) {
@@ -196,7 +230,7 @@ checks: [C-002, C-003]
 	writeRouterWithRelease(t, root, "R-001", "none", "none")
 
 	model := openSizedBoard(t, root, 80, 48)
-	detail := press(t, model, "r", "v")
+	detail := press(t, model, goalSelectorKey, "v")
 	view := strings.Join(detailLines(*detail.Detail, columnTextWidth(80)), "\n")
 	for _, want := range []string{
 		"界 First delivery",
@@ -209,7 +243,7 @@ checks: [C-002, C-003]
 		"C-003  CLEAR  [latest]",
 		"ISSUES",
 		"I-001 (defect, open): Documented release gap",
-		"RELEASE READINESS",
+		"GOAL READINESS",
 		"Allowed by exception, not by clearance",
 		"OWNER VALIDATION",
 		"Accepted: Check C-003, by owner session release-owner",
@@ -219,7 +253,7 @@ checks: [C-002, C-003]
 		}
 	}
 	for _, width := range []int{48, 80, 120} {
-		sized := press(t, openSizedBoard(t, root, width, 48), "r", "v")
+		sized := press(t, openSizedBoard(t, root, width, 48), goalSelectorKey, "v")
 		for lineNo, line := range strings.Split(xansi.Strip(sized.View()), "\n") {
 			if got := lipgloss.Width(line); got > width {
 				t.Errorf("Release detail line %d is %d cells wide at width %d: %q", lineNo+1, got, width, line)
@@ -232,7 +266,7 @@ func TestReleaseSelectorNavigationClampsAndQCancels(t *testing.T) {
 	model := releaseBoard(t)
 	model.SidebarFocused = true
 	model.ObjectiveCursor = 0
-	opened, _ := model.Update(keyMsg("r"))
+	opened, _ := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
 
 	selector = press(t, selector, "j", "j", "k")
@@ -262,7 +296,7 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 		t.Fatal(err)
 	}
 
-	opened, _ := model.Update(keyMsg("r"))
+	opened, _ := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
 	updated, cmd := selector.Update(keyMsg("enter"))
@@ -305,7 +339,7 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	// rather than for a shared substring between them.
 	view := xansi.Strip(final.View())
 	for _, want := range []string{
-		"RELEASE: R-002 — Second release",
+		"GOAL: R-002 — Second release",
 		"Build T-002 — Second task",
 	} {
 		if !strings.Contains(view, want) {
@@ -349,7 +383,7 @@ func TestSelectionWriteRejectsCrossReleaseObjective(t *testing.T) {
 	message, ok := writeSelectionCmd(root, data.RouterSelectionV2{
 		Release: "R-002", Objective: "O-001", Task: "T-001",
 	})().(actionMsg)
-	if !ok || message.err == nil || !strings.Contains(message.err.Error(), "belongs to Release R-001, not R-002") {
+	if !ok || message.err == nil || !strings.Contains(message.err.Error(), "belongs to Goal R-001, not R-002") {
 		t.Fatalf("cross-Release selection result = %#v, want a named ownership refusal", message)
 	}
 	after, err := os.ReadFile(filepath.Join(root, "router.md"))
@@ -364,7 +398,7 @@ func TestSelectionWriteRejectsCrossReleaseObjective(t *testing.T) {
 func TestReleaseSelectionConflictRollsBackAndReloads(t *testing.T) {
 	root := writeReleaseBoardProject(t)
 	model := openSizedBoard(t, root, 130, 48)
-	opened, _ := model.Update(keyMsg("r"))
+	opened, _ := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
 	updated, cmd := selector.Update(keyMsg("enter"))
@@ -395,7 +429,7 @@ func TestReleaseSelectionPendingMigrationRefusesWithoutPartialContext(t *testing
 	root := writeReleaseBoardProject(t)
 	model := openSizedBoard(t, root, 130, 48)
 	operationID := createPendingOperation(t, root)
-	opened, _ := model.Update(keyMsg("r"))
+	opened, _ := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
 	updated, cmd := selector.Update(keyMsg("enter"))
@@ -421,7 +455,7 @@ func TestReleaseSelectionPendingMigrationRefusesWithoutPartialContext(t *testing
 func TestReleaseReloadPreservesFocusAndDiagnosesRemovedSelection(t *testing.T) {
 	root := writeReleaseBoardProject(t)
 	model := openSizedBoard(t, root, 130, 48)
-	opened, _ := model.Update(keyMsg("r"))
+	opened, _ := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
 	selector = press(t, selector, "j")
 	updated, cmd := selector.Update(keyMsg("enter"))
@@ -450,16 +484,40 @@ func TestReleaseReloadPreservesFocusAndDiagnosesRemovedSelection(t *testing.T) {
 	if model.SelectedRelease != "" {
 		t.Errorf("removed Release selection = %q, want no substitute", model.SelectedRelease)
 	}
+	if !strings.Contains(model.StatusMessage, "Goal R-002 no longer exists; selection cleared.") {
+		t.Errorf("removed selection status = %q, want a Goal-specific explanation", model.StatusMessage)
+	}
 	if model.State.Next.SelectionDiagnostic == nil || model.State.Next.SelectionDiagnostic.Kind != data.SelectionReleaseNotFound {
 		t.Errorf("selection diagnostic = %+v, want canonical release_not_found", model.State.Next.SelectionDiagnostic)
 	}
 }
 
+func TestReloadClosingARemovedGoalDetailNamesItAGoal(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	writeReleaseRecord(t, root, "R-003-empty", "R-003", "Empty goal")
+	model := press(t, openSizedBoard(t, root, 130, 48), goalSelectorKey, "j", "j", "v")
+	if model.Detail == nil || model.Detail.ID != "R-003" {
+		t.Fatalf("detail = %+v, want the R-003 Goal detail", model.Detail)
+	}
+
+	if err := os.RemoveAll(filepath.Join(root, "releases", "R-003-empty")); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
+	model = reloaded.(Model)
+	if model.Detail != nil {
+		t.Errorf("removed Goal detail stayed open: %+v", model.Detail)
+	}
+	if !strings.Contains(model.StatusMessage, "GOAL R-003 no longer exists; detail closed.") || strings.Contains(model.StatusMessage, "RELEASE") {
+		t.Errorf("removed detail status = %q, want Goal wording", model.StatusMessage)
+	}
+}
+
 func TestReleaseSelectorWithoutReleasesIsExplicitAndSafe(t *testing.T) {
 	model := openSizedBoard(t, writeEmptyProjectFromTemplate(t), 130, 30)
-	opened, cmd := model.Update(keyMsg("r"))
+	opened, cmd := model.Update(keyMsg(goalSelectorKey))
 	selector := opened.(Model)
-	if cmd != nil || !selector.ReleaseOverlay || !strings.Contains(xansi.Strip(selector.View()), "(none)") {
+	if cmd != nil || !selector.ReleaseOverlay || !strings.Contains(xansi.Strip(selector.View()), "(no Goals in this project)") {
 		t.Errorf("empty Release selector = open %t, cmd %t, view:\n%s", selector.ReleaseOverlay, cmd != nil, xansi.Strip(selector.View()))
 	}
 	selected, cmd := selector.Update(keyMsg("enter"))
@@ -468,11 +526,15 @@ func TestReleaseSelectorWithoutReleasesIsExplicitAndSafe(t *testing.T) {
 	}
 }
 
-func TestV2HelpAdvertisesTheReleaseSelector(t *testing.T) {
+func TestV2HelpAdvertisesTheCanonicalGoalSelectorKeyOnly(t *testing.T) {
 	model := releaseBoard(t)
 	opened, _ := model.Update(keyMsg("?"))
-	if !strings.Contains(xansi.Strip(opened.(Model).View()), "r: open the Release selector") {
-		t.Errorf("help does not advertise r:\n%s", xansi.Strip(opened.(Model).View()))
+	view := xansi.Strip(opened.(Model).View())
+	if !strings.Contains(view, "g: open the Goal selector") {
+		t.Errorf("help does not advertise g:\n%s", view)
+	}
+	if strings.Contains(view, "r: open the Release selector") {
+		t.Errorf("help exposes the legacy alias:\n%s", view)
 	}
 }
 

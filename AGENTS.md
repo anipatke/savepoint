@@ -29,23 +29,38 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 - Every Task records per-criterion evidence and runs its configured gate before handoff.
 - Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
-- CI runs the full gate with `make ci`. A Full Objective or Release Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- CI runs the full gate with `make ci`. A Full Objective or Goal Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
 - Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
   carry an explicit owner waiver naming the Task, reason, actor, and time.
   That waiver is not technical `CLEAR` and does not waive any acceptance
-  criterion, guardrail, Objective Check, or Release Check.
+  criterion, guardrail, Objective Check, or Goal Check.
 - The Full Objective Check is mandatory before an Objective can close. It is
   the V2 equivalent of the epic-level integration gate and covers every owned
   Task, including Tasks whose optional Task Check was waived, plus cross-Task
   integration and Design reconciliation.
-- A Release Check is mandatory whenever a Release exists. It covers all member
+- A Goal Check is mandatory whenever a Goal exists. It covers all member
   Objectives and cross-Objective integration, followed by exact owner
   acceptance of the current Check.
 
 The runtime gate resolvers and their tests in `internal/data` enforce this
 contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
+
+## Optional Goals
+
+A Goal is an optional delivery context for related Objectives, not another
+workflow state or a required step. Without one, the ordinary Idea → Design →
+Task → Check path remains complete. In the V2 board, `g` opens the Goal
+selector; `r` remains an undisplayed compatibility alias.
+
+Existing storage is unchanged: Goals use stable `R-###` records under
+`.savepoint/releases/` (`Release.md`), Objective `release:` references, router
+`release:` selections, and Check `scope.kind: release`. These names are a
+compatibility boundary, not the public board vocabulary. Goals group
+Objectives, do not own Tasks, and do not publish, deploy, tag, or generate
+changelogs. A Goal Check retains the existing cross-Objective integration and
+exact-owner-acceptance requirements.
 
 ## Terminology
 
@@ -76,12 +91,12 @@ Follow the active skill for execution. During `task`, the canonical flow is `sav
 `savepoint-check` is the only role that can write a Check record or close an
 Issue as `verified`. The owner may explicitly close an Issue as `accepted`
 without a Check; this does not claim technical `CLEAR` or waive a mandatory
-Objective or Release Check. The owner closes Tasks and accepts
-Objective/Release outcomes after the required evidence exists.
+Objective or Goal Check. The owner closes Tasks and accepts Objective/Goal
+outcomes after the required evidence exists.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
-- A Release Check is mandatory whenever a Release exists and covers cross-Objective integration before exact owner acceptance.
+- A Goal Check is mandatory whenever a Goal exists and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
@@ -95,7 +110,7 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 
 ```bash
 make build && make test-fast   # ordinary Task handoff
-make test-full                 # migration/platform-sensitive Task or Full Objective/Release Check
+make test-full                 # migration/platform-sensitive Task or Full Objective/Goal Check
 make ci                        # CI full gate plus distribution and package checks
 ```
 
@@ -111,22 +126,22 @@ make ci                        # CI full gate plus distribution and package chec
 | `internal/board/` | The board's schema dispatch — resolve the project root once, `data.LoadProject`, then run the V1 board or `internal/board/v2`, refusing a filter flag the resolved schema has no meaning for (CFG-01) — plus the whole V1 board: TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, audit register overlay with finding detail and linked-finding backlinks, shared board utilities |
 | `internal/board/v2/` | The V2 board, a sibling package no V1 board type or V1 record type is reachable from: model state, the single load command (`data.LoadProject`, `ReadStateV2`, `migrate.PendingOperation`, `data.ResolveNext`) startup and every reload share, the load-diagnostic screen for a project the V2 index refuses, the Objective sidebar — list, cursor, selection, per-Objective status/clearance/integration/dependency state, and Task filtering by ownership read from `index.ObjectiveTasks` — three columns of Task cards labelled by their title, the one badge mapping from typed `data` values (stage, clearance, gate blockers, waiver, exception) to glyph, label, and accent, the Next area — one compact block formatted from the single resolved `data.Next`, naming the rung, the selected records, `internal/resume`'s evidence and selection-diagnostic wording, an Issues count by type, and the action, with nothing on it derived from the index or moved by the sidebar's selection — the Task and Objective detail overlay, split into the resolution that reaches the index (identity, lifecycle, ownership, dependency decisions, clearance, the Check chain with latest and superseded marked, and the Issues the index's link maps hang off the record) and the rendering that reaches nothing, scrolls, and returns focus to the surface it was opened from — and non-TTY output leading with those same Next lines |
 | `internal/buildtool/` | Makefile helper, named Go-test gates and timing summaries, cross-compile including Windows targets, archives, distribution checksums |
-| `internal/doctor/` | Read-only project diagnostics, integrity checks, Release readiness through the canonical Release completion resolver, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
+| `internal/doctor/` | Read-only project diagnostics, integrity checks, Goal readiness through the canonical Release completion resolver, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
 | `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers, audit-register models/loaders and finding backlink lookups, the V2 Next projection (`ResolveNext`): the precedence ladder and selection resolution over the E43/E44 gate resolvers, deriving one next action for a project without owning any gate rule itself, plus the Issues relevant to that selection (`Next.Issues`), resolved from the index's own Task/Check/Issue link maps |
 | `internal/resume/` | Deterministic, plain-text rendering of a resolved `data.Next` projection to an `io.Writer` (`resume.Render`): selected Objective/Task identity, implementation state, technical clearance, owner-wait, exception, dependency, and Issue phrasing, and the next action — with the evidence and freshness wording held once in its own file. It owns that wording for every surface reporting recorded V2 evidence, not just for its own narrative: `EvidenceLines`, `ActionPhrase`, and `SelectionPhrase` are exported so the V2 board's Next area states the same facts in the same words under a layout of its own, and `ClearancePhrase`, `DependencyPhrase`, `ObjectiveDependencyPhrase`, `ExceptionPhrase`, `ReplanPhrase`, `IssueLine`, and `ActorLabel` are exported for the board's detail overlay, which reports one record's own evidence rather than a whole projection. No filesystem, subprocess, network, or TTY access; no project root or index consulted |
 | `internal/migrate/` | One-time V1-to-V2 project conversion; first-class Release PRD/source mapping; the platform file replacement primitive that operation's writes go through; a read-only source inventory (exact-byte hashing, confined walk); role classification against the frozen fixture vocabulary; and the migrate command body: target validation, preview, decisions loading, guarded apply, interruption recovery, and no-op retry proof |
 | `internal/data/release_cutover.go` | Project-level E50 cutover composition: orders every declared Release's `ResolveReleaseCompletion` blockers without introducing a second readiness rule; no-Release projects remain valid |
-| `internal/board/v2/releases.go` | Optional `r` Release selector and read-only Release detail path; membership and readiness are derived from the V2 index and canonical data resolvers |
+| `internal/board/v2/releases.go` | Optional `g` Goal selector (`r` is an undisplayed compatibility alias) and read-only Goal detail path; membership and readiness use existing Release-backed records and canonical data resolvers |
 | `internal/testutil/` | Shared Go test fixtures and filesystem helpers for internal package tests |
 | `internal/styles/` | Atari-Noir palette, TUI styles |
 | `templates/` | Scaffold markdown, YAML, prompts, and defect workflow guidance |
 | `agent-skills/` | Phase-specific skill guides, including defect capture guidance |
 
-The V2 `internal/data/` boundary now also owns first-class Release records,
-derived Release membership, the canonical per-Release completion decision,
-and the `ResolveReleaseCutover` composition consumed by E50. `internal/doctor`
-and `internal/board/v2` report that same decision; they do not maintain a
-second Release-readiness policy.
+The V2 `internal/data/` boundary owns the existing Release records behind the
+public Goal context, derived Goal membership, the canonical Release completion
+decision, and the `ResolveReleaseCutover` composition consumed by E50.
+`internal/doctor` and `internal/board/v2` report that same decision; they do
+not maintain a second Goal-readiness policy.
 
 After this repository's schema-2 migration, ordinary startup, board, doctor,
 resume, and init behavior is V2-only. The V1 readers and V1 board surfaces in

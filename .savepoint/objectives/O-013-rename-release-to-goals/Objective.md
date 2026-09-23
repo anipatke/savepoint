@@ -1,9 +1,16 @@
 ---
 id: O-013
 title: Rename Release context to Goals
-status: in_progress
+status: done
 depends_on: [O-012]
 release: R-006
+exception:
+    requirements: [C-911 NEEDS WORK, I-035, I-036]
+    reason: >-
+        Owner accepted the repairs recorded for I-035 (V2 scaffold Design/Guardrails/router and the live router reworded to Goal / Goal Check) and I-036 (removed Goal detail reload status now says GOAL, with a regression test) without requiring a fresh-session recheck. make build and make test-full passed after the repair. This is owner-accepted completion by exception, not a new CLEAR result. C-911's NEEDS WORK verdict stands unchanged as the record of what was found. R-006's mandatory Goal Check is unaffected and must still run and pass separately.
+    owner: ani
+    recorded_at: '2026-09-23T09:47:00Z'
+    check: C-911
 ---
 
 # O-013: Rename Release context to Goals
