@@ -2,10 +2,18 @@
 id: T018
 title: Map the identity cutover
 objective: O018
-status: in_progress
-stage: audit
-owner_validation: {required: false}
+status: done
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: o018-design-20260923}
+check_waiver:
+    task: T018
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-23T05:26:10Z"
 ---
 
 # T018: Map the identity cutover
