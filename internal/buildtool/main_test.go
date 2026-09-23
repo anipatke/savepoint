@@ -2,12 +2,17 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -326,6 +331,55 @@ func TestLocalExecutable(t *testing.T) {
 	}
 }
 
+func TestFocusedTestArgsRequiresPattern(t *testing.T) {
+	if _, err := focusedTestArgs(nil); err == nil {
+		t.Fatal("expected an empty focused-test pattern to fail")
+	}
+	if _, err := focusedTestArgs([]string{"   "}); err == nil {
+		t.Fatal("expected a whitespace focused-test pattern to fail")
+	}
+}
+
+func TestFocusedTestArgsAddsUncachedTimingAndPackage(t *testing.T) {
+	got, err := focusedTestArgs([]string{"TestResume", "./internal/resume"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"-json", "-count=1", "-run", "TestResume", "./internal/resume"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("focusedTestArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunGoTestCommandReportsTimingAndPropagatesFailure(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestGoTestCommandHelperProcess$")
+	cmd.Env = append(os.Environ(), "SAVEPOINT_BUILDTOOL_TEST_HELPER=1")
+	var output bytes.Buffer
+	err := runGoTestCommand(cmd, &output)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("runGoTestCommand() error = %v, want child exit error", err)
+	}
+	if got := exitErr.ExitCode(); got != 7 {
+		t.Fatalf("child exit code = %d, want 7", got)
+	}
+	for _, want := range []string{"internal/migrate.TestSlowFixture", "internal/migrate.TestBroken", "injected diagnostic", "Go test timing summary", "Slowest packages", "Slowest tests"} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("output does not contain %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestGoTestCommandHelperProcess(t *testing.T) {
+	if os.Getenv("SAVEPOINT_BUILDTOOL_TEST_HELPER") != "1" {
+		return
+	}
+	fmt.Println(`{"Action":"pass","Package":"internal/migrate","Test":"TestSlowFixture","Elapsed":0.35}`)
+	fmt.Println(`{"Action":"fail","Package":"internal/migrate","Test":"TestBroken","Elapsed":0.5}`)
+	fmt.Println(`{"Action":"fail","Package":"internal/migrate","Elapsed":0.8}`)
+	fmt.Fprintln(os.Stderr, "injected diagnostic")
+	os.Exit(7)
+}
 func fakeDistribution(t *testing.T) (string, string) {
 	t.Helper()
 	dir := t.TempDir()

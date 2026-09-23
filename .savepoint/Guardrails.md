@@ -87,7 +87,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 | TEST-05 | Required | Bug fixes must include a regression test or an explicit failing scenario that proves the bug. |
 | TEST-06 | Required | "Existing tests cover it" is acceptable only when the exact test file and test case names are recorded. |
 | TEST-07 | Required | Coverage percentage alone does not satisfy evidence for changed behavior. |
-| TEST-08 | Blocker | `make build && make test` must pass before Task handoff, whether or not the optional Task Check is requested. |
+| TEST-08 | Blocker | `make build && make test-fast` must pass before ordinary Task handoff. Migration/platform-sensitive Task handoff requires fresh `make test-full`; Full Objective and Release Checks require current successful `make test-full` evidence. Focused tests are iteration aids only. A prior full result may be reused only for a metadata-only correction with the original run recorded and code, tests, fixtures, dependencies, and gate definitions proven unchanged. |
 | TEST-09 | Required | If an optional Task Check is skipped, Task evidence must carry an explicit owner waiver naming the Task, reason, actor, and time; the waiver never replaces the mandatory Objective or Release Check. |
 
 ### Release And Distribution

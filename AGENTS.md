@@ -27,8 +27,10 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 ## Verification Policy
 
-- Every Task still records per-criterion evidence and runs the configured
-  quality gates before handoff.
+- Every Task records per-criterion evidence and runs its configured gate before handoff.
+- Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
+- CI runs the full gate with `make ci`. A Full Objective or Release Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
   carry an explicit owner waiver naming the Task, reason, actor, and time.
@@ -92,8 +94,12 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 ## Build
 
 ```bash
-make build && make test
+make build && make test-fast   # ordinary Task handoff
+make test-full                 # migration/platform-sensitive Task or Full Objective/Release Check
+make ci                        # CI full gate plus distribution and package checks
 ```
+
+`make test-focused TEST=...` is an iteration aid. Reuse a prior full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged.
 
 ## Codebase Map
 
@@ -104,7 +110,7 @@ make build && make test
 | `internal/init/` | Target validation, scaffold writing from a caller-selected template tree (`init` defaults to `templates/project-v2`), upgrade-assets schema-version dispatch between `templates/project` and `templates/project-v2` via `data.ReadSchemaVersion`, upgrade provenance manifest, managed AGENTS.md merge/conflict behavior, and safe project asset refresh |
 | `internal/board/` | The board's schema dispatch — resolve the project root once, `data.LoadProject`, then run the V1 board or `internal/board/v2`, refusing a filter flag the resolved schema has no meaning for (CFG-01) — plus the whole V1 board: TUI board, overlays, epic sidebar, Next Activity line, router priority key, detail checklist rendering, status glyphs, forced color profile, debug logging hooks, async update I/O commands, defect summary/overlay/detail rendering, related-defect card markers, audit register overlay with finding detail and linked-finding backlinks, shared board utilities |
 | `internal/board/v2/` | The V2 board, a sibling package no V1 board type or V1 record type is reachable from: model state, the single load command (`data.LoadProject`, `ReadStateV2`, `migrate.PendingOperation`, `data.ResolveNext`) startup and every reload share, the load-diagnostic screen for a project the V2 index refuses, the Objective sidebar — list, cursor, selection, per-Objective status/clearance/integration/dependency state, and Task filtering by ownership read from `index.ObjectiveTasks` — three columns of Task cards labelled by their title, the one badge mapping from typed `data` values (stage, clearance, gate blockers, waiver, exception) to glyph, label, and accent, the Next area — one compact block formatted from the single resolved `data.Next`, naming the rung, the selected records, `internal/resume`'s evidence and selection-diagnostic wording, an Issues count by type, and the action, with nothing on it derived from the index or moved by the sidebar's selection — the Task and Objective detail overlay, split into the resolution that reaches the index (identity, lifecycle, ownership, dependency decisions, clearance, the Check chain with latest and superseded marked, and the Issues the index's link maps hang off the record) and the rendering that reaches nothing, scrolls, and returns focus to the surface it was opened from — and non-TTY output leading with those same Next lines |
-| `internal/buildtool/` | Makefile helper, cross-compile including Windows targets, archives, distribution checksums |
+| `internal/buildtool/` | Makefile helper, named Go-test gates and timing summaries, cross-compile including Windows targets, archives, distribution checksums |
 | `internal/doctor/` | Read-only project diagnostics, integrity checks, Release readiness through the canonical Release completion resolver, defect validation, timed quality gate execution, report formatting, typed repair suggestions |
 | `internal/data/` | Task/router/defect models, frontmatter parsing/splitting, lifecycle validation/defaulting, discovery including root-dir and release defect traversal, unified task status constants, canonical write helpers, audit-register models/loaders and finding backlink lookups, the V2 Next projection (`ResolveNext`): the precedence ladder and selection resolution over the E43/E44 gate resolvers, deriving one next action for a project without owning any gate rule itself, plus the Issues relevant to that selection (`Next.Issues`), resolved from the index's own Task/Check/Issue link maps |
 | `internal/resume/` | Deterministic, plain-text rendering of a resolved `data.Next` projection to an `io.Writer` (`resume.Render`): selected Objective/Task identity, implementation state, technical clearance, owner-wait, exception, dependency, and Issue phrasing, and the next action — with the evidence and freshness wording held once in its own file. It owns that wording for every surface reporting recorded V2 evidence, not just for its own narrative: `EvidenceLines`, `ActionPhrase`, and `SelectionPhrase` are exported so the V2 board's Next area states the same facts in the same words under a layout of its own, and `ClearancePhrase`, `DependencyPhrase`, `ObjectiveDependencyPhrase`, `ExceptionPhrase`, `ReplanPhrase`, `IssueLine`, and `ActorLabel` are exported for the board's detail overlay, which reports one record's own evidence rather than a whole projection. No filesystem, subprocess, network, or TTY access; no project root or index consulted |

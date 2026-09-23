@@ -27,8 +27,10 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 ## Verification Policy
 
-- Every Task still records per-criterion evidence and runs the configured
-  quality gates before handoff.
+- Every Task records per-criterion evidence and runs its configured gate before handoff.
+- Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
+- CI runs the full gate with `make ci`. A Full Objective or Release Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
   carry an explicit owner waiver naming the Task, reason, actor, and time.
@@ -107,8 +109,12 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 ## Build
 
 ```bash
-make build && make test
+make build && make test-fast   # ordinary Task handoff
+make test-full                 # migration/platform-sensitive Task or Full Objective/Release Check
+make ci                        # CI full gate plus distribution and package checks
 ```
+
+`make test-focused TEST=...` is an iteration aid. Reuse a prior full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged.
 
 ## Codebase Map
 

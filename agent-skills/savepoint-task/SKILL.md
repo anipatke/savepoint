@@ -31,7 +31,7 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 4. Advance the lifecycle as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check when one is requested — an optional Task Check or the mandatory Full Objective Check — and explicitly does not mean it passed.
 5. Before editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
 6. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
-7. At handoff, verify every acceptance criterion against a concrete outcome, run `make build && make test`, and record the required technical evidence whether or not an optional Task Check is requested.
+7. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
 8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
 
 ## Write Boundary
@@ -73,12 +73,22 @@ as an Issue rather than expanding scope or repairing it silently; see
 rules. This skill may add evidence to an Issue; it may record an explicit owner
 `accepted` closure but cannot infer acceptance or close one as `verified`.
 
+## Verification Gates
+
+Use the repository's gate names consistently:
+
+- `make test-focused TEST=...` is an iteration aid and does not satisfy handoff gates.
+- Ordinary Task handoff requires `make build && make test-fast`.
+- Migration or platform-sensitive Task handoff requires a fresh `make test-full`.
+- CI, the mandatory Full Objective Check, and a mandatory Release Check require the full gate. In this repository, `make ci` includes `make test-full`.
+- Reuse a successful full result only for a metadata-only correction. Record the original command, time, toolchain, and result, and prove that code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
+
 ## Evidence And Handoff
 
 At handoff, the Task's recorded evidence must include:
 
 - a per-criterion outcome for every acceptance criterion;
-- the named commands actually run, including `make build && make test`;
+- the named commands actually run, including the applicable build plus fast gate or the full gate;
 - the files read and the files changed, including every logged extra read;
 - stated limitations — anything not verified, or verified only partially.
 

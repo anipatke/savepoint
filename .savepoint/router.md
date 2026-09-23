@@ -16,9 +16,9 @@ canonical workflow source; this router records state and next action only.
 ```yaml
 state: task
 release: none
-objective: O016
-task: T013
-next_action: "O016 design and T013-T016 plan confirmed by the owner. Execute T013 measurement and gate-selection research with savepoint-task; no production test changes in T013."
+objective: O018
+task: none
+next_action: "Run a fresh make test-full in a Linux environment with native Node/npm; the focused Windows check and standalone cross-build passed, but local full-gate attempts failed."
 ```
 
 ## State → action

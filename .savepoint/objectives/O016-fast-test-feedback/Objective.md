@@ -2,6 +2,13 @@
 id: O016
 title: Make test feedback fast without weakening verification
 status: planned
+last_check: C909
+freshness:
+  state: current
+  check: C909
+  assessed_by: {role: checker, session: o016-full-recheck-20260923}
+  assessed_at: '2026-09-23T04:20:00Z'
+  basis: C909 ran a fresh passing Linux make test-full with native npm and the focused Windows migration check on the current working tree (HEAD e7e72bb plus diff sha256 a1e3a570); later edits are Check metadata only.
 ---
 
 # O016: Make test feedback fast without weakening verification
@@ -49,7 +56,7 @@ the evidence behind this Objective.
 - Migration and platform-sensitive changes also require a fresh full gate at
   Task handoff. CI and every Full Objective or Release Check require the full
   gate. The full gate includes host-platform tests and cross-build checks; CI
-  additionally runs the Windows tests on Windows.
+  additionally runs a focused Windows migration setup check on Windows.
 - Focused package tests support iteration but do not replace the fast handoff
   gate.
 - The two-second focused, fifteen-second fast, and forty-five-second full
@@ -66,6 +73,25 @@ The owner confirmed the verification policy, Windows coverage, and T013-T016
 implementation sequence on 2026-09-22 at 21:51 UTC. The confirmed plan begins
 with measurement and gate selection; implementation decisions that measurement
 cannot settle return to design rather than silently changing these boundaries.
+
+The owner approved the C908 remediation design on 2026-09-23 at 02:11 UTC:
+keep T013-T016 done and add separate O016 Tasks for the migration package
+TestMain conflict, Windows watcher exclusion, and the guide-casing regression
+assertion. Preserve the existing Windows coverage and verification policy;
+record the full Windows suite after all three repairs. The casing report will
+be verified through directory-entry spelling because Windows Stat cannot
+distinguish paths that differ only by case.
+
+The owner narrowed the Windows verification scope on 2026-09-23 at 03:05 UTC:
+keep a focused Windows migration setup check and the existing cross-builds;
+the full Windows runtime suite and unrelated Windows platform repairs are not
+required for O016. The Linux `make test-full` gate remains required. This
+supersedes the 02:11 instruction to record a full Windows suite after the
+repairs.
+
+The owner confirmed on 2026-09-23 at 03:55 UTC that T018 and T019 are
+not needed without the full Windows runtime suite. Remove both from
+O016; keep the focused T017 Windows check and the Linux full gate.
 
 ## Architectural Considerations
 
@@ -98,8 +124,9 @@ cannot settle return to design rather than silently changing these boundaries.
 
 **Out of scope:**
 
-- Removing migration interruption, recovery, idempotency, filesystem-safety,
-  Windows, or cross-platform coverage merely to meet a timing target.
+- Removing migration interruption, recovery, idempotency, or filesystem-safety
+  coverage merely to meet a timing target. Keep the focused Windows migration
+  setup check and cross-builds; the broad Windows runtime suite is deferred.
 - Replacing deterministic tests with production mocks that bypass the behavior
   under test.
 - General runtime performance work unrelated to test execution.

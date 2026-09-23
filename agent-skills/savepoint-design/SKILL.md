@@ -56,6 +56,8 @@ Apply this contract to every implementation, not only to migration work:
   reconciliation against this Design.
 - A Release Check is mandatory whenever a Release exists, and exact owner
   acceptance of its current Check remains required.
+- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective/Release Checks require the full gate through `make ci` or `make test-full`.
+- Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
 ## Optional Release Boundary
 
@@ -184,7 +186,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused cmd/resume and data tests, no filesystem changes on success/failure, `make build && make test`.
+Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective/Release Checks.
 
 ## Technical Evidence
 

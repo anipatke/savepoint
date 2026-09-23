@@ -2,10 +2,12 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,7 +16,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
+	"time"
 )
 
 type target struct {
@@ -35,21 +39,177 @@ var versionOverride string
 
 const npmDistDir = "dist/npm"
 
+type goTestEvent struct {
+	Action  string  `json:"Action"`
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Elapsed float64 `json:"Elapsed"`
+	Output  string  `json:"Output"`
+}
+
+type testTiming struct {
+	name    string
+	elapsed time.Duration
+}
+
+func focusedTestArgs(args []string) ([]string, error) {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		return nil, errors.New("usage: make test-focused TEST=<test-name-or-regexp> [PKGS=./package]")
+	}
+	packages := args[1:]
+	if len(packages) == 0 {
+		packages = []string{"./..."}
+	}
+	goArgs := []string{"-json", "-count=1", "-run", args[0]}
+	return append(goArgs, packages...), nil
+}
+
+func runGoTest(args []string, output io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("go test arguments are required")
+	}
+	commandArgs := append([]string{"test"}, args...)
+	return runGoTestCommand(exec.Command("go", commandArgs...), output)
+}
+
+func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("open go test output: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start go test: %w", err)
+	}
+
+	var packages []testTiming
+	var tests []testTiming
+	var skipped []string
+	var failedPackages []string
+	packageOutput := make(map[string]*strings.Builder)
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		line := append([]byte(nil), scanner.Bytes()...)
+		var event goTestEvent
+		if err := json.Unmarshal(line, &event); err != nil {
+			fmt.Fprintln(output, string(line))
+			continue
+		}
+		if event.Output != "" {
+			packageName := event.Package
+			if packageName == "" {
+				packageName = "<go test>"
+			}
+			if packageOutput[packageName] == nil {
+				packageOutput[packageName] = &strings.Builder{}
+			}
+			packageOutput[packageName].WriteString(event.Output)
+		}
+		if event.Test == "" && event.Action == "fail" {
+			failedPackages = append(failedPackages, event.Package)
+		}
+		if event.Test == "" && event.Elapsed > 0 && (event.Action == "pass" || event.Action == "fail") {
+			packages = append(packages, testTiming{name: event.Package, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
+		}
+		if event.Test != "" {
+			if event.Action == "pass" || event.Action == "fail" {
+				tests = append(tests, testTiming{name: event.Package + "." + event.Test, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
+			}
+			if event.Action == "skip" {
+				skipped = append(skipped, event.Package+"."+event.Test)
+			}
+		}
+	}
+	scanErr := scanner.Err()
+	waitErr := cmd.Wait()
+	sort.Strings(failedPackages)
+	previousPackage := ""
+	for _, packageName := range failedPackages {
+		if packageName == previousPackage {
+			continue
+		}
+		previousPackage = packageName
+		fmt.Fprintf(output, "\nOutput for failed package %s:\n", packageName)
+		if packageOutput[packageName] != nil {
+			if _, err := io.WriteString(output, packageOutput[packageName].String()); err != nil {
+				return fmt.Errorf("write failed package output: %w", err)
+			}
+		}
+	}
+	if stderr.Len() > 0 {
+		if _, err := io.Copy(output, &stderr); err != nil {
+			return fmt.Errorf("write go test diagnostics: %w", err)
+		}
+	}
+	writeTestTimingSummary(output, packages, tests, skipped)
+	if waitErr != nil {
+		return waitErr
+	}
+	if scanErr != nil {
+		return fmt.Errorf("read go test output: %w", scanErr)
+	}
+	return nil
+}
+
+func writeTestTimingSummary(output io.Writer, packages, tests []testTiming, skipped []string) {
+	fmt.Fprintln(output, "\nGo test timing summary:")
+	writeSlowest(output, "packages", packages)
+	writeSlowest(output, "tests", tests)
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		fmt.Fprintf(output, "Skipped tests (%d): %s\n", len(skipped), strings.Join(skipped, ", "))
+	}
+}
+
+func writeSlowest(output io.Writer, label string, timings []testTiming) {
+	sort.Slice(timings, func(i, j int) bool {
+		if timings[i].elapsed == timings[j].elapsed {
+			return timings[i].name < timings[j].name
+		}
+		return timings[i].elapsed > timings[j].elapsed
+	})
+	limit := len(timings)
+	if limit > 10 {
+		limit = 10
+	}
+	fmt.Fprintf(output, "  Slowest %s:\n", label)
+	for _, timing := range timings[:limit] {
+		fmt.Fprintf(output, "    %-70s %s\n", timing.name, timing.elapsed.Round(time.Millisecond))
+	}
+}
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() > 0 {
+			os.Exit(exitErr.ExitCode())
+		}
 		os.Exit(1)
 	}
 }
 
 func run(args []string) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "test":
+			return runGoTest(args[1:], os.Stdout)
+		case "focused-test":
+			focusedArgs, err := focusedTestArgs(args[1:])
+			if err != nil {
+				return err
+			}
+			return runGoTest(focusedArgs, os.Stdout)
+		}
+	}
 	flags := flag.NewFlagSet("buildtool", flag.ContinueOnError)
 	flags.StringVar(&versionOverride, "version", "", "version to inject into the binary")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|verify-dist|smoke-test>")
+		return errors.New("usage: go run ./internal/buildtool [-version vX.Y.Z] <build|clean|build-linux|build-darwin|build-windows|build-npm|build-all|dist|verify-dist|smoke-test|test|focused-test>")
 	}
 
 	switch flags.Arg(0) {

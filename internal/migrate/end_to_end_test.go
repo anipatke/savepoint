@@ -21,9 +21,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -52,6 +54,66 @@ const (
 
 var e2eClock = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 
+// e2ePreparedFixtures holds one converted result per frozen fixture. Unix
+// read-only assertions share these protected results; Windows consumers use
+// private copies because read-only directory modes do not prevent new files.
+// Command, preview, recovery, no-op, and other mutating scenarios keep fresh
+// source project copies on every platform.
+var e2ePreparedFixtures = map[string]string{}
+
+func TestMain(m *testing.M) {
+	preparedRoot, err := os.MkdirTemp("", "savepoint-migration-e2e-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create shared migration fixture root: %v\n", err)
+		os.Exit(1)
+	}
+	cleanup := func() error {
+		if err := makeTreeWritable(preparedRoot); err != nil {
+			return fmt.Errorf("make shared migration fixtures removable: %w", err)
+		}
+		if err := os.RemoveAll(preparedRoot); err != nil {
+			return fmt.Errorf("remove shared migration fixtures: %w", err)
+		}
+		return nil
+	}
+
+	for _, fixture := range e2eFixtures {
+		root := filepath.Join(preparedRoot, fixture)
+		if err := copyFixtureInto(root, fixture); err != nil {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				fmt.Fprintf(os.Stderr, "shared fixture cleanup: %v\n", cleanupErr)
+			}
+			fmt.Fprintf(os.Stderr, "prepare shared migration fixture %s: %v\n", fixture, err)
+			os.Exit(1)
+		}
+		code, out, err := runMigrateCommand(root, "--apply")
+		if err != nil || code != 0 || !strings.Contains(out, "migration complete") {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				fmt.Fprintf(os.Stderr, "shared fixture cleanup: %v\n", cleanupErr)
+			}
+			fmt.Fprintf(os.Stderr, "migrate shared fixture %s: code = %d, err = %v\n%s", fixture, code, err, out)
+			os.Exit(1)
+		}
+		if err := makeTreeReadOnly(root); err != nil {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				fmt.Fprintf(os.Stderr, "shared fixture cleanup: %v\n", cleanupErr)
+			}
+			fmt.Fprintf(os.Stderr, "protect shared migration fixture %s: %v\n", fixture, err)
+			os.Exit(1)
+		}
+		e2ePreparedFixtures[fixture] = root
+	}
+
+	code := m.Run()
+	if err := cleanup(); err != nil {
+		fmt.Fprintf(os.Stderr, "shared fixture cleanup: %v\n", err)
+		if code == 0 {
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
+
 // --- the real command path ----------------------------------------------
 
 // runMigrate invokes migrate exactly as `savepoint migrate ...` does: the
@@ -64,7 +126,10 @@ var e2eClock = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 // by running the compiled binary.
 func runMigrate(t *testing.T, args ...string) (int, string, error) {
 	t.Helper()
+	return runMigrateCommand(args...)
+}
 
+func runMigrateCommand(args ...string) (int, string, error) {
 	var out strings.Builder
 	code, err := cmd.RunMigrate(context.Background(), args, &out, func(_ context.Context, opts cmd.MigrateOptions) (int, error) {
 		return migrate.RunCommand(migrate.CommandOptions{
@@ -95,9 +160,76 @@ func migrateFixture(t *testing.T, fixture string) string {
 	return root
 }
 
+func readOnlyMigratedFixture(t *testing.T, fixture string) string {
+	t.Helper()
+	root, ok := e2ePreparedFixtures[fixture]
+	if !ok {
+		t.Fatalf("no shared migrated result for fixture %s", fixture)
+	}
+	if runtime.GOOS != "windows" {
+		return root
+	}
+	copyRoot := filepath.Join(t.TempDir(), fixture)
+	if err := copyTree(root, copyRoot); err != nil {
+		t.Fatalf("copy prepared migrated fixture %s: %v", fixture, err)
+	}
+	return copyRoot
+}
+
+func makeTreeReadOnly(root string) error {
+	var paths []string
+	if err := filepath.WalkDir(root, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	}); err != nil {
+		return err
+	}
+	for i := len(paths) - 1; i >= 0; i-- {
+		info, err := os.Stat(paths[i])
+		if err != nil {
+			return err
+		}
+		if err := os.Chmod(paths[i], info.Mode().Perm()&^0222); err != nil {
+			return fmt.Errorf("chmod %s read-only: %w", paths[i], err)
+		}
+	}
+	return nil
+}
+
+func makeTreeWritable(root string) error {
+	var paths []string
+	if err := filepath.WalkDir(root, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		mode := info.Mode().Perm() | 0200
+		if info.IsDir() {
+			mode |= 0300
+		}
+		if err := os.Chmod(path, mode); err != nil {
+			return fmt.Errorf("chmod %s writable: %w", path, err)
+		}
+	}
+	return nil
+}
+
 // --- AC1: temp directories, real command path, untouched fixtures --------
 
 func TestEndToEnd_bothFixturesMigrateThroughTheCommandPath(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			root := migrateFixture(t, fixture)
@@ -114,10 +246,11 @@ func TestEndToEnd_bothFixturesMigrateThroughTheCommandPath(t *testing.T) {
 }
 
 // TestEndToEnd_frozenFixturesAreNeverMutated is the mechanical half of
-// TEST-04: it snapshots both frozen fixture directories, runs the full
-// preview-and-apply sequence every other test here runs, and asserts the
-// fixtures' bytes and modification times are untouched afterwards.
+// TEST-04: it snapshots both frozen fixture directories, runs preview and
+// apply on fresh temporary copies, and asserts the frozen fixtures' bytes and
+// modification times are untouched afterwards.
 func TestEndToEnd_frozenFixturesAreNeverMutated(t *testing.T) {
+	t.Parallel()
 	before := map[string]map[string]fileFacts{}
 	for _, fixture := range e2eFixtures {
 		before[fixture] = snapshot(t, filepath.Join(fixtureRoot, fixture))
@@ -140,9 +273,10 @@ func TestEndToEnd_frozenFixturesAreNeverMutated(t *testing.T) {
 // --- AC2: the migrated project loads clean ------------------------------
 
 func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			root := migrateFixture(t, fixture)
+			root := readOnlyMigratedFixture(t, fixture)
 
 			index, err := data.LoadV2Index(filepath.Join(root, ".savepoint"))
 			if err != nil {
@@ -158,7 +292,74 @@ func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
 	}
 }
 
+func TestEndToEnd_sharedMigratedResultsAreReadOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		for _, fixture := range e2eFixtures {
+			t.Run(fixture, func(t *testing.T) {
+				shared := e2ePreparedFixtures[fixture]
+				consumer := readOnlyMigratedFixture(t, fixture)
+				probe := filepath.Join(consumer, ".t014-consumer-probe")
+				if err := os.WriteFile(probe, []byte("private copy"), 0644); err != nil {
+					t.Fatalf("consumer copy is not independently writable: %v", err)
+				}
+				if err := os.Remove(probe); err != nil {
+					t.Fatalf("remove consumer probe: %v", err)
+				}
+				if _, err := os.Stat(filepath.Join(shared, ".t014-consumer-probe")); !os.IsNotExist(err) {
+					t.Fatalf("consumer changed shared result: stat error = %v", err)
+				}
+			})
+		}
+		return
+	}
+
+	for _, fixture := range e2eFixtures {
+		t.Run(fixture, func(t *testing.T) {
+			root := e2ePreparedFixtures[fixture]
+			info, err := os.Stat(root)
+			if err != nil {
+				t.Fatalf("stat shared %s root: %v", fixture, err)
+			}
+			if info.Mode().Perm()&0222 != 0 {
+				t.Fatalf("shared %s root is writable: mode = %v", fixture, info.Mode().Perm())
+			}
+			if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				info, err := entry.Info()
+				if err != nil {
+					return err
+				}
+				if info.Mode().Perm()&0222 != 0 {
+					return fmt.Errorf("%s remains writable with mode %v", path, info.Mode().Perm())
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			probe := filepath.Join(root, ".t014-consumer-probe")
+			if err := os.WriteFile(probe, []byte("must not persist"), 0644); err == nil {
+				// A privileged test process can bypass Unix mode bits; remove its
+				// probe and rely on the mode checks above in that environment.
+				if err := os.Remove(probe); err != nil {
+					t.Fatalf("remove privileged write probe: %v", err)
+				}
+			} else if !os.IsPermission(err) {
+				t.Fatalf("probe shared result write: %v", err)
+			}
+			config := filepath.Join(root, ".savepoint", "config.yml")
+			if f, err := os.OpenFile(config, os.O_WRONLY, 0); err == nil {
+				_ = f.Close()
+			} else if !os.IsPermission(err) {
+				t.Fatalf("open shared config for writing: %v", err)
+			}
+		})
+	}
+}
+
 func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			root := copyFixture(t, fixture)
@@ -283,6 +484,7 @@ func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
 }
 
 func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *testing.T) {
+	t.Parallel()
 	root := copyRepositoryWorkingTree(t)
 	beforePreview := snapshot(t, root)
 	code, preview, err := runMigrate(t, root)
@@ -369,9 +571,10 @@ func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *te
 // --- AC3: every reference resolves ---------------------------------------
 
 func TestEndToEnd_everyReferenceResolves(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			index := mustIndex(t, migrateFixture(t, fixture))
+			index := mustIndex(t, readOnlyMigratedFixture(t, fixture))
 
 			for id, task := range index.Tasks {
 				if _, ok := index.Objectives[task.Objective]; !ok {
@@ -416,9 +619,10 @@ func TestEndToEnd_everyReferenceResolves(t *testing.T) {
 // --- AC4: nothing carries clearance the source did not record ------------
 
 func TestEndToEnd_noConvertedRecordCarriesClearance(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			index := mustIndex(t, migrateFixture(t, fixture))
+			index := mustIndex(t, readOnlyMigratedFixture(t, fixture))
 
 			// Neither fixture records a single V1 Check, so a migrated
 			// project that has one invented it.
@@ -453,7 +657,8 @@ func TestEndToEnd_noConvertedRecordCarriesClearance(t *testing.T) {
 // assertion lands on the clearance decision itself rather than stopping at
 // the earlier lifecycle guard.
 func TestEndToEnd_convertedActiveTaskIsNotCompletable(t *testing.T) {
-	index := mustIndex(t, migrateFixture(t, "v1-basic"))
+	t.Parallel()
+	index := mustIndex(t, readOnlyMigratedFixture(t, "v1-basic"))
 
 	taskID := oneActiveTaskID(t, index)
 	task := index.Tasks[taskID]
@@ -488,17 +693,14 @@ const (
 const configRelPath = ".savepoint/config.yml"
 
 func TestEndToEnd_everyFixtureFileHasAnAccountableDestination(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			root := copyFixture(t, fixture)
+			root := readOnlyMigratedFixture(t, fixture)
 
-			// Plan is write-free (TestPlan_performsNoWrite) and deterministic
-			// under a fixed clock and operation ID, so the plan computed here
-			// is the same plan the command recomputes when it applies below.
-			plan := planFor(t, root)
-			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
-				t.Fatalf("migrate --apply: %v\n%s", err, out)
-			}
+			// Planning reads the frozen V1 input without writing it. The shared
+			// converted result was produced from the same fixed clock and ID.
+			plan := planFor(t, filepath.Join(fixtureRoot, fixture, "project"))
 
 			var unaccounted []string
 			for _, file := range loadFixtureFiles(t, fixture) {
@@ -559,13 +761,11 @@ func fateOf(t *testing.T, plan *migrate.ConversionPlan, root, fixture, path stri
 // --- AC6: archives hash equal to the fixture manifest --------------------
 
 func TestEndToEnd_archivedFilesMatchTheFixtureManifestHashes(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			root := copyFixture(t, fixture)
-			plan := planFor(t, root)
-			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
-				t.Fatalf("migrate --apply: %v\n%s", err, out)
-			}
+			root := readOnlyMigratedFixture(t, fixture)
+			manifest := readWrittenManifest(t, root)
 
 			// The manifest is read as the expectation. Nothing here
 			// recomputes a fixture hash and compares it to itself.
@@ -575,7 +775,7 @@ func TestEndToEnd_archivedFilesMatchTheFixtureManifestHashes(t *testing.T) {
 			}
 
 			checked := 0
-			for _, archive := range plan.Archives {
+			for _, archive := range manifest.Archives {
 				want, recorded := expected[archive.SourcePath]
 				if !recorded {
 					continue // not a manifest-listed source (e.g. a test-added file)
@@ -606,7 +806,8 @@ const sharedTaskID = "E01-example/T001-shared"
 // appear as one converted identity and one archive entry, each recording the
 // release it came from, and never collapse onto a single record.
 func TestEndToEnd_recurringSharedTaskIsRecordedPerRelease(t *testing.T) {
-	root := migrateFixture(t, "v1-history")
+	t.Parallel()
+	root := readOnlyMigratedFixture(t, "v1-history")
 	manifest := readWrittenManifest(t, root)
 
 	releases := map[string]string{}
@@ -641,6 +842,7 @@ func TestEndToEnd_recurringSharedTaskIsRecordedPerRelease(t *testing.T) {
 // copy, which is a statement about identity allocation, not about the
 // fixture.
 func TestEndToEnd_recurringSharedTaskAllocatesDistinctGlobalIDs(t *testing.T) {
+	t.Parallel()
 	root := copyFixture(t, "v1-history")
 	reopen(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "E01-Detail.md"),
 		"status: done", "status: in_progress")
@@ -681,9 +883,10 @@ func TestEndToEnd_recurringSharedTaskAllocatesDistinctGlobalIDs(t *testing.T) {
 // --- AC8: legacy facts stay resolvable through v1-to-v2.yml --------------
 
 func TestEndToEnd_legacyFactsAreResolvableThroughTheManifest(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			root := migrateFixture(t, fixture)
+			root := readOnlyMigratedFixture(t, fixture)
 			manifest := readWrittenManifest(t, root)
 
 			archived := map[string]migrate.ManifestArchive{}
@@ -737,7 +940,8 @@ func TestEndToEnd_legacyFactsAreResolvableThroughTheManifest(t *testing.T) {
 // that dependency as a typed legacy prerequisite rather than a fabricated
 // depends_on or a fabricated Check.
 func TestEndToEnd_legacyPrerequisiteIsTyped(t *testing.T) {
-	root := migrateFixture(t, "v1-basic")
+	t.Parallel()
+	root := readOnlyMigratedFixture(t, "v1-basic")
 	manifest := readWrittenManifest(t, root)
 
 	if len(manifest.LegacyPrerequisites) == 0 {
@@ -806,13 +1010,11 @@ const goldenNote = "Converted output of this fixture under the fixed clock and o
 	"a mismatch is a behavior change to review, not a file to refresh."
 
 func TestEndToEnd_goldenConvertedOutput(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
-			root := copyFixture(t, fixture)
-			plan := planFor(t, root)
-			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
-				t.Fatalf("migrate --apply: %v\n%s", err, out)
-			}
+			root := readOnlyMigratedFixture(t, fixture)
+			plan := planFor(t, filepath.Join(fixtureRoot, fixture, "project"))
 
 			got := goldenFile{Fixture: fixture, Note: goldenNote, Files: convertedOutput(t, plan, root)}
 			path := filepath.Join("testdata", "golden", fixture+".yml")
@@ -833,6 +1035,7 @@ func TestEndToEnd_goldenConvertedOutput(t *testing.T) {
 // a second independent migration of the same fixture, under the same injected
 // clock and operation ID, produces identical converted content.
 func TestEndToEnd_goldenIsReproducible(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			first := convertedOutputOf(t, fixture)
@@ -940,6 +1143,7 @@ func writeGolden(t *testing.T, path string, golden goldenFile) {
 // --- AC10: a second full run is a true no-op -----------------------------
 
 func TestEndToEnd_secondFullRunChangesNothing(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			root := migrateFixture(t, fixture)
@@ -966,6 +1170,7 @@ func TestEndToEnd_secondFullRunChangesNothing(t *testing.T) {
 // --- AC11: preview writes nothing ----------------------------------------
 
 func TestEndToEnd_previewWritesNothing(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			for _, args := range [][]string{{}, {"--dry-run"}, {"--apply", "--dry-run"}} {
@@ -1000,6 +1205,7 @@ func TestEndToEnd_previewWritesNothing(t *testing.T) {
 // no Health-Check.md; v1-history has no AGENTS.md. Absence is expected V1
 // shape, not a missing input.
 func TestEndToEnd_absentOptionalArtifactsAreNotFindings(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range e2eFixtures {
 		t.Run(fixture, func(t *testing.T) {
 			root := copyFixture(t, fixture)
@@ -1297,14 +1503,20 @@ func hashFile(t *testing.T, path string) string {
 }
 
 // copyFixture copies fixture's project/ tree into a fresh temporary
-// directory, so every test here writes only under t.TempDir() and the frozen
-// fixtures under internal/data/testdata/migration/ are never touched.
+// directory for any test that needs a mutable project. The frozen fixtures
+// under internal/data/testdata/migration/ are never touched.
 func copyFixture(t *testing.T, fixture string) string {
 	t.Helper()
-	src := filepath.Join(fixtureRoot, fixture, "project")
 	dst := t.TempDir()
+	if err := copyFixtureInto(dst, fixture); err != nil {
+		t.Fatalf("copy fixture %s: %v", fixture, err)
+	}
+	return dst
+}
 
-	err := filepath.WalkDir(src, func(path string, entry os.DirEntry, err error) error {
+func copyFixtureInto(dst, fixture string) error {
+	src := filepath.Join(fixtureRoot, fixture, "project")
+	return filepath.WalkDir(src, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1322,10 +1534,6 @@ func copyFixture(t *testing.T, fixture string) string {
 		}
 		return os.WriteFile(target, content, 0644)
 	})
-	if err != nil {
-		t.Fatalf("copy fixture %s: %v", fixture, err)
-	}
-	return dst
 }
 
 // copyRepositoryWorkingTree copies the repository's working tree, excluding

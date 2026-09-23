@@ -69,6 +69,7 @@ func TestRunCommand_previewAndRecoveryReportAreReadOnlyOnReadable0555Project(t *
 }
 
 func TestRunCommand_applyWriteabilityProbePreservesPreExistingSentinelAndPrefix(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	sentinelPath := filepath.Join(root, ".savepoint-migrate-write-test")
 	prefixPath := filepath.Join(root, ".savepoint-migrate-write-test-occupied")

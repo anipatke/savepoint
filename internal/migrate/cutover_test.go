@@ -23,6 +23,7 @@ func cutoverTestOptions() CutoverPreflightOptions {
 }
 
 func TestPreflightCutover_refusesEveryOperationalCondition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		setup      func(*testing.T) string
@@ -159,6 +160,7 @@ func TestPreflightCutover_refusesEveryOperationalCondition(t *testing.T) {
 }
 
 func TestPreflightCutover_allowsReleaseFreeV2(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "schema_version: 2\n")
 	before := snapshotCutoverTree(t, root)
@@ -174,6 +176,7 @@ func TestPreflightCutover_allowsReleaseFreeV2(t *testing.T) {
 }
 
 func TestPreflightCutover_allowsAcceptedMultiReleaseCandidate(t *testing.T) {
+	t.Parallel()
 	root := writeAcceptedMultiReleaseCandidate(t, 2)
 	before := snapshotCutoverTree(t, root)
 
@@ -188,6 +191,7 @@ func TestPreflightCutover_allowsAcceptedMultiReleaseCandidate(t *testing.T) {
 }
 
 func TestPreflightCutover_translatesCanonicalReleaseBlockers(t *testing.T) {
+	t.Parallel()
 	root := writeAcceptedMultiReleaseCandidate(t, 2)
 	releasePath := filepath.Join(root, ".savepoint", "releases", "R002-release-2", "Release.md")
 	content, err := os.ReadFile(releasePath)
@@ -216,6 +220,7 @@ func TestPreflightCutover_translatesCanonicalReleaseBlockers(t *testing.T) {
 }
 
 func TestPreflightCutover_isReadOnlyAcrossV1V2AndRecovery(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		setup func(*testing.T) string

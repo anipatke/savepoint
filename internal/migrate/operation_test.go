@@ -74,6 +74,7 @@ func assertRecoverable(t *testing.T, root, relPath string, op *Operation) {
 }
 
 func TestCreateOperation_layoutAndCreateOnlyGuard(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 
 	for _, dir := range []string{op.Dir, filepath.Join(op.Dir, backupDirName), filepath.Join(op.Dir, stagingDirName)} {
@@ -110,6 +111,7 @@ func TestCreateOperation_layoutAndCreateOnlyGuard(t *testing.T) {
 // path, because they are all rooted under the operation's own directory,
 // which Inventory already excludes from every source walk.
 func TestCreateOperation_pathNeverFallsInsideOperationDir(t *testing.T) {
+	t.Parallel()
 	_, relPath, op := newTestOperation(t, ActionReplace)
 
 	for _, p := range []string{op.BackupPath(relPath), op.StagingPath(relPath), op.journalPath()} {
@@ -123,6 +125,7 @@ func TestCreateOperation_pathNeverFallsInsideOperationDir(t *testing.T) {
 }
 
 func TestOperation_backupCapturesAndVerifies(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 
 	if err := op.Backup(root, relPath); err != nil {
@@ -159,6 +162,7 @@ func TestOperation_backupCapturesAndVerifies(t *testing.T) {
 // live file, the journal, and any partial backup copy exactly as if nothing
 // had been attempted.
 func TestOperation_backupAbortsBeforeAnyReplacementOnHashMismatch(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 
 	if err := os.WriteFile(filepath.Join(root, relPath), []byte("tampered after the operation was created\n"), 0644); err != nil {
@@ -183,6 +187,7 @@ func TestOperation_backupAbortsBeforeAnyReplacementOnHashMismatch(t *testing.T) 
 }
 
 func TestOperation_replaceLifecycle_recoverableAtEveryStep(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 	assertRecoverable(t, root, relPath, op) // before anything: original is live
 
@@ -249,6 +254,7 @@ func TestOperation_replaceLifecycle_recoverableAtEveryStep(t *testing.T) {
 }
 
 func TestOperation_removeLifecycle_recoverableAtEveryStep(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionRemove)
 	assertRecoverable(t, root, relPath, op)
 
@@ -283,6 +289,7 @@ func TestOperation_removeLifecycle_recoverableAtEveryStep(t *testing.T) {
 // is what makes assertRecoverable's invariant structural rather than
 // incidental.
 func TestOperation_stepsRefuseOutOfOrder(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 
 	if err := op.WriteStaged(relPath, []byte(opTestReplacement)); err == nil {
@@ -305,6 +312,7 @@ func TestOperation_stepsRefuseOutOfOrder(t *testing.T) {
 // and WriteStaged must refuse before writing anything, leaving no partial
 // staged file and the entry's state unchanged.
 func TestOperation_writeStagedRejectsContentNotMatchingPlannedHash(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 	if err := op.Backup(root, relPath); err != nil {
 		t.Fatalf("Backup() error = %v", err)
@@ -328,6 +336,7 @@ func TestOperation_writeStagedRejectsContentNotMatchingPlannedHash(t *testing.T)
 }
 
 func TestOperation_createInstallRejectsOccupiedDestinationAndPreservesBytes(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	relPath := "new.md"
 	content := []byte("planned output\n")
@@ -372,6 +381,7 @@ func TestOperation_createInstallRejectsOccupiedDestinationAndPreservesBytes(t *t
 // cannot even create its temporary file. The original must survive untouched
 // and recoverable, and the entry must not advance past staged.
 func TestOperation_installFailureLeavesLiveFileIntact(t *testing.T) {
+	t.Parallel()
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores the write-permission bit this test depends on")
 	}
@@ -412,6 +422,7 @@ func TestOperation_installFailureLeavesLiveFileIntact(t *testing.T) {
 // mark the entry verified — and the original bytes must still be recoverable
 // from the backup even though the live path is now wrong.
 func TestOperation_verifyDetectsCorruptedInstall(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 	if err := op.Backup(root, relPath); err != nil {
 		t.Fatalf("Backup() error = %v", err)
@@ -449,6 +460,7 @@ func TestOperation_verifyDetectsCorruptedInstall(t *testing.T) {
 }
 
 func TestPendingOperation_noneExists(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".savepoint"), 0755); err != nil {
 		t.Fatal(err)
@@ -464,6 +476,7 @@ func TestPendingOperation_noneExists(t *testing.T) {
 }
 
 func TestPendingOperation_findsIncompleteOperationAndNamesRecovery(t *testing.T) {
+	t.Parallel()
 	root, relPath, op := newTestOperation(t, ActionReplace)
 	if err := op.Backup(root, relPath); err != nil {
 		t.Fatalf("Backup() error = %v", err)
@@ -487,6 +500,7 @@ func TestPendingOperation_findsIncompleteOperationAndNamesRecovery(t *testing.T)
 }
 
 func TestPendingOperation_multipleOperationsIsANamedDiagnosticNotAChoice(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if _, err := CreateOperation(root, "op-a", nil, nil, time.Now()); err != nil {
 		t.Fatalf("CreateOperation(op-a) error = %v", err)
@@ -512,6 +526,7 @@ func TestPendingOperation_multipleOperationsIsANamedDiagnosticNotAChoice(t *test
 // future change to DiscoverV2Records), decoding it would fail loudly instead
 // of this test passing for the wrong reason.
 func TestLoadV2Index_ignoresMigrationOperationDirEntirely(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	savepointRoot := filepath.Join(root, ".savepoint")
 	if err := os.MkdirAll(savepointRoot, 0755); err != nil {

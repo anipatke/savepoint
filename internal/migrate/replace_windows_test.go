@@ -62,18 +62,16 @@ func errnoName(err error) string {
 	}
 }
 
-// TestMain lets the test binary re-execute itself as the "other process" the
-// acceptance criteria name: a real second process holding a handle with a
-// chosen share mode, and a real process that dies between writing the
-// temporary file and replacing the destination.
-func TestMain(m *testing.M) {
+// Windows helper invocations must exit during package initialization. The
+// external end_to_end_test.go TestMain owns shared fixture preparation; this
+// dispatch keeps child processes from preparing fixtures they never use.
+func init() {
 	if path := os.Getenv(envHoldPath); path != "" {
 		os.Exit(runHoldOpen(path, os.Getenv(envHoldShare)))
 	}
 	if dir := os.Getenv(envCrashDir); dir != "" {
 		os.Exit(runCrashBeforeReplace(dir))
 	}
-	os.Exit(m.Run())
 }
 
 // runHoldOpen opens path with the requested share mode, announces readiness on

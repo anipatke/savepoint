@@ -89,6 +89,7 @@ func assertNoPendingOperation(t *testing.T, root string) {
 // --- fresh apply happy path --------------------------------------------
 
 func TestApply_v1Basic_endToEnd(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 	if !plan.Appliable {
@@ -165,6 +166,7 @@ func TestApply_v1Basic_endToEnd(t *testing.T) {
 }
 
 func TestApply_v1History_distinctGlobalIDsAcrossReleases(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-history")
 	plan := mustPlan(t, root)
 	if !plan.Appliable {
@@ -208,6 +210,7 @@ func TestApply_v1History_distinctGlobalIDsAcrossReleases(t *testing.T) {
 // --- refusals write nothing ---------------------------------------------
 
 func TestApply_notAppliable_writesNothing(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 
 	// Corrupt an active record's status into something unrecognized, which
@@ -233,6 +236,7 @@ func TestApply_notAppliable_writesNothing(t *testing.T) {
 }
 
 func TestApply_planConflict_writesNothing(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	if err := os.MkdirAll(filepath.Join(root, ".savepoint", "migrations"), 0755); err != nil {
 		t.Fatal(err)
@@ -262,6 +266,7 @@ func TestApply_planConflict_writesNothing(t *testing.T) {
 // Plan now catches this as a named ConflictDestinationExists, so Apply
 // refuses before creating any operation at all.
 func TestApply_preExistingCreateDestination_refusesCleanly(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	// v1-basic's PRD.md relocates to Idea.md; a user who started early
 	// occupies that destination before migrating.
@@ -288,6 +293,7 @@ func TestApply_preExistingCreateDestination_refusesCleanly(t *testing.T) {
 // any additive destination after Plan returns; each platform primitive must
 // refuse that late destination and preserve the user's bytes.
 func TestApply_lateCreateDestinationsAreCreateOnly(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		path func(*ConversionPlan) string
@@ -352,6 +358,7 @@ func TestApply_lateCreateDestinationsAreCreateOnly(t *testing.T) {
 }
 
 func TestApply_sourceChangedSincePreview_conflictNamesPath(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 
@@ -371,6 +378,7 @@ func TestApply_sourceChangedSincePreview_conflictNamesPath(t *testing.T) {
 // --- interruption and resume ---------------------------------------------
 
 func TestApply_interruptedBeforeActivation_stillLoadsAsV1(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 
@@ -403,6 +411,7 @@ func TestApply_interruptedBeforeActivation_stillLoadsAsV1(t *testing.T) {
 }
 
 func TestApply_interruptedAfterActivation_loadsAsV2(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 
@@ -432,6 +441,7 @@ func TestApply_interruptedAfterActivation_loadsAsV2(t *testing.T) {
 }
 
 func TestApply_resumesAfterInterruption_convergesToSameFinalState(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 
@@ -603,6 +613,7 @@ func TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits(t *test
 }
 
 func TestApply_resumeAfterUserEditedInstalledFile_reportsConflict(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 
@@ -648,6 +659,7 @@ func TestApply_resumeAfterUserEditedInstalledFile_reportsConflict(t *testing.T) 
 // --- idempotence -----------------------------------------------------
 
 func TestApply_secondFullRun_isNoOp(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	plan := mustPlan(t, root)
 	if _, err := Apply(root, plan); err != nil {
@@ -674,6 +686,7 @@ func TestApply_secondFullRun_isNoOp(t *testing.T) {
 // --- migrations/ coexistence -------------------------------------------
 
 func TestApply_preservesExistingMigrationsDirectoryContent(t *testing.T) {
+	t.Parallel()
 	root := copyFixtureProject(t, "v1-basic")
 	if err := os.MkdirAll(filepath.Join(root, ".savepoint", "migrations"), 0755); err != nil {
 		t.Fatal(err)

@@ -1,12 +1,24 @@
-.PHONY: build test run clean build-linux build-darwin build-windows build-all build-npm dist verify-dist package-check smoke-test ci install-hooks
+.PHONY: build test test-focused test-fast test-full run clean build-linux build-darwin build-windows build-all build-npm dist verify-dist package-check smoke-test ci install-hooks
 
 VERSION ?=
 
 build:
 	go run ./internal/buildtool -version "$(VERSION)" build
 
+# Full host-platform Go suite. JSON output feeds the package/test timing summary.
 test:
-	go test ./...
+	go run ./internal/buildtool test -json -count=1 ./...
+
+# Iteration aid: make test-focused TEST='TestName' [PKGS=./package].
+test-focused:
+	go run ./internal/buildtool focused-test "$(TEST)" $(if $(PKGS),$(PKGS),./...)
+
+# Ordinary Task handoff gate. T013's three expensive migration scenarios stay in full.
+test-fast:
+	go run ./internal/buildtool test -json -count=1 -skip '^(TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability|TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits|TestEndToEnd_goldenIsReproducible)$$' ./...
+
+# Migration/platform-sensitive Task and Objective/Release integration gate.
+test-full: test build-all
 
 run:
 	go run main.go
@@ -41,7 +53,7 @@ package-check: build-npm
 smoke-test:
 	go run ./internal/buildtool -version "$(VERSION)" smoke-test
 
-ci: test build dist package-check
+ci: test-full build dist package-check
 
 install-hooks:
 	git config core.hooksPath scripts/git-hooks

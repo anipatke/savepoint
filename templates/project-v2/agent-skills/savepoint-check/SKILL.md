@@ -40,6 +40,10 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 7. Record advisory observations, including `STYLE` guardrail findings, as non-blocking; do not let them change the result.
 8. Stop. Do not repair implementation, rewrite acceptance criteria, or update Design as part of this run.
 
+## Verification Gates
+
+A requested Task Check uses Quick evidence and remains optional; it does not replace handoff gates or mandatory integration evidence. Full Objective and Release Checks use Full evidence and require current successful `make test-full` evidence. In this repository, CI runs `make ci`, which includes the full gate. A recorded full result is reusable only for a metadata-only correction with the original run documented and code, tests, fixtures, dependencies, and gate definitions proven unchanged since that run; otherwise require a fresh full run.
+
 ## Write Boundary
 
 This skill may write: the Check record, Issues, evaluation metadata, and
