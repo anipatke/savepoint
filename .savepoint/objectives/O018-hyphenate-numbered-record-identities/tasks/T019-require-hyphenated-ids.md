@@ -3,7 +3,6 @@ id: T019
 title: Require and generate hyphenated IDs
 objective: O018
 status: planned
-depends_on: [{task: T018, requires: clear}]
 owner_validation: {required: false}
 planned_by: {role: planner, session: o018-replan-20260923}
 ---
