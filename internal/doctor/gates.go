@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,23 +18,6 @@ type GateResult struct {
 	Passed   bool
 	ExitCode int
 	Output   string
-}
-
-// RunQualityGates executes configured quality gates (lint, typecheck, test).
-func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult {
-	deps := doctorDependencies(overrides)
-	configPath := filepath.Join(root, "config.yml")
-	cfg, err := deps.ConfigReader.Read(configPath)
-	if err != nil {
-		return []GateResult{{
-			Name:    "config",
-			Command: "",
-			Passed:  false,
-			Output:  fmt.Sprintf("cannot read config: %v", err),
-		}}
-	}
-
-	return runConfiguredQualityGates(root, cfg)
 }
 
 func runConfiguredQualityGates(root string, cfg *data.Config) []GateResult {

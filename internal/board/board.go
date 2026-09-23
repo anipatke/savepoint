@@ -12,9 +12,8 @@ import (
 )
 
 // Filters is the board's live filter surface. Objective is the only filter
-// ordinary command routing accepts; Release and Epic remain on this internal
-// compatibility shape only so the transitional V1 model and its focused unit
-// tests can be retired independently in the migration-only follow-up.
+// the V2 board accepts; Release and Epic are the V1 flags cmd still parses,
+// carried here only so runWithFilters can refuse them by name.
 type Filters struct {
 	Release   string
 	Epic      string

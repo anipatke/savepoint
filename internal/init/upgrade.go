@@ -161,10 +161,8 @@ type assetWriter func(path string, content []byte) error
 // A malformed or unsupported schema_version refuses before the tree is ever
 // walked, naming the config path and touching nothing. A legacy V1 project's
 // upgrade is a read-only informational refusal naming savepoint migrate as the
-// route to V2. The v1Templates argument remains only so migration/history
-// tests can keep their explicit compatibility boundary; production passes nil.
-func UpgradeProjectAssets(v1Templates, v2Templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
-	_ = v1Templates
+// route to V2.
+func UpgradeProjectAssets(v2Templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
 	absTarget, err := filepath.Abs(targetDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot resolve target directory: %w", err)
@@ -211,14 +209,6 @@ func UpgradeProjectAssets(v1Templates, v2Templates fs.FS, targetDir string, dryR
 	// Retirement is enabled only after the project itself declares V2. It
 	// archives the old triggerable assets before installing the four V2 skills.
 	return upgradeProjectAssets(v2Templates, targetDir, dryRun, force, AtomicWrite, true)
-}
-
-// upgradeAssetsFromTree applies the upgrade policy over one already-selected
-// template tree. It is the shared core both schema branches of
-// UpgradeProjectAssets walk, and the entry point the upgrade unit tests drive
-// directly to exercise that policy independent of version dispatch.
-func upgradeAssetsFromTree(templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
-	return upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite, false)
 }
 
 // upgradeProjectAssets applies the upgrade policy over one already-selected
@@ -271,17 +261,6 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 	write = beforeFirstWrite(write, func() error { return refusePendingMigration(absTarget) })
 
 	var report UpgradeReport
-
-	// Retire the legacy generic audit skill before installing the split skills,
-	// so an interrupted upgrade never leaves the old alias triggerable next to
-	// its replacements.
-	migration, err := migrateLegacyAuditSkill(absTarget, dryRun, retireV1, write)
-	if err != nil {
-		return nil, err
-	}
-	if migration != nil {
-		report.Actions = append(report.Actions, *migration)
-	}
 
 	// Retire the nine V1 skills before installing the V2 assets, so an
 	// interrupted upgrade never leaves both routing vocabularies triggerable at
@@ -642,8 +621,8 @@ func writeSidecar(targetPath, path, suffix string, content []byte, dryRun bool, 
 
 // isPackageSkillAsset reports whether a template path is a package-owned skill
 // asset that upgrade refreshes in place: a skill entrypoint, or a shared
-// reference such as agent-skills/references/audit-method.md that the split
-// audit skills load but that never triggers on its own.
+// reference such as agent-skills/references/check-method.md that a V2 skill
+// loads but that never triggers on its own.
 func isPackageSkillAsset(path string) bool {
 	if !strings.HasPrefix(path, "agent-skills/") {
 		return false

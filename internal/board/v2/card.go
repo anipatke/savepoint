@@ -75,14 +75,6 @@ func groupTaskCards(index *data.V2Index) map[data.ColumnType][]TaskCard {
 	return groupTaskCardsForRelease(index, "", "")
 }
 
-// groupTaskCardsFor groups the cards for the Tasks in view: the ones the
-// selected Objective owns, or every Task when no Objective is selected. Which
-// Tasks those are is taskIDsInView's answer, read from index.ObjectiveTasks;
-// grouping them by status is this function's only other job.
-func groupTaskCardsFor(index *data.V2Index, objectiveID string) map[data.ColumnType][]TaskCard {
-	return groupTaskCardsForRelease(index, "", objectiveID)
-}
-
 // groupTaskCardsForRelease is the card projection for a Release context. The
 // release filter is resolved before cards are built, so rendering still sees
 // only already-resolved TaskCard values and never performs membership work.

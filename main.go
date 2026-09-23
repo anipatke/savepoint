@@ -151,9 +151,8 @@ func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) err
 
 	// V1 projects are deliberately refused inside UpgradeProjectAssets; the
 	// explicit migrate command is the only path allowed to change their
-	// workflow. The first argument is retained for the internal migration/history
-	// compatibility boundary, but production never embeds or selects V1 assets.
-	report, err := savepointinit.UpgradeProjectAssets(nil, subV2, opts.Dir, opts.DryRun, opts.Force)
+	// workflow.
+	report, err := savepointinit.UpgradeProjectAssets(subV2, opts.Dir, opts.DryRun, opts.Force)
 	if err != nil {
 		// A failure part-way through still applied whatever came before it.
 		// Print that work before the error so the user knows what changed.

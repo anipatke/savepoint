@@ -45,17 +45,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	}
 
 	// --- a technical Task closes under checker authority once current ---
-	c001, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-001"},
-		Result:          CheckResultClear,
-		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		ExecutedSession: "build-001",
-		CheckedAt:       checkedAt,
-		Body:            "\n\n# Check\n\nT-001 reviewed clean.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(C-001) error = %v", err)
-	}
+	c001 := writeScenarioCheck(t, root, "C-001", CheckScopeTask, "T-001", "sess-1", checkedAt, "")
 
 	index, err = LoadV2Index(root)
 	if err != nil {
@@ -84,17 +74,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	}
 
 	// --- an owner-validated Task waits until the owner accepts ---
-	c002, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-002"},
-		Result:          CheckResultClear,
-		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-1"},
-		ExecutedSession: "build-001",
-		CheckedAt:       checkedAt,
-		Body:            "\n\n# Check\n\nT-002 reviewed clean.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(C-002) error = %v", err)
-	}
+	c002 := writeScenarioCheck(t, root, "C-002", CheckScopeTask, "T-002", "sess-1", checkedAt, "")
 
 	index, err = LoadV2Index(root)
 	if err != nil {
@@ -143,18 +123,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	}
 
 	// --- a rerun supersedes the prior acceptance and freshness ---
-	_, err = CreateCheckV2(root, index, NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeTask, ID: "T-002"},
-		Result:          CheckResultClear,
-		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "sess-2"},
-		ExecutedSession: "build-001",
-		CheckedAt:       checkedAt.Add(24 * time.Hour),
-		Supersedes:      c002.ID,
-		Body:            "\n\n# Check\n\nT-002 re-reviewed after a rerun.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(rerun) error = %v", err)
-	}
+	writeScenarioCheck(t, root, "C-003", CheckScopeTask, "T-002", "sess-2", checkedAt.Add(24*time.Hour), c002.ID)
 
 	index, err = LoadV2Index(root)
 	if err != nil {
@@ -215,15 +184,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	}
 
 	// --- close T-001 under checker authority ---
-	c001, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
-		ExecutedSession: "build-001",
-		Body:            "\n\n# Check\n\nT-001 reviewed clean.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(C-001) error = %v", err)
-	}
+	c001 := writeScenarioCheck(t, root, "C-001", CheckScopeTask, "T-001", "sess-1", checkedAt, "")
 	index, err = LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
@@ -247,15 +208,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	co1, err := CreateCheckV2(root, index, NewCheckV2{
-		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O-001"}, Result: CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-1"}, CheckedAt: checkedAt,
-		ExecutedSession: "build-001",
-		Body:            "\n\n# Check\n\nO-001 integration reviewed.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(CO1) error = %v", err)
-	}
+	co1 := writeScenarioCheck(t, root, "C-002", CheckScopeObjective, "O-001", "sess-1", checkedAt, "")
 	index, err = LoadV2Index(root)
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
@@ -299,23 +252,13 @@ func TestE44_EpicScenario(t *testing.T) {
 
 	// --- an Issue observed against O-001's integration Check resolves as
 	//     verified proof, using that same Check ---
-	issue, err := CreateIssueV2(root, index, NewIssueV2{
-		Title: "Latency regression", Type: IssueTypeDefect,
-		Origin: IssueOrigin{Kind: IssueOriginCheck, Check: co1.ID, Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"}, At: checkedAt},
-		Checks: []string{co1.ID},
-		Body:   "\n\n# Issue\n\nObserved during integration review.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateIssueV2() error = %v", err)
-	}
-	issue.Status = IssueStatusResolved
-	issue.Resolution = &IssueResolution{
-		Disposition: IssueDispositionVerified, Check: co1.ID,
-		Actor: Actor{Role: ActorRoleChecker, Session: "sess-1"}, At: checkedAt,
-	}
-	if err := WriteIssueV2(issue); err != nil {
-		t.Fatalf("WriteIssueV2(I-001 verified) error = %v", err)
-	}
+	issueID := "I-001"
+	testutil.WriteFile(t, filepath.Join(root, v2IssuesDirName, issueID+"-latency-regression.md"),
+		"---\nid: "+issueID+"\ntitle: \"Latency regression\"\ntype: defect\nstatus: resolved\n"+
+			"source: {kind: check, check: "+co1.ID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
+			"checks: ["+co1.ID+"]\n"+
+			"resolution: {disposition: verified, check: "+co1.ID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
+			"---\n\n# Issue\n\nObserved during integration review.\n")
 
 	index, err = LoadV2Index(root)
 	if err != nil {
@@ -337,15 +280,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	// --- a later Objective-scoped Check leaves O-001's own clearance stale
 	//     (freshness still names the superseded Check) and the Issue's
 	//     verified proof superseded, without rewriting any record ---
-	_, err = CreateCheckV2(root, index, NewCheckV2{
-		Scope: CheckScope{Kind: CheckScopeObjective, ID: "O-001"}, Result: CheckResultClear,
-		CheckedBy: Actor{Role: ActorRoleChecker, Session: "sess-2"}, CheckedAt: checkedAt.Add(24 * time.Hour),
-		ExecutedSession: "build-001",
-		Supersedes:      co1.ID, Body: "\n\n# Check\n\nO-001 re-reviewed after a rerun.\n",
-	})
-	if err != nil {
-		t.Fatalf("CreateCheckV2(rerun) error = %v", err)
-	}
+	writeScenarioCheck(t, root, "C-003", CheckScopeObjective, "O-001", "sess-2", checkedAt.Add(24*time.Hour), co1.ID)
 
 	index, err = LoadV2Index(root)
 	if err != nil {
@@ -356,7 +291,27 @@ func TestE44_EpicScenario(t *testing.T) {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O-001", objectiveProblems)
 	}
 	issueProblems := InspectIssueConsistency(index)
-	if len(issueProblems) != 1 || issueProblems[0].Kind != IssueConsistencyProofSuperseded || issueProblems[0].Issue != issue.ID {
-		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming %s", issueProblems, issue.ID)
+	if len(issueProblems) != 1 || issueProblems[0].Kind != IssueConsistencyProofSuperseded || issueProblems[0].Issue != issueID {
+		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming %s", issueProblems, issueID)
 	}
+}
+
+// writeScenarioCheck writes one CLEAR Check record as a checker session would
+// author it, loads it back through the strict decoder, and returns it so the
+// scenario can name its ID in later evidence.
+func writeScenarioCheck(t *testing.T, root, id string, kind CheckScopeKind, scopeID, session string, at time.Time, supersedes string) *CheckV2 {
+	t.Helper()
+	content := "---\nid: " + id + "\nscope: {kind: " + string(kind) + ", id: " + scopeID + "}\nresult: CLEAR\n" +
+		"checked_by: {role: checker, session: " + session + "}\nexecuted_session: build-001\nchecked_at: '" + at.Format(time.RFC3339) + "'\n"
+	if supersedes != "" {
+		content += "supersedes: " + supersedes + "\n"
+	}
+	content += "---\n\n# Check\n\n" + scopeID + " reviewed.\n"
+	relPath := filepath.Join(v2ChecksDirName, id+".md")
+	check, err := DecodeCheckV2(relPath, content)
+	if err != nil {
+		t.Fatalf("DecodeCheckV2(%s) error = %v", id, err)
+	}
+	testutil.WriteFile(t, filepath.Join(root, relPath), content)
+	return check
 }

@@ -2,7 +2,6 @@ package doctor
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
@@ -30,46 +29,6 @@ type DiagnosticReport struct {
 	Issues        *IssuePosture
 	Gates         QualityGateReport
 	EpicFilter    string
-}
-
-// RunAllChecks is the compatibility report for migration/history fixtures and
-// legacy doctor unit coverage. Live command execution uses RunV2Checks below;
-// keeping this adapter named and documented prevents an accidental call from
-// looking like the V2 runtime's health boundary. The
-// releases/epics/tasks structural checks below are V1's own directory shape;
-// a V2 project has no releases directory by design and CheckProject already
-// reports its single structural diagnostic (see CheckProject), so those
-// checks run only when the project is not V2 — never for a schema this
-// project's own config declares it isn't using.
-func RunAllChecks(root string, epicFilter string, overrides ...DoctorDependencies) *DiagnosticReport {
-	deps := doctorDependencies(overrides)
-	report := &DiagnosticReport{
-		EpicFilter: epicFilter,
-	}
-
-	report.ConfigCheck = CheckConfig(root)
-	report.RouterCheck = CheckRouter(root, epicFilter)
-	report.Migration = CheckMigration(root)
-	project, projectProblems := loadProjectChecks(root, deps)
-	report.Project = projectProblems
-	releaseDiagnostics := releaseDiagnosticsForProject(project)
-	report.Releases = releaseDiagnostics.Problems
-	report.ReleaseNotes = releaseDiagnostics.Notes
-
-	version, _ := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
-	if version != data.SchemaVersionV2 {
-		report.Structure = CheckStructure(root, epicFilter)
-		report.Dependencies = CheckDependencies(root, epicFilter)
-		report.AuditState = CheckAuditState(root)
-		report.Orphans = CheckOrphans(root)
-		report.Defects = CheckDefects(root)
-	}
-
-	report.AuditRegister = CheckAuditRegister(root)
-	report.Issues = IssuePostureReport(root)
-	report.Gates.Results = RunQualityGates(root, deps)
-
-	return report
 }
 
 // HealthCategory is one of the four ways doctor reports a finding: a record
@@ -348,7 +307,7 @@ func printProblems(b *strings.Builder, category string, problems []Problem) {
 	b.WriteString("\n")
 }
 
-// printIssuePosture prints the Issue backlog counts IssuePostureReport
+// printIssuePosture prints the Issue backlog counts RunV2Checks
 // derived from the loaded index. An open or in_progress Issue is advisory: it
 // is never printed as a problem and never affects HasProblems.
 func printIssuePosture(b *strings.Builder, posture *IssuePosture) {

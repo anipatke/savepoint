@@ -1,7 +1,6 @@
 package data
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -65,8 +64,4 @@ type Task struct {
 	ComplexityReason string         `yaml:"complexity_reason,omitempty"`
 	Path             string         `yaml:"-"`
 	Mtime            time.Time      `yaml:"-"`
-}
-
-func (t Task) String() string {
-	return fmt.Sprintf("Task(%s)", t.ID)
 }

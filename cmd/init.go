@@ -57,7 +57,3 @@ func ParseInitArgs(args []string) (InitOptions, bool, error) {
 
 	return options, false, nil
 }
-
-func InitNotImplemented(context.Context, InitOptions) error {
-	return ErrInitNotImplemented
-}

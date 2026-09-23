@@ -675,10 +675,6 @@ func (m *Model) noteStatus(message string) {
 	m.StatusMessage += "; " + message
 }
 
-func restoredObjective(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool) string {
-	return restoredObjectiveForRelease(m, snapshot, state, wasLoaded, "")
-}
-
 func restoredObjectiveForRelease(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool, releaseID string) string {
 	if m.ObjectiveFilter != "" || !wasLoaded {
 		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
@@ -699,10 +695,6 @@ func restoredObjectiveForRelease(m Model, snapshot reloadSnapshot, state Project
 		}
 	}
 	return nearestObjectiveForRelease(state, m.ObjectiveCursor, releaseID)
-}
-
-func nearestObjective(state ProjectState, previousCursor int) string {
-	return nearestObjectiveForRelease(state, previousCursor, "")
 }
 
 func nearestObjectiveForRelease(state ProjectState, previousCursor int, releaseID string) string {

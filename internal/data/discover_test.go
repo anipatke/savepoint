@@ -11,21 +11,6 @@ import (
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
-func TestFindSavepointRoot(t *testing.T) {
-	d := NewDiscover()
-	savepointRoot := createDiscoveryFixture(t)
-	start := filepath.Join(filepath.Dir(savepointRoot), "nested", "child")
-	testutil.MkdirAll(t, start)
-
-	root, err := d.FindSavepointRoot(start)
-	if err != nil {
-		t.Fatalf("FindSavepointRoot() error = %v", err)
-	}
-	if root != savepointRoot {
-		t.Errorf("FindSavepointRoot() = %v, want %v", root, savepointRoot)
-	}
-}
-
 func TestListReleases(t *testing.T) {
 	d := NewDiscover()
 	root := createDiscoveryFixture(t)
@@ -40,35 +25,6 @@ func TestListReleases(t *testing.T) {
 	}
 	if releases[0].ID != "v1" || releases[1].ID != "v2" {
 		t.Errorf("ListReleases() IDs = %v, want [v1 v2]", []string{releases[0].ID, releases[1].ID})
-	}
-}
-
-func TestListRootDirs(t *testing.T) {
-	d := NewDiscover()
-	root := t.TempDir()
-	testutil.MkdirAll(t, filepath.Join(root, "beta"))
-	testutil.MkdirAll(t, filepath.Join(root, "alpha"))
-	testutil.WriteFile(t, filepath.Join(root, "notes.txt"), "test")
-
-	dirs, err := d.ListRootDirs(root)
-	if err != nil {
-		t.Fatalf("ListRootDirs() error = %v", err)
-	}
-
-	if len(dirs) != 2 || dirs[0] != "alpha" || dirs[1] != "beta" {
-		t.Fatalf("ListRootDirs() = %v, want [alpha beta]", dirs)
-	}
-}
-
-func TestListRootDirsRejectsFile(t *testing.T) {
-	d := NewDiscover()
-	root := t.TempDir()
-	path := filepath.Join(root, "not-dir")
-	testutil.WriteFile(t, path, "test")
-
-	_, err := d.ListRootDirs(path)
-	if err == nil {
-		t.Fatal("ListRootDirs() error = nil, want not directory error")
 	}
 }
 

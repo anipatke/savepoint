@@ -37,16 +37,13 @@ func schemaProject(t *testing.T, config string) string {
 	return dir
 }
 
-// v1v2Templates returns two distinct, easily told-apart template trees, so a
-// test can prove which one an upgrade actually walked.
-func v1v2Templates() (fstest.MapFS, fstest.MapFS) {
-	v1 := fstest.MapFS{
-		"agent-skills/savepoint-draft-prd/SKILL.md": &fstest.MapFile{Data: []byte("# V1 skill")},
-	}
-	v2 := fstest.MapFS{
+// v1v2Templates returns a small V2 template tree distinct from any real V2
+// skill name, so a test can tell a walked install apart from one it did not
+// expect.
+func v1v2Templates() fstest.MapFS {
+	return fstest.MapFS{
 		"agent-skills/savepoint-idea/SKILL.md": &fstest.MapFile{Data: []byte("# V2 skill")},
 	}
-	return v1, v2
 }
 
 // dirSnapshot records every file's content under dir, keyed by path relative
@@ -150,10 +147,10 @@ func dirDiff(t *testing.T, a, b string) string {
 
 func TestUpgradeProjectAssets_refusesV1WithoutMutation(t *testing.T) {
 	dir := schemaProject(t, "")
-	v1, v2 := v1v2Templates()
+	v2 := v1v2Templates()
 	before := dirSnapshot(t, dir)
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -169,18 +166,15 @@ func TestUpgradeProjectAssets_refusesV1WithoutMutation(t *testing.T) {
 
 func TestUpgradeProjectAssets_selectsV2TreeForSchemaVersion2(t *testing.T) {
 	dir := schemaProject(t, "schema_version: 2\n")
-	v1, v2 := v1v2Templates()
+	v2 := v1v2Templates()
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-idea", "SKILL.md")); err != nil {
 		t.Errorf("V2 skill not installed: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-draft-prd", "SKILL.md")); !os.IsNotExist(err) {
-		t.Errorf("V1 skill installed on a V2 project, stat err = %v", err)
 	}
 
 	for _, e := range report.Actions {
@@ -192,9 +186,9 @@ func TestUpgradeProjectAssets_selectsV2TreeForSchemaVersion2(t *testing.T) {
 
 func TestUpgradeProjectAssets_v1ProjectCarriesMigrateRouteNote(t *testing.T) {
 	dir := schemaProject(t, "")
-	v1, v2 := v1v2Templates()
+	v2 := v1v2Templates()
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -215,10 +209,10 @@ func TestUpgradeProjectAssets_v1ProjectCarriesMigrateRouteNote(t *testing.T) {
 
 func TestUpgradeProjectAssets_malformedSchemaVersionRefusesCleanly(t *testing.T) {
 	dir := schemaProject(t, "schema_version: [not, a, scalar]\n")
-	v1, v2 := v1v2Templates()
+	v2 := v1v2Templates()
 	before := dirSnapshot(t, dir)
 
-	_, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	_, err := UpgradeProjectAssets(v2, dir, false, false)
 	if !errors.Is(err, data.ErrMalformedSchemaVersion) {
 		t.Fatalf("err = %v, want ErrMalformedSchemaVersion", err)
 	}
@@ -235,10 +229,10 @@ func TestUpgradeProjectAssets_malformedSchemaVersionRefusesCleanly(t *testing.T)
 
 func TestUpgradeProjectAssets_unsupportedSchemaVersionRefusesCleanly(t *testing.T) {
 	dir := schemaProject(t, "schema_version: 99\n")
-	v1, v2 := v1v2Templates()
+	v2 := v1v2Templates()
 	before := dirSnapshot(t, dir)
 
-	_, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	_, err := UpgradeProjectAssets(v2, dir, false, false)
 	if !errors.Is(err, data.ErrUnsupportedSchemaVersion) {
 		t.Fatalf("err = %v, want ErrUnsupportedSchemaVersion", err)
 	}
@@ -257,10 +251,10 @@ func TestUpgradeProjectAssets_dryRunRefusesUnreadableSchemaVersionTheSameWay(t *
 	for _, config := range []string{"schema_version: [oops]\n", "schema_version: 99\n"} {
 		t.Run(config, func(t *testing.T) {
 			dir := schemaProject(t, config)
-			v1, v2 := v1v2Templates()
+			v2 := v1v2Templates()
 			before := dirSnapshot(t, dir)
 
-			_, err := UpgradeProjectAssets(v1, v2, dir, true, false)
+			_, err := UpgradeProjectAssets(v2, dir, true, false)
 			if err == nil {
 				t.Fatal("dry-run error = nil, want a refusal")
 			}
@@ -278,17 +272,17 @@ func TestUpgradeProjectAssets_dryRunReachesSameTreeSelectionAndWritesNothing(t *
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dryDir := schemaProject(t, c.config)
-			v1, v2 := v1v2Templates()
+			v2 := v1v2Templates()
 			before := dirSnapshot(t, dryDir)
 
-			dryReport, err := UpgradeProjectAssets(v1, v2, dryDir, true, false)
+			dryReport, err := UpgradeProjectAssets(v2, dryDir, true, false)
 			if err != nil {
 				t.Fatalf("dry-run error = %v", err)
 			}
 			assertNoChange(t, dryDir, before)
 
 			realDir := schemaProject(t, c.config)
-			realReport, err := UpgradeProjectAssets(v1, v2, realDir, false, false)
+			realReport, err := UpgradeProjectAssets(v2, realDir, false, false)
 			if err != nil {
 				t.Fatalf("real run error = %v", err)
 			}
@@ -313,7 +307,7 @@ func TestUpgradeProjectAssets_neverWritesSchemaVersion(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := schemaProject(t, c.config)
-			v1, v2 := v1v2Templates()
+			v2 := v1v2Templates()
 			configPath := filepath.Join(dir, ".savepoint", "config.yml")
 
 			var before []byte
@@ -325,7 +319,7 @@ func TestUpgradeProjectAssets_neverWritesSchemaVersion(t *testing.T) {
 				}
 			}
 
-			if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+			if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 				t.Fatalf("UpgradeProjectAssets() error = %v", err)
 			}
 
@@ -354,16 +348,16 @@ func TestUpgradeProjectAssets_secondRunIsNoOp(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := schemaProject(t, c.config)
-			v1, v2 := v1v2Templates()
+			v2 := v1v2Templates()
 
-			if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+			if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 				t.Fatalf("first run error = %v", err)
 			}
 
 			before := dirSnapshot(t, dir)
 			beforeTimes := mtimeSnapshot(t, dir)
 
-			report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+			report, err := UpgradeProjectAssets(v2, dir, false, false)
 			if err != nil {
 				t.Fatalf("second run error = %v", err)
 			}
@@ -385,65 +379,6 @@ func TestUpgradeProjectAssets_secondRunIsNoOp(t *testing.T) {
 	}
 }
 
-// TestUpgradeAssetsFromTree_preservesFrozenPreE47Fixture keeps the explicit V1
-// compatibility proof independent of production's V2-only schema dispatch.
-// The migration README is a byte-frozen pre-E47 output: expanding it for V2
-// retirement must not change what the retained history path emits.
-func TestUpgradeAssetsFromTree_preservesFrozenPreE47Fixture(t *testing.T) {
-	v1, _ := v1v2Templates()
-	dir := schemaProject(t, "")
-	legacy := "# Old Generic Audit Skill"
-	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(legacyAuditSkillFile)), legacy)
-
-	report, err := upgradeAssetsFromTree(v1, dir, false, false)
-	if err != nil {
-		t.Fatalf("dispatch run error = %v", err)
-	}
-
-	wantActions := []UpgradeEntry{
-		{Path: legacyAuditSkillFile, Action: ActionMigrated},
-		{Path: "agent-skills/savepoint-draft-prd/SKILL.md", Action: ActionUpdated},
-	}
-	fileActions := make([]UpgradeEntry, 0, len(report.Actions))
-	for _, entry := range report.Actions {
-		if entry.Action != ActionInfo {
-			fileActions = append(fileActions, UpgradeEntry{Path: entry.Path, Action: entry.Action})
-		}
-	}
-	if len(fileActions) != len(wantActions) {
-		t.Fatalf("file actions = %+v, want %+v", fileActions, wantActions)
-	}
-	for i := range wantActions {
-		if fileActions[i] != wantActions[i] {
-			t.Errorf("action[%d] = %+v, want %+v", i, fileActions[i], wantActions[i])
-		}
-	}
-
-	wantReadme := legacyFixture(t, "migrations-readme-pre-e47.md")
-	readme, err := os.ReadFile(filepath.Join(dir, migrationsDir, migrationsReadmeName))
-	if err != nil {
-		t.Fatalf("V1 migration README missing: %v", err)
-	}
-	if string(readme) != wantReadme {
-		t.Errorf("V1 migration README changed from the frozen pre-E47 fixture")
-	}
-
-	archived, err := os.ReadFile(filepath.Join(dir, migrationsDir, legacyAuditArchiveStem+".md"))
-	if err != nil {
-		t.Fatalf("legacy audit archive missing: %v", err)
-	}
-	if string(archived) != legacy {
-		t.Errorf("legacy archive = %q, want %q", string(archived), legacy)
-	}
-	installed, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash("agent-skills/savepoint-draft-prd/SKILL.md")))
-	if err != nil {
-		t.Fatalf("V1 skill missing: %v", err)
-	}
-	if string(installed) != "# V1 skill" {
-		t.Errorf("V1 skill = %q, want frozen V1 template bytes", string(installed))
-	}
-}
-
 // TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees proves the
 // pending-migration guard fires before either the V1 refusal or the V2 asset
 // walk, so an incomplete operation always owns the project.
@@ -458,9 +393,9 @@ func TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees(t *testing.T) {
 			if _, err := migrate.CreateOperation(dir, "op-1", nil, []migrate.JournalEntry{{Path: "objectives/O001.md", Action: migrate.ActionCreate}}, time.Now()); err != nil {
 				t.Fatalf("CreateOperation() error = %v", err)
 			}
-			v1, v2 := v1v2Templates()
+			v2 := v1v2Templates()
 
-			_, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+			_, err := UpgradeProjectAssets(v2, dir, false, false)
 			if err == nil {
 				t.Fatal("UpgradeProjectAssets() error = nil, want refusal while migration operation is incomplete")
 			}
@@ -468,10 +403,8 @@ func TestUpgradeProjectAssets_refusesPendingMigrationOnBothTrees(t *testing.T) {
 				t.Errorf("error = %q, want it to name the operation op-1", err.Error())
 			}
 
-			for _, path := range []string{"agent-skills/savepoint-draft-prd/SKILL.md", "agent-skills/savepoint-idea/SKILL.md"} {
-				if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(path))); !os.IsNotExist(err) {
-					t.Errorf("refused upgrade wrote %s, stat err = %v", path, err)
-				}
+			if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-idea", "SKILL.md")); !os.IsNotExist(err) {
+				t.Errorf("refused upgrade wrote agent-skills/savepoint-idea/SKILL.md, stat err = %v", err)
 			}
 		})
 	}

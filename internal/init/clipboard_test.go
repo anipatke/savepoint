@@ -14,13 +14,6 @@ func TestCopyToClipboard_returnsWithoutPanic(t *testing.T) {
 	}
 }
 
-func TestCopyToClipboard_resultHasNonEmptyStatusString(t *testing.T) {
-	result := CopyToClipboard("test")
-	if result.Status.String() == "" {
-		t.Fatal("Status.String() returned empty")
-	}
-}
-
 func TestCopyToClipboard_skippedOnUnsupportedPlatform(t *testing.T) {
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
 		return
@@ -44,22 +37,6 @@ func TestCopyToClipboard_toolName(t *testing.T) {
 	result := CopyToClipboard("test")
 	if result.Status == ClipboardCopied && result.Tool == "" {
 		t.Fatal("ClipboardCopied but Tool is empty")
-	}
-}
-
-func TestClipboardStatus_string(t *testing.T) {
-	tests := []struct {
-		status ClipboardStatus
-		want   string
-	}{
-		{ClipboardCopied, "copied"},
-		{ClipboardSkipped, "skipped"},
-		{ClipboardFailed, "failed"},
-	}
-	for _, tt := range tests {
-		if got := tt.status.String(); got != tt.want {
-			t.Errorf("ClipboardStatus(%d).String() = %q, want %q", tt.status, got, tt.want)
-		}
 	}
 }
 

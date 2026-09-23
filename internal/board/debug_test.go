@@ -12,17 +12,17 @@ import (
 func TestSetDebugToggle(t *testing.T) {
 	t.Cleanup(func() { SetDebug(false) })
 
-	if DebugEnabled() {
+	if debugEnabled.Load() {
 		t.Fatal("debug should be off by default")
 	}
 
 	SetDebug(true)
-	if !DebugEnabled() {
+	if !debugEnabled.Load() {
 		t.Fatal("debug should be on after SetDebug(true)")
 	}
 
 	SetDebug(false)
-	if DebugEnabled() {
+	if debugEnabled.Load() {
 		t.Fatal("debug should be off after SetDebug(false)")
 	}
 }

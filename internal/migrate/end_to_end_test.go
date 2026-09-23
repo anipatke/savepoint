@@ -442,7 +442,7 @@ func TestEndToEnd_releaseRecordsMappingsAndCutoverGateAgree(t *testing.T) {
 				}
 			}
 
-			problems := doctor.CheckReleaseReadiness(filepath.Join(root, ".savepoint"))
+			problems := doctor.RunV2Checks(filepath.Join(root, ".savepoint")).Releases
 			for _, blocker := range cutover.Blockers {
 				matched := false
 				for _, problem := range problems {

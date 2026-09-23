@@ -1690,3 +1690,10 @@ func TestUpgradeReport_formatConflict(t *testing.T) {
 		t.Errorf("missing sidecar notes: %q", output)
 	}
 }
+
+// upgradeAssetsFromTree runs the upgrade core against one template tree with
+// the production writer, as UpgradeProjectAssets does once it has chosen the
+// tree for the target's schema.
+func upgradeAssetsFromTree(templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
+	return upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite, false)
+}

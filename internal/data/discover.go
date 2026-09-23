@@ -34,27 +34,6 @@ func NewDiscover() *Discover {
 	return &Discover{}
 }
 
-func (d *Discover) FindSavepointRoot(start string) (string, error) {
-	dir, err := filepath.Abs(start)
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		savepointPath := filepath.Join(dir, ".savepoint")
-		info, err := os.Stat(savepointPath)
-		if err == nil && info.IsDir() {
-			return savepointPath, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", ErrSavepointDirectoryMissing
-		}
-		dir = parent
-	}
-}
-
 func (d *Discover) ListReleases(root string) ([]ReleaseInfo, error) {
 	releasesPath := filepath.Join(root, "releases")
 	info, err := os.Stat(releasesPath)
@@ -86,32 +65,6 @@ func (d *Discover) ListReleases(root string) ([]ReleaseInfo, error) {
 		return releases[i].ID < releases[j].ID
 	})
 	return releases, nil
-}
-
-// ListRootDirs returns sorted child directory names directly under root.
-func (d *Discover) ListRootDirs(root string) ([]string, error) {
-	info, err := os.Stat(root)
-	if err != nil {
-		return nil, err
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", root)
-	}
-
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
-
-	var dirs []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			dirs = append(dirs, entry.Name())
-		}
-	}
-
-	sort.Strings(dirs)
-	return dirs, nil
 }
 
 func (d *Discover) ListEpics(root, release string) ([]EpicInfo, error) {

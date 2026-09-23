@@ -5,54 +5,6 @@ import (
 	"testing"
 )
 
-func TestParseFrontmatter(t *testing.T) {
-	p := NewParser()
-	content := `---
-id: E01/T001
-status: done
-objective: "Test objective"
-depends_on: []
----
-
-body content here`
-
-	result, err := p.ParseFrontmatter(content)
-	if err != nil {
-		t.Fatalf("ParseFrontmatter() error = %v", err)
-	}
-
-	if result["id"] != "E01/T001" {
-		t.Errorf("ParseFrontmatter() id = %v, want E01/T001", result["id"])
-	}
-	if result["objective"] != "Test objective" {
-		t.Errorf("ParseFrontmatter() objective = %v, want Test objective", result["objective"])
-	}
-}
-
-func TestParseFrontmatterMissing(t *testing.T) {
-	p := NewParser()
-	content := `# No frontmatter here`
-
-	_, err := p.ParseFrontmatter(content)
-	if err == nil {
-		t.Error("ParseFrontmatter() expected error for missing frontmatter")
-	}
-}
-
-func TestParseFrontmatterMalformedYAML(t *testing.T) {
-	p := NewParser()
-	content := `---
-id: [broken
----
-
-# Task description`
-
-	_, err := p.ParseFrontmatter(content)
-	if err == nil {
-		t.Fatal("ParseFrontmatter() expected malformed YAML error")
-	}
-}
-
 func TestParseTaskFile(t *testing.T) {
 	p := NewParser()
 	content := `---

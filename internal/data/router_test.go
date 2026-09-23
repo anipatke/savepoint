@@ -154,21 +154,3 @@ func TestRouterReader_requiresStructuralAnchors(t *testing.T) {
 		})
 	}
 }
-
-func TestRouterReader_shippedTemplateCarriesBothAnchors(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "templates", "project", ".savepoint", "router.md"))
-	if err != nil {
-		t.Fatalf("read shipped router template: %v", err)
-	}
-	shipped := string(data)
-
-	if !strings.Contains(shipped, stateBlockStart) {
-		t.Errorf("shipped router template missing %q heading", stateBlockStart)
-	}
-	if !strings.Contains(shipped, "```yaml") {
-		t.Error("shipped router template missing its fenced yaml block")
-	}
-	if _, err := NewRouterReader().ReadState(shipped); err != nil {
-		t.Errorf("ReadState() on the shipped router template error = %v", err)
-	}
-}

@@ -764,15 +764,6 @@ func TestSavepointTaskSkillLiveAndTemplateMatch(t *testing.T) {
 	)
 }
 
-func TestSavepointBuildTaskSkillPresentInBothTrees(t *testing.T) {
-	for tree, root := range skillRoots() {
-		path := filepath.Join(root, "savepoint-build-task", "SKILL.md")
-		if _, err := os.Stat(path); err != nil {
-			t.Errorf("%s: savepoint-build-task/SKILL.md missing: %v", tree, err)
-		}
-	}
-}
-
 // checkStructureHeadings are the required non-empty headings for
 // savepoint-check, mirroring the split audit skill structure check.
 var checkStructureHeadings = []string{"## Purpose", "## Trigger", "## Read", "## Workflow", "## Rules"}
@@ -1046,25 +1037,6 @@ func TestSavepointCheckSkillLiveAndTemplateMatch(t *testing.T) {
 		filepath.Join("agent-skills", "savepoint-check", "SKILL.md"),
 		filepath.Join("templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"),
 	)
-}
-
-// v1AuditSkillNames are the pre-existing V1 audit skills that must survive
-// the V2 savepoint-check addition untouched in both trees.
-var v1AuditSkillNames = []string{"savepoint-audit-task", "savepoint-audit-epic"}
-
-func TestV1AuditSkillsAndSharedMethodPresentInBothTrees(t *testing.T) {
-	for tree, root := range skillRoots() {
-		for _, name := range v1AuditSkillNames {
-			path := filepath.Join(root, name, "SKILL.md")
-			if _, err := os.Stat(path); err != nil {
-				t.Errorf("%s: %s missing: %v", tree, name, err)
-			}
-		}
-		path := filepath.Join(root, "references", "audit-method.md")
-		if _, err := os.Stat(path); err != nil {
-			t.Errorf("%s: %s missing: %v", tree, path, err)
-		}
-	}
 }
 
 func issueCapturePath(root string) string {
@@ -1429,41 +1401,10 @@ func TestSavepointDesignSkillReferencesCommandsAndProcedures(t *testing.T) {
 	}
 }
 
-func TestSavepointCreateDefectSkillPresentInBothTrees(t *testing.T) {
-	for tree, root := range skillRoots() {
-		path := filepath.Join(root, "savepoint-create-defect", "SKILL.md")
-		if _, err := os.Stat(path); err != nil {
-			t.Errorf("%s: savepoint-create-defect/SKILL.md missing: %v", tree, err)
-		}
-	}
-}
-
 // v2Skills and v2References are the complete V2 skill/reference set the
 // routing and role-matrix tests below treat as one partitioned whole.
 var v2Skills = []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"}
 var v2References = []string{"check-method.md", "issue-capture.md", "commands-and-procedures.md"}
-
-// v1SkillNames are the nine pre-existing V1 skills that must survive the V2
-// routing documentation untouched, in both trees.
-var v1SkillNames = []string{
-	"savepoint-draft-prd", "savepoint-system-design", "savepoint-create-task",
-	"savepoint-build-task", "savepoint-audit-epic", "savepoint-audit-task",
-	"savepoint-audit-register", "savepoint-create-defect", "savepoint-create-plan",
-}
-
-func TestV1SkillSetUnchangedAlongsideV2Routing(t *testing.T) {
-	if len(v1SkillNames) != 9 {
-		t.Fatalf("v1SkillNames has %d entries, want 9", len(v1SkillNames))
-	}
-	for tree, root := range skillRoots() {
-		for _, name := range v1SkillNames {
-			path := filepath.Join(root, name, "SKILL.md")
-			if _, err := os.Stat(path); err != nil {
-				t.Errorf("%s: V1 skill %s missing: %v", tree, name, err)
-			}
-		}
-	}
-}
 
 func TestV2SkillSetIsCompleteWithByteParity(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
@@ -1608,102 +1549,6 @@ func TestV2SkillRoleMatrixPartitionsSensitiveWrites(t *testing.T) {
 					t.Errorf("%s: %s unexpectedly carries owner phrase %q for %s", tree, skill, authority.ownerPhrase, authority.name)
 				}
 			}
-		}
-	}
-}
-
-// v2RoutingRequiredPhrases are the load-bearing statements the V2 routing
-// section must carry in both AGENTS.md guides: the four-state mapping, the
-// active-for-V2-but-not-this-repository statement, the REPLAN REQUIRED
-// routing rule, and the shared-reference ownership list.
-var v2RoutingRequiredPhrases = []string{
-	"| idea | savepoint-idea |",
-	"| design | savepoint-design |",
-	"| task | savepoint-task |",
-	"| check | savepoint-check |",
-	"is not active",
-	"E47",
-	"REPLAN REQUIRED",
-	"not a fifth router state",
-	"agent-skills/references/check-method.md",
-	"agent-skills/references/issue-capture.md",
-	"agent-skills/references/commands-and-procedures.md",
-	"non-triggerable",
-}
-
-func TestAgentsGuidesCarryV2RoutingSection(t *testing.T) {
-	root := filepath.Join("..", "..")
-	liveAgents := readTemplate(t, root, "AGENTS.md")
-	templateAgents := readTemplate(t, root, "templates", "project", "AGENTS.md")
-
-	for _, phrase := range v2RoutingRequiredPhrases {
-		assertContains(t, liveAgents, phrase)
-		assertContains(t, templateAgents, phrase)
-	}
-
-	liveSection, found := sectionBody(liveAgents, "## V2 Routing")
-	if !found || liveSection == "" {
-		t.Fatal("AGENTS.md missing or empty V2 routing section")
-	}
-	templateSection, found := sectionBody(templateAgents, "## V2 Routing")
-	if !found || templateSection == "" {
-		t.Fatal("templates/project/AGENTS.md missing or empty V2 routing section")
-	}
-	if liveSection != templateSection {
-		t.Fatal("V2 routing section differs between live and template AGENTS.md")
-	}
-
-	// The V1 activation table must still govern current routing, unchanged.
-	assertContains(t, liveAgents, "| task-building | savepoint-build-task |")
-	assertContains(t, templateAgents, "| task-building | savepoint-build-task |")
-}
-
-// The design skill's outgoing handoff must use the same V2 state/skill pair
-// as the routing table. Checking both contracts together prevents a design
-// handoff from silently falling back to the still-active V1 state.
-func TestV2DesignHandoffMatchesRoutingContract(t *testing.T) {
-	root := filepath.Join("..", "..")
-	const routingHeading = "## V2 Routing"
-	const routeToTask = "| task | savepoint-task |"
-	const designHandoff = "set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`."
-
-	pairs := []struct {
-		name       string
-		agentsPath []string
-		designPath []string
-	}{
-		{
-			name:       "live",
-			agentsPath: []string{"AGENTS.md"},
-			designPath: []string{"agent-skills", "savepoint-design", "SKILL.md"},
-		},
-		{
-			name:       "template",
-			agentsPath: []string{"templates", "project", "AGENTS.md"},
-			designPath: []string{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
-		},
-	}
-
-	for _, pair := range pairs {
-		agents := readTemplate(t, root, pair.agentsPath...)
-		routingSection, found := sectionBody(agents, routingHeading)
-		if !found {
-			t.Fatalf("%s AGENTS.md missing %s", pair.name, routingHeading)
-		}
-		if !strings.Contains(routingSection, routeToTask) {
-			t.Errorf("%s routing section missing V2 task route %q", pair.name, routeToTask)
-		}
-
-		design := readTemplate(t, root, pair.designPath...)
-		workflow, found := sectionBody(design, "## Workflow")
-		if !found {
-			t.Fatalf("%s design skill missing ## Workflow", pair.name)
-		}
-		if !strings.Contains(workflow, designHandoff) {
-			t.Errorf("%s design workflow missing V2 handoff %q", pair.name, designHandoff)
-		}
-		if strings.Contains(workflow, "task-building") {
-			t.Errorf("%s design workflow still names the V1 task-building state", pair.name)
 		}
 	}
 }

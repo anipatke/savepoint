@@ -146,16 +146,6 @@ func (m Model) sidebarVisible() bool {
 	return m.terminalWidth() >= sidebarBreakpoint
 }
 
-// cardCount is how many Tasks the columns are showing, which is every Task in
-// the project until a selection filters them.
-func (m Model) cardCount() int {
-	total := 0
-	for _, cards := range m.Cards {
-		total += len(cards)
-	}
-	return total
-}
-
 // objectiveIndex is the sidebar row holding id, or -1 when no row does — which
 // is the answer for an empty project and for a router naming a record the index
 // no longer has.
@@ -184,15 +174,6 @@ func objectiveFilterError(index *data.V2Index, filter string) error {
 		return nil
 	}
 	return fmt.Errorf("--objective %s names no objective in this project", filter)
-}
-
-// selectedObjective names the Objective in view. The filter wins when it was
-// given, because it is the invocation's explicit request; otherwise the
-// router's own selection is used, and only when it resolves against the live
-// index. A router naming an Objective that no longer exists selects nothing —
-// data.ResolveNext reports that as a selection diagnostic.
-func selectedObjective(state ProjectState, filter string) string {
-	return selectedObjectiveForRelease(state, filter, "")
 }
 
 func selectedObjectiveForRelease(state ProjectState, filter, releaseID string) string {

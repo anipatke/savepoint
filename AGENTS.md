@@ -177,11 +177,11 @@ This section records the V2 routing contract for a project whose `config.yml` de
 
 Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
 
-`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. V1 skills remain available only for the V1 scaffold/upgrade path and byte-preserved history.
+`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. The V1 scaffold and its skills are gone (O-021); they remain only as byte-preserved history.
 
 ## Legacy V1 compatibility (not active)
 
-The following contract is retained only for archived V1 projects and the V1 scaffold; it is not an active route in this schema-2 repository.
+The following contract is retained only for reading archived V1 projects and this repository's own historical records; it is not an active route in this schema-2 repository, and the V1 scaffold that once shipped it is gone (O-021).
 
 | task-building | savepoint-build-task |
 | audit-pending | savepoint-audit-epic |

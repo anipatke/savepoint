@@ -10,23 +10,10 @@ import (
 type ClipboardStatus int
 
 const (
-	ClipboardCopied  ClipboardStatus = iota
+	ClipboardCopied ClipboardStatus = iota
 	ClipboardSkipped
 	ClipboardFailed
 )
-
-func (s ClipboardStatus) String() string {
-	switch s {
-	case ClipboardCopied:
-		return "copied"
-	case ClipboardSkipped:
-		return "skipped"
-	case ClipboardFailed:
-		return "failed"
-	default:
-		return "unknown"
-	}
-}
 
 type ClipboardResult struct {
 	Status  ClipboardStatus

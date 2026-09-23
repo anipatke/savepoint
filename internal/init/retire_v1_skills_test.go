@@ -17,17 +17,13 @@ import (
 // these tests only need retirement to fire, so their template trees are
 // minimal and distinct from the V1 skills being retired.
 
-// retirementTemplates returns a tiny, easily told-apart V1/V2 template pair.
-// Neither tree includes any of the retired paths: retirement acts on what the
-// project already has on disk, not on what either tree ships.
-func retirementTemplates() (fstest.MapFS, fstest.MapFS) {
-	v1 := fstest.MapFS{
-		"agent-skills/savepoint-check/SKILL.md": &fstest.MapFile{Data: []byte("# not a real v1 skill, just tree filler")},
-	}
-	v2 := fstest.MapFS{
+// retirementTemplates returns a tiny V2 template tree. It includes none of
+// the retired paths: retirement acts on what the project already has on
+// disk, not on what the tree ships.
+func retirementTemplates() fstest.MapFS {
+	return fstest.MapFS{
 		"agent-skills/savepoint-idea/SKILL.md": &fstest.MapFile{Data: []byte("# Idea")},
 	}
-	return v1, v2
 }
 
 // v2ProjectWithLegacySkills builds a V2 project (schema_version: 2) that still
@@ -68,7 +64,7 @@ func retiredArchivePath(dir, path string, index int) string {
 
 func TestRetireV1Skills_fullRetirement(t *testing.T) {
 	dir := v2ProjectWithLegacySkills(t, nil)
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
 	// Seed the manifest as a project that upgraded on V1 before migrating would
 	// have it: every retired skill already carries a recorded hash. The shared
@@ -90,7 +86,7 @@ func TestRetireV1Skills_fullRetirement(t *testing.T) {
 		}
 	}
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -147,8 +143,8 @@ func TestRetireV1Skills_missingFileForgetsStaleManifestEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	v1, v2 := retirementTemplates()
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	v2 := retirementTemplates()
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -169,9 +165,9 @@ func TestRetireV1Skills_preservesUserEditsAndArchivesUnmodifiedAlike(t *testing.
 	edited := "agent-skills/savepoint-build-task/SKILL.md"
 	editedBody := "# My locally edited build-task skill\n\nCustom project rules."
 	dir := v2ProjectWithLegacySkills(t, map[string]string{edited: editedBody})
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -197,9 +193,9 @@ func TestRetireV1Skills_reArchivesDifferingContentWithoutOverwriting(t *testing.
 	path := "agent-skills/savepoint-draft-prd/SKILL.md"
 	first := "# First retirement pass"
 	dir := v2ProjectWithLegacySkills(t, map[string]string{path: first})
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -207,7 +203,7 @@ func TestRetireV1Skills_reArchivesDifferingContentWithoutOverwriting(t *testing.
 	second := "# Second retirement pass"
 	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(path)), second)
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -245,9 +241,9 @@ func TestRetireV1Skills_v1ProjectRetainsEverything(t *testing.T) {
 	for _, path := range retiredV1AssetPaths() {
 		testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(path)), "# stock "+path)
 	}
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -272,16 +268,16 @@ func TestRetireV1Skills_v1ProjectRetainsEverything(t *testing.T) {
 
 func TestRetireV1Skills_alreadyRetiredProjectIsANoOp(t *testing.T) {
 	dir := v2ProjectWithLegacySkills(t, nil)
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
 	before := dirSnapshot(t, dir)
 	beforeTimes := mtimeSnapshot(t, dir)
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, false, false)
+	report, err := UpgradeProjectAssets(v2, dir, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -303,11 +299,11 @@ func TestRetireV1Skills_alreadyRetiredProjectIsANoOp(t *testing.T) {
 
 func TestRetireV1Skills_dryRunReportsAndWritesNothing(t *testing.T) {
 	dir := v2ProjectWithLegacySkills(t, nil)
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 	before := dirSnapshot(t, dir)
 	beforeTimes := mtimeSnapshot(t, dir)
 
-	report, err := UpgradeProjectAssets(v1, v2, dir, true, false)
+	report, err := UpgradeProjectAssets(v2, dir, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
@@ -334,7 +330,7 @@ func TestRetireV1Skills_dryRunReportsAndWritesNothing(t *testing.T) {
 func TestRetireV1Skills_writeFailureLeavesOriginalInPlace(t *testing.T) {
 	path := "agent-skills/savepoint-draft-prd/SKILL.md"
 	dir := v2ProjectWithLegacySkills(t, nil)
-	_, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
 	w := &countingWriter{failAt: 1}
 	report, err := upgradeProjectAssets(v2, dir, false, false, w.write, true)
@@ -364,9 +360,9 @@ func TestRetireV1Skills_nonEmptySkillDirIsNotRemoved(t *testing.T) {
 	dir := v2ProjectWithLegacySkills(t, nil)
 	extra := filepath.Join(dir, "agent-skills", "savepoint-build-task", "notes.md")
 	testutil.WriteFile(t, extra, "# user notes left inside the skill folder")
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -380,9 +376,9 @@ func TestRetireV1Skills_nonEmptySkillDirIsNotRemoved(t *testing.T) {
 
 func TestRetireV1Skills_migrationsReadmeNamesRetiredSkillsAndNonTriggerableStatus(t *testing.T) {
 	dir := v2ProjectWithLegacySkills(t, nil)
-	v1, v2 := retirementTemplates()
+	v2 := retirementTemplates()
 
-	if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+	if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -404,11 +400,10 @@ func TestRetireV1Skills_migrationsReadmeNamesRetiredSkillsAndNonTriggerableStatu
 func TestRetireV1Skills_upgradesStockLegacyMigrationsReadmeButPreservesEdits(t *testing.T) {
 	t.Run("stock README is upgraded", func(t *testing.T) {
 		dir := v2ProjectWithLegacySkills(t, nil)
-		testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(legacyAuditSkillFile)), "# Old Generic Audit Skill")
 		testutil.WriteFile(t, filepath.Join(dir, migrationsDir, migrationsReadmeName), legacyFixture(t, "migrations-readme-pre-e47.md"))
 
-		v1, v2 := retirementTemplates()
-		if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+		v2 := retirementTemplates()
+		if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 			t.Fatalf("UpgradeProjectAssets() error = %v", err)
 		}
 
@@ -426,8 +421,8 @@ func TestRetireV1Skills_upgradesStockLegacyMigrationsReadmeButPreservesEdits(t *
 		custom := "# Local migration notes\n\nKeep this recovery advice.\n"
 		testutil.WriteFile(t, filepath.Join(dir, migrationsDir, migrationsReadmeName), custom)
 
-		v1, v2 := retirementTemplates()
-		if _, err := UpgradeProjectAssets(v1, v2, dir, false, false); err != nil {
+		v2 := retirementTemplates()
+		if _, err := UpgradeProjectAssets(v2, dir, false, false); err != nil {
 			t.Fatalf("UpgradeProjectAssets() error = %v", err)
 		}
 

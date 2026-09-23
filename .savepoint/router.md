@@ -17,8 +17,8 @@ canonical workflow source; this router records state and next action only.
 state: task
 release: R-006
 objective: O-021
-task: T-022
-next_action: "Execute T-022 with savepoint-task: delete the code deadcode reports unreachable from the savepoint binary, with its tests, then hand off with make build && make test-fast."
+task: T-023
+next_action: "Execute T-023 with savepoint-task: delete the retired V1 template trees and skills, narrow tests that pinned V1 to V2, then hand off with make build && make test-fast."
 ```
 
 ## State → action

@@ -13,25 +13,15 @@ import (
 
 func TestDiagnosticReport_HasProblems(t *testing.T) {
 	root := t.TempDir()
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if !report.HasProblems() {
-		t.Fatal("RunAllChecks() on empty dir should have problems")
-	}
-}
-
-func TestDiagnosticReport_CleanProject(t *testing.T) {
-	root := t.TempDir()
-	writeReportProject(t, root)
-	report := RunAllChecks(root, "")
-	if report.HasProblems() {
-		t.Fatalf("RunAllChecks() on valid project should have no problems, got: config=%v router=%v structure=%v deps=%v audit=%v orphans=%v gates=%v",
-			report.ConfigCheck, report.RouterCheck, report.Structure, report.Dependencies, report.AuditState, report.Orphans, report.Gates.Results)
+		t.Fatal("RunV2Checks() on empty dir should have problems")
 	}
 }
 
 func TestDiagnosticReport_FormatContainsSections(t *testing.T) {
 	root := t.TempDir()
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	output := report.Format()
 
 	sections := []string{
@@ -93,9 +83,9 @@ func TestDiagnosticReport_MigrationOperationIncompleteIsAProblemAndWritesNothing
 
 	before := listFiles(t, projectDir)
 
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if !report.HasProblems() {
-		t.Fatal("RunAllChecks() should report a problem for an incomplete migration operation")
+		t.Fatal("RunV2Checks() should report a problem for an incomplete migration operation")
 	}
 	output := report.Format()
 	if !strings.Contains(output, "op-9") {
@@ -107,41 +97,19 @@ func TestDiagnosticReport_MigrationOperationIncompleteIsAProblemAndWritesNothing
 
 	after := listFiles(t, projectDir)
 	if len(before) != len(after) {
-		t.Fatalf("RunAllChecks() changed the file set: before=%v after=%v", before, after)
+		t.Fatalf("RunV2Checks() changed the file set: before=%v after=%v", before, after)
 	}
 	for i := range before {
 		if before[i] != after[i] {
-			t.Fatalf("RunAllChecks() changed the file set: before=%v after=%v", before, after)
+			t.Fatalf("RunV2Checks() changed the file set: before=%v after=%v", before, after)
 		}
-	}
-}
-
-func TestDiagnosticReport_FormatWithEpicFilter(t *testing.T) {
-	root := t.TempDir()
-	report := RunAllChecks(root, "E03")
-	output := report.Format()
-	if !strings.Contains(output, "filtering to epic: E03") {
-		t.Errorf("report.Format() missing epic filter: %s", output)
-	}
-}
-
-func TestDiagnosticReport_FormatAllClean(t *testing.T) {
-	root := t.TempDir()
-	writeReportProject(t, root)
-	report := RunAllChecks(root, "")
-	output := report.Format()
-	if !strings.Contains(output, "ALL CLEAN") {
-		t.Errorf("report.Format() on clean project should say ALL CLEAN, got: %s", output)
-	}
-	if strings.Contains(output, "PROBLEMS FOUND") {
-		t.Errorf("report.Format() on clean project should not say PROBLEMS FOUND, got: %s", output)
 	}
 }
 
 func TestDiagnosticReport_NoReleaseOmitsReleaseSection(t *testing.T) {
 	root := t.TempDir()
 	writeCompleteV2Project(t, root)
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if strings.Contains(report.Format(), "Release Check") {
 		t.Fatal("report.Format() contains Release Check for a project with no Releases")
 	}
@@ -161,7 +129,7 @@ func TestDiagnosticReport_HistoricalReleaseIsNotCurrentClear(t *testing.T) {
 		"---\nid: O-001\ntitle: \"Member\"\nstatus: done\nrelease: R-001\nfreshness: {state: current, check: C-001, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
 	writeV2Check(t, root, "C-001", "{kind: objective, id: O-001}", "CLEAR", "")
 
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if len(report.Releases) != 0 {
 		t.Fatalf("Release problems = %v, want none for a valid historical archive", report.Releases)
 	}
@@ -184,9 +152,9 @@ func TestDiagnosticReport_DanglingHistoricalArchiveIsProblem(t *testing.T) {
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-member", "Objective.md"),
 		"---\nid: O-001\ntitle: \"Member\"\nstatus: done\nrelease: R-001\n---\n\n# Member\n")
 
-	problems := CheckReleaseReadiness(root)
+	problems := RunV2Checks(root).Releases
 	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-release-legacy-dangling]") {
-		t.Fatalf("CheckReleaseReadiness() = %v, want one dangling historical-archive problem", problems)
+		t.Fatalf("RunV2Checks().Releases = %v, want one dangling historical-archive problem", problems)
 	}
 	if problems[0].Category != HealthMalformedData || problems[0].Repair == "" {
 		t.Fatalf("historical archive problem = %+v, want malformed category and repair", problems[0])
@@ -195,89 +163,10 @@ func TestDiagnosticReport_DanglingHistoricalArchiveIsProblem(t *testing.T) {
 
 func TestDiagnosticReport_FormatShowsRepairs(t *testing.T) {
 	root := t.TempDir()
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	output := report.Format()
 	if !strings.Contains(output, "repair:") {
 		t.Errorf("report.Format() should include repair suggestions, got: %s", output)
-	}
-}
-
-// TestDiagnosticReport_AuditRegisterAbsentStaysClean proves doctor output stays
-// stable for a project that has not adopted the audit register: the section
-// reports no problems and the overall result stays ALL CLEAN.
-func TestDiagnosticReport_AuditRegisterAbsentStaysClean(t *testing.T) {
-	root := t.TempDir()
-	writeReportProject(t, root)
-	report := RunAllChecks(root, "")
-	output := report.Format()
-
-	if len(report.AuditRegister) != 0 {
-		t.Fatalf("AuditRegister = %v, want no problems without audit/ tree", report.AuditRegister)
-	}
-	if !strings.Contains(output, "Audit Register Check") {
-		t.Fatalf("report.Format() missing Audit Register Check section: %s", output)
-	}
-	if !strings.Contains(output, "ALL CLEAN") {
-		t.Fatalf("report.Format() should stay ALL CLEAN without audit register, got: %s", output)
-	}
-}
-
-// TestDiagnosticReport_AuditRegisterProblemsInPlainOutput proves audit-register
-// diagnostics reach the plain doctor output with the file, message, and typed
-// repair suggestion.
-func TestDiagnosticReport_AuditRegisterProblemsInPlainOutput(t *testing.T) {
-	root := t.TempDir()
-	writeReportProject(t, root)
-	testutil.WriteFile(t, filepath.Join(root, "audit", "findings", "F001-verified.md"),
-		`---
-id: F001
-title: "Verified without proof"
-status: verified
-severity: high
-confidence: high
-proof_needed: "regression test"
-first_seen: "2026-07-01"
-last_seen: "2026-07-01"
----
-
-# Finding
-`)
-
-	report := RunAllChecks(root, "")
-	output := report.Format()
-
-	if !report.HasProblems() {
-		t.Fatal("RunAllChecks() should report problems for verified finding without proof")
-	}
-	wants := []string{
-		"✗ audit-register: " + filepath.Join(root, "audit", "findings", "F001-verified.md"),
-		"verified finding has no named proof",
-		"repair: A verified finding requires named proof",
-	}
-	for _, want := range wants {
-		if !strings.Contains(output, want) {
-			t.Errorf("report.Format() missing %q, got:\n%s", want, output)
-		}
-	}
-}
-
-// TestDiagnosticReport_IssuePostureAdvisoryOnlyOnV1Project proves the Issue
-// Posture section reports "(not a V2 project)" for a V1 project and never
-// contributes to HasProblems.
-func TestDiagnosticReport_IssuePostureAdvisoryOnlyOnV1Project(t *testing.T) {
-	root := t.TempDir()
-	writeReportProject(t, root)
-	report := RunAllChecks(root, "")
-
-	if report.Issues != nil {
-		t.Fatalf("Issues = %+v, want nil for a V1 project", report.Issues)
-	}
-	output := report.Format()
-	if !strings.Contains(output, "(not a V2 project)") {
-		t.Errorf("report.Format() missing V1 Issue Posture note, got:\n%s", output)
-	}
-	if report.HasProblems() {
-		t.Fatal("HasProblems() = true, want false: Issue posture must never contribute to health")
 	}
 }
 
@@ -291,7 +180,7 @@ func TestDiagnosticReport_IssuePostureCountsInPlainOutput(t *testing.T) {
 		"---\nid: I-001\ntitle: \"Flaky\"\ntype: defect\nstatus: open\n"+
 			"source: {kind: report, actor: {role: owner, session: owner-1}, at: '2026-09-15T00:00:00Z'}\n---\n\n# Issue\n")
 
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if report.Issues == nil || report.Issues.StatusCounts["open"] != 1 {
 		t.Fatalf("Issues = %+v, want status open=1", report.Issues)
 	}
@@ -327,9 +216,9 @@ func TestDiagnosticReport_AdvisoryIssueBacklogIsStructurallySound(t *testing.T) 
 	writeCompleteV2Project(t, root)
 	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	if report.HasProblems() {
-		t.Fatalf("RunAllChecks() on a complete V2 project with only an open Issue should have no problems, got: config=%v router=%v project=%v structure=%v deps=%v gates=%v",
+		t.Fatalf("RunV2Checks() on a complete V2 project with only an open Issue should have no problems, got: config=%v router=%v project=%v structure=%v deps=%v gates=%v",
 			report.ConfigCheck, report.RouterCheck, report.Project, report.Structure, report.Dependencies, report.Gates.Results)
 	}
 
@@ -374,7 +263,7 @@ func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *te
 
 	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	findings := report.HealthFindings()
 
 	var sawMalformed, sawMissingEvidence, sawPendingReview bool
@@ -419,7 +308,7 @@ func TestDiagnosticReport_CombinedMalformedMissingEvidenceAndAdvisoryIssue(t *te
 	}
 }
 
-// TestDiagnosticReport_FullRunWritesNothing proves a full RunAllChecks and
+// TestDiagnosticReport_FullRunWritesNothing proves a full RunV2Checks and
 // Format() over a complete V2 project with an open Issue leaves every file
 // byte-identical, satisfying FS-03 for the health-category report path.
 func TestDiagnosticReport_FullRunWritesNothing(t *testing.T) {
@@ -429,26 +318,16 @@ func TestDiagnosticReport_FullRunWritesNothing(t *testing.T) {
 	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "open", "defect", "")
 
 	before := listFiles(t, projectDir)
-	report := RunAllChecks(root, "")
+	report := RunV2Checks(root)
 	_ = report.Format()
 	after := listFiles(t, projectDir)
 
 	if len(before) != len(after) {
-		t.Fatalf("RunAllChecks()+Format() changed the file set: before=%v after=%v", before, after)
+		t.Fatalf("RunV2Checks()+Format() changed the file set: before=%v after=%v", before, after)
 	}
 	for i := range before {
 		if before[i] != after[i] {
-			t.Fatalf("RunAllChecks()+Format() changed the file set: before=%v after=%v", before, after)
+			t.Fatalf("RunV2Checks()+Format() changed the file set: before=%v after=%v", before, after)
 		}
 	}
-}
-
-func writeReportProject(t *testing.T, root string) {
-	t.Helper()
-	testutil.SetupMinimalProject(t, root, "v1", "E01-foo")
-	testutil.WriteTask(t, root, "v1", "E01-foo", testutil.TaskFixture{
-		Slug:      "T-001-task",
-		Status:    "planned",
-		Objective: "Task",
-	})
 }

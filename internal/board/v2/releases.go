@@ -70,13 +70,6 @@ func releaseLabel(index *data.V2Index, id string) string {
 	return id + " — " + release.Title
 }
 
-// RenderReleaseDropdown is the ID-only rendering helper retained for selector
-// compatibility tests. The board's live selector uses renderReleaseSelector
-// so its indexed titles can be shown beside each stable identity.
-func RenderReleaseDropdown(releases []string, cursor, width int) string {
-	return renderReleaseSelector(nil, releases, cursor, width, 0)
-}
-
 func renderReleaseSelector(index *data.V2Index, releases []string, cursor, width, height int) string {
 	width = releaseOverlayWidth(width)
 	inner := width - 4

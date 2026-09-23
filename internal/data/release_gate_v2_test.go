@@ -2,8 +2,6 @@ package data
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -67,30 +65,6 @@ checked_at: '2026-09-15T00:00:00Z'
 	}
 	if check.Scope != (CheckScope{Kind: CheckScopeRelease, ID: "R-001"}) {
 		t.Fatalf("Scope = %+v, want release/R-001", check.Scope)
-	}
-}
-
-func TestCreateCheckV2_releaseScopeRequiresIndexedRelease(t *testing.T) {
-	root := t.TempDir()
-	index := &V2Index{
-		Releases: map[string]*ReleaseV2{"R-001": {ID: "R-001"}},
-		Checks:   map[string]*CheckV2{},
-	}
-	fields := NewCheckV2{
-		Scope:           CheckScope{Kind: CheckScopeRelease, ID: "R-001"},
-		Result:          CheckResultNeedsWork,
-		CheckedBy:       Actor{Role: ActorRoleChecker, Session: "checker"},
-		ExecutedSession: "build",
-		CheckedAt:       time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
-		Body:            "\n\n# Release Check\n",
-	}
-	if _, err := CreateCheckV2(root, index, fields); err != nil {
-		t.Fatalf("CreateCheckV2() error = %v", err)
-	}
-
-	fields.Scope.ID = "R-404"
-	if _, err := CreateCheckV2(root, index, fields); !errors.Is(err, ErrV2CheckMissingScopeTarget) {
-		t.Fatalf("CreateCheckV2() error = %v, want missing Release target", err)
 	}
 }
 
@@ -379,80 +353,5 @@ Historical boundaries.
 	bad := strings.Replace(content, "status: done", "status: in_progress", 1)
 	if _, err := DecodeReleaseV2("Release.md", bad); !errors.Is(err, ErrV2ReleaseLegacyMalformed) {
 		t.Fatalf("DecodeReleaseV2() error = %v, want legacy lifecycle diagnostic", err)
-	}
-}
-
-func TestWriteReleaseEvidenceV2_preservesSourceAndRefusesStaleDocument(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, "Release.md")
-	content := `---
-id: R-001
-title: "Write-safe Release"
-status: in_progress
-custom:
-  owner: platform
----
-
-# Release
-
-## Outcome
-
-Ship it.
-
-## Why
-
-It matters.
-
-## Success Conditions
-
-- It is integrated.
-
-## Boundaries
-
-Authored body must survive.
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	release, err := DecodeReleaseV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeReleaseV2() error = %v", err)
-	}
-	release.Evidence = &Evidence{OwnerValidation: &OwnerValidation{
-		Required: true, AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
-	}}
-	if err := WriteReleaseEvidenceV2(release); err != nil {
-		t.Fatalf("WriteReleaseEvidenceV2() error = %v", err)
-	}
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(result), "owner: platform") || !strings.Contains(string(result), "Authored body must survive.") {
-		t.Fatalf("release write lost unknown fields or body: %s", result)
-	}
-
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := WriteReleaseEvidenceV2(release); err != nil {
-		t.Fatalf("second WriteReleaseEvidenceV2() error = %v", err)
-	}
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !before.ModTime().Equal(after.ModTime()) {
-		t.Fatal("second unchanged evidence write changed mtime")
-	}
-
-	if err := os.WriteFile(path, []byte("user edit\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	release.Evidence.OwnerValidation.AcceptedCheck = "C-003"
-	err = WriteReleaseEvidenceV2(release)
-	if !errors.Is(err, ErrV2SourceConflict) || !errors.Is(err, ErrMtimeConflict) {
-		t.Fatalf("stale WriteReleaseEvidenceV2() error = %v, want source/mtime conflict", err)
 	}
 }

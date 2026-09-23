@@ -72,13 +72,6 @@ func (r ObjectiveRow) ID() string {
 	return r.Objective.ID
 }
 
-// objectiveRows resolves every Objective in index into a sidebar row, in
-// ascending O-### order so a project renders the same way twice. Every value on
-// a row comes from a resolver or from the record itself.
-func objectiveRows(index *data.V2Index) []ObjectiveRow {
-	return objectiveRowsForRelease(index, "")
-}
-
 // objectiveRowsForRelease resolves the Objectives visible in one Release
 // context. When releaseID is empty it keeps the release-free V2 behavior. A
 // non-empty context reads the derived reverse link and never guesses from a
@@ -143,14 +136,6 @@ func unsatisfiedObjectiveWaits(index *data.V2Index, objective *data.ObjectiveV2)
 		}
 	}
 	return waits
-}
-
-// taskIDsInView is the ownership filter, and the only place membership is
-// decided: the Tasks index.ObjectiveTasks records for the selected Objective,
-// or every Task when nothing is selected. Both orders are ascending by ID, so
-// the columns do not reorder when a selection changes.
-func taskIDsInView(index *data.V2Index, objectiveID string) []string {
-	return taskIDsInReleaseView(index, "", objectiveID)
 }
 
 // taskIDsInReleaseView is the only release-aware Task membership filter. A

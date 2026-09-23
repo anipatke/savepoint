@@ -72,10 +72,8 @@ func checkRouterV2(root string) error {
 	return nil
 }
 
-// runQualityGatesV2 is the V2-only counterpart to the historical injected
-// gate runner. It reads only configuration and executes the same gate
-// primitive; it does not construct the legacy discoverer/parser dependencies
-// held by DoctorDependencies for frozen tests.
+// runQualityGatesV2 reads only configuration and executes the configured
+// quality gates.
 func runQualityGatesV2(root string) []GateResult {
 	configPath := filepath.Join(root, "config.yml")
 	cfg, err := data.NewConfigReader().Read(configPath)

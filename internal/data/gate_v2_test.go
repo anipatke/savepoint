@@ -841,31 +841,6 @@ func TestInspectTaskConsistency_reportsNothingForAConsistentProject(t *testing.T
 	}
 }
 
-// TestV1BoardTransitions_unaffectedByV2GateAdditions proves the exact V1
-// entrypoints internal/board/transitions.go calls — AdvanceTaskLifecycle and
-// RetreatTaskLifecycle — still behave exactly as
-// TestAdvanceTaskLifecycle_movesThroughCanonicalStates and
-// TestRetreatTaskLifecycle_movesThroughCanonicalStates in lifecycle_test.go
-// already prove, since this task adds new V2-only decision functions in
-// gate_v2.go without touching lifecycle.go, transitions.go, or the router.
-func TestV1BoardTransitions_unaffectedByV2GateAdditions(t *testing.T) {
-	task := Task{Column: ColumnPlanned}
-
-	if _, err := AdvanceTaskLifecycle(&task); err != nil {
-		t.Fatalf("AdvanceTaskLifecycle() error = %v", err)
-	}
-	if task.Column != ColumnInProgress || task.Stage != StageBuild {
-		t.Fatalf("task lifecycle = %q/%q, want in_progress/build", task.Column, task.Stage)
-	}
-
-	if _, err := RetreatTaskLifecycle(&task); err != nil {
-		t.Fatalf("RetreatTaskLifecycle() error = %v", err)
-	}
-	if task.Column != ColumnPlanned {
-		t.Fatalf("task lifecycle = %q, want planned", task.Column)
-	}
-}
-
 // TestGateDecisions_unaffectedByOpenIssuesOfEveryType proves no Issue type,
 // severity, or open count changes any Task gate decision: ResolveTaskStart,
 // ResolveTaskAdvance, and ResolveTaskCompletion return identical decisions

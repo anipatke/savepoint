@@ -3,9 +3,7 @@ package data
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,20 +15,6 @@ type Parser struct{}
 
 func NewParser() *Parser {
 	return &Parser{}
-}
-
-func (p *Parser) ParseFrontmatter(content string) (map[string]any, error) {
-	frontmatter, err := extractFrontmatter(content)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]any
-	if err := yaml.Unmarshal([]byte(frontmatter), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
-	}
-
-	return result, nil
 }
 
 func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
@@ -266,27 +250,6 @@ func (p *Parser) ParseDefectFile(path string, content string) (*Defect, error) {
 
 	NormalizeDefectLifecycleForLoad(defect)
 
-	return defect, nil
-}
-
-func (p *Parser) ParseDefectFileFromDisk(path string) (*Defect, error) {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("stat %s: %w", path, err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-
-	defect, err := p.ParseDefectFile(path, string(content))
-	if err != nil {
-		return nil, err
-	}
-
-	defect.Path = path
-	defect.Mtime = fi.ModTime().Truncate(time.Second)
 	return defect, nil
 }
 

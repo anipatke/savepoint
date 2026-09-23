@@ -271,13 +271,6 @@ func (m Model) renderSelection(w int) string {
 	return styles.RootLine.Width(w).Render(text)
 }
 
-func (m Model) selectedObjectiveRecord() *data.ObjectiveV2 {
-	if m.State.Index == nil || m.SelectedObjective == "" {
-		return nil
-	}
-	return m.State.Index.Objectives[m.SelectedObjective]
-}
-
 func (m Model) selectedReleaseRecord() *data.ReleaseV2 {
 	if m.State.Index == nil || m.SelectedRelease == "" {
 		return nil

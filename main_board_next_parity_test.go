@@ -80,7 +80,7 @@ func TestMigratedReleaseFlowsThroughDoctorBoardSelectorPlainAndResume(t *testing
 	if cutover.Allowed || len(cutover.Blockers) == 0 {
 		t.Fatalf("migrated cutover decision = %+v, want the incomplete fixture Release blocked", cutover)
 	}
-	problems := doctor.CheckReleaseReadiness(savepointRoot)
+	problems := doctor.RunV2Checks(savepointRoot).Releases
 	if len(problems) == 0 {
 		t.Fatal("doctor reported no Release readiness diagnostic for the migrated incomplete fixture")
 	}

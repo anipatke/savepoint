@@ -4,18 +4,6 @@ import (
 	"testing"
 )
 
-func TestTaskString(t *testing.T) {
-	task := Task{
-		ID:      "E01/T001",
-		Title:   "Test Task",
-		Column:  ColumnPlanned,
-	}
-	want := "Task(E01/T001)"
-	if got := task.String(); got != want {
-		t.Errorf("Task.String() = %v, want %v", got, want)
-	}
-}
-
 func TestColumnTypes(t *testing.T) {
 	tests := []struct {
 		input ColumnType

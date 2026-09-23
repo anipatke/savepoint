@@ -9,12 +9,11 @@ import (
 
 func TestBundledSavepointSkillsHaveDiscoveryFrontmatter(t *testing.T) {
 	assertSavepointSkillsHaveFrontmatter(t, filepath.Join("agent-skills"))
-	assertSavepointSkillsHaveFrontmatter(t, filepath.Join("templates", "project", "agent-skills"))
 	assertSavepointSkillsHaveFrontmatter(t, filepath.Join("templates", "project-v2", "agent-skills"))
 }
 
 func TestProjectAgentGuideIncludesLocalSkillFallback(t *testing.T) {
-	path := filepath.Join("templates", "project", "AGENTS.md")
+	path := filepath.Join("templates", "project-v2", "AGENTS.md")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
@@ -33,11 +32,7 @@ func TestScaffoldedSavepointSkillsMatchBundledSkills(t *testing.T) {
 		t.Fatalf("ReadDir(%q) error = %v", root, err)
 	}
 
-	// V1 and V2 skills ship from separate trees (see .savepoint/Guardrails.md
-	// TPL-01); each live skill is checked against whichever tree actually
-	// carries it, rather than assuming a single shipped tree.
 	shippedTrees := []string{
-		filepath.Join("templates", "project", "agent-skills"),
 		filepath.Join("templates", "project-v2", "agent-skills"),
 	}
 

@@ -43,11 +43,11 @@ func wantOwnership(path string) ownership {
 	}
 }
 
-// shippedTemplates is the real templates/project tree, the same one main.go
-// embeds.
+// shippedTemplates is the real templates/project-v2 tree, the same one
+// main.go embeds.
 func shippedTemplates(t *testing.T) fs.FS {
 	t.Helper()
-	return os.DirFS(filepath.Join("..", "..", "templates", "project"))
+	return os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
 }
 
 func shippedPaths(t *testing.T, templates fs.FS) []string {

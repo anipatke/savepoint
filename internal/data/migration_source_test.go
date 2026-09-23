@@ -208,10 +208,7 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 
 	// Raw YAML still reports the original legacy phase; the healed Stage
 	// above is a parser interpretation, not a rewrite of the source.
-	rawFrontmatter, err := parser.ParseFrontmatter(rawContent["T002-follow-up"])
-	if err != nil {
-		t.Fatalf("ParseFrontmatter(T002) error = %v", err)
-	}
+	rawFrontmatter := rawFrontmatterMap(t, rawContent["T002-follow-up"])
 	if rawFrontmatter["phase"] != "implementation" {
 		t.Errorf("raw T002 frontmatter phase = %v, want implementation", rawFrontmatter["phase"])
 	}

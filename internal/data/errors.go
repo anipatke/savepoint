@@ -5,7 +5,6 @@ import "errors"
 var (
 	ErrNoFrontmatter              = errors.New("no frontmatter found")
 	ErrNoClosingFrontmatter       = errors.New("no closing frontmatter delimiter found")
-	ErrSavepointDirectoryMissing  = errors.New(".savepoint directory not found")
 	ErrInvalidStatus              = errors.New("invalid router state")
 	ErrMissingFrontmatter         = errors.New("missing or invalid frontmatter")
 	ErrConfigNotFound             = errors.New("configuration file not found")
@@ -37,7 +36,6 @@ var (
 	ErrV2EvidenceMalformed        = errors.New("v2 record evidence has a malformed field")
 	ErrV2EvidenceMissingReference = errors.New("v2 record evidence names a check that does not exist")
 	ErrV2CheckImmutable           = errors.New("v2 check record already exists and cannot be rewritten")
-	ErrV2ReleaseCompletionBlocked = errors.New("v2 release completion is blocked")
 	ErrV2ReleaseLegacyMalformed   = errors.New("v2 release legacy completion is malformed")
 
 	ErrV2IssueMalformed               = errors.New("v2 issue record has a malformed field")

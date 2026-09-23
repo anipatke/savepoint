@@ -13,11 +13,6 @@ func SetDebug(enabled bool) {
 	debugEnabled.Store(enabled)
 }
 
-// DebugEnabled reports whether debug logging is active.
-func DebugEnabled() bool {
-	return debugEnabled.Load()
-}
-
 func debugf(format string, args ...any) {
 	if !debugEnabled.Load() {
 		return
