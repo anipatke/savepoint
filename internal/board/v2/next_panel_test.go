@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"testing"
 
@@ -27,11 +28,11 @@ func TestNextPanelNamesTheTasksStageIdentityAndTitle(t *testing.T) {
 		task      *data.TaskV2
 		want      string
 	}{
-		{"planned", &data.ObjectiveV2{ID: "O-001", Title: "Planned objective", Status: data.ColumnPlanned}, &data.TaskV2{ID: "T-001", Objective: "O-001", Title: "Do the thing", Status: data.ColumnPlanned}, "Planned O-001 · Planned T-001 — Do the thing"},
-		{"build", &data.ObjectiveV2{ID: "O-002", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-002", Objective: "O-002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}, "In Progress O-002 · Build T-002 — Build it"},
-		{"test", &data.ObjectiveV2{ID: "O-003", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-003", Objective: "O-003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}, "In Progress O-003 · Test T-003 — Test it"},
-		{"audit stage reads as Check", &data.ObjectiveV2{ID: "O-004", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-004", Objective: "O-004", Title: "Prove it", Status: data.ColumnInProgress, Stage: data.StageAudit}, "In Progress O-004 · Check T-004 — Prove it"},
-		{"done", &data.ObjectiveV2{ID: "O-005", Title: "Completed objective", Status: data.ColumnDone}, &data.TaskV2{ID: "T-005", Objective: "O-005", Title: "Shipped it", Status: data.ColumnDone}, "Done O-005 · Done T-005 — Shipped it"},
+		{"planned", &data.ObjectiveV2{ID: "O-001", Title: "Planned objective", Status: data.ColumnPlanned}, &data.TaskV2{ID: "T-001", Objective: "O-001", Title: "Do the thing", Status: data.ColumnPlanned}, "Start T-001 — Do the thing (O-001)"},
+		{"build", &data.ObjectiveV2{ID: "O-002", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-002", Objective: "O-002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}, "Build T-002 — Build it (O-002)"},
+		{"test", &data.ObjectiveV2{ID: "O-003", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-003", Objective: "O-003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}, "Test T-003 — Test it (O-003)"},
+		{"audit stage reads as Check", &data.ObjectiveV2{ID: "O-004", Title: "Active objective", Status: data.ColumnInProgress}, &data.TaskV2{ID: "T-004", Objective: "O-004", Title: "Prove it", Status: data.ColumnInProgress, Stage: data.StageAudit}, "Close T-004 — Prove it (O-004)"},
+		{"done", &data.ObjectiveV2{ID: "O-005", Title: "Completed objective", Status: data.ColumnDone}, &data.TaskV2{ID: "T-005", Objective: "O-005", Title: "Shipped it", Status: data.ColumnDone}, "Done T-005 — Shipped it (O-005)"},
 	}
 
 	for _, tc := range cases {
@@ -52,7 +53,7 @@ func TestNextPanelNamesTheTasksStageIdentityAndTitle(t *testing.T) {
 func TestNextPanelFallsBackToTheObjectiveWithNoTaskSelected(t *testing.T) {
 	objective := &data.ObjectiveV2{ID: "O-001", Title: "Ship the board", Status: data.ColumnInProgress}
 	got := nextPanelText(data.Next{Kind: data.NextObjectiveIntegration, Objective: objective})
-	if want := "In Progress O-001 · Check — Ship the board"; got != want {
+	if want := "Check O-001 — Ship the board"; got != want {
 		t.Errorf("nextPanelText() = %q, want %q", got, want)
 	}
 }
@@ -80,7 +81,7 @@ func TestNextPanelNamesIssueAndShowsItAsContext(t *testing.T) {
 		Task:      &data.TaskV2{ID: "T-028", Objective: "O-014", Title: "Copy the line", Status: data.ColumnInProgress, Stage: data.StageBuild},
 		Issue:     issue,
 	}
-	want := "In Progress O-014 · Build T-028 — Copy the line\nIssue: Fix I-042 — Repair the parser"
+	want := "Build T-028 — Copy the line (O-014)\nIssue: Fix I-042 — Repair the parser"
 	if got := nextPanelText(taskContext); got != want {
 		t.Errorf("nextPanelText() = %q, want Task line plus selected Issue context %q", got, want)
 	}
@@ -145,42 +146,46 @@ func TestRenderNextIncludesTheSelectionDiagnostic(t *testing.T) {
 	}
 }
 
-func TestRenderNextUsesExistingLifecycleAccents(t *testing.T) {
-	taskNext := data.Next{
-		Kind:      data.NextExecute,
-		Objective: &data.ObjectiveV2{ID: "O-014", Status: data.ColumnInProgress},
-		Task:      &data.TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: data.ColumnInProgress, Stage: data.StageBuild},
+func TestRenderNextAccentsOnlyTheVerb(t *testing.T) {
+	tests := []struct {
+		name  string
+		next  data.Next
+		style lipgloss.Style
+		verb  string
+		rest  string
+	}{
+		{
+			name: "build",
+			next: data.Next{
+				Kind:      data.NextExecute,
+				Objective: &data.ObjectiveV2{ID: "O-014", Status: data.ColumnInProgress},
+				Task:      &data.TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: data.ColumnInProgress, Stage: data.StageBuild},
+			},
+			style: styles.FooterPhaseTask, verb: "Build", rest: " T-028 — Copy the line (O-014)",
+		},
+		{
+			name:  "objective check",
+			next:  data.Next{Kind: data.NextObjectiveIntegration, Objective: &data.ObjectiveV2{ID: "O-015", Title: "Finish the Objective", Status: data.ColumnInProgress}},
+			style: styles.FooterPhaseCheck, verb: "Check", rest: " O-015 — Finish the Objective",
+		},
+		{
+			name:  "objective close",
+			next:  data.Next{Kind: data.NextObjectiveReady, Objective: &data.ObjectiveV2{ID: "O-016", Title: "Ready to close", Status: data.ColumnInProgress}},
+			style: styles.FooterPhaseCheck, verb: "Close", rest: " O-016 — Ready to close",
+		},
+		{
+			name:  "plan",
+			next:  data.Next{Kind: data.NextPlanObjective, Objective: &data.ObjectiveV2{ID: "O-017", Title: "Break it down", Status: data.ColumnPlanned}},
+			style: styles.HeaderWhiteBold, verb: "Plan", rest: " O-017 — Break it down",
+		},
 	}
-	wantTaskLine := styles.FooterPhaseTask.Render("In Progress") +
-		styles.HeaderWhiteBold.Render(" O-014 · ") +
-		styles.FooterPhaseTask.Render("Build") +
-		styles.HeaderWhiteBold.Render(" T-028 — Copy the line")
-	if got := styleNextLine(taskNext, resume.NextLine(taskNext)); got != wantTaskLine {
-		t.Errorf("styled Task line = %q, want existing Objective and Task accents %q", got, wantTaskLine)
-	}
-
-	checkNext := data.Next{
-		Kind:      data.NextObjectiveIntegration,
-		Objective: &data.ObjectiveV2{ID: "O-015", Title: "Finish the Objective", Status: data.ColumnInProgress},
-	}
-	wantCheckLine := styles.FooterPhaseTask.Render("In Progress") +
-		styles.HeaderWhiteBold.Render(" O-015 · ") +
-		styles.FooterPhaseCheck.Render("Check") +
-		styles.HeaderWhiteBold.Render(" — Finish the Objective")
-	if got := styleNextLine(checkNext, resume.NextLine(checkNext)); got != wantCheckLine {
-		t.Errorf("styled Objective line = %q, want existing Objective and Check accents %q", got, wantCheckLine)
-	}
-
-	readyNext := data.Next{
-		Kind:      data.NextObjectiveReady,
-		Objective: &data.ObjectiveV2{ID: "O-016", Title: "Ready to close", Status: data.ColumnInProgress},
-	}
-	wantReadyLine := styles.FooterPhaseTask.Render("In Progress") +
-		styles.HeaderWhiteBold.Render(" O-016 · ") +
-		styles.FooterPhaseCheck.Render("Check") +
-		styles.HeaderWhiteBold.Render(" — Ready to close")
-	if got := styleNextLine(readyNext, resume.NextLine(readyNext)); got != wantReadyLine {
-		t.Errorf("styled Objective-ready line = %q, want existing Objective and Check accents %q", got, wantReadyLine)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			want := test.style.Render(test.verb) + styles.HeaderWhiteBold.Render(test.rest)
+			if got := styleNextLine(test.next, resume.NextLine(test.next)); got != want {
+				t.Errorf("styled line = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

@@ -40,33 +40,120 @@ func Render(w io.Writer, next data.Next) error {
 	return err
 }
 
-// NextLine is the single plain-text summary shared by the board and resume.
-// It reads the selected records and rung from data.Next and makes no gate or
+// NextLine is the single plain-text summary shared by the board and resume:
+// what to do, the record to do it to, and that record's title — for example
+// `Build T-028 — Print one Next line (O-014)` or `Check O-014 — <title>`. It
+// reads the selected records and rung from data.Next and makes no gate or
 // selection decisions of its own.
 func NextLine(next data.Next) string {
-	if next.Task != nil {
-		taskWord := TaskStageWord(next.Task)
-		if next.Objective == nil {
-			// A malformed or partially assembled projection can still name a
-			// Task whose Objective record is absent. Keep the Task visible, but
-			// do not invent an Objective status or title.
-			return fmt.Sprintf("%s %s — %s", taskWord, next.Task.ID, next.Task.Title)
+	verb := NextVerb(next)
+	switch {
+	case next.Task != nil:
+		line := fmt.Sprintf("%s %s — %s", verb, next.Task.ID, next.Task.Title)
+		if next.Objective != nil {
+			line += fmt.Sprintf(" (%s)", next.Objective.ID)
 		}
-		return fmt.Sprintf("%s %s · %s %s — %s",
-			ObjectiveWord(next.Objective), next.Objective.ID,
-			taskWord, next.Task.ID, next.Task.Title)
-	}
-	if next.Objective != nil {
-		objectiveWord := ObjectiveWord(next.Objective)
-		if next.Kind == data.NextObjectiveIntegration || next.Kind == data.NextObjectiveReady {
-			return fmt.Sprintf("%s %s · Check — %s", objectiveWord, next.Objective.ID, next.Objective.Title)
-		}
-		return fmt.Sprintf("%s %s — %s", objectiveWord, next.Objective.ID, next.Objective.Title)
-	}
-	if next.Kind == data.NextIssue && next.Issue != nil {
-		return fmt.Sprintf("%s %s — %s", IssueWord(next.Issue), next.Issue.ID, next.Issue.Title)
+		return line
+	case next.Objective != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Objective.ID, next.Objective.Title)
+	case next.Kind == data.NextIssue && next.Issue != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Issue.ID, next.Issue.Title)
+	case verb != "" && next.Release != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Release.ID, next.Release.Title)
 	}
 	return "Nothing selected"
+}
+
+// NextVerb is the Next line's leading word: what to do with the selected
+// record, read from the record's lifecycle and the rung data.ResolveNext
+// already chose. It is empty when nothing is selected.
+func NextVerb(next data.Next) string {
+	switch {
+	case next.Task != nil:
+		return taskVerb(next)
+	case next.Objective != nil:
+		return objectiveVerb(next)
+	case next.Kind == data.NextIssue && next.Issue != nil:
+		return IssueWord(next.Issue)
+	case next.Release != nil:
+		switch next.Kind {
+		case data.NextReleaseCheckNeeded, data.NextReleaseIntegration:
+			return "Check"
+		case data.NextReleaseOwnerValidationRequired:
+			return "Accept"
+		case data.NextReleaseReady:
+			return "Close"
+		}
+	}
+	return ""
+}
+
+// taskVerb reads the selected Task's stage, then the rung for the two places a
+// stage alone is ambiguous: a planned Task that cannot start yet, and a Task
+// at audit, whose next move is a Check, owner acceptance, or closure.
+func taskVerb(next data.Next) string {
+	task := next.Task
+	if next.Kind == data.NextReplan {
+		return "Replan"
+	}
+	switch task.Status {
+	case data.ColumnPlanned:
+		if next.Kind == data.NextDependency {
+			return "Blocked"
+		}
+		return "Start"
+	case data.ColumnDone:
+		return "Done"
+	}
+	switch task.Stage {
+	case data.StageBuild:
+		return "Build"
+	case data.StageTest:
+		return "Test"
+	}
+	switch next.Kind {
+	case data.NextOwnerValidationRequired:
+		return "Accept"
+	case data.NextExecute:
+		return "Close"
+	}
+	return "Check"
+}
+
+// objectiveVerb names the selected Objective's step when no Task is selected.
+// An Objective whose Check is current but still awaits owner acceptance reads
+// Accept, so an agent is never sent to re-run a Check that already passed.
+func objectiveVerb(next data.Next) string {
+	if next.Objective.Status == data.ColumnDone {
+		return "Done"
+	}
+	switch next.Kind {
+	case data.NextObjectiveIntegration:
+		if onlyOwnerAcceptance(next.GateDecision) {
+			return "Accept"
+		}
+		return "Check"
+	case data.NextObjectiveReady:
+		return "Close"
+	case data.NextPlanObjective:
+		return "Plan"
+	}
+	return "Pick a Task in"
+}
+
+// onlyOwnerAcceptance reports whether owner acceptance is the one thing still
+// blocking a decision, so the line asks the owner to accept rather than for
+// another Check.
+func onlyOwnerAcceptance(decision *data.GateDecision) bool {
+	if decision == nil || decision.Allowed || len(decision.Blockers) == 0 {
+		return false
+	}
+	for _, blocker := range decision.Blockers {
+		if blocker.Kind != data.GateBlockOwnerAcceptance {
+			return false
+		}
+	}
+	return true
 }
 
 // IssueWord translates an Issue lifecycle value for the shared Next line and
@@ -95,47 +182,6 @@ func IssueContextLine(issue *data.IssueV2) string {
 		return ""
 	}
 	return fmt.Sprintf("Issue: %s %s — %s", IssueWord(issue), issue.ID, issue.Title)
-}
-
-// ObjectiveWord translates the Objective's lifecycle value for the shared
-// Next line.
-func ObjectiveWord(objective *data.ObjectiveV2) string {
-	if objective == nil {
-		return ""
-	}
-	switch objective.Status {
-	case data.ColumnPlanned:
-		return "Planned"
-	case data.ColumnInProgress:
-		return "In Progress"
-	case data.ColumnDone:
-		return "Done"
-	default:
-		return string(objective.Status)
-	}
-}
-
-// TaskStageWord translates the Task's implementation stage or status for the
-// shared Next line. Audit is presented to the owner as Check.
-func TaskStageWord(task *data.TaskV2) string {
-	if task.Status == data.ColumnInProgress {
-		switch task.Stage {
-		case data.StageBuild:
-			return "Build"
-		case data.StageTest:
-			return "Test"
-		case data.StageAudit:
-			return "Check"
-		}
-	}
-	switch task.Status {
-	case data.ColumnPlanned:
-		return "Planned"
-	case data.ColumnDone:
-		return "Done"
-	default:
-		return string(task.Status)
-	}
 }
 
 // renderText builds the shared Next line and full narrative as a string, so

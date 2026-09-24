@@ -98,6 +98,13 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 Default: fix it directly and record repair evidence in the Issue's own
 history (`kind: repair_attempted`), leaving the Issue open for a checker or an explicit owner acceptance decision.
+After recording a direct repair, advance an Issue-only router selection: use
+the one distinct Objective identified by the Issue's linked Tasks and
+Objective-scoped Checks, when there is exactly one. Set `objective` to that Objective and clear
+`task` and `issue`. If those links identify no Objective or multiple
+Objectives, clear `issue` only; do not guess an Objective. Preserve `release:`
+and run `savepoint resume` to show the resulting Next line. The Issue remains
+open until a checker verifies it or the owner explicitly accepts it.
 Escalate only when the repair itself needs planning — an open Design
 decision, or work spanning multiple Objectives — where the repair becomes a
 new Objective of its own. When that happens, retire the Issue immediately

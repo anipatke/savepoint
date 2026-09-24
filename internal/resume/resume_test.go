@@ -28,27 +28,27 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 		{
 			name: "planned task",
 			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-001", Status: data.ColumnPlanned}, Task: &data.TaskV2{ID: "T-001", Objective: "O-001", Title: "Plan it", Status: data.ColumnPlanned}},
-			want: "Planned O-001 · Planned T-001 — Plan it",
+			want: "Start T-001 — Plan it (O-001)",
 		},
 		{
 			name: "build task",
 			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-002", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-002", Objective: "O-002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}},
-			want: "In Progress O-002 · Build T-002 — Build it",
+			want: "Build T-002 — Build it (O-002)",
 		},
 		{
 			name: "test task",
 			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-003", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-003", Objective: "O-003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}},
-			want: "In Progress O-003 · Test T-003 — Test it",
+			want: "Test T-003 — Test it (O-003)",
 		},
 		{
 			name: "audit task says check",
 			next: data.Next{Kind: data.NextCheckNeeded, Objective: &data.ObjectiveV2{ID: "O-004", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-004", Objective: "O-004", Title: "Review it", Status: data.ColumnInProgress, Stage: data.StageAudit}},
-			want: "In Progress O-004 · Check T-004 — Review it",
+			want: "Check T-004 — Review it (O-004)",
 		},
 		{
 			name: "done task",
 			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-005", Status: data.ColumnDone}, Task: &data.TaskV2{ID: "T-005", Objective: "O-005", Title: "Ship it", Status: data.ColumnDone}},
-			want: "Done O-005 · Done T-005 — Ship it",
+			want: "Done T-005 — Ship it (O-005)",
 		},
 		{
 			name: "task with missing objective record",
@@ -58,28 +58,67 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 		{
 			name: "objective with unfinished tasks",
 			next: data.Next{Kind: data.NextSelectTask, Objective: &data.ObjectiveV2{ID: "O-007", Title: "Plan tasks", Status: data.ColumnPlanned}},
-			want: "Planned O-007 — Plan tasks",
+			want: "Pick a Task in O-007 — Plan tasks",
 		},
 		{
 			name: "objective with no tasks",
 			next: data.Next{Kind: data.NextPlanObjective, Objective: &data.ObjectiveV2{ID: "O-007A", Title: "Break this down", Status: data.ColumnPlanned}},
-			want: "Planned O-007A — Break this down",
+			want: "Plan O-007A — Break this down",
 		},
 		{
 			name: "objective check needed",
 			next: data.Next{Kind: data.NextObjectiveIntegration, Objective: &data.ObjectiveV2{ID: "O-008", Title: "Integrate", Status: data.ColumnInProgress}, Clearance: &data.Clearance{State: data.ClearanceMissing}},
-			want: "In Progress O-008 · Check — Integrate",
+			want: "Check O-008 — Integrate",
 		},
-		{name: "current check awaiting owner", next: currentOwnerWait, want: "In Progress O-009 · Check — Await owner acceptance"},
+		{name: "current check awaiting owner", next: currentOwnerWait, want: "Accept O-009 — Await owner acceptance"},
 		{
 			name: "objective ready for owner closure",
 			next: data.Next{Kind: data.NextObjectiveReady, Objective: &data.ObjectiveV2{ID: "O-010", Title: "Ready to close", Status: data.ColumnInProgress}},
-			want: "In Progress O-010 · Check — Ready to close",
+			want: "Close O-010 — Ready to close",
 		},
 		{name: "nothing selected", next: data.Next{Kind: data.NextNothingSelected}, want: "Nothing selected"},
 		{name: "open issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusOpen}}, want: "Fix I-042 — Repair the parser"},
 		{name: "in progress issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-043", Title: "Continue the repair", Status: data.IssueStatusInProgress}}, want: "Fix I-043 — Continue the repair"},
 		{name: "resolved issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-044", Title: "Finished repair", Status: data.IssueStatusResolved}}, want: "Resolved I-044 — Finished repair"},
+		{
+			name: "planned task blocked",
+			next: data.Next{Kind: data.NextDependency, Objective: &data.ObjectiveV2{ID: "O-011"}, Task: &data.TaskV2{ID: "T-011", Title: "Wait", Status: data.ColumnPlanned}},
+			want: "Blocked T-011 — Wait (O-011)",
+		},
+		{
+			name: "task replan",
+			next: data.Next{Kind: data.NextReplan, Objective: &data.ObjectiveV2{ID: "O-011"}, Task: &data.TaskV2{ID: "T-012", Title: "Rethink", Status: data.ColumnPlanned}},
+			want: "Replan T-012 — Rethink (O-011)",
+		},
+		{
+			name: "task awaiting owner acceptance",
+			next: data.Next{Kind: data.NextOwnerValidationRequired, Objective: &data.ObjectiveV2{ID: "O-011"}, Task: &data.TaskV2{ID: "T-013", Title: "Accept me", Status: data.ColumnInProgress, Stage: data.StageAudit}},
+			want: "Accept T-013 — Accept me (O-011)",
+		},
+		{
+			name: "task without its objective record",
+			next: data.Next{Kind: data.NextExecute, Task: &data.TaskV2{ID: "T-014", Title: "Orphan", Status: data.ColumnInProgress, Stage: data.StageBuild}},
+			want: "Build T-014 — Orphan",
+		},
+		{
+			name: "current check blocked by more than owner acceptance",
+			next: data.Next{
+				Kind:         data.NextObjectiveIntegration,
+				Objective:    &data.ObjectiveV2{ID: "O-012", Title: "Open issue", Status: data.ColumnInProgress},
+				Clearance:    &data.Clearance{State: data.ClearanceCurrent},
+				GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockOwnerAcceptance}, {Kind: data.GateBlockObjectiveIssueUnresolved}}},
+			},
+			want: "Check O-012 — Open issue",
+		},
+		{
+			name: "objective already done",
+			next: data.Next{Kind: data.NextObjectiveReady, Objective: &data.ObjectiveV2{ID: "O-013", Title: "Finished", Status: data.ColumnDone}},
+			want: "Done O-013 — Finished",
+		},
+		{name: "goal check needed", next: data.Next{Kind: data.NextReleaseCheckNeeded, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Check R-001 — First delivery"},
+		{name: "goal awaiting owner", next: data.Next{Kind: data.NextReleaseOwnerValidationRequired, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Accept R-001 — First delivery"},
+		{name: "goal ready", next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Close R-001 — First delivery"},
+		{name: "goal with nothing selected", next: data.Next{Kind: data.NextNothingSelected, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Nothing selected"},
 	}
 
 	for _, tc := range cases {
@@ -542,7 +581,7 @@ func TestRender_selectedIssueIsContextWhenTaskWinsNext(t *testing.T) {
 		Issue:     issue,
 	}
 
-	if got, want := NextLine(next), "In Progress O-014 · Build T-028 — Copy the line"; got != want {
+	if got, want := NextLine(next), "Build T-028 — Copy the line (O-014)"; got != want {
 		t.Fatalf("NextLine() = %q, want Task line %q", got, want)
 	}
 	if got, want := IssueContextLine(issue), "Issue: Fix I-042 — Repair the parser"; got != want {

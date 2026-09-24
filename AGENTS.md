@@ -3,7 +3,7 @@
 ## Workflow
 
 1. Run the read-only `savepoint resume` command and act on its `Next` line. A `Next` line pasted by the owner is also an explicit selection.
-2. Use the selected work and its word to choose the skill: Task `Planned`, `Build`, or `Test` → `savepoint-task`; Task or Objective `Check` → `savepoint-check`; Objective with no Task and no Check rung → `savepoint-design`; a `Fix` Issue line (no Objective or Task selected) → repair with `savepoint-task` under `issue-capture.md`. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
+2. The Next line's first word says what to do; use it to choose the skill: `Start`, `Build`, or `Test` → `savepoint-task`; `Check` → `savepoint-check`; `Plan` or `Replan` → `savepoint-design`; `Pick a Task in` → select the Objective's next Task, then `savepoint-task`; `Fix` → repair with `savepoint-task` under `issue-capture.md`; `Accept`, `Close`, `Blocked`, `Done`, or `Resolved` → report it to the owner, who decides. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
 3. Activate the skill per the table below and follow its Read section and the active Task's Context Files.
 
 If the Next line does not name an Objective, Task, or Issue, follow the router `state` and the resume guidance; do not guess a record. If the `savepoint` binary is unavailable, read the router selection, report that the tool is missing, and do not guess the next step.
@@ -28,6 +28,8 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 The board advances the router when the owner closes a Task. `savepoint-design` selects the next Objective, and `savepoint-task` selects the Task it starts. Agents and board actions never blank or change `release:`; only an explicit owner Goal choice changes it.
 
 An owner may ask, `set router to O-### [T-###] [I-###]`, or select an Issue alone with `set router to I-###`. Confirm every named record exists and, when a Task is named, require an Objective and confirm the Task belongs to it. If a record is missing or the Task belongs elsewhere, do not edit the router; explain why. For an Issue-only selection, clear `objective` and `task`; for an Objective/Task selection, clear `issue` unless the owner named one. Edit only the `objective`, `task`, and `issue` selection keys, leaving `release:` byte-for-byte unchanged unless the owner names a Release as part of an explicit Goal choice. Finish by running `savepoint resume` and showing its `Next` line.
+
+After a direct Issue repair selected alone, `savepoint-task` records `repair_attempted`, then moves the router to the Issue's Objective when its linked Tasks and Objective-scoped Checks identify exactly one. It clears `task` and `issue`; if there is no single Objective, it clears `issue` only. It leaves `release:` unchanged and runs `savepoint resume` to show the next step.
 
 Three shared references back these four skills and are never triggered directly: `agent-skills/references/check-method.md` (loaded in full by `savepoint-check`), `agent-skills/references/issue-capture.md` (entered by `savepoint-design`, `savepoint-task`, and `savepoint-check` from their own workflow), and `agent-skills/references/commands-and-procedures.md` (loaded by `savepoint-design` for config reconciliation). Each carries `triggerable: false` frontmatter.
 

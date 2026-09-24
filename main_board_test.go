@@ -58,7 +58,7 @@ func TestMainBoardV2ProjectWithoutTTYReportsNextAndExitsZero(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("savepoint board failed: %v\nstderr: %s", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "Planned T-001 — Do the thing") {
+	if !strings.Contains(result.stdout, "Start T-001 — Do the thing") {
 		t.Errorf("stdout = %q, want the resolved next action", result.stdout)
 	}
 	if !strings.Contains(result.stdout, "Objectives: 1  Tasks: 1") {
@@ -76,7 +76,7 @@ func TestMainBareStartupUsesTheV2BoardPath(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("bare startup failed: %v\nstderr: %s", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "Planned T-001 — Do the thing") {
+	if !strings.Contains(result.stdout, "Start T-001 — Do the thing") {
 		t.Fatalf("stdout = %q, want the V2 Next projection", result.stdout)
 	}
 }

@@ -15,7 +15,7 @@ func TestRunWithoutTTYLeadsWithNextAndReportsCounts(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if want := "Planned T-001 — Do the thing"; !strings.Contains(got, want) {
+	if want := "Start T-001 — Do the thing"; !strings.Contains(got, want) {
 		t.Errorf("output does not lead with the resolved Task, missing %q:\n%s", want, got)
 	}
 	if !strings.Contains(got, "Objectives: 1  Tasks: 2") {

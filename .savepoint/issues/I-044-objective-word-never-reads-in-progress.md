@@ -84,6 +84,10 @@ Expected: `In Progress` once any owned Task has started. Actual: `Planned`.
 
 ## Evidence
 
+- 2026-09-24T09:28:10Z: Re-ran `make build && make test-fast` on the
+  existing repair; both passed. `git status --short` and `git diff --check`
+  were clean before this evidence update. This run does not constitute an
+  independent Check or close the Issue.
 - `internal/resume/resume.go:99` `ObjectiveWord` maps `objective.Status` only.
 - No `ColumnInProgress` write for an Objective exists in `internal/`.
   `agent-skills/savepoint-task/SKILL.md:33` starts the Task but never the

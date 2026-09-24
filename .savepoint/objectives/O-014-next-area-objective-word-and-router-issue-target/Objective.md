@@ -11,7 +11,7 @@ release: R-006
 ## Outcome
 
 The Next line is the router's selection, stated in one structured,
-copy-pasteable form — for example `In Progress O-014 · Build T-028 — <title>`.
+copy-pasteable form — for example `Build T-028 — <title> (O-014)`.
 The owner can paste that line into a fresh agent session to resume work. The
 board, the non-TTY output, and the first line of `savepoint resume` print the
 identical text. When the owner closes a Task on the board, the router moves to
@@ -67,14 +67,18 @@ Confirmed by the owner on 2026-09-24:
   resolvers. With no Objective selected, Next says nothing is selected. The
   Goal completion rungs for a selected Release whose Objectives are all done
   are unchanged.
-- **Line format.** `<Objective word> O-### · <Task word> T-### — <Task
-  title>`; with no Task selected, `<Objective word> O-### · Check — <Objective
-  title>` when every owned Task is done, otherwise `<Objective word> O-### —
-  <Objective title>`. Objective word: `Planned`, `In Progress`, or `Done`.
-  Task word: the existing `Planned`/`Build`/`Test`/`Check`/`Done`. Plain text,
-  no glyphs, so it pastes cleanly.
-- **Owner acceptance wait reads `Check`.** An Objective whose Check is CLEAR
-  but awaits owner acceptance still reads `· Check`; there is no extra word.
+- **Line format: action first.** (Revised 2026-09-24 under I-047; replaces
+  `<Objective word> O-### · <Task word> T-### — <title>`, which strung two
+  status words together.) `<verb> <ID> — <title>`, and a Task line ends with
+  its Objective, `(O-###)`. Task verbs: `Start`, `Blocked`, `Build`, `Test`,
+  `Check`, `Accept`, `Close`, `Replan`, `Done`. Objective verbs (no Task
+  selected): `Check`, `Accept`, `Close`, `Plan`, `Pick a Task in`, `Done`.
+  Issue: `Fix` or `Resolved`. Goal (no Objective): `Check`, `Accept`,
+  `Close`. Plain text, no glyphs, so it pastes cleanly.
+- **Owner acceptance wait reads `Accept`.** (Revised 2026-09-24 under I-047;
+  it read `· Check`.) An Objective or Task whose Check is current and whose
+  only remaining blocker is owner acceptance reads `Accept`, so an agent is
+  never sent to re-run a Check that already passed.
 - **An Issue can be the selection.** (Revised 2026-09-24; replaces "Issue
   selection is context only".) The router may select an Issue on its own,
   with no Objective or Task; Next is then that Issue:

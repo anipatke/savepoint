@@ -18,6 +18,14 @@ history:
     note: >-
       Found while planning O-014's Issue Next line. Design.md section 4 and
       internal/data/issue_v2.go disagree.
+  - at: '2026-09-24T09:31:25Z'
+    actor: {role: executor, session: o014-i043-repair-20260924}
+    kind: repair_attempted
+    note: >-
+      Confirmed Design.md section 4 already says Issues carry no stage, matching
+      decodeIssueStatus in internal/data/issue_v2.go. No further code or Design
+      edit was needed. The existing repair remains open for an independent
+      Check or an explicit owner acceptance decision.
 ---
 
 # I-043: Design.md says an in-progress Issue needs a stage, but the loader rejects one

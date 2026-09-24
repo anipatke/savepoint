@@ -395,7 +395,7 @@ func TestLastTaskCompletionClearsRouterTaskAndShowsObjectiveCheck(t *testing.T) 
 	if got := loaded.State.Router.Task; got != "" {
 		t.Fatalf("router Task = %q, want cleared after the last Task", got)
 	}
-	if !strings.Contains(nextPanelText(loaded.State.Next), "· Check") {
+	if !strings.HasPrefix(nextPanelText(loaded.State.Next), "Check O-001 — ") {
 		t.Fatalf("board Next line = %q, want the Objective Check rung", nextPanelText(loaded.State.Next))
 	}
 	want := strings.Replace(router, "task: T-001\n", "task: none\n", 1)
@@ -687,7 +687,7 @@ func TestTaskStartMovesPlannedObjectiveToInProgress(t *testing.T) {
 	if got := readActionFile(t, objectivePath(root, "O-001")); got != want {
 		t.Errorf("Objective write changed bytes beyond status:\n got:\n%s\nwant:\n%s", got, want)
 	}
-	if got, want := nextPanelText(loaded.State.Next), "In Progress O-001 · Build T-001 — First task"; got != want {
+	if got, want := nextPanelText(loaded.State.Next), "Build T-001 — First task (O-001)"; got != want {
 		t.Errorf("Next line = %q, want %q", got, want)
 	}
 }

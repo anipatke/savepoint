@@ -12,7 +12,7 @@ import (
 // This file is the Next area: a one-line glance at the selected Objective,
 // Task, or Issue named by the project's resolved projection (data.ResolveNext). The line's
 // plain-text wording is shared with `savepoint resume`; the board adds its
-// NEXT: label and existing word accents. The rung evidence, action sentence,
+// NEXT: label and the verb's accent. The rung evidence, action sentence,
 // and Issues summary remain in resume and the record's detail overlay.
 //
 // It reads only the resolved projection and nothing else — no index, no
@@ -36,8 +36,8 @@ func nextLines(next data.Next) []string {
 }
 
 // renderNext draws the Next area: a bold orange "NEXT:" lead-in, then the
-// shared line. Objective and Task words use the existing phase accents so
-// the glance and the router phase row agree on color.
+// shared line. Only the verb is accented (verbStyle), in the router phase
+// row's colours, so the glance and the phase row agree on color.
 //
 // It is given only the resolved projection, so the sidebar's selection cannot
 // move it: the projection answers for the whole project, and a user looking at
@@ -60,73 +60,25 @@ func (m Model) renderNext(w int) string {
 }
 
 func styleNextLine(next data.Next, line string) string {
-	if next.Task != nil {
-		taskWord := resume.TaskStageWord(next.Task)
-		if next.Objective == nil {
-			return stageWordStyle(next.Task).Render(taskWord) + styles.HeaderWhiteBold.Render(line[len(taskWord):])
-		}
-
-		objectiveWord := resume.ObjectiveWord(next.Objective)
-		separator := strings.Index(line, " · ")
-		if objectiveWord == "" || taskWord == "" || separator < 0 {
-			return styles.HeaderWhiteBold.Render(line)
-		}
-		taskWordStart := separator + len(" · ")
-		taskWordEnd := taskWordStart + len(taskWord)
-		return objectiveWordStyle(next.Objective).Render(objectiveWord) +
-			styles.HeaderWhiteBold.Render(line[len(objectiveWord):taskWordStart]) +
-			stageWordStyle(next.Task).Render(taskWord) +
-			styles.HeaderWhiteBold.Render(line[taskWordEnd:])
+	verb := resume.NextVerb(next)
+	if verb == "" || !strings.HasPrefix(line, verb) {
+		return styles.HeaderWhiteBold.Render(line)
 	}
-
-	if next.Objective != nil {
-		objectiveWord := resume.ObjectiveWord(next.Objective)
-		if objectiveWord == "" {
-			return styles.HeaderWhiteBold.Render(line)
-		}
-		if next.Kind == data.NextObjectiveIntegration || next.Kind == data.NextObjectiveReady {
-			separator := strings.Index(line, " · Check — ")
-			if separator >= 0 {
-				checkStart := separator + len(" · ")
-				checkEnd := checkStart + len("Check")
-				return objectiveWordStyle(next.Objective).Render(objectiveWord) +
-					styles.HeaderWhiteBold.Render(line[len(objectiveWord):checkStart]) +
-					styles.FooterPhaseCheck.Render("Check") +
-					styles.HeaderWhiteBold.Render(line[checkEnd:])
-			}
-		}
-		return objectiveWordStyle(next.Objective).Render(objectiveWord) +
-			styles.HeaderWhiteBold.Render(line[len(objectiveWord):])
-	}
-
-	return styles.HeaderWhiteBold.Render(line)
+	return verbStyle(verb).Render(verb) + styles.HeaderWhiteBold.Render(line[len(verb):])
 }
 
-func objectiveWordStyle(objective *data.ObjectiveV2) lipgloss.Style {
-	switch objective.Status {
-	case data.ColumnInProgress:
+// verbStyle is the accent the Next line's verb borrows from the router phase
+// row: work in the Task phase reads orange, a Check or the owner's closing
+// decision reads green, and every other verb stays the panel's bold white.
+func verbStyle(verb string) lipgloss.Style {
+	switch verb {
+	case "Build", "Test", "Fix":
 		return styles.FooterPhaseTask
-	case data.ColumnDone:
+	case "Check", "Accept", "Close":
 		return styles.FooterPhaseCheck
 	default:
 		return styles.HeaderWhiteBold
 	}
-}
-
-// stageWordStyle is the accent a Task's stage word borrows from the router
-// phase row: Build and Test read as the router's Task phase (orange), Check
-// reads as the router's Check phase (green). Planned and Done are not a
-// router phase, so they stay the panel's plain bold white.
-func stageWordStyle(task *data.TaskV2) lipgloss.Style {
-	if task.Status == data.ColumnInProgress {
-		switch task.Stage {
-		case data.StageBuild, data.StageTest:
-			return styles.FooterPhaseTask
-		case data.StageAudit:
-			return styles.FooterPhaseCheck
-		}
-	}
-	return styles.HeaderWhiteBold
 }
 
 // wrapTo folds one already-styled line into the terminal's width. A sentence
