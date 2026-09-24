@@ -1,7 +1,7 @@
 ---
 id: O-023
 title: Show a Check's code style review on the board
-status: planned
+status: in_progress
 depends_on: [O-014]
 release: R-006
 ---

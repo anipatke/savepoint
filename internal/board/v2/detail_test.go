@@ -167,6 +167,82 @@ func TestARecordWithNoCheckSaysSoRatherThanShowingNothing(t *testing.T) {
 	got := screen(openTaskDetail(t, writeEvidenceProject(t), "T-007"))
 
 	requireContains(t, got, "CHECKS", noCheckRecorded)
+	if strings.Contains(got, "CODE STYLE") {
+		t.Errorf("a record with no Check shows a Code Style section:\n%s", got)
+	}
+}
+
+func TestCodeStyleReviewLinesKeepAuthoredContentAndStopAtNextSection(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		body    string
+		want    []string
+		present bool
+	}{
+		{"present", "## Code Style Review\n\n- [x] STYLE-01 **One job per file**\n\n- [ ] STYLE-02 **One job per function** — reason\n\n## Findings\n- unrelated", []string{"- [x] STYLE-01 **One job per file**", "", "- [ ] STYLE-02 **One job per function** — reason"}, true},
+		{"CRLF", "## Code Style Review\r\n\r\n- [x] STYLE-01\r\n\r\n## Findings\r\n- unrelated", []string{"- [x] STYLE-01"}, true},
+		{"end of body", "# Check\n## Code Style Review\n\n- [ ] STYLE-03 — reason\n", []string{"- [ ] STYLE-03 — reason"}, true},
+		{"absent", "# Check\n## Findings\n- [x] STYLE-01", nil, false},
+		{"empty", "## Code Style Review\n\n## Findings", []string{}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, present := codeStyleReviewLines(c.body)
+			if present != c.present || strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+				t.Errorf("codeStyleReviewLines() = %q, %t; want %q, %t", got, present, c.want, c.present)
+			}
+		})
+	}
+}
+
+func appendCheckBody(t *testing.T, root, id, body string) {
+	t.Helper()
+	path := filepath.Join(root, "checks", id+".md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(content, body...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDetailShowsOnlyLatestChecksCodeStyleReview(t *testing.T) {
+	root := writeEvidenceProject(t)
+	appendCheckBody(t, root, "C-001", "\n## Code Style Review\n\n- [x] STYLE-01\n")
+	appendCheckBody(t, root, "C-002", "\n## Code Style Review\n\n- [x] superseded only\n")
+	appendCheckBody(t, root, "C-011", "\n## Code Style Review\n\n- [x] STYLE-01\n- [ ] STYLE-02 — reason\n\n## Findings\n- unrelated\n")
+
+	task := openTaskDetail(t, root, "T-002")
+	lines := strings.Join(detailLines(*task.Detail, 120), "\n")
+	requireContains(t, lines, "CODE STYLE (C-003)", "(C-003 has no Code Style Review)")
+	if strings.Contains(lines, "superseded only") {
+		t.Errorf("superseded Check's review appeared in Task detail:\n%s", lines)
+	}
+	if strings.Index(lines, "CHECKS") > strings.Index(lines, "CODE STYLE (C-003)") {
+		t.Error("Code Style section preceded Checks")
+	}
+	withReview := openTaskDetail(t, root, "T-001")
+	requireContains(t, strings.Join(detailLines(*withReview.Detail, 120), "\n"), "CODE STYLE (C-001)", "- [x] STYLE-01")
+
+	objective := openObjectiveDetail(t, root, "O-001")
+	lines = strings.Join(detailLines(*objective.Detail, 120), "\n")
+	requireContains(t, lines, "CODE STYLE (C-011)", "- [x] STYLE-01", "- [ ] STYLE-02 — reason")
+	if strings.Contains(lines, "- unrelated") {
+		t.Errorf("the next Check section leaked into Code Style detail:\n%s", lines)
+	}
+}
+
+func TestGoalDetailShowsLatestChecksCodeStyleReview(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	writeCheck(t, root, "C-020", "release", "R-001", "CLEAR")
+	appendCheckBody(t, root, "C-020", "\n## Code Style Review\n\n- [x] STYLE-01\n")
+	model := openSizedBoard(t, root, 130, 48)
+	detail, ok := newReleaseDetail(model.State.Index, "R-001")
+	if !ok {
+		t.Fatal("Goal detail did not resolve")
+	}
+	lines := strings.Join(detailLines(detail, 120), "\n")
+	requireContains(t, lines, "CODE STYLE (C-020)", "- [x] STYLE-01")
 }
 
 // Each clearance state gets its own sentence, including the second one

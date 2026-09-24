@@ -99,6 +99,9 @@ func detailLines(detail RecordDetail, width int) []string {
 	lines = append(lines, detailSection("EXCEPTION", exceptionLines(detail.Evidence), width)...)
 	lines = append(lines, detailSection("REPLAN", replanLines(detail.Evidence), width)...)
 	lines = append(lines, detailSection("CHECKS", checkHistoryLines(detail.Checks), width)...)
+	if detail.StyleReview != nil {
+		lines = append(lines, detailSection("CODE STYLE ("+detail.StyleReview.CheckID+")", styleReviewLines(detail.StyleReview), width)...)
+	}
 	lines = append(lines, detailSection("ISSUES", issueLines(detail.Issues), width)...)
 	if detail.Kind == DetailRelease && detail.LegacyCompletion != nil {
 		lines = append(lines, detailSection("HISTORICAL COMPLETION", historicalCompletionLines(detail), width)...)
@@ -377,6 +380,16 @@ func checkHistoryLines(entries []CheckEntry) []string {
 			resume.ActorLabel(entry.Check.CheckedBy), entry.Check.CheckedAt.Format(detailTimeFormat)))
 	}
 	return lines
+}
+
+func styleReviewLines(review *StyleReview) []string {
+	if !review.Present {
+		return []string{"(" + review.CheckID + " has no Code Style Review)"}
+	}
+	if len(review.Lines) == 0 {
+		return []string{"(Code Style Review is empty)"}
+	}
+	return review.Lines
 }
 
 // checkMarker says where one Check sits in the chain. Both markers can be

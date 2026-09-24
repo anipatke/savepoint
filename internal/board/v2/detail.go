@@ -3,6 +3,7 @@ package v2
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
 )
@@ -115,7 +116,16 @@ type RecordDetail struct {
 	ByException bool
 	Evidence    *data.Evidence
 	Checks      []CheckEntry
+	StyleReview *StyleReview
 	Issues      []*data.IssueV2
+}
+
+// StyleReview carries only the latest Check's authored style section. Present
+// distinguishes a missing section from one whose content is empty.
+type StyleReview struct {
+	CheckID string
+	Lines   []string
+	Present bool
 }
 
 // newTaskDetail resolves the detail for one Task. It returns ok=false for an ID
@@ -129,16 +139,17 @@ func newTaskDetail(index *data.V2Index, taskID string) (RecordDetail, bool) {
 
 	owner := objectiveRef(index, task.Objective)
 	detail := RecordDetail{
-		Kind:      DetailTask,
-		ID:        task.ID,
-		Title:     task.Title,
-		Status:    task.Status,
-		Stage:     task.Stage,
-		Body:      task.Source.Body,
-		Owner:     &owner,
-		Clearance: data.ResolveClearance(index, task.ID),
-		Evidence:  task.Evidence,
-		Checks:    checkHistory(index, task.ID),
+		Kind:        DetailTask,
+		ID:          task.ID,
+		Title:       task.Title,
+		Status:      task.Status,
+		Stage:       task.Stage,
+		Body:        task.Source.Body,
+		Owner:       &owner,
+		Clearance:   data.ResolveClearance(index, task.ID),
+		Evidence:    task.Evidence,
+		Checks:      checkHistory(index, task.ID),
+		StyleReview: latestStyleReview(index, task.ID),
 	}
 
 	for _, dependency := range task.DependsOn {
@@ -171,6 +182,7 @@ func newObjectiveDetail(index *data.V2Index, objectiveID string) (RecordDetail, 
 		ByException: data.ResolveObjectiveCompletion(index, objectiveID).AllowedByException,
 		Evidence:    objective.Evidence,
 		Checks:      checkHistory(index, objective.ID),
+		StyleReview: latestStyleReview(index, objective.ID),
 	}
 
 	// Ownership is index.ObjectiveTasks' answer, built from each Task's own
@@ -218,6 +230,7 @@ func newReleaseDetail(index *data.V2Index, releaseID string) (RecordDetail, bool
 		Clearance:         data.ResolveClearance(index, release.ID),
 		Evidence:          release.Evidence,
 		Checks:            checkHistory(index, release.ID),
+		StyleReview:       latestStyleReview(index, release.ID),
 	}
 
 	objectiveIDs := slices.Clone(index.ReleaseObjectives[release.ID])
@@ -241,6 +254,47 @@ func newReleaseDetail(index *data.V2Index, releaseID string) (RecordDetail, bool
 	detail.Issues = linkedIssues(index, nil, detail.Checks)
 
 	return detail, true
+}
+
+func latestStyleReview(index *data.V2Index, targetID string) *StyleReview {
+	id := index.LatestCheck[targetID]
+	if id == "" {
+		return nil
+	}
+	check := index.Checks[id]
+	lines, present := codeStyleReviewLines(check.Source.Body)
+	return &StyleReview{CheckID: id, Lines: lines, Present: present}
+}
+
+// codeStyleReviewLines keeps the authored lines between the exact section
+// heading and the next level-two heading, trimming only blank edge lines.
+func codeStyleReviewLines(body string) ([]string, bool) {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	lines := strings.Split(body, "\n")
+	start := -1
+	for i, line := range lines {
+		if line == "## Code Style Review" {
+			start = i + 1
+			break
+		}
+	}
+	if start < 0 {
+		return nil, false
+	}
+	end := len(lines)
+	for i := start; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			end = i
+			break
+		}
+	}
+	for start < end && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	return lines[start:end], true
 }
 
 // reopenDetail re-resolves an open detail against a freshly loaded index, so a
