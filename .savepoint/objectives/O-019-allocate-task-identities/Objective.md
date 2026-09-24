@@ -1,7 +1,7 @@
 ---
 id: O-019
 title: Allocate Task identities without planner selection
-status: planned
+status: in_progress
 release: R-006
 depends_on: [O-018]
 ---
@@ -33,6 +33,27 @@ I-024 showed that a planner inferred `T-006` from one Objective while another Ob
 - Durable high-water state is Savepoint-managed, initialized from the full active Task set for existing projects and safely updated across processes and platforms. A failed reservation may leave a gap, never a reused number.
 - Creation validates the project before allocation and after writing. The strict loader remains the structural gate.
 - The current agent rule bans all `savepoint` commands. A narrow `create-task` exception and its managed-guide upgrade path are part of this Objective.
+
+## Confirmed Design Decisions
+
+On 2026-09-24, after T-010 returned REPLAN REQUIRED because its planned
+platform-write files (`internal/migrate/replace*.go`) had been deleted by
+O-021, the owner confirmed a simple, portable allocation design:
+
+- The project lock is a create-exclusive lock file,
+  `.savepoint/task-ids.lock`, opened with `O_CREATE|O_EXCL`. The same code
+  runs on Linux and Windows; there is no platform-specific lock primitive.
+- A caller that finds the lock held retries for a short bounded time, then
+  refuses with a named error that gives the lock file's path.
+- A lock file left behind by an interrupted process is not recovered
+  automatically. Allocation refuses and names the file; the owner removes it.
+- The high-water mark is `.savepoint/task-ids.yml` (`last_issued: N`), a
+  Savepoint-managed file written only while the lock is held, through the
+  existing temp-write, sync, and rename pattern in `internal/data/write.go`.
+- Windows evidence comes from the same tests running on the `windows-latest`
+  CI job; no Windows-only file replacement is added.
+- This replaces Design section 9's "No lockfile" for Task allocation only.
+  T-012 reconciles Design once the behavior lands.
 
 ## Boundaries
 
