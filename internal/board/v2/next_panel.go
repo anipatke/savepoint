@@ -1,22 +1,19 @@
 package v2
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/resume"
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-// This file is the Next area: a one-line glance at the Task the project's
-// resolved projection (data.ResolveNext) is pointing at right now — its
-// lifecycle word, its T-### identity, and its title. Nothing more: the rung
-// label, the clearance/owner-wait/dependency evidence, the action sentence,
-// and the Issues summary that used to live here are deliberately not
-// repeated in this compact panel. That fuller narrative remains
-// `savepoint resume`'s job (internal/resume) and the record's own detail
-// overlay (detail_view.go) — both unchanged, both still read straight off
-// the same projection and resolvers. This panel and those two surfaces are
-// allowed to diverge in wording on purpose now: the Next area is a glance,
-// not a report.
+// This file is the Next area: a one-line glance at the Objective and Task
+// named by the project's resolved projection (data.ResolveNext). The line's
+// plain-text wording is shared with `savepoint resume`; the board adds its
+// NEXT: label and existing word accents. The rung evidence, action sentence,
+// and Issues summary remain in resume and the record's detail overlay.
 //
 // It reads only the resolved projection and nothing else — no index, no
 // record, no gate — so a reader looking at the wrong part of the board still
@@ -27,44 +24,12 @@ import (
 // terminal panel and the non-TTY rendering so a piped board and a drawn one
 // state the same thing.
 func nextLines(next data.Next) []string {
-	if next.Task != nil {
-		return []string{taskStageWord(next.Task) + " " + next.Task.ID + " — " + next.Task.Title}
-	}
-	if next.Objective != nil {
-		return []string{next.Objective.ID + " — " + next.Objective.Title}
-	}
-	return []string{"Nothing selected yet"}
-}
-
-// taskStageWord is the one word this panel leads a Task with: its
-// implementation stage while in progress (Build, Test, or Check — never
-// "Audit"; see stageLabel), or its own status otherwise.
-func taskStageWord(task *data.TaskV2) string {
-	if task.Status == data.ColumnInProgress {
-		switch task.Stage {
-		case data.StageBuild:
-			return "Build"
-		case data.StageTest:
-			return "Test"
-		case data.StageAudit:
-			return "Check"
-		}
-	}
-	switch task.Status {
-	case data.ColumnPlanned:
-		return "Planned"
-	case data.ColumnDone:
-		return "Done"
-	default:
-		return string(task.Status)
-	}
+	return []string{resume.NextLine(next)}
 }
 
 // renderNext draws the Next area: a bold orange "NEXT:" lead-in, then the
-// word, the identity, and the title read as a single glance. The word itself
-// — Build, Test, or Check — carries the same accent the router row uses for
-// that phase (Task's orange for Build/Test, Check's green for Check), so the
-// glance and the phase row always agree on color.
+// shared line. Objective and Task words use the existing phase accents so
+// the glance and the router phase row agree on color.
 //
 // It is given only the resolved projection, so the sidebar's selection cannot
 // move it: the projection answers for the whole project, and a user looking at
@@ -74,15 +39,65 @@ func (m Model) renderNext(w int) string {
 	lines := nextLines(next)
 	rendered := make([]string, 0, len(lines)+1)
 	rendered = append(rendered, "")
-	for i, line := range lines {
-		styledLine := styles.HeaderWhiteBold.Render(line)
-		if i == 0 && next.Task != nil {
-			word := taskStageWord(next.Task)
-			styledLine = stageWordStyle(next.Task).Render(word) + styles.HeaderWhiteBold.Render(line[len(word):])
-		}
+	for _, line := range lines {
+		styledLine := styleNextLine(next, line)
 		rendered = append(rendered, wrapTo(w, styles.NextLabel.Render("NEXT:")+" "+styledLine))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rendered...)
+}
+
+func styleNextLine(next data.Next, line string) string {
+	if next.Task != nil {
+		taskWord := resume.TaskStageWord(next.Task)
+		if next.Objective == nil {
+			return stageWordStyle(next.Task).Render(taskWord) + styles.HeaderWhiteBold.Render(line[len(taskWord):])
+		}
+
+		objectiveWord := resume.ObjectiveWord(next.Objective)
+		separator := strings.Index(line, " · ")
+		if objectiveWord == "" || taskWord == "" || separator < 0 {
+			return styles.HeaderWhiteBold.Render(line)
+		}
+		taskWordStart := separator + len(" · ")
+		taskWordEnd := taskWordStart + len(taskWord)
+		return objectiveWordStyle(next.Objective).Render(objectiveWord) +
+			styles.HeaderWhiteBold.Render(line[len(objectiveWord):taskWordStart]) +
+			stageWordStyle(next.Task).Render(taskWord) +
+			styles.HeaderWhiteBold.Render(line[taskWordEnd:])
+	}
+
+	if next.Objective != nil {
+		objectiveWord := resume.ObjectiveWord(next.Objective)
+		if objectiveWord == "" {
+			return styles.HeaderWhiteBold.Render(line)
+		}
+		if next.Kind == data.NextObjectiveIntegration || next.Kind == data.NextObjectiveReady {
+			separator := strings.Index(line, " · Check — ")
+			if separator >= 0 {
+				checkStart := separator + len(" · ")
+				checkEnd := checkStart + len("Check")
+				return objectiveWordStyle(next.Objective).Render(objectiveWord) +
+					styles.HeaderWhiteBold.Render(line[len(objectiveWord):checkStart]) +
+					styles.FooterPhaseCheck.Render("Check") +
+					styles.HeaderWhiteBold.Render(line[checkEnd:])
+			}
+		}
+		return objectiveWordStyle(next.Objective).Render(objectiveWord) +
+			styles.HeaderWhiteBold.Render(line[len(objectiveWord):])
+	}
+
+	return styles.HeaderWhiteBold.Render(line)
+}
+
+func objectiveWordStyle(objective *data.ObjectiveV2) lipgloss.Style {
+	switch objective.Status {
+	case data.ColumnInProgress:
+		return styles.FooterPhaseTask
+	case data.ColumnDone:
+		return styles.FooterPhaseCheck
+	default:
+		return styles.HeaderWhiteBold
+	}
 }
 
 // stageWordStyle is the accent a Task's stage word borrows from the router

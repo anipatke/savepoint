@@ -33,7 +33,7 @@ func TestViewEmptyTemplateProjectOpensWithThreeEmptyColumns(t *testing.T) {
 			t.Errorf("view missing empty column %q:\n%s", label, got)
 		}
 	}
-	if !strings.Contains(got, "Nothing selected yet") {
+	if !strings.Contains(got, "Nothing selected") {
 		t.Errorf("view does not report the plain fallback for a project with nothing to point at:\n%s", got)
 	}
 	for _, forbidden := range []string{diagnosticHeading, "error", "not found", "MIGRATION"} {

@@ -53,8 +53,8 @@ func TestLoadProjectEmptyProjectFromTemplateIsNormal(t *testing.T) {
 	if loaded.State.objectiveCount() != 0 || loaded.State.taskCount() != 0 {
 		t.Errorf("counts = %d objectives / %d tasks, want an empty project", loaded.State.objectiveCount(), loaded.State.taskCount())
 	}
-	if loaded.State.Next.Kind != data.NextPlanObjective {
-		t.Errorf("Next.Kind = %q, want %q for a project with nothing in it", loaded.State.Next.Kind, data.NextPlanObjective)
+	if loaded.State.Next.Kind != data.NextNothingSelected {
+		t.Errorf("Next.Kind = %q, want %q for a project with nothing selected", loaded.State.Next.Kind, data.NextNothingSelected)
 	}
 	if loaded.State.Router == nil || loaded.State.Router.Objective != "" {
 		t.Errorf("Router objective = %+v, want no selection", loaded.State.Router)

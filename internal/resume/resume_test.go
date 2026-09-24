@@ -11,6 +11,83 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
+func TestNextLineFormatsEverySelectionShape(t *testing.T) {
+	currentOwnerWait := data.Next{
+		Kind:      data.NextObjectiveIntegration,
+		Objective: &data.ObjectiveV2{ID: "O-009", Title: "Await owner acceptance", Status: data.ColumnInProgress},
+		Clearance: &data.Clearance{State: data.ClearanceCurrent, Check: "C-009"},
+		GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{
+			{Kind: data.GateBlockOwnerAcceptance},
+		}},
+	}
+	cases := []struct {
+		name string
+		next data.Next
+		want string
+	}{
+		{
+			name: "planned task",
+			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-001", Status: data.ColumnPlanned}, Task: &data.TaskV2{ID: "T-001", Objective: "O-001", Title: "Plan it", Status: data.ColumnPlanned}},
+			want: "Planned O-001 · Planned T-001 — Plan it",
+		},
+		{
+			name: "build task",
+			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-002", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-002", Objective: "O-002", Title: "Build it", Status: data.ColumnInProgress, Stage: data.StageBuild}},
+			want: "In Progress O-002 · Build T-002 — Build it",
+		},
+		{
+			name: "test task",
+			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-003", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-003", Objective: "O-003", Title: "Test it", Status: data.ColumnInProgress, Stage: data.StageTest}},
+			want: "In Progress O-003 · Test T-003 — Test it",
+		},
+		{
+			name: "audit task says check",
+			next: data.Next{Kind: data.NextCheckNeeded, Objective: &data.ObjectiveV2{ID: "O-004", Status: data.ColumnInProgress}, Task: &data.TaskV2{ID: "T-004", Objective: "O-004", Title: "Review it", Status: data.ColumnInProgress, Stage: data.StageAudit}},
+			want: "In Progress O-004 · Check T-004 — Review it",
+		},
+		{
+			name: "done task",
+			next: data.Next{Kind: data.NextExecute, Objective: &data.ObjectiveV2{ID: "O-005", Status: data.ColumnDone}, Task: &data.TaskV2{ID: "T-005", Objective: "O-005", Title: "Ship it", Status: data.ColumnDone}},
+			want: "Done O-005 · Done T-005 — Ship it",
+		},
+		{
+			name: "task with missing objective record",
+			next: data.Next{Kind: data.NextExecute, Task: &data.TaskV2{ID: "T-006", Objective: "O-999", Title: "Keep visible", Status: data.ColumnInProgress, Stage: data.StageBuild}},
+			want: "Build T-006 — Keep visible",
+		},
+		{
+			name: "objective with unfinished tasks",
+			next: data.Next{Kind: data.NextSelectTask, Objective: &data.ObjectiveV2{ID: "O-007", Title: "Plan tasks", Status: data.ColumnPlanned}},
+			want: "Planned O-007 — Plan tasks",
+		},
+		{
+			name: "objective with no tasks",
+			next: data.Next{Kind: data.NextPlanObjective, Objective: &data.ObjectiveV2{ID: "O-007A", Title: "Break this down", Status: data.ColumnPlanned}},
+			want: "Planned O-007A — Break this down",
+		},
+		{
+			name: "objective check needed",
+			next: data.Next{Kind: data.NextObjectiveIntegration, Objective: &data.ObjectiveV2{ID: "O-008", Title: "Integrate", Status: data.ColumnInProgress}, Clearance: &data.Clearance{State: data.ClearanceMissing}},
+			want: "In Progress O-008 · Check — Integrate",
+		},
+		{name: "current check awaiting owner", next: currentOwnerWait, want: "In Progress O-009 · Check — Await owner acceptance"},
+		{
+			name: "objective ready for owner closure",
+			next: data.Next{Kind: data.NextObjectiveReady, Objective: &data.ObjectiveV2{ID: "O-010", Title: "Ready to close", Status: data.ColumnInProgress}},
+			want: "In Progress O-010 · Check — Ready to close",
+		},
+		{name: "nothing selected", next: data.Next{Kind: data.NextNothingSelected}, want: "Nothing selected"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NextLine(tc.next); got != tc.want {
+				t.Errorf("NextLine() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestRender_replan is the golden rendering for rung two: a recorded replan
 // flag, reported by its own reason.
 func TestRender_replan(t *testing.T) {
@@ -310,7 +387,7 @@ func TestRender_releaseRungsKeepPromiseEvidenceAndActionDistinct(t *testing.T) {
 	}
 }
 
-func TestRender_releaseSelectionDiagnosticsKeepGlobalAction(t *testing.T) {
+func TestRender_releaseSelectionDiagnosticsRequireNewSelection(t *testing.T) {
 	cases := []struct {
 		name       string
 		diagnostic *data.SelectionDiagnostic
@@ -324,7 +401,7 @@ func TestRender_releaseSelectionDiagnosticsKeepGlobalAction(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			text := renderText(data.Next{Kind: data.NextPlanObjective, SelectionDiagnostic: test.diagnostic})
+			text := renderText(data.Next{Kind: data.NextNothingSelected, SelectionDiagnostic: test.diagnostic})
 			for _, want := range test.want {
 				if !strings.Contains(text, want) {
 					t.Errorf("renderText() = %q, want %q", text, want)
@@ -334,26 +411,30 @@ func TestRender_releaseSelectionDiagnosticsKeepGlobalAction(t *testing.T) {
 	}
 }
 
-// TestRender_readyTask is the golden rendering for rung eight when the ready
-// record is a Task.
-func TestRender_readyTask(t *testing.T) {
+// TestRender_selectedPlannedTask renders the explicitly selected planned
+// Task through the existing start resolver.
+func TestRender_selectedPlannedTask(t *testing.T) {
 	next := data.Next{
-		Kind:         data.NextReady,
-		Task:         &data.TaskV2{ID: "T060", Title: "Ready elsewhere", Status: data.ColumnPlanned},
+		Kind:         data.NextExecute,
+		Objective:    &data.ObjectiveV2{ID: "O060", Title: "Selected Objective", Status: data.ColumnInProgress},
+		Task:         &data.TaskV2{ID: "T060", Title: "Selected Task", Objective: "O060", Status: data.ColumnPlanned},
 		GateDecision: &data.GateDecision{Allowed: true, Actor: data.ActorRoleExecutor},
 	}
-	want := "Task: T060 — Ready elsewhere\n" +
+	want := "Objective: O060 — Selected Objective\n" +
+		"Task: T060 — Selected Task\n" +
 		"Implementation: Status planned.\n" +
+		"\n" +
+		"Ready: Its dependencies are satisfied; it may start.\n" +
 		"\n" +
 		"Next action: Start Task T060.\n"
 	assertRenderEquals(t, next, want)
 }
 
-// TestRender_readyObjective proves rung eight's Objective-only fallback:
-// ready to plan Tasks under an Objective with none yet.
-func TestRender_readyObjective(t *testing.T) {
+// TestRender_planSelectedObjective proves a Task-less selected Objective
+// directs planning under that Objective.
+func TestRender_planSelectedObjective(t *testing.T) {
 	next := data.Next{
-		Kind:      data.NextReady,
+		Kind:      data.NextPlanObjective,
 		Objective: &data.ObjectiveV2{ID: "O003", Title: "New objective", Status: data.ColumnPlanned},
 	}
 	want := "Objective: O003 — New objective\n" +
@@ -363,12 +444,42 @@ func TestRender_readyObjective(t *testing.T) {
 	assertRenderEquals(t, next, want)
 }
 
-// TestRender_planObjective is the golden rendering for rung nine: nothing
-// selected, nothing ready, plan the next Objective. A fresh project with no
-// Objectives lands here with the same wording.
-func TestRender_planObjective(t *testing.T) {
-	next := data.Next{Kind: data.NextPlanObjective}
-	want := "Next action: Plan the next Objective — for a project with nothing underway yet, start with Idea/Design.\n"
+func TestActionPhraseSelectionGuidance(t *testing.T) {
+	cases := []struct {
+		name string
+		next data.Next
+		want string
+	}{
+		{
+			name: "plan under selected Objective",
+			next: data.Next{Kind: data.NextPlanObjective, Objective: &data.ObjectiveV2{ID: "O-003"}},
+			want: "Plan Tasks under Objective O-003.",
+		},
+		{
+			name: "select a Task under selected Objective",
+			next: data.Next{Kind: data.NextSelectTask, Objective: &data.ObjectiveV2{ID: "O-003"}},
+			want: "Select a Task under Objective O-003: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+		},
+		{
+			name: "select an Objective when none is selected",
+			next: data.Next{Kind: data.NextNothingSelected},
+			want: "Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ActionPhrase(tc.next); got != tc.want {
+				t.Errorf("ActionPhrase() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRender_nothingSelected gives an explicit way to choose the next
+// Objective when the router has no current selection.
+func TestRender_nothingSelected(t *testing.T) {
+	next := data.Next{Kind: data.NextNothingSelected}
+	want := "Next action: Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".\n"
 	assertRenderEquals(t, next, want)
 }
 
@@ -377,12 +488,12 @@ func TestRender_planObjective(t *testing.T) {
 // still support, rather than in place of it.
 func TestRender_selectionDiagnosticAndNextActionTogether(t *testing.T) {
 	next := data.Next{
-		Kind:                data.NextPlanObjective,
+		Kind:                data.NextNothingSelected,
 		SelectionDiagnostic: &data.SelectionDiagnostic{Kind: data.SelectionNotFound, RecordKind: data.SelectionRecordTask, ID: "T999"},
 	}
-	want := "Selection: The router names task T999, which does not exist among the project's live records.\n" +
+	want := "\nSelection: The router names task T999, which does not exist among the project's live records.\n" +
 		"\n" +
-		"Next action: Plan the next Objective — for a project with nothing underway yet, start with Idea/Design.\n"
+		"Next action: Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".\n"
 	assertRenderEquals(t, next, want)
 }
 
@@ -390,7 +501,7 @@ func TestRender_selectionDiagnosticAndNextActionTogether(t *testing.T) {
 // and treats the Task record's ownership as authoritative in its wording.
 func TestRender_selectionMismatch(t *testing.T) {
 	next := data.Next{
-		Kind: data.NextPlanObjective,
+		Kind: data.NextNothingSelected,
 		SelectionDiagnostic: &data.SelectionDiagnostic{
 			Kind: data.SelectionMismatch, RouterObjective: "O001", Task: "T001", TaskObjective: "O002",
 		},
@@ -424,7 +535,7 @@ func TestRender_issuesSection(t *testing.T) {
 // TestRender_noIssuesRendersNoSection proves a Next with no Issues renders
 // no "Issues:" section at all, rather than an empty one.
 func TestRender_noIssuesRendersNoSection(t *testing.T) {
-	next := data.Next{Kind: data.NextPlanObjective}
+	next := data.Next{Kind: data.NextNothingSelected}
 	text := renderText(next)
 	if strings.Contains(text, "Issues:") {
 		t.Fatalf("renderText() = %q, want no Issues section when Issues is nil", text)
@@ -491,7 +602,7 @@ func TestRender_narrowWidthReadable(t *testing.T) {
 // error rather than swallowing it.
 func TestRender_propagatesWriterError(t *testing.T) {
 	wantErr := errors.New("disk full")
-	next := data.Next{Kind: data.NextPlanObjective}
+	next := data.Next{Kind: data.NextNothingSelected}
 
 	err := Render(failingWriter{err: wantErr}, next)
 	if !errors.Is(err, wantErr) {
@@ -525,6 +636,7 @@ func assertRenderEquals(t *testing.T, next data.Next, want string) {
 	if err := Render(&buf, next); err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
+	want = NextLine(next) + "\n" + want
 	if got := buf.String(); got != want {
 		t.Fatalf("Render() = %q, want %q", got, want)
 	}
@@ -612,17 +724,18 @@ func allRungFixtures() []data.Next {
 			}},
 		},
 		{
-			Kind:         data.NextReady,
-			Task:         &data.TaskV2{ID: "T060", Title: "Ready elsewhere", Status: data.ColumnPlanned},
-			GateDecision: &data.GateDecision{Allowed: true, Actor: data.ActorRoleExecutor},
+			Kind:         data.NextObjectiveReady,
+			Objective:    &data.ObjectiveV2{ID: "O003", Title: "Ready to close", Status: data.ColumnInProgress},
+			Clearance:    &data.Clearance{State: data.ClearanceCurrent, Check: "C021"},
+			GateDecision: &data.GateDecision{Allowed: true, Actor: data.ActorRoleChecker},
 		},
 		{
-			Kind:      data.NextReady,
-			Objective: &data.ObjectiveV2{ID: "O003", Title: "New objective", Status: data.ColumnPlanned},
+			Kind:      data.NextSelectTask,
+			Objective: &data.ObjectiveV2{ID: "O004", Title: "Choose a Task", Status: data.ColumnInProgress},
 		},
-		{Kind: data.NextPlanObjective},
+		{Kind: data.NextNothingSelected},
 		{
-			Kind:                data.NextPlanObjective,
+			Kind:                data.NextNothingSelected,
 			SelectionDiagnostic: &data.SelectionDiagnostic{Kind: data.SelectionNotFound, RecordKind: data.SelectionRecordTask, ID: "T999"},
 		},
 		{

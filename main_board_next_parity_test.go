@@ -13,22 +13,23 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/doctor"
 	"github.com/opencode/savepoint/internal/migrate"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
-// This file proves two things across every rung the on-disk rung matrix
+// This file proves three things across every rung the on-disk rung matrix
 // (resumeMatrixCases, E48 T007) can produce:
 //
 //  1. The board's own two surfaces — the drawn TUI and the deterministic
 //     non-TTY plain table — always render the same one-line Next summary as
 //     each other, and that line matches what the resolved projection's own
 //     Task or Objective says (expectedBoardLine).
-//  2. `savepoint resume` still reports the full identity/evidence/action
-//     narrative it always has, checked against the same projection.
+//  2. `savepoint resume` starts with that exact same plain-text line, then
+//     reports the full identity/evidence/action narrative below it.
+//  3. A selected Task carries its owning Objective in the shared projection
+//     when the Objective record exists.
 //
-// The board's one-line summary and resume's full narrative are deliberately
-// NOT required to share wording anymore — the board is a glance, resume is
-// the report (.savepoint/Design.md, "Layout"). This file used to also assert
-// that cross-surface equality; it no longer does, on purpose.
+// The rest of the board summary and resume's full narrative may still differ:
+// the board is a glance, resume is the report (.savepoint/Design.md, "Layout").
 
 func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 	for _, test := range resumeMatrixCases() {
@@ -39,6 +40,9 @@ func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 			want := resolveNextFromDisk(t, dir)
 			if want.Kind != test.wantKind {
 				t.Fatalf("Next.Kind = %q, want %q", want.Kind, test.wantKind)
+			}
+			if want.Task != nil && (want.Objective == nil || want.Objective.ID != want.Task.Objective) {
+				t.Errorf("Next Objective = %#v for Task owner %q, want the owning Objective record", want.Objective, want.Task.Objective)
 			}
 
 			assertResumeReportsTheProjection(t, dir, want)
@@ -130,8 +134,12 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 			}
 
 			expected := expectedBoardLine(want)
-			if !strings.Contains(boardResult.stdout, expected) {
-				t.Errorf("built board output missing %q:\n%s", expected, boardResult.stdout)
+			if !hasExactLine(boardResult.stdout, expected) {
+				t.Errorf("built board output missing exact Next line %q:\n%s", expected, boardResult.stdout)
+			}
+			resumeFirstLine := strings.SplitN(resumeResult.stdout, "\n", 2)[0]
+			if resumeFirstLine != expected {
+				t.Errorf("built resume first line = %q, want the shared Next line %q", resumeFirstLine, expected)
 			}
 			if want.Task != nil && !strings.Contains(resumeResult.stdout, "Task: "+want.Task.ID+" — "+want.Task.Title) {
 				t.Errorf("built resume output does not name the projection's own Task:\n%s", resumeResult.stdout)
@@ -143,40 +151,9 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 	}
 }
 
-// expectedBoardLine mirrors internal/board/v2.nextLines' one-line format —
-// not by calling it (that package's rendering is unexported), but by reading
-// the same projection fields it reads, so this test proves the board's real
-// output by comparison rather than by construction. Keep this in sync with
-// nextLines/taskStageWord in internal/board/v2/next_panel.go.
+// expectedBoardLine is the shared wording used by the board and resume.
 func expectedBoardLine(next data.Next) string {
-	if next.Task != nil {
-		return taskStageWordForTest(next.Task) + " " + next.Task.ID + " — " + next.Task.Title
-	}
-	if next.Objective != nil {
-		return next.Objective.ID + " — " + next.Objective.Title
-	}
-	return "Nothing selected yet"
-}
-
-func taskStageWordForTest(task *data.TaskV2) string {
-	if task.Status == data.ColumnInProgress {
-		switch task.Stage {
-		case data.StageBuild:
-			return "Build"
-		case data.StageTest:
-			return "Test"
-		case data.StageAudit:
-			return "Check"
-		}
-	}
-	switch task.Status {
-	case data.ColumnPlanned:
-		return "Planned"
-	case data.ColumnDone:
-		return "Done"
-	default:
-		return string(task.Status)
-	}
+	return resume.NextLine(next)
 }
 
 // assertResumeReportsTheProjection runs `savepoint resume` over dir and
@@ -193,6 +170,10 @@ func assertResumeReportsTheProjection(t *testing.T, dir string, want data.Next) 
 		t.Fatalf("runResume() exit = %d, want 0\n%s", code, out.String())
 	}
 	text := out.String()
+	firstLine := strings.SplitN(text, "\n", 2)[0]
+	if firstLine != expectedBoardLine(want) {
+		t.Errorf("resume first line = %q, want shared Next line %q", firstLine, expectedBoardLine(want))
+	}
 	if want.Task != nil && !strings.Contains(text, "Task: "+want.Task.ID+" — "+want.Task.Title) {
 		t.Errorf("resume output does not name the projection's own Task:\n%s", text)
 	}
@@ -213,9 +194,18 @@ func assertBoardLine(t *testing.T, dir string, expected string) {
 	if err := boardv2.Run(boardv2.Options{Root: filepath.Join(dir, ".savepoint"), Stdout: &out, TTY: false}); err != nil {
 		t.Fatalf("board Run() error = %v", err)
 	}
-	if !strings.Contains(out.String(), expected) {
-		t.Errorf("non-TTY board output missing %q:\n%s", expected, out.String())
+	if !hasExactLine(out.String(), expected) {
+		t.Errorf("non-TTY board output missing exact Next line %q:\n%s", expected, out.String())
 	}
+}
+
+func hasExactLine(output, expected string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if line == expected {
+			return true
+		}
+	}
+	return false
 }
 
 // assertTUILine drives the actual Bubble Tea model through its load command
@@ -229,7 +219,7 @@ func assertTUILine(t *testing.T, dir string, expected string) {
 	loaded, _ := sizedModel.Update(sizedModel.Init()())
 	final := loaded.(boardv2.Model)
 	got := xansi.Strip(final.View())
-	if !strings.Contains(got, expected) {
-		t.Errorf("TUI board view missing %q:\n%s", expected, got)
+	if !strings.Contains(got, "NEXT: "+expected) {
+		t.Errorf("TUI board view missing %q:\n%s", "NEXT: "+expected, got)
 	}
 }

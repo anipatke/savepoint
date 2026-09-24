@@ -13,12 +13,9 @@ import (
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
-// This file proves the three claims T-001-T006 each leave unproven on their
-// own (E48 T-007): every reachable project state lands on exactly one rung of
-// the ladder, resume's no-write guarantee holds across the whole matrix and
-// a second consecutive invocation, and the projection is a shared value with
-// no resume-specific shape — a second, independent consumer built here reads
-// the same selection and next action straight off it.
+// This file proves the selection and gate outcomes through the real on-disk
+// pipeline, resume's no-write guarantee across a second invocation, and the
+// shared projection shape consumed independently by another surface.
 
 // matrixCase is one named project state the ladder must resolve to exactly
 // one rung. build writes a real project tree under dir (dir/.savepoint/...,
@@ -64,10 +61,10 @@ func resumeMatrixCases() []matrixCase {
 			wantAction: "Record Goal R-001 as done.",
 		},
 		{
-			name:                    "missing Release selection keeps global work available",
+			name:                    "missing Release selection stays unselected",
 			build:                   matrixBuildMissingReleaseSelection,
-			wantKind:                data.NextReady,
-			wantAction:              "Start Task T-001.",
+			wantKind:                data.NextNothingSelected,
+			wantAction:              "press p on the board",
 			wantSelectionDiagnostic: data.SelectionReleaseNotFound,
 		},
 		{
@@ -109,32 +106,56 @@ func resumeMatrixCases() []matrixCase {
 		{
 			name:       "no selection, a ready task exists elsewhere",
 			build:      matrixBuildReady,
-			wantKind:   data.NextReady,
-			wantAction: "Start Task T-001.",
+			wantKind:   data.NextNothingSelected,
+			wantAction: "press p on the board",
 		},
 		{
-			name:       "objective selected with no tasks yet falls through to planning",
+			name:       "selected Objective with no Tasks asks for planning under itself",
 			build:      matrixBuildObjectiveNoTasks,
-			wantKind:   data.NextReady,
+			wantKind:   data.NextPlanObjective,
 			wantAction: "Plan Tasks under Objective O-001.",
 		},
 		{
-			name:       "objective integration check outstanding but router selects nothing",
+			name:       "objective integration check is not substituted when router selects nothing",
 			build:      matrixBuildObjectiveIntegrationUnselected,
+			wantKind:   data.NextNothingSelected,
+			wantAction: "press p on the board",
+		},
+		{
+			name:       "selected Objective with unfinished Tasks asks for Task selection",
+			build:      matrixBuildSelectTask,
+			wantKind:   data.NextSelectTask,
+			wantAction: "Select a Task under Objective O-001",
+		},
+		{
+			name:       "selected Task-less Objective wins over another active Task",
+			build:      matrixBuildSelectedTasklessObjective,
+			wantKind:   data.NextPlanObjective,
+			wantAction: "Plan Tasks under Objective O-018.",
+		},
+		{
+			name:       "done selected Release Task reports its Objective integration before other active work",
+			build:      matrixBuildDoneSelectedTaskRelease,
 			wantKind:   data.NextObjectiveIntegration,
-			wantAction: "Record the Objective O-001 integration Check",
+			wantAction: "Record the Objective O-018 integration Check",
+		},
+		{
+			name:       "selected Objective with current integration is ready for owner closure",
+			build:      matrixBuildObjectiveReady,
+			wantKind:   data.NextObjectiveReady,
+			wantAction: "Owner: record Objective O-001 as done.",
 		},
 		{
 			name:       "empty project, nothing ready",
 			build:      matrixBuildPlanObjective,
-			wantKind:   data.NextPlanObjective,
-			wantAction: "Plan the next Objective",
+			wantKind:   data.NextNothingSelected,
+			wantAction: "press p on the board",
 		},
 		{
 			name:       "fresh savepoint init scaffold",
 			build:      matrixBuildFreshInitScaffold,
-			wantKind:   data.NextPlanObjective,
-			wantAction: "Plan the next Objective",
+			wantKind:   data.NextNothingSelected,
+			wantAction: "press p on the board",
 		},
 	}
 }
@@ -195,7 +216,7 @@ func matrixBuildReleaseCheckNeeded(t *testing.T, dir string) {
 	matrixReleaseObjective(t, dir, "done", "last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
 	matrixReleaseTask(t, dir, "done")
 	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
-	matrixReleaseRouter(t, dir, "R-001", "O-001", "none")
+	matrixReleaseRouter(t, dir, "R-001", "none", "none")
 }
 
 func matrixBuildReleaseOwnerValidation(t *testing.T, dir string) {
@@ -293,9 +314,7 @@ func matrixBuildObjectiveIntegration(t *testing.T, dir string) {
 
 // matrixBuildObjectiveNoTasks selects an Objective that owns no Task yet —
 // the normal state between defining an Objective and breaking it into Tasks.
-// Rung seven must not ask for an integration Check over work that does not
-// exist; the Objective falls through to rung eight's project-wide search,
-// which finds this same Objective ready to be planned under.
+// Its Next asks for planning under this selected Objective.
 func matrixBuildObjectiveNoTasks(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
@@ -303,10 +322,61 @@ func matrixBuildObjectiveNoTasks(t *testing.T, dir string) {
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("design", "O-001", "none", "Plan Tasks under Objective O-001."))
 }
 
-// matrixBuildObjectiveIntegrationUnselected mirrors matrixBuildObjectiveIntegration
-// — every owned Task done, integration Check missing — but the router selects
-// nothing, proving the outstanding Check is still reported project-wide
-// rather than disappearing behind an empty selection.
+func matrixBuildSelectTask(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
+	task := "---\nid: T-001\ntitle: \"Alpha\"\nobjective: O-001\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: build\n---\n\n# Alpha\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-alpha.md"), task)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("task", "O-001", "none", "Select a Task."))
+}
+
+func matrixBuildSelectedTasklessObjective(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixObjective(t, dir, "O-013-other", "O-013", "in_progress")
+	matrixObjective(t, dir, "O-018-selected", "O-018", "in_progress")
+	task := "---\nid: T-006\ntitle: \"Active elsewhere\"\nobjective: O-013\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: build\n---\n\n# Active elsewhere\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-013-other", "tasks", "T-006-active.md"), task)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("design", "O-018", "none", "Plan Tasks under Objective O-018."))
+}
+
+func matrixBuildDoneSelectedTaskRelease(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixRelease(t, dir, "in_progress", "")
+	selectedObjective := "---\nid: O-018\ntitle: \"Objective O-018\"\nstatus: in_progress\nrelease: R-001\n---\n\n# Objective O-018\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-018-selected", "Objective.md"), selectedObjective)
+	otherObjective := "---\nid: O-013\ntitle: \"Objective O-013\"\nstatus: in_progress\nrelease: R-001\n---\n\n# Objective O-013\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-013-other", "Objective.md"), otherObjective)
+	otherTask := "---\nid: T-006\ntitle: \"Active elsewhere\"\nobjective: O-013\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: in_progress\nstage: build\n---\n\n# Active elsewhere\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-013-other", "tasks", "T-006-active.md"), otherTask)
+	doneTask := "---\nid: T-020\ntitle: \"Selected done Task\"\nobjective: O-018\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: done\n---\n\n# Selected done Task\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-018-selected", "tasks", "T-020-done.md"), doneTask)
+	matrixReleaseRouter(t, dir, "R-001", "O-018", "T-020")
+}
+
+func matrixBuildObjectiveReady(t *testing.T, dir string) {
+	t.Helper()
+	matrixConfig(t, dir)
+	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
+	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
+	objective := "---\nid: O-001\ntitle: \"Objective O-001\"\nstatus: in_progress\n" +
+		"last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n---\n\n# Objective O-001\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "Objective.md"), objective)
+	task := "---\nid: T-001\ntitle: \"Done Task\"\nobjective: O-001\n" +
+		"planned_by: {role: planner, session: planning-fixture}\nstatus: done\n---\n\n# Done Task\n"
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "tasks", "T-001-done.md"), task)
+	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), resumeRouterV2Content("check", "O-001", "T-001", "Record the Objective as done."))
+}
+
+// matrixBuildObjectiveIntegrationUnselected mirrors
+// matrixBuildObjectiveIntegration, but the router selects nothing. The
+// outstanding Check remains attached to O-001 and is not substituted.
 func matrixBuildObjectiveIntegrationUnselected(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
@@ -468,7 +538,7 @@ func TestResumeMatrix_everyRungReachedExactlyOnce(t *testing.T) {
 	for _, kind := range []data.NextKind{
 		data.NextReplan, data.NextDependency, data.NextExecute,
 		data.NextCheckNeeded, data.NextOwnerValidationRequired, data.NextObjectiveIntegration,
-		data.NextReady, data.NextPlanObjective,
+		data.NextObjectiveReady, data.NextSelectTask, data.NextNothingSelected, data.NextPlanObjective,
 	} {
 		if !seenKinds[kind] {
 			t.Errorf("no matrix case reached rung %q; the ladder has a gap this matrix does not cover", kind)

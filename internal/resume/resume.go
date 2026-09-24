@@ -8,6 +8,28 @@ import (
 	"github.com/opencode/savepoint/internal/data"
 )
 
+// nextActionCopy holds the static resume instructions separately from the
+// rung-selection logic, so copy changes do not add another decision path.
+var nextActionCopy = struct {
+	planObjective         string
+	planTasks             string
+	selectTask            string
+	selectTaskNoID        string
+	nothingSelected       string
+	completeObjective     string
+	completeWithException string
+	completedObjective    string
+}{
+	planObjective:         "Plan the next Objective — for a project with nothing underway yet, start with Idea/Design.",
+	planTasks:             "Plan Tasks under Objective %s.",
+	selectTask:            "Select a Task under Objective %s: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+	selectTaskNoID:        "Select a Task for the selected Objective.",
+	nothingSelected:       "Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+	completeObjective:     "Owner: record Objective %s as done.",
+	completeWithException: "Owner: record Objective %s as done under the recorded exception.",
+	completedObjective:    "Objective %s is already done; select another Objective or clear the router selection.",
+}
+
 // Render writes next as deterministic, plain-text narrative to w. It takes
 // no project root and performs no discovery: every fact it writes is read
 // straight off next, the value data.ResolveNext already resolved (E48-Detail
@@ -18,13 +40,80 @@ func Render(w io.Writer, next data.Next) error {
 	return err
 }
 
-// renderText builds the full narrative as a string, so exact-text and
-// determinism tests never have to go through an io.Writer.
+// NextLine is the single plain-text summary shared by the board and resume.
+// It reads the selected records and rung from data.Next and makes no gate or
+// selection decisions of its own.
+func NextLine(next data.Next) string {
+	if next.Task != nil {
+		taskWord := TaskStageWord(next.Task)
+		if next.Objective == nil {
+			// A malformed or partially assembled projection can still name a
+			// Task whose Objective record is absent. Keep the Task visible, but
+			// do not invent an Objective status or title.
+			return fmt.Sprintf("%s %s — %s", taskWord, next.Task.ID, next.Task.Title)
+		}
+		return fmt.Sprintf("%s %s · %s %s — %s",
+			ObjectiveWord(next.Objective), next.Objective.ID,
+			taskWord, next.Task.ID, next.Task.Title)
+	}
+	if next.Objective != nil {
+		objectiveWord := ObjectiveWord(next.Objective)
+		if next.Kind == data.NextObjectiveIntegration || next.Kind == data.NextObjectiveReady {
+			return fmt.Sprintf("%s %s · Check — %s", objectiveWord, next.Objective.ID, next.Objective.Title)
+		}
+		return fmt.Sprintf("%s %s — %s", objectiveWord, next.Objective.ID, next.Objective.Title)
+	}
+	return "Nothing selected"
+}
+
+// ObjectiveWord translates the Objective's lifecycle value for the shared
+// Next line.
+func ObjectiveWord(objective *data.ObjectiveV2) string {
+	if objective == nil {
+		return ""
+	}
+	switch objective.Status {
+	case data.ColumnPlanned:
+		return "Planned"
+	case data.ColumnInProgress:
+		return "In Progress"
+	case data.ColumnDone:
+		return "Done"
+	default:
+		return string(objective.Status)
+	}
+}
+
+// TaskStageWord translates the Task's implementation stage or status for the
+// shared Next line. Audit is presented to the owner as Check.
+func TaskStageWord(task *data.TaskV2) string {
+	if task.Status == data.ColumnInProgress {
+		switch task.Stage {
+		case data.StageBuild:
+			return "Build"
+		case data.StageTest:
+			return "Test"
+		case data.StageAudit:
+			return "Check"
+		}
+	}
+	switch task.Status {
+	case data.ColumnPlanned:
+		return "Planned"
+	case data.ColumnDone:
+		return "Done"
+	default:
+		return string(task.Status)
+	}
+}
+
+// renderText builds the shared Next line and full narrative as a string, so
+// exact-text and determinism tests never have to go through an io.Writer.
 func renderText(next data.Next) string {
-	var lines []string
+	lines := []string{NextLine(next)}
 
 	if next.SelectionDiagnostic != nil {
-		lines = append(lines, "Selection: "+SelectionPhrase(next.SelectionDiagnostic), "")
+		lines = append(lines, "", "Selection: "+SelectionPhrase(next.SelectionDiagnostic), "")
 	}
 
 	lines = append(lines, identityLines(next)...)
@@ -36,8 +125,7 @@ func renderText(next data.Next) string {
 }
 
 // identityLines names the selected Objective and/or Task and its recorded
-// implementation state. It renders nothing for a rung with no selection —
-// plan-next-Objective carries neither.
+// implementation state. It renders nothing when Next has no selected record.
 func identityLines(next data.Next) []string {
 	lines := ReleaseIdentityLines(next)
 	if next.Objective != nil {
@@ -98,6 +186,11 @@ func EvidenceLines(next data.Next) []string {
 			lines = append(lines, "Owner wait: "+OwnerWaitPhrase(clearanceCheckID(next.Clearance)))
 		}
 		return lines
+	case data.NextObjectiveReady:
+		if next.GateDecision != nil && next.GateDecision.AllowedByException {
+			return []string{"Completion: " + ExceptionPhrase(next.GateDecision.Exception)}
+		}
+		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
 	case data.NextReleaseIntegration:
 		return releaseIntegrationLines(next)
 	case data.NextReleaseCheckNeeded:
@@ -109,7 +202,7 @@ func EvidenceLines(next data.Next) []string {
 		}
 	case data.NextReleaseReady:
 		return releaseReadyLines(next)
-	case data.NextReady, data.NextPlanObjective:
+	case data.NextSelectTask, data.NextNothingSelected, data.NextPlanObjective:
 		return nil
 	default:
 		return nil
@@ -267,6 +360,8 @@ func ActionPhrase(next data.Next) string {
 		return "Ask the owner to accept the current Check."
 	case data.NextObjectiveIntegration:
 		return objectiveIntegrationNextActionPhrase(next)
+	case data.NextObjectiveReady:
+		return objectiveReadyNextActionPhrase(next)
 	case data.NextReleaseIntegration:
 		return releaseIntegrationNextActionPhrase(next)
 	case data.NextReleaseCheckNeeded:
@@ -278,10 +373,18 @@ func ActionPhrase(next data.Next) string {
 		return "Ask the owner to accept the current Goal Check."
 	case data.NextReleaseReady:
 		return releaseReadyNextActionPhrase(next)
-	case data.NextReady:
-		return readyNextActionPhrase(next)
+	case data.NextSelectTask:
+		if next.Objective == nil {
+			return nextActionCopy.selectTaskNoID
+		}
+		return fmt.Sprintf(nextActionCopy.selectTask, next.Objective.ID)
+	case data.NextNothingSelected:
+		return nextActionCopy.nothingSelected
 	case data.NextPlanObjective:
-		return "Plan the next Objective — for a project with nothing underway yet, start with Idea/Design."
+		if next.Objective != nil {
+			return fmt.Sprintf(nextActionCopy.planTasks, next.Objective.ID)
+		}
+		return nextActionCopy.planObjective
 	default:
 		return fmt.Sprintf("No next action is defined for rung %q.", next.Kind)
 	}
@@ -381,9 +484,15 @@ func releaseID(next data.Next) string {
 	return next.Release.ID
 }
 
-func readyNextActionPhrase(next data.Next) string {
-	if next.Task != nil {
-		return fmt.Sprintf("Start Task %s.", next.Task.ID)
+func objectiveReadyNextActionPhrase(next data.Next) string {
+	if next.Objective == nil {
+		return "The Objective is ready for its owner to record as done."
 	}
-	return fmt.Sprintf("Plan Tasks under Objective %s.", next.Objective.ID)
+	if next.Objective.Status == data.ColumnDone {
+		return fmt.Sprintf(nextActionCopy.completedObjective, next.Objective.ID)
+	}
+	if next.GateDecision != nil && next.GateDecision.AllowedByException {
+		return fmt.Sprintf(nextActionCopy.completeWithException, next.Objective.ID)
+	}
+	return fmt.Sprintf(nextActionCopy.completeObjective, next.Objective.ID)
 }

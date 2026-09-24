@@ -186,10 +186,9 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 	return Selection{Release: release, Objective: objective, Task: task}, nil
 }
 
-// NextKind names the rung of the precedence ladder a Next value landed on.
-// The global values are evaluated in their existing order; Release-specific
-// values are reached only after a valid Release context has narrowed the
-// candidate records.
+// NextKind names the selected record's next action. ResolveNext never
+// searches for a different Objective or Task when the router selection is
+// absent or cannot be resolved.
 // ResolveNext: owner validation sits below check-needed because asking the
 // owner to accept work with no current technical clearance would invert the
 // authority model E43 established.
@@ -218,8 +217,11 @@ const (
 	// but the Objective's own integration clearance is not current (or is
 	// current without owner acceptance where required).
 	NextObjectiveIntegration NextKind = "objective_integration"
-	// NextReleaseIntegration means the selected Release still has member
-	// Objective work or a material Release-level integration blocker.
+	// NextObjectiveReady means all owned Tasks are done and the Objective's
+	// existing completion resolver allows the owner to record it as done.
+	NextObjectiveReady NextKind = "objective_ready"
+	// NextReleaseIntegration means the selected Release has a material
+	// Release-level integration blocker after its member Objectives are done.
 	NextReleaseIntegration NextKind = "release_integration"
 	// NextReleaseCheckNeeded means member Objective work is complete but the
 	// selected Release lacks usable current technical clearance.
@@ -230,25 +232,23 @@ const (
 	// NextReleaseReady means the Release completion decision is allowed and
 	// the next action is to record the Release as done.
 	NextReleaseReady NextKind = "release_ready"
-	// NextReady means no record is under active work, but a specific Task
-	// or Objective elsewhere in the project is ready to pick up.
-	NextReady NextKind = "ready"
-	// NextPlanObjective means nothing in the project is ready: there is no
-	// in-progress work and no ready Task or Objective, so the next action
-	// is planning — Idea/Design work on a new or existing Objective. A
-	// fresh project with no Objectives lands here.
+	// NextSelectTask means the selected Objective owns unfinished Tasks but
+	// the router has not selected which one to work on.
+	NextSelectTask NextKind = "select_task"
+	// NextNothingSelected means there is no resolved Objective or Task
+	// selection. It never implies that the project has no available work.
+	NextNothingSelected NextKind = "nothing_selected"
+	// NextPlanObjective means the selected Objective owns no Tasks yet, so
+	// its next action is to plan the work under that Objective.
 	NextPlanObjective NextKind = "plan_objective"
 )
 
-// Next is the one derived answer ResolveNext returns for a project: which
-// rung of the ladder it landed on, the Objective and/or Task selected there
-// (when the rung names one), and the resolver-derived value the rung was
-// read from. Every field beyond Kind is populated only when the rung makes
-// it meaningful — GateDecision only for a rung read from ResolveTaskStart,
-// ResolveTaskAdvance, ResolveTaskCompletion, or ResolveObjectiveCompletion,
-// and Clearance only for a rung read from ResolveClearance. Nothing here is
-// computed by this package: every readiness claim is a value obtained from
-// the existing E43/E44 resolvers and carried forward whole (STYLE-07, DATA-02).
+// Next is the one derived answer ResolveNext returns for a project: the
+// router-selected Objective and/or Task, its next action kind, and any
+// resolver-derived gate evidence. When a Task is selected, Objective also
+// carries its owning record when that record exists. GateDecision and
+// Clearance are populated only when the selected action reports them; each
+// value comes from the existing E43/E44 resolvers (STYLE-07, DATA-02).
 type Next struct {
 	Kind      NextKind
 	Release   *ReleaseV2
@@ -264,10 +264,9 @@ type Next struct {
 	// and the Release-specific evidence rungs.
 	Clearance *Clearance
 
-	// SelectionDiagnostic is set whenever the router's contextual hint did not
-	// resolve, regardless of which rung was ultimately reached: an unresolved
-	// selection still yields whatever next action the project's records
-	// themselves support.
+	// SelectionDiagnostic is set whenever the router's selection did not
+	// resolve. An unresolved selection yields NextNothingSelected rather than a
+	// search-derived action for another record.
 	SelectionDiagnostic *SelectionDiagnostic
 
 	// Issues are the Issues relevant to Task (when set) or otherwise
@@ -285,12 +284,13 @@ type NextInput struct {
 	Router *RouterStateV2
 }
 
-// ResolveNext computes the one next action for a V2 project: the precedence
-// ladder documented on NextKind, evaluated top to bottom. It returns a value
-// for every reachable project state, including a fresh project with no
-// Objectives or Tasks, and never returns an error. A nil Index or Router is
-// read as an empty project and an empty selection rather than panicking; see
-// the boundary note in the body.
+// ResolveNext computes the next action for the router's exact Objective and
+// Task selection, using the existing resolvers for that record's gate state.
+// When no Objective is selected, or a selection cannot be resolved, it does
+// not substitute work found elsewhere. A valid selected Release retains its
+// completion rungs once all of its member Objectives are done. ResolveNext
+// never returns an error. A nil Index or Router is read as an empty project
+// and an empty selection rather than panicking; see the boundary note below.
 func ResolveNext(input NextInput) Next {
 	index, router := input.Index, input.Router
 	// A nil index or router is a caller whose load has not completed, or did
@@ -310,6 +310,9 @@ func ResolveNext(input NextInput) Next {
 	selection, diagnostic := ResolveSelection(index, router)
 
 	next := resolveLadder(index, selection, diagnostic)
+	if next.Task != nil && next.Objective == nil {
+		next.Objective = index.Objectives[next.Task.Objective]
+	}
 	next.SelectionDiagnostic = diagnostic
 	next.Issues = relevantIssues(index, next)
 	return next
@@ -366,12 +369,14 @@ func relevantIssues(index *V2Index, next Next) []*IssueV2 {
 	return issues
 }
 
-// resolveLadder keeps the pre-E51 ladder intact when no valid Release context
-// is selected. A Release diagnostic deliberately falls through to the same
-// global search as any other unresolved router hint, so a bad context never
-// hides unrelated work.
+// resolveLadder resolves only the router's selection. A diagnostic or an
+// empty Objective selection never falls through to a project-wide search.
 func resolveLadder(index *V2Index, selection Selection, diagnostic *SelectionDiagnostic) Next {
-	if selection.Release != nil && diagnostic == nil {
+	if diagnostic != nil {
+		return Next{Kind: NextNothingSelected, Release: selection.Release}
+	}
+
+	if selection.Release != nil {
 		return resolveReleaseLadder(index, selection)
 	}
 
@@ -379,76 +384,35 @@ func resolveLadder(index *V2Index, selection Selection, diagnostic *SelectionDia
 		return resolveTaskRung(index, task)
 	}
 
-	if objectiveID := objectiveInView(selection); objectiveID != "" {
-		if next, ok := resolveObjectiveIntegrationRung(index, objectiveID); ok {
-			return next
-		}
+	if selection.Objective != nil {
+		return resolveSelectedObjective(index, selection.Objective)
 	}
 
-	if next, ok := resolveProjectWideIntegrationRung(index); ok {
-		return next
-	}
-
-	if next, ok := resolveReadyRung(index); ok {
-		return next
-	}
-
-	return Next{Kind: NextPlanObjective}
+	return Next{Kind: NextNothingSelected}
 }
 
-// resolveReleaseLadder applies the existing Task and Objective resolvers to
-// only the selected Release's derived members. Once those records have no
-// actionable work left, the Release completion resolver supplies the Check,
-// owner-acceptance, or ready outcome. No Release membership is inferred from
-// paths, titles, or Task IDs.
+// resolveReleaseLadder applies existing gate resolvers to the selected
+// Release's explicitly selected Objective/Task. With no Objective selected,
+// it reports Release completion only after the resolver confirms there are no
+// unfinished member Objectives. No other member is selected by search.
 func resolveReleaseLadder(index *V2Index, selection Selection) Next {
 	release := selection.Release
 	if task := selection.Task; task != nil && task.Status != ColumnDone {
 		return withRelease(resolveTaskRung(index, task), release)
 	}
 
-	if next, ok := resolveReleaseActiveTaskRung(index, release.ID); ok {
-		return withRelease(next, release)
+	if selection.Objective != nil {
+		return withRelease(resolveSelectedObjective(index, selection.Objective), release)
 	}
 
-	if objectiveID := objectiveInView(selection); objectiveID != "" {
-		if next, ok := resolveObjectiveIntegrationRung(index, objectiveID); ok {
-			return withRelease(next, release)
+	completion := resolveReleaseCompletionRung(index, release)
+	for _, blocker := range completion.GateDecision.Blockers {
+		if blocker.Kind == GateBlockReleaseNoObjectives || blocker.Kind == GateBlockReleaseObjectiveIncomplete {
+			return Next{Kind: NextNothingSelected, Release: release}
 		}
 	}
 
-	if next, ok := resolveReleaseProjectWideIntegrationRung(index, release.ID); ok {
-		return withRelease(next, release)
-	}
-
-	if next, ok := resolveReleaseReadyRung(index, release.ID); ok {
-		return withRelease(next, release)
-	}
-
-	return resolveReleaseCompletionRung(index, release)
-}
-
-// resolveReleaseActiveTaskRung keeps an in-progress Task actionable after a
-// Release switch clears an Objective/Task hint. The global no-Release path
-// intentionally retains its pre-E51 behavior; this search is only the
-// contextual Release projection and is deterministic by Task ID.
-func resolveReleaseActiveTaskRung(index *V2Index, releaseID string) (Next, bool) {
-	members := make(map[string]struct{}, len(index.ReleaseObjectives[releaseID]))
-	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
-		members[objectiveID] = struct{}{}
-	}
-
-	for _, id := range slices.Sorted(maps.Keys(index.Tasks)) {
-		task := index.Tasks[id]
-		if task.Status != ColumnInProgress {
-			continue
-		}
-		if _, ok := members[task.Objective]; !ok {
-			continue
-		}
-		return resolveTaskRung(index, task), true
-	}
-	return Next{}, false
+	return completion
 }
 
 func withRelease(next Next, release *ReleaseV2) Next {
@@ -456,68 +420,9 @@ func withRelease(next Next, release *ReleaseV2) Next {
 	return next
 }
 
-func sortedReleaseObjectiveIDs(index *V2Index, releaseID string) []string {
-	ids := slices.Clone(index.ReleaseObjectives[releaseID])
-	slices.Sort(ids)
-	return ids
-}
-
-// resolveReleaseProjectWideIntegrationRung mirrors the existing project-wide
-// Objective integration search, restricted to the selected Release's reverse
-// membership map and kept in deterministic Objective ID order.
-func resolveReleaseProjectWideIntegrationRung(index *V2Index, releaseID string) (Next, bool) {
-	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
-		objective := index.Objectives[objectiveID]
-		if objective == nil || objective.Status == ColumnDone || len(index.ObjectiveTasks[objectiveID]) == 0 {
-			continue
-		}
-		if next, ok := resolveObjectiveIntegrationRung(index, objectiveID); ok {
-			return next, true
-		}
-	}
-	return Next{}, false
-}
-
-// resolveReleaseReadyRung is the release-scoped version of the global ready
-// search. It only admits Tasks whose owning Objective names the selected
-// Release, then Objectives in that same derived member set.
-func resolveReleaseReadyRung(index *V2Index, releaseID string) (Next, bool) {
-	members := make(map[string]struct{}, len(index.ReleaseObjectives[releaseID]))
-	for _, objectiveID := range sortedReleaseObjectiveIDs(index, releaseID) {
-		members[objectiveID] = struct{}{}
-	}
-
-	for _, id := range slices.Sorted(maps.Keys(index.Tasks)) {
-		task := index.Tasks[id]
-		if task.Status != ColumnPlanned {
-			continue
-		}
-		if _, ok := members[task.Objective]; !ok {
-			continue
-		}
-		decision := ResolveTaskStart(index, id)
-		if decision.Allowed {
-			return Next{Kind: NextReady, Task: task, GateDecision: &decision}, true
-		}
-	}
-
-	for _, objectiveID := range slices.Sorted(maps.Keys(members)) {
-		objective := index.Objectives[objectiveID]
-		if objective == nil || objective.Status == ColumnDone || len(index.ObjectiveTasks[objectiveID]) > 0 {
-			continue
-		}
-		if objectiveDependenciesSatisfied(index, objective) {
-			return Next{Kind: NextReady, Objective: objective}, true
-		}
-	}
-
-	return Next{}, false
-}
-
-// resolveReleaseCompletionRung projects the one Release gate decision only
-// after member Task/Objective work has had its chance to win. Clearance and
-// owner acceptance remain the same typed evidence values used by the gate
-// resolver; this function only maps them to contextual action rungs.
+// resolveReleaseCompletionRung maps the existing Release completion decision
+// to its Check, owner-acceptance, ready, or integration action. The caller
+// reaches it only when no Objective is selected.
 func resolveReleaseCompletionRung(index *V2Index, release *ReleaseV2) Next {
 	decision := ResolveReleaseCompletion(index, release.ID)
 	clearance := ResolveClearance(index, release.ID)
@@ -544,42 +449,6 @@ func resolveReleaseCompletionRung(index *V2Index, release *ReleaseV2) Next {
 
 	next.Kind = NextReleaseIntegration
 	return next
-}
-
-// resolveProjectWideIntegrationRung answers rung seven for an Objective the
-// router does not name: the lowest-ID Objective that is not yet done, owns at
-// least one Task, and whose own integration clearance is what remains unmet.
-// Without it, an outstanding integration Check is reported only while the
-// router happens to select its Objective, so the same project state would
-// answer differently depending on a hint that decides nothing. An Objective
-// already recorded done is skipped: thin evidence behind a closed Objective is
-// doctor's missing-evidence report, not the project's next action.
-func resolveProjectWideIntegrationRung(index *V2Index) (Next, bool) {
-	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
-		objective := index.Objectives[id]
-		if objective.Status == ColumnDone || len(index.ObjectiveTasks[id]) == 0 {
-			continue
-		}
-		if next, ok := resolveObjectiveIntegrationRung(index, id); ok {
-			return next, true
-		}
-	}
-	return Next{}, false
-}
-
-// objectiveInView names the Objective rung seven should evaluate: the
-// selected Task's own owner once that Task is done, or the directly
-// selected Objective. It returns "" when neither is in view, so the caller
-// skips straight to the project-wide search.
-func objectiveInView(selection Selection) string {
-	switch {
-	case selection.Task != nil:
-		return selection.Task.Objective
-	case selection.Objective != nil:
-		return selection.Objective.ID
-	default:
-		return ""
-	}
 }
 
 // resolveTaskRung reads the one gate decision that governs task's next move
@@ -652,15 +521,33 @@ func rungForBlockers(blockers []GateBlocker) NextKind {
 	return NextDependency
 }
 
+// resolveSelectedObjective returns the next step for the Objective the
+// router selected. It does not choose which Task to work on: when owned work
+// remains, the Objective stays selected until a Task is named explicitly.
+func resolveSelectedObjective(index *V2Index, objective *ObjectiveV2) Next {
+	taskIDs := index.ObjectiveTasks[objective.ID]
+	if len(taskIDs) == 0 {
+		return Next{Kind: NextPlanObjective, Objective: objective}
+	}
+
+	for _, taskID := range taskIDs {
+		task, ok := index.Tasks[taskID]
+		if !ok || task.Status != ColumnDone {
+			return Next{Kind: NextSelectTask, Objective: objective}
+		}
+	}
+
+	if next, ok := resolveObjectiveIntegrationRung(index, objective.ID); ok {
+		return next
+	}
+
+	return Next{Kind: NextSelectTask, Objective: objective}
+}
+
 // resolveObjectiveIntegrationRung reads ResolveObjectiveCompletion for
-// objectiveID and reports rung seven only when every owned Task is already
-// done and the Objective's own integration clearance (or owner acceptance)
-// is what remains unmet. When ResolveObjectiveCompletion is blocked by an
-// incomplete owned Task instead, the real next action is that Task, so this
-// returns ok=false and lets the caller fall through to the project-wide
-// search, which walks every Task including that one. When completion is
-// already allowed — current clearance, or allowed by exception — there is
-// nothing to report at this rung either, for the same reason.
+// objectiveID after the selected Objective's Tasks are done. A blocked
+// decision maps to the Objective integration action; an allowed decision
+// means the owner may record the Objective as done.
 func resolveObjectiveIntegrationRung(index *V2Index, objectiveID string) (Next, bool) {
 	objective, ok := index.Objectives[objectiveID]
 	if !ok {
@@ -676,9 +563,6 @@ func resolveObjectiveIntegrationRung(index *V2Index, objectiveID string) (Next, 
 	}
 
 	decision := ResolveObjectiveCompletion(index, objectiveID)
-	if decision.Allowed {
-		return Next{}, false
-	}
 	for _, blocker := range decision.Blockers {
 		if blocker.Kind == GateBlockInvalidState {
 			return Next{}, false
@@ -686,53 +570,17 @@ func resolveObjectiveIntegrationRung(index *V2Index, objectiveID string) (Next, 
 	}
 
 	clearance := ResolveClearance(index, objectiveID)
+	if decision.Allowed {
+		return Next{
+			Kind: NextObjectiveReady, Objective: objective,
+			GateDecision: &decision, Clearance: &clearance,
+		}, true
+	}
+
 	return Next{
 		Kind:         NextObjectiveIntegration,
 		Objective:    objective,
 		GateDecision: &decision,
 		Clearance:    &clearance,
 	}, true
-}
-
-// resolveReadyRung is the project-wide search for rung eight: the first
-// planned Task (in sorted ID order, for a deterministic answer) that
-// ResolveTaskStart allows, or, failing that, the first Objective (also
-// sorted) that owns no Task yet and whose own dependencies are satisfied.
-// It reads every candidate through the existing resolvers rather than
-// inferring readiness from status alone.
-func resolveReadyRung(index *V2Index) (Next, bool) {
-	for _, id := range slices.Sorted(maps.Keys(index.Tasks)) {
-		task := index.Tasks[id]
-		if task.Status != ColumnPlanned {
-			continue
-		}
-		decision := ResolveTaskStart(index, id)
-		if decision.Allowed {
-			return Next{Kind: NextReady, Task: task, GateDecision: &decision}, true
-		}
-	}
-
-	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
-		objective := index.Objectives[id]
-		if objective.Status == ColumnDone || len(index.ObjectiveTasks[id]) > 0 {
-			continue
-		}
-		if objectiveDependenciesSatisfied(index, objective) {
-			return Next{Kind: NextReady, Objective: objective}, true
-		}
-	}
-
-	return Next{}, false
-}
-
-// objectiveDependenciesSatisfied re-resolves each of objective's own
-// dependencies through ResolveObjectiveDependency rather than reading any
-// cached judgement.
-func objectiveDependenciesSatisfied(index *V2Index, objective *ObjectiveV2) bool {
-	for _, dep := range objective.DependsOn {
-		if !ResolveObjectiveDependency(index, dep).Satisfied {
-			return false
-		}
-	}
-	return true
 }

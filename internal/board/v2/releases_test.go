@@ -340,7 +340,7 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	view := xansi.Strip(final.View())
 	for _, want := range []string{
 		"GOAL: R-002 — Second release",
-		"Build T-002 — Second task",
+		"NEXT: Nothing selected",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("board view missing %q:\n%s", want, view)
@@ -351,12 +351,15 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 		t.Fatalf("resume.Render() error = %v", err)
 	}
 	for _, want := range []string{
-		"Task: T-002 — Second task",
+		"Nothing selected",
 		"Next action: " + resume.ActionPhrase(final.State.Next),
 	} {
 		if !strings.Contains(resumeOutput.String(), want) {
 			t.Errorf("resume output missing %q:\n%s", want, resumeOutput.String())
 		}
+	}
+	if strings.Contains(resumeOutput.String(), "Task: T-002 — Second task") {
+		t.Errorf("resume output substituted the Release's member Task without an Objective selection:\n%s", resumeOutput.String())
 	}
 	content, err := os.ReadFile(filepath.Join(root, "router.md"))
 	if err != nil {
