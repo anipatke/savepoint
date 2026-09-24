@@ -165,6 +165,8 @@ upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
 
 Agents may run exactly `savepoint resume`, a read-only command that prints `Next` without writing project files. Every other `savepoint` command is for the human.
 
+In this repository the command is built from source: if `savepoint` is not on `PATH`, run `./savepoint resume` from the repository root, and if `./savepoint` is missing, run `make build` first. Report the missing tool only if both fail.
+
 ## Reporting to the Owner
 
 The Context Log stays technical and precise — it's the record a Check session verifies later. Chat replies to the owner are a different audience: a few plain sentences, no jargon, no file/function dumps unless asked. Say what happened and what's next; leave the mechanism in the Context Log.
