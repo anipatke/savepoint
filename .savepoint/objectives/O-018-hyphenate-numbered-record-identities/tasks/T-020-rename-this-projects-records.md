@@ -6,7 +6,8 @@ status: done
 depends_on: [{task: T-019, requires: clear}]
 owner_validation:
     required: true
-    accepted_check: ""
+    accepted_check: C-919
+    accepted_by: {role: owner, session: owner-chat-20260924}
 planned_by: {role: planner, session: o018-replan-20260923}
 check_waiver:
     task: T-020
