@@ -2,7 +2,7 @@
 id: I-048
 title: The board cannot close an Objective whose Check is CLEAR
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: owner-chat-20260924}
@@ -10,6 +10,13 @@ source:
 checks: [C-917, C-918]
 guardrail_ids: [TPL-02]
 severity: medium
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: owner-chat-20260924}
+  at: '2026-09-24T10:26:38Z'
+  reason: >-
+    Owner directed resolution after reviewing the repair and its board tests,
+    waiving an independent Check; this is not a technical CLEAR verdict.
 history:
   - at: '2026-09-24T10:30:00Z'
     actor: {role: owner, session: owner-chat-20260924}
@@ -19,6 +26,20 @@ history:
       "i cant mark an obj done??". The board offers no ordinary Objective
       close; O-014 and O-023 were closed by hand-editing their status and the
       router.
+  - at: '2026-09-24T10:24:24Z'
+    actor: {role: executor, session: i048-repair-20260924}
+    kind: repair_attempted
+    note: >-
+      Added Space closure for a focused Objective, gated by a fresh
+      ResolveObjectiveCompletion decision. Added board tests for closure,
+      refusal, stale board state, router preservation, and router conflict.
+      make build && make test-fast passed. Issue remains open for a checker.
+  - at: '2026-09-24T10:26:38Z'
+    actor: {role: owner, session: owner-chat-20260924}
+    kind: owner_decision
+    note: >-
+      Owner directed "update to resolve": I-048 closed as accepted without an
+      independent Check.
 ---
 
 # I-048: The board cannot close an Objective whose Check is CLEAR
@@ -80,3 +101,11 @@ No `internal/data` policy changes; the gate already decides.
   selection, as Task closure does.
 - Help lists the Objective close only when it is allowed.
 - `make build && make test-fast` pass.
+
+## Repair Attempt Evidence
+
+- Ordinary closure uses `ResolveObjectiveCompletion` on a fresh index, writes `status: done` through `WriteObjectiveV2`, and advances the router through `completedRecordAction`. The gate's ordinary `Allowed` decision has checker authority because the Check provides proof; the owner's Space keypress records closure. `AllowedByException` remains on `x`.
+- `TestSpaceClosesClearedObjectiveAndPreservesRouterContext` proves closure, the help action, and byte preservation of `release:` and `issue`. `TestObjectiveSpaceRefusesBlockedAndExceptionOnlyGates` covers every named refusal, including stale and unknown Check freshness. `TestObjectiveCompletionReresolvesAfterBoardLoad` proves a changed Check blocks a stale board action. `TestObjectiveRouterConflictReportsStaleSelection` proves the completed Objective remains done while the stale router selection is reported.
+- Verification: `make build && make test-fast` passed on 2026-09-24 at 10:24 UTC. `git diff --check` passed.
+- Read: `agent-skills/savepoint-task/SKILL.md`, `agent-skills/references/issue-capture.md`, `.savepoint/router.md`, this Issue, `.savepoint/Design.md` section 8, `.savepoint/Guardrails.md` style and TPL-02 rules, `internal/board/v2/{actions,io,update,help}.go`, the board's actions and fixture tests, and `internal/data/{objective_gate_v2.go,objective_gate_v2_test.go,release_gate_v2.go}`. The data files were extra reads to resolve the gate's actor and linked Issue behavior. C-917 and C-918 headers were extra reads to determine router advancement; they name different Objectives.
+- Changed: `internal/board/v2/{actions,io,update,help}.go`, `internal/board/v2/objective_close_test.go`, this Issue, and the router. No Check record or Issue resolution was written. The required independent recheck remains outstanding.

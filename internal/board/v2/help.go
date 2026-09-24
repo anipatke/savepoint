@@ -55,5 +55,8 @@ func helpRow(key, label string) string {
 	if key == "" {
 		return styles.CardMeta.Render(label)
 	}
+	if key == objectiveCloseKey {
+		key = "space"
+	}
 	return fmt.Sprintf("%s%s", styles.ColumnTitle.Render(key+":"), styles.CardMeta.Render(" "+label))
 }

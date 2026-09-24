@@ -15,11 +15,13 @@ type ActionKind string
 const (
 	ActionRecordSelection     ActionKind = "record_selection"
 	ActionAcceptCheck         ActionKind = "accept_check"
+	ActionCompleteObjective   ActionKind = "complete_objective"
 	ActionCompleteByException ActionKind = "complete_by_exception"
 )
 
 const (
 	selectionKey      = "p"
+	objectiveCloseKey = " "
 	acceptanceKey     = "a"
 	exceptionCloseKey = "x"
 	ownerBoardSession = "board-owner"
@@ -42,9 +44,9 @@ type actionTarget struct {
 }
 
 // actionsForRecord maps one freshly resolved completion decision to owner
-// capabilities. The only admitting gate authority is ActorRoleOwner. Owner
-// acceptance is the one intentional exception: its gate blocker names the
-// owner action that satisfies it, but the decision is not yet Allowed.
+// capabilities. A cleared Objective has checker authority for the Check proof,
+// while the owner still performs its closure on the board. Owner acceptance
+// is available when its gate blocker names the owner action that satisfies it.
 func actionsForRecord(index *data.V2Index, target actionTarget) []BoardAction {
 	if index == nil || target.ID == "" {
 		return nil
@@ -55,6 +57,13 @@ func actionsForRecord(index *data.V2Index, target actionTarget) []BoardAction {
 	}
 
 	var actions []BoardAction
+	if target.Kind == DetailObjective && decision.Allowed && !decision.AllowedByException {
+		actions = append(actions, BoardAction{
+			Key: objectiveCloseKey, Kind: ActionCompleteObjective,
+			TargetKind: target.Kind, TargetID: target.ID,
+			Label: "close Objective", Decision: decision,
+		})
+	}
 	if decision.Allowed && decision.Actor == data.ActorRoleOwner && decision.AllowedByException {
 		actions = append(actions, BoardAction{
 			Key:        exceptionCloseKey,
@@ -284,7 +293,11 @@ func (m Model) focusedActionText() string {
 	}
 	parts := make([]string, 0, len(actions))
 	for _, action := range actions {
-		parts = append(parts, action.Key+":"+action.Label)
+		key := action.Key
+		if key == objectiveCloseKey {
+			key = "space"
+		}
+		parts = append(parts, key+":"+action.Label)
 	}
 	return strings.Join(parts, "  ")
 }

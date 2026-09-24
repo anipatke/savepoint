@@ -127,6 +127,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if m.SidebarFocused {
+		if key == objectiveCloseKey {
+			if target, ok := m.focusedActionTarget(); ok && target.Kind == DetailObjective {
+				return m, writeObjectiveCompletionCmd(m.Root, target.ID)
+			}
+		}
 		m.handleSidebarKey(key)
 		return m, nil
 	}
@@ -220,6 +225,8 @@ func (m Model) runAction(action BoardAction) tea.Cmd {
 		return writeOwnerAcceptanceCmd(m.Root, target)
 	case ActionCompleteByException:
 		return writeExceptionCompletionCmd(m.Root, target)
+	case ActionCompleteObjective:
+		return writeObjectiveCompletionCmd(m.Root, target.ID)
 	case ActionRecordSelection:
 		if m.State.Router == nil {
 			return func() tea.Msg { return actionMsg{err: fmt.Errorf("selection requires a loaded router state")} }

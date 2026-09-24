@@ -94,9 +94,7 @@ func setOwnerAcceptance(evidence **data.Evidence, checkID string) {
 	(*evidence).OwnerValidation.AcceptedBy = data.Actor{Role: data.ActorRoleOwner, Session: ownerBoardSession}
 }
 
-// writeExceptionCompletionCmd is the only lifecycle write exposed by this
-// package: the gate has already granted owner authority through a recorded
-// exception. It does not make executor or checker transitions available.
+// writeExceptionCompletionCmd completes a record through a recorded exception.
 func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 	return func() tea.Msg {
 		index, err := freshV2Index(root)
@@ -133,6 +131,33 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 		}
 
 		return completedRecordAction(root, closed, fmt.Sprintf("%s completed by recorded exception.", target.ID), data.WriteRouterStateV2)
+	}
+}
+
+// writeObjectiveCompletionCmd closes a cleared Objective after resolving its
+// gate against the latest project state. Exception-only closure keeps its x key.
+func writeObjectiveCompletionCmd(root, objectiveID string) tea.Cmd {
+	return func() tea.Msg {
+		index, err := freshV2Index(root)
+		if err != nil {
+			return actionFailure(err, "objective completion")
+		}
+		objective, ok := index.Objectives[objectiveID]
+		if !ok {
+			return actionMsg{err: fmt.Errorf("objective %s is no longer present", objectiveID)}
+		}
+		if objective.Status == data.ColumnDone {
+			return actionMsg{err: fmt.Errorf("%s is already done", objectiveID)}
+		}
+		decision := data.ResolveObjectiveCompletion(index, objectiveID)
+		if !decision.Allowed || decision.AllowedByException {
+			return actionMsg{err: fmt.Errorf("cannot close %s: %s", objectiveID, decisionRefusal(decision))}
+		}
+		objective.Status = data.ColumnDone
+		if err := data.WriteObjectiveV2(objective); err != nil {
+			return actionFailure(err, "objective completion")
+		}
+		return completedRecordAction(root, data.RouterSelectionV2{Objective: objectiveID}, fmt.Sprintf("%s completed.", objectiveID), data.WriteRouterStateV2)
 	}
 }
 
