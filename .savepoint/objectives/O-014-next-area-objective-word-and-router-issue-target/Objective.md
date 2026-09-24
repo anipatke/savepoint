@@ -95,6 +95,13 @@ Confirmed by the owner on 2026-09-24:
   it starts a Task — and the stale-selection diagnostic catches any miss,
   such as a Task closed by hand-editing its file.
 
+- **The Objective word is the recorded status, kept current.** (Added
+  2026-09-24 after C-916 / I-044.) An Objective moves to `in_progress` when
+  its first Task starts: the board's Space does it in the same action, and
+  `savepoint-task` does it when an agent starts a Task. Doctor warns about a
+  `planned` Objective that owns a started or done Task. The word is not
+  derived; only the owner sets `done`. Repaired directly under I-044.
+
 ## Success Conditions
 
 - The board Next area, non-TTY output, and the first line of `savepoint

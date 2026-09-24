@@ -147,7 +147,7 @@ reports the touched paths with Git commands to undo them.
 1. Optional Task Check — A fresh checker runs Quick evidence only when the owner requests it; an explicit owner waiver may skip it.
 2. Full Objective Check — A fresh checker must verify every owned Task, integration, and Design reconciliation before Objective closure; every material Issue linked to the current Check must be resolved, including explicit owner acceptance recorded as an Issue resolution.
 3. Goal Check          — When a Goal exists, a fresh checker must verify cross-Objective integration before owner acceptance (`scope.kind: release` in stored Check records).
-4. Repair              — `NEEDS WORK` records Issues; a Task Check returns the executor to `stage: build` within that Task, while an Objective/Goal Check routes repair to new or newly selected work linked to the Objective without retreating a completed Task; a fresh re-check supersedes the prior Check.
+4. Repair              — `NEEDS WORK` records Issues; a Task Check returns the executor to `stage: build` within that Task, while an Objective/Goal Check's repair is made directly under the Issue by default, with new work under the Objective only when the repair needs planning, without retreating a completed Task; a fresh re-check supersedes the prior Check.
 5. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective/Goal outcome.
 ```
 
