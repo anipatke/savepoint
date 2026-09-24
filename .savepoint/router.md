@@ -14,9 +14,11 @@ canonical workflow source; this router records state and next action only.
 ## Current state
 
 ```yaml
-state: design
+state: task
 release: R-006
-next_action: "O-021 closed on CLEAR Check C-915 (I-040, I-041, I-042 verified). Select the next R-006 Objective (O-014, O-019, or O-020) with savepoint-design."
+objective: O-014
+task: T-030
+next_action: "T-029 is done; the owner waived its optional Task Check for low complexity. Continue O-014's remaining Tasks; the Full Objective Check remains mandatory before Objective closure."
 ```
 
 ## State → action

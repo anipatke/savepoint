@@ -36,6 +36,13 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   carry an explicit owner waiver naming the Task, reason, actor, and time.
   That waiver is not technical `CLEAR` and does not waive any acceptance
   criterion, guardrail, Objective Check, or Goal Check.
+- A recorded owner Task-check waiver does satisfy a `requires: clear` Task
+  dependency: the owner's completion decision stands in for clear there. It
+  never satisfies `requires: accepted`, since there is no Check to accept.
+- Do not decide whether a dependency blocks by reading this prose. The
+  runtime gate (`ResolveTaskDependencyV2` in `internal/data`) decides, and
+  `savepoint resume` and the board's transition gate report its result as
+  `Blocked:` lines. If neither reports a block, the dependency is met.
 - The Full Objective Check is mandatory before an Objective can close. It is
   the V2 higher-level integration gate and covers every owned Task, including
   Tasks whose optional Task Check was waived, plus cross-Task integration and
@@ -91,7 +98,7 @@ without a Check; this does not claim technical `CLEAR` or waive a mandatory
 Objective or Goal Check. The owner closes Tasks and accepts Objective/Goal
 outcomes after the required evidence exists.
 
-- A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR`.
+- A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR` (it still satisfies a `requires: clear` dependency; see Verification Policy).
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
 - A Goal Check is mandatory whenever a Goal exists and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.

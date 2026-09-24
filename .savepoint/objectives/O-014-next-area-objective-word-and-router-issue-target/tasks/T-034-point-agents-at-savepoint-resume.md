@@ -47,6 +47,11 @@ what the line means.
   skills: the board advances the router when the owner closes a Task; `savepoint-design`
   selects the next Objective; `savepoint-task` selects the Task it starts;
   nobody blanks or changes `release:` except an explicit Goal choice.
+- AGENTS.md (live and template, identical wording) keeps the rule that a
+  recorded owner Task-check waiver satisfies a `requires: clear` dependency
+  but never `requires: accepted`, and the rule that `savepoint resume` and
+  the board's `Blocked:` lines (from `ResolveTaskDependencyV2`) decide
+  whether a dependency blocks — agents do not re-derive it from prose.
 - Skills stop writing `next_action` (`savepoint-design` step 11,
   `savepoint-idea`). Live and scaffold skills stay byte-identical.
 - Design.md section 8 states the Next line format, that Next is the router
