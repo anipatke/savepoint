@@ -1,0 +1,40 @@
+---
+id: I-043
+title: Design.md says an in-progress Issue needs a stage, but the loader rejects one
+type: drift
+status: open
+source:
+  kind: report
+  actor: {role: planner, session: o014-design-20260924}
+  at: '2026-09-24T00:00:00Z'
+tasks: []
+checks: []
+guardrail_ids: [TPL-02]
+severity: low
+history:
+  - at: '2026-09-24T00:00:00Z'
+    actor: {role: planner, session: o014-design-20260924}
+    kind: observed
+    note: >-
+      Found while planning O-014's Issue Next line. Design.md section 4 and
+      internal/data/issue_v2.go disagree.
+---
+
+# I-043: Design.md says an in-progress Issue needs a stage, but the loader rejects one
+
+## Summary
+
+`.savepoint/Design.md` section 4 says: "Issues use `open`, `in_progress`, and
+`resolved`; `stage` is required only while an Issue is `in_progress`."
+
+`internal/data/issue_v2.go` does the opposite: `decodeIssueStatus` rejects
+any Issue that declares a `stage` ("issue status carries no stage"), and the
+`IssueStatus` comment says an Issue "never carries a stage".
+
+An agent following Design.md would write an Issue the project cannot load.
+
+## Repair
+
+Correct the Design.md sentence to match the code: Issues carry no stage. No
+code change. Small enough to fix directly in O-014's T-034 Design
+reconciliation, or in any Task that touches Design.md section 4.

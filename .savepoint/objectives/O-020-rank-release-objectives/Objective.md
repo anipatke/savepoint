@@ -2,7 +2,7 @@
 id: O-020
 title: Prioritize and rank Objectives within a Release
 status: planned
-depends_on: [O-013]
+depends_on: [O-013, O-022]
 release: R-006
 ---
 
@@ -25,8 +25,8 @@ Objective IDs identify records; their numbers should not imply execution sequenc
 - The cursor and selection follow the same Objective after either action, so repeated shortcuts remain predictable. Changes persist across restart and normal watcher reload; an external valid edit appears on reload.
 - Board writes preserve all other authored Objective content. Reordering avoids transient duplicate positions and has recoverable behavior on an interrupted write. A conflicting external edit produces a diagnostic instead of silently overwriting it.
 - A completed Objective stays in its owner-set position; the next-candidate calculation skips it without reshuffling the list. A blocked Objective stays in position with its blocker visible. The list never infers “In Progress” from position.
-- Moving an Objective to another Release removes the old Release position and gives it a defined initial position in the destination group. Unassigned Objectives have no Release position and are not silently assigned by prioritization.
-- Interactive and non-TTY Release views use the same order and labels. The all-Objectives view makes Release grouping and unassigned placement explicit rather than applying one Release's rank globally.
+- Moving an Objective to another Release removes the old Release position and gives it a defined initial position in the destination group. Every Objective belongs to a Release (O-022), so every Objective has a position in exactly one Release.
+- Interactive and non-TTY Release views use the same order and labels. Ranking is always scoped to the selected Release; there is no all-Objectives view or unassigned group (O-022).
 - The Objective sidebar omits the separate “Planned / In Progress / Done” line beneath the heading. Priority, Check, wait, selection, and focus signals remain legible, including without colour and at narrow widths. Objective detail and the canonical Next projection continue to report exact recorded lifecycle and evidence.
 - The first unfinished Objective in displayed order is a priority candidate, not automatically “In Progress.” The canonical Next resolver still respects dependencies, Check and owner waits, and explicit router selection. If the top candidate is blocked, the UI names the wait rather than implying it has started.
 - Tests cover legacy defaults, all four priority groups, within-group ordering, ties, cycling, cursor stability, completed and blocked rows, cross-Release moves, interrupted/conflicting writes, narrow terminals, non-TTY output, and unchanged Check/owner decisions. Canonical and scaffold guidance remain aligned; `git diff --check` and `make build && make test` pass before the mandatory Full Objective Check.
@@ -44,7 +44,7 @@ Objective IDs identify records; their numbers should not imply execution sequenc
 
 **In scope:** Release-scoped Objective priority and position, owner keyboard actions, sidebar and non-TTY ordering, Objective status-line review, persistence/reload behavior, guidance, and focused verification.
 
-**Out of scope:** Renumbering Objective IDs; using priority or rank as a new lifecycle state or completion rule; changing Task card columns; rewriting archived V1 or immutable Check records; automatically moving unassigned Objectives into a Release.
+**Out of scope:** Renumbering Objective IDs; using priority or rank as a new lifecycle state or completion rule; changing Task card columns; rewriting archived V1 or immutable Check records; making Release membership optional again.
 
 ## Planning Handoff
 

@@ -10,195 +10,201 @@ release: R-006
 
 ## Outcome
 
-The board's Next area states a lifecycle word for whichever record `data.Next`
-is pointing at — a Task or an Objective alike — instead of only a Task, and
-the router's context selection can name a specific Issue the same way it
-already names a Release, Objective, or Task.
+The Next line is the router's selection, stated in one structured,
+copy-pasteable form — for example `In Progress O-014 · Build T-028 — <title>`.
+The owner can paste that line into a fresh agent session to resume work. The
+board, the non-TTY output, and the first line of `savepoint resume` print the
+identical text. When the owner closes a Task on the board, the router moves to
+the Objective's next Task in the same write, so the line stays right without
+an agent hand-editing the router. The router's free-text `next_action` is
+retired.
 
 ## Why
 
-Design.md's own Next-area contract (Section 8) says the panel shows "its own
-Task or Objective — its lifecycle word ... its identity, and its title." The
-actual renderer (`internal/board/v2/next_panel.go`) only builds a word for the
-Task branch; an Objective at the ready-for-Check rung prints just its ID and
-title, silently breaking that documented parity. This was noticed live while
-handing O-012 off to its mandatory Full Objective Check, where the Next area
-read "O-012 — Make Task cards easier to scan" with nothing telling the owner
-whether it meant "still building" or "ready for Check."
+Design.md Section 8 says the Next area shows "its own Task or Objective — its
+lifecycle word ... its identity, and its title." `internal/board/v2/next_panel.go`
+builds a word only for a Task, so an Objective at the ready-for-Check rung
+prints just its ID and title. This was noticed while handing O-012 to its
+Full Objective Check: Next read "O-012 — Make Task cards easier to scan" with
+nothing saying whether it was still building or ready for Check.
 
-Separately, the router's selection type (`RouterSelectionV2`) has fields for
-Release, Objective, and Task, but nothing for an Issue — there is no way to
-point the board or `savepoint resume` at one specific Issue the way the other
-three record kinds can already be targeted.
+The router selection (`RouterSelectionV2`) can name a Release, Objective, or
+Task, but not an Issue, so there is no way to point the board or
+`savepoint resume` at one specific Issue.
 
-Third, the Next area ignores the router's selected Objective when that
-Objective has no Tasks yet. On 2026-09-23, after O-016 closed, the router
-selected O-018 in R-006, which had no Tasks. Next still showed "Planned T-006 —
-Preserve existing project records" from O-013. The selected Objective only
-wins in two cases: the router also names an unfinished `task`, or the
-Objective has Tasks and is waiting on its integration Check. Otherwise the
-ready search picks the lowest-numbered startable Task in the whole project
-(or Release). It considers a Task-less Objective for planning only after
-every ready Task. Task IDs are global, so planning O-018's Tasks will not fix
-this: their numbers will still sort after T-006. The owner added this
-behavior to O-014's scope on 2026-09-23 instead of opening a separate Issue.
+Next ignores the router's selected Objective unless the router also names an
+unfinished Task or the Objective is waiting on its integration Check. On
+2026-09-23, after O-016 closed, the router selected O-018, which had no Tasks,
+and Next still showed "Planned T-006 — Preserve existing project records"
+from O-013. Task IDs are global, so planning O-018's Tasks would not have
+fixed the order. The owner added this to O-014 on 2026-09-23.
 
-On 2026-09-23, the owner directed that Release context is mandatory: the
-router must always select a declared Release, and every live Objective must
-reference one. A missing, blank, `none`, or unknown router Release is invalid;
-an Objective without a valid Release reference is invalid. The previously
-unassigned O-016, O-017, and O-019 records were assigned to R-006.
+The router and the board state two different next actions. The board's Next
+is computed by `data.ResolveNext`; the router's `next_action` is hand-written
+prose no V2 code renders, yet agents act on it because AGENTS.md sends them to
+the router first. On 2026-09-23, after the owner closed T-020 and O-018
+(C-910), the router still selected `objective: O-018, task: T-020` and asked
+for O-018's Full Objective Check, while the board's Next silently fell through
+to the lowest-ID in-progress Task in R-006. No role owns advancing the router
+after an owner closure, and no surface says the router selects finished
+records. The owner added this to O-014 on 2026-09-23.
 
-Fourth, the router and the board state two different "next" actions. The
-board's Next is computed by `data.ResolveNext` from the records. The router's
-`next_action` is hand-written prose that no V2 code reads. It is decoded
-into `RouterStateV2.NextAction` but only the unreachable V1 board renders it.
-Agents still act on it, because AGENTS.md tells them to start from the
-router. On 2026-09-23, after the owner closed T-020 and O-018 (C-910), the
-router still selected `objective: O-018, task: T-020` with a `next_action`
-asking for O-018's Full Objective Check. The board's Next showed T-006
-instead: the selected Task was done, so the Release ladder silently fell
-through to the lowest-ID in-progress Task in R-006. The executor agent
-followed the stale prose until the owner pointed at the board. No role owns
-advancing the router after an owner closure, and no surface says that the
-router selects finished records. The owner added this to O-014's scope on
-2026-09-23 instead of opening a separate Issue.
+## Confirmed Design Decisions
+
+Confirmed by the owner on 2026-09-24:
+
+- **Split.** Mandatory Goal context (router must name a declared Goal; every
+  live Objective must reference one) moves to O-022, which applies it to every
+  Savepoint project. O-014 keeps today's optional-Goal behavior and must not
+  add new code paths that assume a Goal is absent.
+- **Next is the router's selection; no record search.** (Revised
+  2026-09-24, replacing an earlier in-Objective precedence ladder, to avoid
+  over-engineering.) Next states exactly what the router selects: the
+  Objective and, when selected, its Task, each with its word. The
+  project-wide and Release-wide searches for "lowest-ID ready work" are no
+  longer a source of Next. Gate state for the selected record (Check needed,
+  owner wait, unmet dependency, replan) still comes from the existing
+  resolvers. With no Objective selected, Next says nothing is selected. The
+  Goal completion rungs for a selected Release whose Objectives are all done
+  are unchanged.
+- **Line format.** `<Objective word> O-### · <Task word> T-### — <Task
+  title>`; with no Task selected, `<Objective word> O-### · Check — <Objective
+  title>` when every owned Task is done, otherwise `<Objective word> O-### —
+  <Objective title>`. Objective word: `Planned`, `In Progress`, or `Done`.
+  Task word: the existing `Planned`/`Build`/`Test`/`Check`/`Done`. Plain text,
+  no glyphs, so it pastes cleanly.
+- **Owner acceptance wait reads `Check`.** An Objective whose Check is CLEAR
+  but awaits owner acceptance still reads `· Check`; there is no extra word.
+- **An Issue can be the selection.** (Revised 2026-09-24; replaces "Issue
+  selection is context only".) The router may select an Issue on its own,
+  with no Objective or Task; Next is then that Issue:
+  `<Issue word> I-### — <title>`, Issue word `Open`, `In Progress`, or
+  `Resolved` (Issues carry no stage). When an
+  Objective or Task is also selected, their line wins and the Issue is shown
+  as context (the Task is the repair). A selected resolved Issue gets the
+  stale-selection warning. Board Issue lifecycle actions stay with O-015.
+- **The board advances the router on closure; the Release is never
+  blanked.** When the owner closes the selected Task on the board (Space to
+  done, including the waiver and exception paths), the same action points the
+  router at the Objective's lowest-ID Task that is not done (a blocked one
+  shows its wait through its own gate); when every Task is done, it clears
+  `task`, and Next reads `· Check`. Closing the
+  selected Objective clears `objective` and `task`. Neither write changes
+  `release:` or `issue:`. Skills set the selection in every other case —
+  `savepoint-design` when it selects the next Objective, `savepoint-task` when
+  it starts a Task — and the stale-selection diagnostic catches any miss,
+  such as a Task closed by hand-editing its file.
 
 ## Success Conditions
 
-- `nextLines`/`renderNext` show one lifecycle word for `next.Objective` the
-  same way they already do for `next.Task`: `Planned` (not started), `Build`
-  (in progress, an owned Task still needs work), `Check` (every owned Task
-  done, ready for the mandatory Full Objective Check), or `Done` — derived
-  from the Objective's own status and completion resolution, never borrowing
-  a Task-only stage word (`Test`, `Audit`).
-- The non-TTY plain rendering states the same word, so piping the board and
-  reading it still agree, matching the existing Task-word parity guarantee.
-- The router's `## Current state` block can name a single Issue (`issue:
-  I###`), decoded and validated with the same strictness and explicit `none`
-  sentinel as optional Objective/Task selection; an existing router with no
-  `issue:` key keeps parsing exactly as before (backward compatible). Release
-  selection follows its mandatory rule below and does not accept `none`.
-- Selecting an Issue through the router is readable by the board/resume
-  without inventing a second selection mechanism alongside
-  `data.ResolveSelection`.
-- When the router selects an Objective and names no Task, Next reflects
-  that Objective ahead of ready work elsewhere in the project or Release. If
-  the Objective has no Tasks, Next asks for it to be planned. If it has a
-  startable Task, Next offers that Task. The only exceptions are the rungs
-  that already outrank Objective selection, such as a pending migration or
-  a selected unfinished Task. Board, non-TTY, and `savepoint resume` output
-  agree because they share the one `data.Next` projection.
-- The router always has a valid `release: R###` selection naming a declared
-  Release. Missing, blank, `none`, and unknown Release selections produce a
-  clear diagnostic; they never silently show all Objectives.
-- Every live Objective has a valid `release: R###` reference to a declared
-  Release, including planned and done Objectives. Missing, blank, `none`, and
-  unknown references produce a clear diagnostic.
-- When the router selects no Objective, Next falls back to the selected
-  Release's search in ID order. There is no unscoped project-wide fallback.
-- Apart from mandatory Release context and the selected-Objective rule above,
-  selection behavior for valid Release/Objective/Task values, the `ResolveNext`
-  ladder's precedence, and non-TTY parity are unchanged for projects that
-  never select an Issue.
-- There is one next action. The router no longer carries a free-text
-  `next_action`; it holds only `state` and the Release/Objective/Task/Issue
-  selection. An existing router that still has `next_action` keeps loading,
-  and the field is ignored and reported once as retired (for example by
-  doctor), never rendered as a competing instruction.
-- Agents obtain the next action from the same `data.Next` projection the
-  board shows, by running the read-only `savepoint resume`. AGENTS.md, the
-  router template, and the phase skills name `savepoint resume` as the one
-  permitted CLI command for agents and replace "act on the router's
-  next_action" with "act on `savepoint resume`'s Next".
-- When the router selects a Task or Objective that is already `done`, the
-  board's Next area, non-TTY output, `savepoint resume`, and doctor all state
-  that the selection is stale and name the record, alongside whatever Next
-  the records support. The resolver never silently substitutes other work
-  without that diagnostic.
-- Advancing the router after an owner closure has a named owner in the
-  skills: the role that records or acts on the closure updates the selection,
-  and the stale-selection diagnostic catches any miss.
-- Active documentation (Design.md Section 8's Next-area contract) is
-  reconciled to state the implemented word vocabulary precisely.
-- Focused board/data tests, `git diff --check`, `make build`, and `make test`
-  pass before handoff.
+- The board Next area, non-TTY output, and the first line of `savepoint
+  resume` print the identical Next line in the format above; the board may
+  colour the words but the text is the same.
+- Next is derived only from the router's selection plus the existing gate
+  resolvers for the selected records; no search picks other work. The
+  2026-09-23 cases (router on O-018 showing T-006; router on done T-020
+  showing another Task) cannot recur.
+- With no Objective selected, Next says nothing is selected and resume says
+  to select an Objective; it never picks one. The line tells the owner how:
+  press `p` on the board, or ask the agent to "set router to O-### T-###".
+- An owner request such as "set router to O-014 T-028" is a documented agent
+  action: the agent confirms the records exist and the Task belongs to the
+  Objective, edits only the `objective`/`task`/`issue` keys (an Issue may be selected
+  alone, clearing `objective`/`task`), never
+  changes `release:` unless the owner names a Release, and then runs
+  `savepoint resume` to show the resulting Next line.
+- The router's `## Current state` block accepts `issue: I-###`, decoded and
+  validated with the same strictness and `none` sentinel as the Objective/Task
+  selection, and written by `WriteRouterStateV2` without disturbing other
+  keys. A router with no `issue:` key decodes exactly as before. An Issue that
+  is not found produces a named selection diagnostic. An Issue selected
+  alone is Next, in the line format above; alongside an Objective/Task it is
+  shown as context.
+- When the router selects a Task or Objective that is already `done`, a new
+  `SelectionDiagnostic` kind (for example `SelectionDone`) names the record.
+  The board's Next area, non-TTY output, `savepoint resume`, and doctor all
+  state it; Next still shows the selection as-is and never substitutes
+  other work.
+- Closing the selected Task on the board moves the router to the
+  Objective's lowest-ID unfinished Task, or clears `task` when all are done;
+  closing the selected Objective clears `objective` and `task`. The router's
+  `release:` is unchanged byte-for-byte, proven by a test for each closure.
+  The board's `p` key also preserves `release:`.
+- The router carries no `next_action`. An existing router that still has one
+  keeps loading; the value is ignored and doctor reports it once as a retired
+  field, never rendered as an instruction. The live router, the V2 router
+  template, and `WriteRouterStateV2` stop writing it.
+- AGENTS.md tells an agent that a pasted Next line names the Objective,
+  Task, and skill (Task `Build`/`Test` → `savepoint-task`, `Check` →
+  `savepoint-check`, `Planned` Objective → `savepoint-design`).
+- AGENTS.md, the router template, and the phase skills (live and scaffold,
+  byte-identical) name `savepoint resume` as the one CLI command agents may
+  run, replace "act on the router's next_action" with "act on
+  `savepoint resume`'s Next", say what to do when the binary is unavailable
+  (read the router selection and report the missing tool; do not guess), and
+  name who advances the router after an owner closure.
+- Apart from the rules above, gate decisions for the selected records, Goal
+  completion rungs, and non-TTY parity are unchanged.
+- Design.md Section 8 states the Next line format, that Next is the router
+  selection, the board's closure advance, the stale-selection line, and the single-Next
+  contract. Section 1 and Section 4 drop router `next_action` and the "press
+  `p`" handoff wording where it no longer holds.
+- Focused board/data/resume/doctor tests and `git diff --check` pass during
+  iteration; `make build && make test-fast` passes at each Task handoff; the
+  Full Objective Check has current `make test-full` evidence.
 
 ## Architectural Considerations
 
-- `internal/data` remains the sole owner of Objective status/completion
-  resolution and Issue lifecycle; this Objective adds presentation (the
-  Next-area word) and a router selection field, not a new gate or a second
-  status vocabulary.
-- `internal/board/v2/badges.go` and `next_panel.go` remain the single
-  translation from typed `data` values to glyph/label/accent/word; no second
-  word-mapping for Objectives elsewhere in the package.
-- Whether a selected Issue can itself become the resolved `data.Next` (a new
-  rung) or stays a pure view-context the way Release selection narrows scope
-  without being "the" next action is an open interface question — settle it
-  during readiness/Task planning for this Objective, not here.
-- The selected-Objective rule is a `ResolveNext` precedence change owned by
-  `internal/data/next.go`. The board and resume only render its result. The
-  exact rung placement is an owner product decision to confirm before Task
-  detailing: whether a selected Objective's integration Check, its own ready
-  Tasks, and its planning request each outrank project-wide ready work, and
-  how a selected Objective with unmet dependencies or only blocked Tasks
-  reports. Keep the rule consistent with O-020, which requires the canonical
-  Next resolver to keep respecting explicit router selection.
-- Release selection and Objective membership are mandatory under the owner's
-  confirmed requirement. Keep membership derived from `Objective.release`;
-  the router must name a declared Release, and Next/board views remain scoped
-  to it. Existing data missing these references needs an explicit, actionable
-  repair path rather than a silent unscoped fallback.
-- Keep `router.md`'s YAML shape backward compatible: an existing V2 router
-  with no `issue:` key must keep decoding exactly as it does today.
-- `data.ResolveNext` is the only source of the next action. The stale-selection
-  diagnostic extends `SelectionDiagnostic` (a new kind such as
-  `SelectionDone`) rather than a board- or resume-side check, so every
-  surface reports it from the same value. `internal/resume` owns its wording.
-- Retiring `next_action` removes the only prose channel agents used to
-  hand off intent. Settle during Task planning whether any of that intent
-  (for example "request a Task Check or record a waiver") is already fully
-  expressed by `data.Next`'s rungs, and add a rung or phrase only where it is
-  not. Do not reintroduce free text.
-- Allowing agents to run `savepoint resume` changes the "never run savepoint
-  commands" rule. The exception is `resume` alone, which is read-only and
-  performs no writes, so it cannot break the owner-only authority over status
-  changes.
+- `internal/data` stays the sole owner of Objective completion, Issue
+  lifecycle, selection, and the ladder. The Objective word is a presentation
+  translation in `internal/board/v2` (`next_panel.go`/`badges.go`) from typed
+  `data` values; if it needs a typed source (for example a resolved Objective
+  phase on `Next`), that value is computed in `internal/data`, not re-derived
+  in the board.
+- `internal/data/next.go` stays the one source of Next, but it reads the
+  router selection instead of searching: the global and Release ready
+  searches and the "active Task elsewhere in the Release" rung stop being
+  sources of Next. This is a deletion, not a new ladder. O-020's ranking may
+  later suggest what to select; it does not select.
+- The stale-selection diagnostic is a `SelectionDiagnostic` kind so every
+  surface reports it from one value. `internal/resume` owns its wording; the
+  board's Next area gains one diagnostic line, a deliberate change to Section
+  8's one-line contract.
+- Task planning must confirm each hand-off `next_action` used to carry (for
+  example "request a Task Check or record a waiver") is already expressed by a
+  `data.Next` rung or resume phrase, and add a phrase only where it is not. No
+  free text returns.
+- Allowing agents to run `savepoint resume` narrows the "never run savepoint
+  commands" rule to one read-only command that performs no writes, so owner
+  authority over status changes is unaffected.
+- Router YAML stays backward compatible: `issue:` is optional and
+  `next_action` is tolerated on read.
 
 ## Boundaries
 
 **In scope:**
 
-- The Objective lifecycle word in the Next area (`internal/board/v2/next_panel.go`,
-  and `internal/data/next.go` if the word needs a typed source rather than
-  being derived ad hoc in the board).
-- Router selection support for a single Issue (`internal/data/router_v2.go`,
-  `internal/data/write.go`'s `RouterSelectionV2`): decode, validate, write,
-  and the "none" sentinel, plus whatever minimal board surface is needed to
-  set it.
-- Next honors the router-selected Objective ahead of unrelated ready work
-  (`internal/data/next.go` ladder, plus the matching resume/board phrasing
-  if a new rung or Next kind is introduced).
-- Require every router to name a declared Release and every live Objective to
-  reference a declared Release; reconcile loading, writing, diagnostics,
-  current records, and active guidance with that rule while keeping membership
-  derived from `Objective.release`.
-- Retiring the router's `next_action` (`internal/data/router_v2.go`, the V2
-  router template, this repository's router), a stale-selection diagnostic in
-  `internal/data/next.go` rendered by board, resume, and doctor, and
-  AGENTS.md, scaffold guidance, and phase-skill updates that make
-  `savepoint resume` the agent's source of the next action and name who
-  advances the router after an owner closure.
-- Design.md Section 8 reconciliation for the exact word vocabulary, the
-  selected-Objective precedence, and the single-Next contract.
+- The Objective lifecycle word in the Next area and non-TTY output.
+- Router `issue:` selection: decode, validate, write, `none` sentinel, a
+  not-found diagnostic, an Issue-only Next line, and context display.
+- Next derived from the router selection in `internal/data/next.go`,
+  replacing the record searches, with matching resume phrasing and the
+  shared Next line.
+- The stale-selection diagnostic in data, rendered by board, non-TTY, resume,
+  and doctor.
+- Board closure advancing the router to the Objective's next Task (or
+  clearing it) while preserving `release:` byte-for-byte; the `p` key fix.
+- Retiring `next_action` from the router model, writer, template, and this
+  repository's router; doctor's retired-field report.
+- AGENTS.md, scaffold, and phase-skill guidance for `savepoint resume` and
+  router advancement; Design.md reconciliation.
 
 **Out of scope:**
 
-- Changing Issue lifecycle states, severity, or type vocabulary.
-- Changing the existing Task lifecycle words (`Build`/`Test`/`Check`/`Planned`/`Done`).
-- Any Objective, Task, Release, or Issue gate or completion-policy change
-  (the Next precedence change above decides what to show, not what may
-  start or complete).
-- Renaming Release to Goals (O-013's scope) or any other unrelated Next-area
-  or router surface not named above.
+- Mandatory Goal context for routers and Objectives (O-022).
+- Objective priority and ordering (O-020).
+- Changing Issue lifecycle, severity, or type vocabulary; board actions
+  that advance Issues (O-015).
+- Changing the Task words (`Build`/`Test`/`Check`/`Planned`/`Done`).
+- Any Task, Objective, Goal, or Issue gate or completion-policy change: the
+  precedence change decides what Next shows, not what may start or complete.
