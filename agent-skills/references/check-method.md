@@ -342,3 +342,21 @@ actions are required instead of emitting an empty table.
 List observations separately from Issues. Do not use Issue language, `NEEDS
 WORK`, or an in-task fix recommendation for an out-of-scope observation
 unless the owner explicitly expands the Task or Objective.
+
+## Review Code Style
+
+When `.savepoint/Guardrails.md` defines `STYLE-*` rules, every Check record
+carries a `## Code Style Review` section with one checkbox per rule, in the
+order Guardrails lists them. Take rule IDs and labels from Guardrails; do not
+hardcode them here. Tick a rule the scoped code follows. Leave a rule
+unticked with a one-line reason and file evidence when the scoped code
+departs from it. Style is advisory: an unticked rule never creates an Issue
+or changes the result on its own. Skip the section when Guardrails defines
+no `STYLE-*` rules.
+
+```markdown
+## Code Style Review
+
+- [x] STYLE-01 **One job per file**
+- [ ] STYLE-10 **Small diffs** — one commit adds ~2,000 lines across 30 files.
+```

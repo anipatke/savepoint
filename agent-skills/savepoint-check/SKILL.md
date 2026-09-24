@@ -37,7 +37,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective or Goal Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is new or newly selected work linked to the Objective and the recorded Issue, and every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective/Goal outcome.
-7. Record advisory observations, including `STYLE` guardrail findings, as non-blocking; do not let them change the result.
+7. Record advisory observations as non-blocking, and fill the record's `## Code Style Review` checklist as `check-method.md` describes; neither changes the result.
 8. Stop. Do not repair implementation, rewrite acceptance criteria, or update Design as part of this run.
 
 ## Verification Gates
@@ -87,8 +87,9 @@ own; no separate freshness assessment is needed.
 `issues` lists the `I-###` references this run opened. `supersedes` names the
 prior `C-###` this run replaces, or stays empty on a first run. The record body
 carries outcome coverage, test and command results, negative and boundary
-probes, applicable Guardrails, owner validation still needed, and nonblocking
-observations.
+probes, applicable Guardrails, the `## Code Style Review` checklist when
+Guardrails defines `STYLE-*` rules, owner validation still needed, and
+nonblocking observations.
 
 Each run writes a new record with a new `C-###`. A recheck never edits the superseded record; it sets its own `supersedes` and leaves the prior run intact as history.
 
