@@ -2,14 +2,19 @@
 id: I-047
 title: The Next line strings two status words together instead of saying what to do
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: owner-chat-20260924}
   at: '2026-09-24T11:40:00Z'
 tasks: [T-028]
-checks: [C-916]
+checks: [C-916, C-917]
 severity: low
+resolution:
+  disposition: verified
+  check: C-917
+  actor: {role: checker, session: o014-objective-recheck-20260924}
+  at: '2026-09-24T09:49:09Z'
 history:
   - at: '2026-09-24T11:40:00Z'
     actor: {role: owner, session: owner-chat-20260924}
@@ -40,6 +45,11 @@ history:
       moved to the new lines, including internal/board's V2 dispatch test,
       which the first fast-gate run caught. make build && make test-fast then
       passed; git diff --check clean. Left open for the O-014 re-check.
+  - at: '2026-09-24T09:49:09Z'
+    actor: {role: checker, session: o014-objective-recheck-20260924}
+    kind: rechecked
+    check: C-917
+    note: "Next lines lead with action verbs, and current Checks use distinct Accept and Close owner steps."
 ---
 
 # I-047: The Next line strings two status words together instead of saying what to do

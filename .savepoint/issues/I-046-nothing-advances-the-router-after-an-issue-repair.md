@@ -2,14 +2,19 @@
 id: I-046
 title: Nothing moves the router off an Issue once its repair is done
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: owner-chat-20260924}
   at: '2026-09-24T11:10:00Z'
 tasks: [T-031, T-034]
-checks: [C-916]
+checks: [C-916, C-917]
 severity: low
+resolution:
+  disposition: verified
+  check: C-917
+  actor: {role: checker, session: o014-objective-recheck-20260924}
+  at: '2026-09-24T09:49:09Z'
 history:
   - at: '2026-09-24T11:10:00Z'
     actor: {role: owner, session: owner-chat-20260924}
@@ -27,6 +32,11 @@ history:
       clears only the Issue when there is no unique Objective. Preserves the
       Goal selection. make build and make test-fast passed; git diff --check
       passed. The router already selected O-014 before this repair.
+  - at: '2026-09-24T09:49:09Z'
+    actor: {role: checker, session: o014-objective-recheck-20260924}
+    kind: rechecked
+    check: C-917
+    note: "Live and scaffold guidance advances an Issue-only router after repair_attempted and preserves the Goal selection."
 ---
 
 # I-046: Nothing moves the router off an Issue once its repair is done

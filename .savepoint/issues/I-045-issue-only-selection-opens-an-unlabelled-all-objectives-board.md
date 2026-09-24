@@ -2,14 +2,19 @@
 id: I-045
 title: An Issue-only router selection opens the board on an unlabelled all-Objectives view
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: owner-chat-20260924}
   at: '2026-09-24T09:40:00Z'
 tasks: [T-031]
-checks: [C-916]
+checks: [C-916, C-917]
 severity: low
+resolution:
+  disposition: verified
+  check: C-917
+  actor: {role: checker, session: o014-objective-recheck-20260924}
+  at: '2026-09-24T09:49:09Z'
 history:
   - at: '2026-09-24T09:40:00Z'
     actor: {role: owner, session: owner-chat-20260924}
@@ -31,6 +36,11 @@ history:
       TestFilteredViewHasNoAllObjectivesLabel. make build && make test-fast
       pass; git diff --check clean. Design section 8 updated. Left open for
       the O-014 re-check.
+  - at: '2026-09-24T09:49:09Z'
+    actor: {role: checker, session: o014-objective-recheck-20260924}
+    kind: rechecked
+    check: C-917
+    note: "Issue-only board startup selects the unique linked Objective and labels the unfiltered fallback."
 ---
 
 # I-045: An Issue-only router selection opens the board on an unlabelled all-Objectives view

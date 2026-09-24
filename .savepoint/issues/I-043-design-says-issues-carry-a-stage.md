@@ -2,15 +2,20 @@
 id: I-043
 title: Design.md says an in-progress Issue needs a stage, but the loader rejects one
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: planner, session: o014-design-20260924}
   at: '2026-09-24T00:00:00Z'
 tasks: []
-checks: []
+checks: [C-917]
 guardrail_ids: [TPL-02]
 severity: low
+resolution:
+  disposition: verified
+  check: C-917
+  actor: {role: checker, session: o014-objective-recheck-20260924}
+  at: '2026-09-24T09:49:09Z'
 history:
   - at: '2026-09-24T00:00:00Z'
     actor: {role: planner, session: o014-design-20260924}
@@ -26,6 +31,11 @@ history:
       decodeIssueStatus in internal/data/issue_v2.go. No further code or Design
       edit was needed. The existing repair remains open for an independent
       Check or an explicit owner acceptance decision.
+  - at: '2026-09-24T09:49:09Z'
+    actor: {role: checker, session: o014-objective-recheck-20260924}
+    kind: rechecked
+    check: C-917
+    note: "Design section 4 matches the Issue decoder: Issues carry no stage."
 ---
 
 # I-043: Design.md says an in-progress Issue needs a stage, but the loader rejects one

@@ -1,7 +1,7 @@
 ---
 id: O-014
 title: Give the Next area an Objective word and let the router target Issues
-status: in_progress
+status: done
 depends_on: [O-012]
 release: R-006
 ---

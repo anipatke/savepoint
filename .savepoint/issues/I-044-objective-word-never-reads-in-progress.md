@@ -2,15 +2,20 @@
 id: I-044
 title: The Next line's Objective word never reads In Progress
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-916
   actor: {role: checker, session: o014-objective-check-20260924}
   at: '2026-09-24T08:58:19Z'
 tasks: [T-028]
-checks: [C-916]
+checks: [C-916, C-917]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-917
+  actor: {role: checker, session: o014-objective-recheck-20260924}
+  at: '2026-09-24T09:49:09Z'
 history:
   - at: '2026-09-24T08:58:19Z'
     actor: {role: checker, session: o014-objective-check-20260924}
@@ -49,6 +54,11 @@ history:
       Issue-word cases. Three doctor fixtures now write their Objective
       in_progress. make build && make test-fast pass; git diff --check clean.
       Left open for the O-014 re-check.
+  - at: '2026-09-24T09:49:09Z'
+    actor: {role: checker, session: o014-objective-recheck-20260924}
+    kind: rechecked
+    check: C-917
+    note: "The planned Objective advances on first Task start, a failed write is diagnosed, and open Issues read Fix."
 ---
 
 # I-044: The Next line's Objective word never reads In Progress
