@@ -16,7 +16,7 @@ func TestReadStateV2_decodesSelectedTask(t *testing.T) {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
 
-	want := RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001", NextAction: "Build T-001"}
+	want := RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001", HasRetiredNextAction: true}
 	if *state != want {
 		t.Errorf("ReadStateV2() = %+v, want %+v", *state, want)
 	}
@@ -34,8 +34,23 @@ func TestReadStateV2_decodesSelectedRelease(t *testing.T) {
 	}
 }
 
+func TestReadStateV2_decodesIssueAloneWithoutObjective(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\nissue: I-042\n```\n"
+
+	state, err := NewRouterReader().ReadStateV2(content)
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Issue != "I-042" || state.Objective != "" || state.Task != "" {
+		t.Fatalf("ReadStateV2() selections = issue %q objective %q task %q, want I-042 with no Objective or Task", state.Issue, state.Objective, state.Task)
+	}
+	if state.HasRetiredNextAction {
+		t.Error("HasRetiredNextAction = true without a next_action key")
+	}
+}
+
 func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
-	content := "## Current state\n\n```yaml\nstate: idea\nrelease: none\nobjective: none\ntask: none\nnext_action: \"\"\n```\n"
+	content := "## Current state\n\n```yaml\nstate: idea\nrelease: none\nobjective: none\ntask: none\nissue: none\nnext_action: \"\"\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
@@ -50,8 +65,14 @@ func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
 	if state.Task != "" {
 		t.Errorf("Task = %q, want empty for the none sentinel", state.Task)
 	}
+	if state.Issue != "" {
+		t.Errorf("Issue = %q, want empty for the none sentinel", state.Issue)
+	}
 	if state.State != RouterPhaseIdea {
 		t.Errorf("State = %q, want idea", state.State)
+	}
+	if !state.HasRetiredNextAction {
+		t.Error("HasRetiredNextAction = false, want true for a present next_action key")
 	}
 }
 
@@ -70,15 +91,15 @@ func TestReadStateV2_taskAbsentObjectivePresentDecodesCleanly(t *testing.T) {
 	}
 }
 
-func TestReadStateV2_emptyNextActionDecodesCleanly(t *testing.T) {
+func TestReadStateV2_recordsEmptyRetiredNextActionPresence(t *testing.T) {
 	content := "## Current state\n\n```yaml\nstate: check\nobjective: O-003\ntask: none\nnext_action:\n```\n"
 
 	state, err := NewRouterReader().ReadStateV2(content)
 	if err != nil {
 		t.Fatalf("ReadStateV2() error = %v", err)
 	}
-	if state.NextAction != "" {
-		t.Errorf("NextAction = %q, want empty", state.NextAction)
+	if !state.HasRetiredNextAction {
+		t.Error("HasRetiredNextAction = false, want true for an empty next_action key")
 	}
 }
 
@@ -127,6 +148,24 @@ func TestReadStateV2_malformedTaskID(t *testing.T) {
 	_, err := NewRouterReader().ReadStateV2(content)
 	if !errors.Is(err, ErrV2InvalidID) {
 		t.Fatalf("ReadStateV2() error = %v, want ErrV2InvalidID", err)
+	}
+}
+
+func TestReadStateV2_malformedIssueID(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\nissue: I042\n```\n"
+
+	_, err := NewRouterReader().ReadStateV2(content)
+	if !errors.Is(err, ErrV2InvalidID) {
+		t.Fatalf("ReadStateV2() error = %v, want ErrV2InvalidID", err)
+	}
+}
+
+func TestReadStateV2_issueMustBeScalar(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\nissue: [I-042]\n```\n"
+
+	_, err := NewRouterReader().ReadStateV2(content)
+	if !errors.Is(err, ErrV2Malformed) {
+		t.Fatalf("ReadStateV2() error = %v, want ErrV2Malformed", err)
 	}
 }
 

@@ -254,8 +254,13 @@ func v2ConsistencyCategory(kind data.ConsistencyDiagnosticKind) HealthCategory {
 // diagnostics: a done Objective without current clearance is missing
 // evidence, not malformed data.
 func v2ObjectiveConsistencyCategory(kind data.ObjectiveConsistencyDiagnosticKind) HealthCategory {
-	if kind == data.ObjectiveConsistencyDoneWithoutClearance {
+	switch kind {
+	case data.ObjectiveConsistencyDoneWithoutClearance:
 		return HealthMissingEvidence
+	case data.ObjectiveConsistencyPlannedWithStartedTask:
+		// A status left behind by work that started without the board is
+		// a warning to review, not broken data.
+		return HealthPendingReview
 	}
 	return HealthMalformedData
 }
@@ -312,6 +317,8 @@ func v2ObjectiveConsistencyDiagnosticName(kind data.ObjectiveConsistencyDiagnost
 		return "v2-objective-done-without-clearance"
 	case data.ObjectiveConsistencyIncompleteTask:
 		return "v2-objective-done-with-incomplete-task"
+	case data.ObjectiveConsistencyPlannedWithStartedTask:
+		return "v2-objective-planned-with-started-task"
 	default:
 		return "v2-objective-evidence-inconsistency"
 	}

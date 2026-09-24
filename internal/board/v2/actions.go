@@ -247,22 +247,25 @@ func selectionAction(index *data.V2Index, target actionTarget) (BoardAction, boo
 	}, true
 }
 
-func selectionForTarget(index *data.V2Index, target actionTarget) (data.RouterSelectionV2, error) {
+func selectionForTarget(index *data.V2Index, target actionTarget, current data.RouterSelectionV2) (data.RouterSelectionV2, error) {
 	if index == nil {
 		return data.RouterSelectionV2{}, fmt.Errorf("selection requires a loaded project")
 	}
+	selection := data.RouterSelectionV2{Release: current.Release, Issue: current.Issue}
 	switch target.Kind {
 	case DetailObjective:
 		if _, ok := index.Objectives[target.ID]; !ok {
 			return data.RouterSelectionV2{}, fmt.Errorf("selection target %s is no longer present", target.ID)
 		}
-		return data.RouterSelectionV2{Objective: target.ID}, nil
+		selection.Objective = target.ID
+		return selection, nil
 	case DetailTask:
 		task, ok := index.Tasks[target.ID]
 		if !ok {
 			return data.RouterSelectionV2{}, fmt.Errorf("selection target %s is no longer present", target.ID)
 		}
-		return data.RouterSelectionV2{Objective: task.Objective, Task: task.ID}, nil
+		selection.Objective, selection.Task = task.Objective, task.ID
+		return selection, nil
 	default:
 		return data.RouterSelectionV2{}, fmt.Errorf("selection is not supported for %s", target.Kind)
 	}

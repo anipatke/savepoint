@@ -41,10 +41,12 @@ func renderPlain(state ProjectState, selected string) string {
 	if release := selectedRelease(state); release != "" {
 		fmt.Fprintf(&b, "Selected %s: %s\n", goalLabel, release)
 	}
+	// "Selected", not "Objective": the Next area's own Objective line names
+	// what the projection chose, which the sidebar's filter never moves.
 	if selected != "" {
-		// "Selected", not "Objective": the Next area's own Objective line names
-		// what the projection chose, which the sidebar's filter never moves.
 		fmt.Fprintf(&b, "Selected: %s\n", selected)
+	} else {
+		fmt.Fprintln(&b, "Selected: all Objectives")
 	}
 	fmt.Fprintln(&b)
 

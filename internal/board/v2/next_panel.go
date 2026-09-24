@@ -9,8 +9,8 @@ import (
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-// This file is the Next area: a one-line glance at the Objective and Task
-// named by the project's resolved projection (data.ResolveNext). The line's
+// This file is the Next area: a one-line glance at the selected Objective,
+// Task, or Issue named by the project's resolved projection (data.ResolveNext). The line's
 // plain-text wording is shared with `savepoint resume`; the board adds its
 // NEXT: label and existing word accents. The rung evidence, action sentence,
 // and Issues summary remain in resume and the record's detail overlay.
@@ -22,9 +22,17 @@ import (
 
 // nextLines is the Next area's whole content as plain lines, shared by the
 // terminal panel and the non-TTY rendering so a piped board and a drawn one
-// state the same thing.
+// state the same thing. A selection diagnostic follows the Next line; the
+// diagnostic never replaces the action the selected records still support.
 func nextLines(next data.Next) []string {
-	return []string{resume.NextLine(next)}
+	lines := []string{resume.NextLine(next)}
+	if next.Issue != nil && (next.Task != nil || next.Objective != nil) {
+		lines = append(lines, resume.IssueContextLine(next.Issue))
+	}
+	if next.SelectionDiagnostic != nil {
+		lines = append(lines, resume.SelectionPhrase(next.SelectionDiagnostic))
+	}
+	return lines
 }
 
 // renderNext draws the Next area: a bold orange "NEXT:" lead-in, then the
@@ -39,9 +47,14 @@ func (m Model) renderNext(w int) string {
 	lines := nextLines(next)
 	rendered := make([]string, 0, len(lines)+1)
 	rendered = append(rendered, "")
-	for _, line := range lines {
-		styledLine := styleNextLine(next, line)
-		rendered = append(rendered, wrapTo(w, styles.NextLabel.Render("NEXT:")+" "+styledLine))
+	for i, line := range lines {
+		styledLine := styles.HeaderWhiteBold.Render(line)
+		prefix := "      "
+		if i == 0 {
+			styledLine = styleNextLine(next, line)
+			prefix = styles.NextLabel.Render("NEXT:") + " "
+		}
+		rendered = append(rendered, wrapTo(w, prefix+styledLine))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rendered...)
 }

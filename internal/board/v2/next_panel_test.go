@@ -67,6 +67,84 @@ func TestNextPanelNothingSelected(t *testing.T) {
 	}
 }
 
+func TestNextPanelNamesIssueAndShowsItAsContext(t *testing.T) {
+	issue := &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusOpen}
+	issueOnly := data.Next{Kind: data.NextIssue, Issue: issue}
+	if got, want := nextPanelText(issueOnly), "Fix I-042 — Repair the parser"; got != want {
+		t.Errorf("nextPanelText() = %q, want Issue line %q", got, want)
+	}
+
+	taskContext := data.Next{
+		Kind:      data.NextExecute,
+		Objective: &data.ObjectiveV2{ID: "O-014", Status: data.ColumnInProgress},
+		Task:      &data.TaskV2{ID: "T-028", Objective: "O-014", Title: "Copy the line", Status: data.ColumnInProgress, Stage: data.StageBuild},
+		Issue:     issue,
+	}
+	want := "In Progress O-014 · Build T-028 — Copy the line\nIssue: Fix I-042 — Repair the parser"
+	if got := nextPanelText(taskContext); got != want {
+		t.Errorf("nextPanelText() = %q, want Task line plus selected Issue context %q", got, want)
+	}
+	model := Model{}
+	model.State.Next = taskContext
+	if got := xansi.Strip(model.renderNext(120)); !strings.Contains(got, "Issue: Fix I-042 — Repair the parser") {
+		t.Errorf("renderNext() = %q, want selected Issue context", got)
+	}
+}
+
+func TestNextPanelAddsSelectionDiagnosticUnderTheExistingNextLine(t *testing.T) {
+	cases := []struct {
+		name       string
+		next       data.Next
+		wantPhrase string
+	}{
+		{
+			name: "existing not-found wording",
+			next: data.Next{
+				Kind: data.NextNothingSelected,
+				SelectionDiagnostic: &data.SelectionDiagnostic{
+					Kind: data.SelectionNotFound, RecordKind: data.SelectionRecordTask, ID: "T-999",
+				},
+			},
+			wantPhrase: "The router names task T-999, which does not exist among the project's live records.",
+		},
+		{
+			name: "finished Task wording",
+			next: data.Next{
+				Kind:      data.NextSelectTask,
+				Objective: &data.ObjectiveV2{ID: "O-001", Title: "Ship it", Status: data.ColumnInProgress},
+				SelectionDiagnostic: &data.SelectionDiagnostic{
+					Kind: data.SelectionDone, RecordKind: data.SelectionRecordTask, ID: "T-001",
+				},
+			},
+			wantPhrase: "Warning: router still selects finished Task T-001.",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := resume.NextLine(tc.next) + "\n" + tc.wantPhrase
+			if got := nextPanelText(tc.next); got != want {
+				t.Errorf("nextPanelText() = %q, want Next plus diagnostic %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRenderNextIncludesTheSelectionDiagnostic(t *testing.T) {
+	model := openBoard(t, writeValidProject(t), "")
+	model.State.Next = data.Next{
+		Kind:      data.NextSelectTask,
+		Objective: &data.ObjectiveV2{ID: "O-001", Title: "Ship it", Status: data.ColumnInProgress},
+		SelectionDiagnostic: &data.SelectionDiagnostic{
+			Kind: data.SelectionDone, RecordKind: data.SelectionRecordTask, ID: "T-001",
+		},
+	}
+	got := xansi.Strip(model.renderNext(120))
+	if want := "Warning: router still selects finished Task T-001."; !strings.Contains(got, want) {
+		t.Errorf("renderNext() = %q, want the shared selection diagnostic %q", got, want)
+	}
+}
+
 func TestRenderNextUsesExistingLifecycleAccents(t *testing.T) {
 	taskNext := data.Next{
 		Kind:      data.NextExecute,

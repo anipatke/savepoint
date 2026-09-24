@@ -20,16 +20,17 @@ const (
 )
 
 // RouterStateV2 is the decoded "## Current state" anchor for a V2 project:
-// a phase, an optional Release context, the selected Objective, an optional
-// selected Task, and prose for a human. It is a hint only — record identity
-// and cross-selection ownership are resolved against the project index by
-// ResolveSelection.
+// a phase, optional Release context, selected Objective and Task, an optional
+// Issue selection, and whether the retired next_action key was present. It is
+// a hint only — record identity and cross-selection ownership are resolved
+// against the project index by ResolveSelection.
 type RouterStateV2 struct {
-	State      RouterPhaseV2
-	Release    string // R-### selection, or empty when no Release is selected
-	Objective  string // O-### selection, or empty when none is selected
-	Task       string // T-### selection, or empty when none is selected
-	NextAction string
+	State                RouterPhaseV2
+	Release              string // R-### selection, or empty when no Release is selected
+	Objective            string // O-### selection, or empty when none is selected
+	Task                 string // T-### selection, or empty when none is selected
+	Issue                string // I-### selection, or empty when none is selected
+	HasRetiredNextAction bool   // true when an old router still has a next_action key
 }
 
 // routerV2Frontmatter is the raw shape decoded off the anchor before
@@ -38,20 +39,22 @@ type RouterStateV2 struct {
 // fresh project's objective/task, the same sentinel V1's release/epic
 // fields already use (see internal/doctor/checks.go).
 type routerV2Frontmatter struct {
-	State      string `yaml:"state"`
-	Release    string `yaml:"release"`
-	Objective  string `yaml:"objective"`
-	Task       string `yaml:"task"`
-	NextAction string `yaml:"next_action"`
+	State                string    `yaml:"state"`
+	Release              string    `yaml:"release"`
+	Objective            string    `yaml:"objective"`
+	Task                 string    `yaml:"task"`
+	Issue                string    `yaml:"issue"`
+	RetiredNextActionKey yaml.Node `yaml:"next_action"` // only key presence escapes this decoder
 }
 
 // ReadStateV2 decodes the "## Current state" anchor into a V2 RouterStateV2.
 // It reuses extractStateBlock's anchor-finding — the same heading and fenced
 // ```yaml block the V1 reader locates — and then decodes strictly (DATA-03):
-// an unrecognized or empty state, a malformed R-###/O-###/T-### selection, a task
-// selected without an objective, and an unknown key each return a named
-// diagnostic instead of a healed default. Decoding performs no filesystem
-// write and no repair of content.
+// an unrecognized or empty state, a malformed R-###/O-###/T-###/I-###
+// selection, a task selected without an objective, and an unknown key each
+// return a named diagnostic instead of a healed default. The retired
+// next_action key is tolerated for compatibility, but its value is discarded.
+// Decoding performs no filesystem write and no repair of content.
 func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 	yamlContent, err := extractStateBlock(content)
 	if err != nil {
@@ -88,16 +91,22 @@ func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 		return nil, fmt.Errorf("%w: router task %q must be a single T-### selection", ErrV2InvalidID, fields.Task)
 	}
 
+	issue := normalizeRouterSelectionV2(fields.Issue)
+	if issue != "" && !matchesV2Identity(issue, 'I') {
+		return nil, fmt.Errorf("%w: router issue %q must be a single I-### selection", ErrV2InvalidID, fields.Issue)
+	}
+
 	if task != "" && objective == "" {
 		return nil, fmt.Errorf("%w: router task %q selected with no objective", ErrV2InvalidOwnership, fields.Task)
 	}
 
 	return &RouterStateV2{
-		State:      phase,
-		Release:    release,
-		Objective:  objective,
-		Task:       task,
-		NextAction: fields.NextAction,
+		State:                phase,
+		Release:              release,
+		Objective:            objective,
+		Task:                 task,
+		Issue:                issue,
+		HasRetiredNextAction: fields.RetiredNextActionKey.Kind != 0,
 	}, nil
 }
 

@@ -16,8 +16,8 @@ last_audited: v2/E51-first-class-releases
 
 ## 1. Architecture model
 
-- **File-only.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools.
-- **Agent routing:** AGENTS.md → `.savepoint/router.md` → phase skills. See AGENTS.md Workflow section.
+- **File-only.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools; `savepoint resume` is the only agent CLI command and it is read-only.
+- **Agent routing:** `savepoint resume` prints Next from the structured router selection; AGENTS.md maps that line to a phase skill, which reads the router and scoped files. The router does not carry hand-written next-step prose. See AGENTS.md Workflow and Router Selection sections.
 - **Bundled Agent Skills:** The active V2 workflow uses `savepoint-idea`, `savepoint-design`, `savepoint-task`, and `savepoint-check`, with three non-triggerable shared references. Retired V1 workflow files are preserved only as historical evidence.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
@@ -102,12 +102,13 @@ Three statuses, with explicit gates and ownership boundaries:
 - `internal/data` is the single owner of task lifecycle rules: canonical statuses, canonical stages, parse compatibility for legacy `phase`, write validation, and transition helpers must flow through that package. `Task.Column` and `Task.Stage` are the canonical in-memory lifecycle fields; no denormalized status mirror exists on the Task struct.
 - Canonical task files and workflow guidance must use `status` plus `stage` only while `status: in_progress`; legacy `phase` is accepted only as read compatibility and should be reported as drift by diagnostics/templates.
 - Agents may only advance a task into `in_progress`; they must not set `done` or retreat a task to an earlier status.
+- An Objective moves from `planned` to `in_progress` when its first Task starts: the board's Space on a planned Task writes both records, and `savepoint-task` does the same when an agent starts a Task. Only the user sets an Objective `done`. Doctor warns (`v2-objective-planned-with-started-task`) about a `planned` Objective that owns a started or done Task.
 - Only the user may set a task to `done` or retreat it from `done` to `in_progress` when follow-up work is required.
-- Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
+- Router selection follows AGENTS.md's Router Selection section: `savepoint-design` selects the next Objective, `savepoint-task` selects the Task it starts, and the board advances after the owner closes a Task. Starting a Task does not require the agent to prompt the owner to press `p` as a handoff.
 - Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks; a Goal Check remains mandatory whenever a Goal exists.
 - This verification contract's runtime enforcement lives in `internal/data`: `evidence_v2.go` decodes an explicit `check_waiver` Evidence sub-block (Task-only, owner-attributed), and `gate_v2.go`'s `ResolveTaskCompletion` grants completion `AllowedByWaiver` only when no Task Check was ever requested — never once a Check exists, and never for Objective or Goal completion, which stay mandatory and unaffected.
 
-Issues use `open`, `in_progress`, and `resolved`; `stage` is required only while an Issue is `in_progress`. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
+Issues use `open`, `in_progress`, and `resolved`, and carry no `stage`. Agents record each `repair_attempted` in the Issue and leave verified closure to a checker; the owner may explicitly close an Issue as `accepted` under the owner decision rule. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
 
 Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) and `complexity_reason` as a short planning signal. The pair is validated together, preserved through task status writes, displayed on task cards/details, and required by the create-task planning skill for newly planned tasks.
 
@@ -130,6 +131,7 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.
+- Agents may run only `savepoint resume`, which prints the read-only Next projection; every other Savepoint command is human-only.
 - Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
 
@@ -169,7 +171,16 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Goal selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. The selected Objective and Task are filtered from the identity-keyed index. The Next area is a one-line glance at the shared `data.Next` projection's own Task or Objective — its lifecycle word (Build/Test/Check, Planned, or Done; never "Audit"), its identity, and its title — and nothing more; the TUI panel and the deterministic non-TTY plain table render that same one line, so piping the board and looking at it still agree with each other. The rung label, per-criterion evidence, owner-wait/exception/dependency wording, and the action sentence remain `savepoint resume`'s narrative (`internal/resume`) and the record's own detail overlay, both unchanged, both still read from the same resolvers — board and resume are intentionally no longer required to render identical wording for that fuller detail; the board is a glance, resume is the report.
+**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Goal selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. Next is exactly the router's selected work plus the existing gate resolver for that record; no project-wide or Release-wide search substitutes other work. The columns open on the router's Objective, or, when the router selects an Issue alone, on the one Objective that Issue's linked Tasks and Objective-scoped Checks belong to; with no Objective filter, the board labels the view `ALL OBJECTIVES` and the plain output prints `Selected: all Objectives`. The board's Next area, non-TTY output, and the first line of `savepoint resume` print the same line:
+
+- Selected Objective and Task: `<Objective word> O-### · <Task word> T-### — <Task title>`.
+- Selected Objective with no Task and every owned Task done: `<Objective word> O-### · Check — <Objective title>`.
+- Selected Objective with no Task and unfinished work: `<Objective word> O-### — <Objective title>`.
+- Selected Issue with no Objective or Task: `<Issue word> I-### — <Issue title>`.
+
+Objective words are `Planned`, `In Progress`, and `Done`; Task words are `Planned`, `Build`, `Test`, `Check`, and `Done`; Issue words are `Fix` (for `open` and `in_progress`: the repair is the Issue's only activity, as `Build` is a Task's) and `Resolved`. An Objective whose Check is CLEAR but awaits owner acceptance still reads `· Check`. A selected Issue alongside an Objective or Task is context while the Objective/Task line remains Next. A selected resolved Issue, or a selected completed Task or Objective, gets a stale-selection diagnostic naming the selected record; the board, non-TTY output, resume, and doctor report it. Next still shows that selection and never substitutes other work. With no Objective or Issue selected, Next says nothing is selected and resume tells the owner to select an Objective with board `p` or ask an agent to `set router to O-### [T-###] [I-###]`; it does not search for one. An Issue can be selected alone with `set router to I-###`.
+
+When the owner closes the selected Task on the board, that action selects the Objective's lowest-ID unfinished Task, or clears `task` when all Tasks are done so Next reads `Check`. Closing the selected Objective clears `objective` and `task`. These actions and board `p` preserve `release:` byte-for-byte.
 
 **Task-card review outcome (O-012):** each non-planned Task card shows at most one review-outcome badge — `[ ] CHECK`, `[✓] CHECK`, `[!] NEEDS WORK`, `[!] REVIEW` (stale/unknown clearance and a checker-authority gate failure fold into this one label), `[✓] WAIVED`, or `[✓] OWNER ACCEPTED` — at fixed precedence (an owner-accepted exception first, an owner Check waiver second, resolved clearance otherwise), so a card never states two competing outcomes. Completion is the Done column's own fact now: the retired `✓ DONE`, `⚠ DONE`, `BY WAIVER`, and `BY EXCEPTION` badges no longer appear. An open Task's card states the outcome only when it is itself actionable (`NEEDS WORK` or the `REVIEW` fold) or the Task carries an owner's own waiver/exception; `ClearanceCurrent` and `ClearanceMissing` read as Done-column vocabulary instead. Waiver and owner-accepted risk keep the same green accent a current Check gets but stay distinct labels — neither is independent technical clearance, and neither replaces the mandatory Objective or Goal Check; `internal/data` still owns every underlying clearance, waiver, and exception decision (Section 1). This is presentation only.
 

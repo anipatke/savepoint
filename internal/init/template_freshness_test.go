@@ -28,6 +28,17 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	}
 }
 
+func TestRouterFilesOmitRetiredNextActionKey(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, path := range [][]string{
+		{".savepoint", "router.md"},
+		{"templates", "project-v2", ".savepoint", "router.md"},
+	} {
+		content := readTemplate(t, root, path...)
+		assertNotContains(t, content, "next_action:")
+	}
+}
+
 // assertSkillTreeParity asserts, for one shipped tree, that every named
 // canonical skill and reference is byte-identical in that tree, and that the
 // tree carries exactly that set — no fewer, and nothing belonging to another

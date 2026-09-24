@@ -168,6 +168,10 @@ const (
 	// ObjectiveConsistencyIncompleteTask means an Objective's status is done
 	// while one of its owned Tasks is not done.
 	ObjectiveConsistencyIncompleteTask ObjectiveConsistencyDiagnosticKind = "done_with_incomplete_task"
+	// ObjectiveConsistencyPlannedWithStartedTask means an Objective's status is
+	// still planned while one of its owned Tasks has started or finished, so
+	// every surface showing the Objective's status understates its progress.
+	ObjectiveConsistencyPlannedWithStartedTask ObjectiveConsistencyDiagnosticKind = "planned_with_started_task"
 )
 
 // ObjectiveConsistencyDiagnostic names one inconsistency
@@ -182,8 +186,8 @@ type ObjectiveConsistencyDiagnostic struct {
 // InspectObjectiveConsistency reports every inconsistency between an
 // Objective's recorded status and its recorded integration evidence or owned
 // Tasks, without rewriting any record: an Objective done without current
-// integration clearance, and an Objective done while an owned Task is not
-// done. It walks Objective IDs in sorted order and returns every problem
+// integration clearance, an Objective done while an owned Task is not done,
+// and an Objective still planned after one of its Tasks started. It walks Objective IDs in sorted order and returns every problem
 // found across every Objective, not only the first, mirroring
 // InspectTaskConsistency's read-only, sorted, return-everything shape.
 func InspectObjectiveConsistency(index *V2Index) []ObjectiveConsistencyDiagnostic {
@@ -191,6 +195,12 @@ func InspectObjectiveConsistency(index *V2Index) []ObjectiveConsistencyDiagnosti
 
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
+		if objective.Status == ColumnPlanned {
+			if diagnostic, ok := plannedWithStartedTask(index, id); ok {
+				diagnostics = append(diagnostics, diagnostic)
+			}
+			continue
+		}
 		if objective.Status != ColumnDone {
 			continue
 		}
@@ -216,4 +226,22 @@ func InspectObjectiveConsistency(index *V2Index) []ObjectiveConsistencyDiagnosti
 	}
 
 	return diagnostics
+}
+
+// plannedWithStartedTask names the first owned Task, in the Objective's sorted
+// Task order, that has left planned while its Objective has not. One
+// diagnostic per Objective is enough: the repair is the same single status
+// change however many Tasks have started.
+func plannedWithStartedTask(index *V2Index, objectiveID string) (ObjectiveConsistencyDiagnostic, bool) {
+	for _, taskID := range index.ObjectiveTasks[objectiveID] {
+		task := index.Tasks[taskID]
+		if task != nil && task.Status != ColumnPlanned {
+			return ObjectiveConsistencyDiagnostic{
+				Objective: objectiveID,
+				Kind:      ObjectiveConsistencyPlannedWithStartedTask,
+				Detail:    fmt.Sprintf("objective is planned but task %s has started (status %q)", taskID, task.Status),
+			}, true
+		}
+	}
+	return ObjectiveConsistencyDiagnostic{}, false
 }

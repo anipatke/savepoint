@@ -221,13 +221,16 @@ func (m Model) runAction(action BoardAction) tea.Cmd {
 	case ActionCompleteByException:
 		return writeExceptionCompletionCmd(m.Root, target)
 	case ActionRecordSelection:
-		selection, err := selectionForTarget(m.State.Index, target)
+		if m.State.Router == nil {
+			return func() tea.Msg { return actionMsg{err: fmt.Errorf("selection requires a loaded router state")} }
+		}
+		current := data.RouterSelectionV2{
+			Release: m.State.Router.Release,
+			Issue:   m.State.Router.Issue,
+		}
+		selection, err := selectionForTarget(m.State.Index, target, current)
 		if err != nil {
 			return func() tea.Msg { return actionMsg{err: err} }
-		}
-		selection.Release = m.SelectedRelease
-		if selection.Release == "" && m.State.Router != nil && m.State.Router.Release != "" {
-			selection.Release = m.State.Router.Release
 		}
 		return writeSelectionCmd(m.Root, selection, m.State.RouterMtime)
 	default:
@@ -501,8 +504,8 @@ func (m Model) snapshotReload() reloadSnapshot {
 	}
 	if m.State.Router != nil {
 		snapshot.RouterRelease = m.State.Router.Release
-		snapshot.RouterObjective = m.State.Router.Objective
 	}
+	snapshot.RouterObjective = routerObjective(m.State)
 	if m.ReleaseCursor >= 0 && m.ReleaseCursor < len(m.Releases) {
 		snapshot.ReleaseCursorID = m.Releases[m.ReleaseCursor]
 	}
@@ -598,13 +601,6 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func routerObjective(state ProjectState) string {
-	if state.Router == nil {
-		return ""
-	}
-	return state.Router.Objective
-}
-
 func routerRelease(state ProjectState) string {
 	if state.Router == nil {
 		return ""
@@ -679,11 +675,7 @@ func restoredObjectiveForRelease(m Model, snapshot reloadSnapshot, state Project
 	if m.ObjectiveFilter != "" || !wasLoaded {
 		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
 	}
-	newRouterObjective := ""
-	if state.Router != nil {
-		newRouterObjective = state.Router.Objective
-	}
-	if newRouterObjective != snapshot.RouterObjective {
+	if routerObjective(state) != snapshot.RouterObjective {
 		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
 	}
 	if snapshot.SelectedObjective == "" {

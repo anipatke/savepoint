@@ -15,6 +15,10 @@ This skill does not write production code, and it does not settle product choice
 
 Use this skill when router `state` is `design`. When an executor returns `REPLAN REQUIRED`, that routes back into this skill's workflow rather than into a separate phase.
 
+## Next
+
+Run the read-only `savepoint resume` command and act on its `Next` line; a `Next` line pasted by the owner is also an explicit selection. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+
 ## Read
 
 - `.savepoint/router.md`
@@ -38,7 +42,7 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 8. When an executor returns `REPLAN REQUIRED`, treat it as re-entry here: reassess Design, Guardrails, or the Objective as needed, then resume from step 3.
 9. Route product choices to the owner instead of inferring them. Technical readiness — settled interfaces, scoped constraints, known dependencies, a verification approach — does not require the owner to review code, but the Objective design and material requirements still require explicit owner confirmation before Task detailing.
 10. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
-11. When the next Objective's Tasks are detailed and approved, set router `state: task` for the first unblocked planned Task and update `next_action` to execute it with `savepoint-task`.
+11. When the next Objective's Tasks are detailed and approved, select that Objective and its first unblocked planned Task in the router, set `state: task`, and hand off to `savepoint-task`. Follow AGENTS.md's Router Selection section; do not write a free-text next action.
 
 ## Verification Contract
 

@@ -208,6 +208,8 @@ func V2ConsistencyRepair(name string) string {
 		return "Advance the Task's status to done to match its recorded evidence, or correct the evidence if completion was not actually reached"
 	case "v2-objective-done-without-clearance":
 		return "Record a CLEAR Objective-scoped Check before treating the Objective as done, or set status back to reflect its real progress"
+	case "v2-objective-planned-with-started-task":
+		return "Set the Objective's status to in_progress; its work has started"
 	case "v2-objective-done-with-incomplete-task":
 		return "Finish the named owned Task before closing the Objective, or set the Objective's status back to reflect its real progress"
 	case "v2-issue-verified-proof-superseded":

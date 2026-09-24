@@ -63,7 +63,38 @@ func NextLine(next data.Next) string {
 		}
 		return fmt.Sprintf("%s %s — %s", objectiveWord, next.Objective.ID, next.Objective.Title)
 	}
+	if next.Kind == data.NextIssue && next.Issue != nil {
+		return fmt.Sprintf("%s %s — %s", IssueWord(next.Issue), next.Issue.ID, next.Issue.Title)
+	}
 	return "Nothing selected"
+}
+
+// IssueWord translates an Issue lifecycle value for the shared Next line and
+// the contextual line shown when an Objective or Task remains the selection.
+// An unresolved Issue reads Fix: its only activity is the repair, the way a
+// Task's build stage reads Build, and nothing gates starting it, so the line
+// does not split Open from In Progress.
+func IssueWord(issue *data.IssueV2) string {
+	if issue == nil {
+		return ""
+	}
+	switch issue.Status {
+	case data.IssueStatusOpen, data.IssueStatusInProgress:
+		return "Fix"
+	case data.IssueStatusResolved:
+		return "Resolved"
+	default:
+		return string(issue.Status)
+	}
+}
+
+// IssueContextLine names the selected Issue when the Objective or Task still
+// wins the Next line.
+func IssueContextLine(issue *data.IssueV2) string {
+	if issue == nil {
+		return ""
+	}
+	return fmt.Sprintf("Issue: %s %s — %s", IssueWord(issue), issue.ID, issue.Title)
 }
 
 // ObjectiveWord translates the Objective's lifecycle value for the shared
@@ -138,6 +169,9 @@ func identityLines(next data.Next) []string {
 		lines = append(lines, fmt.Sprintf("Task: %s — %s", next.Task.ID, next.Task.Title))
 		lines = append(lines, "Implementation: "+implementationPhrase(next.Task))
 	}
+	if next.Issue != nil && (next.Task != nil || next.Objective != nil) {
+		lines = append(lines, IssueContextLine(next.Issue))
+	}
 	if len(lines) > 0 {
 		lines = append(lines, "")
 	}
@@ -202,7 +236,7 @@ func EvidenceLines(next data.Next) []string {
 		}
 	case data.NextReleaseReady:
 		return releaseReadyLines(next)
-	case data.NextSelectTask, data.NextNothingSelected, data.NextPlanObjective:
+	case data.NextSelectTask, data.NextNothingSelected, data.NextPlanObjective, data.NextIssue:
 		return nil
 	default:
 		return nil
@@ -355,7 +389,7 @@ func ActionPhrase(next data.Next) string {
 	case data.NextExecute:
 		return executeNextActionPhrase(next)
 	case data.NextCheckNeeded:
-		return "Record a fresh Check against this target."
+		return "Owner: request an optional Task Check or record an explicit owner waiver; the Full Objective Check remains mandatory before Objective closure."
 	case data.NextOwnerValidationRequired:
 		return "Ask the owner to accept the current Check."
 	case data.NextObjectiveIntegration:
@@ -380,6 +414,14 @@ func ActionPhrase(next data.Next) string {
 		return fmt.Sprintf(nextActionCopy.selectTask, next.Objective.ID)
 	case data.NextNothingSelected:
 		return nextActionCopy.nothingSelected
+	case data.NextIssue:
+		if next.Issue == nil {
+			return "Work on the selected Issue."
+		}
+		if next.Issue.Status == data.IssueStatusResolved {
+			return fmt.Sprintf("Issue %s is already resolved; select another Issue or clear the router selection.", next.Issue.ID)
+		}
+		return fmt.Sprintf("Work on Issue %s.", next.Issue.ID)
 	case data.NextPlanObjective:
 		if next.Objective != nil {
 			return fmt.Sprintf(nextActionCopy.planTasks, next.Objective.ID)

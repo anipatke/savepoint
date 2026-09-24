@@ -15,6 +15,10 @@ Goal is optional planning context, not a required phase. Use it only when the ow
 
 Use this skill when router `state` is `idea` in a V2 project. Legacy input is handled by the explicit `savepoint migrate` workflow before this V2 state is available; this skill does not route or maintain a legacy lifecycle.
 
+## Next
+
+Run the read-only `savepoint resume` command and act on its `Next` line; a `Next` line pasted by the owner is also an explicit selection. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+
 ## Read
 
 - `.savepoint/router.md`
@@ -33,7 +37,7 @@ Read nothing else. Design.md, Guardrails.md, Objective or Task files, and untarg
 5. When a question turns on material product uncertainty — a choice only the owner can make, not one inferable from context — ask the owner directly. Do not resolve product choices by inference.
 6. When grounding the idea against an existing project, read only the targeted evidence needed for that grounding; do not let it turn into designing a solution.
 7. Write `.savepoint/Idea.md` using the Idea artifact template below.
-8. When the Idea is ready, update the router `next_action` to hand off to `savepoint-design`. This skill does not detail any Objective itself; that belongs to `savepoint-design`.
+8. When the Idea is ready, set router `state: design` and hand off to `savepoint-design`. This skill does not detail any Objective itself; that belongs to `savepoint-design`. Do not write a free-text next action; follow AGENTS.md's Router Selection section for any selection changes.
 
 ## Idea Artifact Template
 

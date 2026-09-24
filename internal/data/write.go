@@ -611,16 +611,57 @@ func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
 }
 
 // RouterSelectionV2 is the whole of what WriteRouterStateV2 is able to
-// change: which Release, Objective, and Task a V2 router points at. It is a type of
-// its own rather than a *RouterStateV2 parameter so that the writer's
+// change: which Release, Objective, Task, and Issue a V2 router points at. It
+// is a type of its own rather than a *RouterStateV2 parameter so the writer's
 // signature cannot express a state or next_action write at all. A consumer
 // records which record is selected; the phase names which skill owns the
-// conversation, and next_action is prose those skills author, so neither is
-// a selection writer's to touch.
+// conversation, and next_action is a retired compatibility field, so neither
+// is a selection writer's to touch.
 type RouterSelectionV2 struct {
 	Release   string // R-### selection, or empty to clear the Release context
 	Objective string // O-### selection, or empty to clear the selection
 	Task      string // T-### selection, or empty to clear the selection
+	Issue     string // I-### selection, or empty to clear the selection
+}
+
+// RouterSelectionAfterClosureV2 advances only a selection that names the
+// record just closed. Task closure picks the first unfinished Task in the
+// owning Objective's already-sorted Task list, regardless of its gate; an
+// Objective closure clears that Objective and Task. Release and Issue context
+// travel through both transitions unchanged.
+func RouterSelectionAfterClosureV2(index *V2Index, current, closed RouterSelectionV2) (RouterSelectionV2, bool) {
+	if index == nil {
+		return current, false
+	}
+	if closed.Task != "" {
+		task, ok := index.Tasks[closed.Task]
+		if !ok || task == nil || task.Status != ColumnDone || current.Task != closed.Task || current.Objective != task.Objective ||
+			(closed.Objective != "" && closed.Objective != task.Objective) {
+			return current, false
+		}
+
+		advanced := current
+		advanced.Objective = task.Objective
+		advanced.Task = ""
+		for _, taskID := range index.ObjectiveTasks[task.Objective] {
+			candidate := index.Tasks[taskID]
+			if candidate != nil && candidate.Status != ColumnDone {
+				advanced.Task = candidate.ID
+				break
+			}
+		}
+		return advanced, true
+	}
+	if closed.Objective != "" && current.Objective == closed.Objective {
+		objective, ok := index.Objectives[closed.Objective]
+		if ok && objective != nil && objective.Status == ColumnDone {
+			cleared := current
+			cleared.Objective = ""
+			cleared.Task = ""
+			return cleared, true
+		}
+	}
+	return current, false
 }
 
 // routerSelectionNoneV2 is the router's written spelling of "not selected",
@@ -643,6 +684,9 @@ func (s RouterSelectionV2) validate() error {
 	if s.Task != "" && !matchesV2Identity(s.Task, 'T') {
 		return fmt.Errorf("%w: router task %q must be a single T-### selection", ErrV2InvalidID, s.Task)
 	}
+	if s.Issue != "" && !matchesV2Identity(s.Issue, 'I') {
+		return fmt.Errorf("%w: router issue %q must be a single I-### selection", ErrV2InvalidID, s.Issue)
+	}
 	if s.Task != "" && s.Objective == "" {
 		return fmt.Errorf("%w: router task %q selected with no objective", ErrV2InvalidOwnership, s.Task)
 	}
@@ -650,11 +694,11 @@ func (s RouterSelectionV2) validate() error {
 }
 
 // WriteRouterStateV2 records selection in root's router.md, changing the
-// release, objective, and task keys of the "## Current state" anchor and
-// nothing else.
-// state, next_action, every other key the anchor carries, and the whole
-// surrounding document survive byte-identical (DATA-01), because the anchor
-// is edited as a YAML node tree and only those two keys are touched.
+// release, objective, task, and issue keys of the "## Current state" anchor and
+// nothing else. State, any existing next_action key, every other key the
+// anchor carries, and the whole surrounding document survive byte-identical
+// (DATA-01), because the anchor is edited as a YAML node tree and only
+// selection keys are touched. The writer never adds next_action.
 //
 // expectedMtime guards the read the caller's selection was based on: a file
 // modified since then is refused with ErrMtimeConflict, before the write and
@@ -746,8 +790,8 @@ func WriteRouterStateV2(root string, selection RouterSelectionV2, expectedMtime 
 	})
 }
 
-// patchRouterSelectionV2 sets release, objective, and task on mapping and reports
-// whether either key's written value actually changed. It reaches no other
+// patchRouterSelectionV2 sets release, objective, task, and issue on mapping
+// and reports whether any written value actually changed. It reaches no other
 // key, which is how state, next_action, and any field a project added itself
 // pass through a selection write untouched. A key the document does not have
 // is added only to record a real selection: writing the "not selected"
@@ -762,6 +806,7 @@ func patchRouterSelectionV2(mapping *yaml.Node, selection RouterSelectionV2) boo
 		{key: "release", value: routerSelectionValueV2(selection.Release)},
 		{key: "objective", value: routerSelectionValueV2(selection.Objective)},
 		{key: "task", value: routerSelectionValueV2(selection.Task)},
+		{key: "issue", value: routerSelectionValueV2(selection.Issue)},
 	} {
 		current, present := mappingFieldValue(mapping, field.key)
 		if present && current == field.value {

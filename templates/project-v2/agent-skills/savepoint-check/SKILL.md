@@ -16,6 +16,10 @@ Task Check or for a mandatory Objective/Goal Check.
 
 This session must be fresh: independent from the executor's conversation that built the work under review. The same model is allowed; the same session is not. Model names are optional — nothing here authenticates identity, it only refuses to treat the executor's own session, or the owner's or planner's self-report, as an independent Check.
 
+## Next
+
+Run the read-only `savepoint resume` command and act on its `Next` line; a `Next` line pasted by the owner is also an explicit selection. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+
 ## Read
 
 - `.savepoint/router.md`

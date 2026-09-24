@@ -13,6 +13,10 @@ Build exactly one Task within the boundaries the planner already set, and leave 
 
 Use this skill when router `state` is `task`.
 
+## Next
+
+Run the read-only `savepoint resume` command and act on its `Next` line; a `Next` line pasted by the owner is also an explicit selection. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+
 ## Read
 
 - `.savepoint/router.md`
@@ -26,7 +30,7 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 ## Workflow
 
 1. Confirm the start is allowed: the Task's own dependencies are satisfied and its owning Objective is ready. A blocked start is reported to the planner, never worked around by starting anyway or substituting a different Task.
-2. Set the Task `status: in_progress` and `stage: build`.
+2. Set the router selection to the owning Objective and active Task, then set the Task `status: in_progress` and `stage: build`, and set the owning Objective `status: in_progress` if it is still `planned`. Follow AGENTS.md's Router Selection section and preserve `release:`.
 3. Implement the plan's checklist in scoped order, writing code that follows the `STYLE` guardrail rules where the project defines them.
 4. Advance the lifecycle as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check when one is requested — an optional Task Check or the mandatory Full Objective Check — and explicitly does not mean it passed.
 5. Before editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.

@@ -1,10 +1,12 @@
 package v2
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
@@ -201,6 +203,313 @@ func TestSelectionCommandOnlyChangesRouterSelectionAndReloads(t *testing.T) {
 	}
 }
 
+func TestRecordSelectionPreservesReleaseAndIssueForTaskAndObjective(t *testing.T) {
+	tests := []struct {
+		name       string
+		targetKind DetailKind
+		targetID   string
+		wantTask   string
+	}{
+		{name: "Task", targetKind: DetailTask, targetID: "T-007", wantTask: "T-007"},
+		{name: "Objective", targetKind: DetailObjective, targetID: "O-001", wantTask: "none"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := writeEvidenceProject(t)
+			path, before := addTestReleaseAndRouterContext(t, root, "T-002")
+			loaded := loadProject(root)
+			if loaded.Failed() {
+				t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+			}
+
+			model := Model{Root: root, State: loaded.State}
+			message, ok := model.runAction(BoardAction{
+				Kind:       ActionRecordSelection,
+				TargetKind: tc.targetKind,
+				TargetID:   tc.targetID,
+			})().(actionMsg)
+			if !ok || message.err != nil || !message.reload {
+				t.Fatalf("record selection result = %#v, want successful reload", message)
+			}
+
+			want := strings.Replace(before, "task: T-002\n", "task: "+tc.wantTask+"\n", 1)
+			if got := readActionFile(t, path); got != want {
+				t.Fatalf("router selection write changed bytes outside the selected Task:\n got:\n%s\nwant:\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestTaskCompletionMovesRouterToLowestUnfinishedBlockedTask(t *testing.T) {
+	root := writeEvidenceProject(t)
+	path, before := addTestReleaseAndRouterContext(t, root, "T-002")
+
+	message := writeTaskAdvanceCmd(root, "T-002")().(actionMsg)
+	if message.err != nil || !message.reload {
+		t.Fatalf("completion result = %#v, want successful reload", message)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Index.Tasks["T-002"].Status; got != data.ColumnDone {
+		t.Fatalf("T-002 status = %q, want done", got)
+	}
+	if decision := data.ResolveTaskStart(loaded.State.Index, "T-003"); decision.Allowed || len(decision.Blockers) == 0 {
+		t.Fatalf("T-003 start decision = %+v, want the next Task blocked", decision)
+	}
+	if got := loaded.State.Router.Task; got != "T-003" {
+		t.Fatalf("router Task = %q, want blocked lowest unfinished T-003", got)
+	}
+	if line := nextPanelText(loaded.State.Next); !strings.Contains(line, "T-003") {
+		t.Fatalf("board Next line = %q, want the newly selected T-003", line)
+	}
+	want := strings.Replace(before, "task: T-002\n", "task: T-003\n", 1)
+	if got := readActionFile(t, path); got != want {
+		t.Fatalf("completion router write changed bytes outside task selection:\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestTaskWaiverCompletionAdvancesRouterAndKeepsReleaseAndIssue(t *testing.T) {
+	root := writeEvidenceProject(t)
+	path, before := addTestReleaseAndRouterContext(t, root, "T-007")
+	writeTask(t, root, "O-001", "T-007", "Never checked", "status: in_progress\nstage: audit\n")
+
+	message := writeTaskAdvanceCmd(root, "T-007")().(actionMsg)
+	if message.err != nil || !message.reload || !strings.Contains(message.message, "waiver") {
+		t.Fatalf("waiver completion result = %#v, want successful reload with waiver evidence", message)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+	}
+	task := loaded.State.Index.Tasks["T-007"]
+	if task.Status != data.ColumnDone || task.Evidence.CheckWaiver == nil {
+		t.Fatalf("T-007 status/evidence = %q/%+v, want done with owner waiver", task.Status, task.Evidence)
+	}
+	if got := loaded.State.Router.Task; got != "T-002" {
+		t.Fatalf("router Task = %q, want lowest unfinished T-002", got)
+	}
+	if line := nextPanelText(loaded.State.Next); !strings.Contains(line, "T-002") {
+		t.Fatalf("board Next line = %q, want the newly selected T-002", line)
+	}
+	want := strings.Replace(before, "task: T-007\n", "task: T-002\n", 1)
+	if got := readActionFile(t, path); got != want {
+		t.Fatalf("waiver completion router write changed bytes outside task selection:\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestExceptionCompletionAdvancesOnlyWhenRouterSelectedClosedTask(t *testing.T) {
+	tests := []struct {
+		name         string
+		selectedTask string
+		wantTask     string
+	}{
+		{name: "selected", selectedTask: "T-005", wantTask: "T-002"},
+		{name: "not selected", selectedTask: "T-002", wantTask: "T-002"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := writeEvidenceProject(t)
+			path, before := addTestReleaseAndRouterContext(t, root, tc.selectedTask)
+			writeTask(t, root, "O-001", "T-005", "Open exception completion", "status: in_progress\nstage: audit\nlast_check: C-004\nexception:\n  requirements: [TEST-02]\n  reason: \"ship the known gap\"\n  owner: \"owner-fixture\"\n  recorded_at: 2026-01-05T00:00:00Z\n  check: C-004\n")
+
+			message := writeExceptionCompletionCmd(root, actionTarget{Kind: DetailTask, ID: "T-005"})().(actionMsg)
+			if message.err != nil || !message.reload {
+				t.Fatalf("exception completion result = %#v, want successful reload", message)
+			}
+			loaded := loadProject(root)
+			if loaded.Failed() {
+				t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+			}
+			if got := loaded.State.Index.Tasks["T-005"].Status; got != data.ColumnDone {
+				t.Fatalf("T-005 status = %q, want done", got)
+			}
+			if got := loaded.State.Router.Task; got != tc.wantTask {
+				t.Fatalf("router Task = %q, want %q", got, tc.wantTask)
+			}
+			want := before
+			if tc.selectedTask == "T-005" {
+				want = strings.Replace(before, "task: T-005\n", "task: T-002\n", 1)
+			}
+			if got := readActionFile(t, path); got != want {
+				t.Fatalf("exception completion router bytes = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRouterConflictAfterCompletionKeepsRecordAndReportsStaleSelection(t *testing.T) {
+	root := writeEvidenceProject(t)
+	path, _ := addTestReleaseAndRouterContext(t, root, "T-007")
+	writeTask(t, root, "O-001", "T-007", "Already completed", "status: done\n")
+
+	message := completedRecordAction(root, data.RouterSelectionV2{Objective: "O-001", Task: "T-007"}, "T-007 completed.", func(root string, selection data.RouterSelectionV2, expected time.Time) error {
+		time.Sleep(10 * time.Millisecond)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, append(content, []byte("\n# concurrent router edit\n")...), 0644); err != nil {
+			return err
+		}
+		return data.WriteRouterStateV2(root, selection, expected)
+	}).(actionMsg)
+	if message.err == nil || !message.reload || !strings.Contains(message.err.Error(), "router still selects T-007") {
+		t.Fatalf("completion conflict result = %#v, want reload warning naming stale selection", message)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Index.Tasks["T-007"].Status; got != data.ColumnDone {
+		t.Fatalf("T-007 status = %q, want completed record retained", got)
+	}
+	if got := loaded.State.Router.Task; got != "T-007" {
+		t.Fatalf("router Task = %q, want unchanged stale selection", got)
+	}
+	if got := readActionFile(t, path); !strings.Contains(got, "release: R-006\n") || !strings.Contains(got, "issue: I-001\n") {
+		t.Fatalf("router context changed on conflict: %q", got)
+	}
+}
+
+func TestLastTaskCompletionClearsRouterTaskAndShowsObjectiveCheck(t *testing.T) {
+	root := writeEmptyProjectFromTemplate(t)
+	addTestRelease(t, root, "R-006", "Test Release")
+	writeObjectiveExtra(t, root, "O-001", "One Task Objective", "in_progress", "release: R-006\n")
+	writeTask(t, root, "O-001", "T-001", "Last Task", "status: in_progress\nstage: audit\n")
+	router := routerContent("task", "O-001", "T-001")
+	router = strings.Replace(router, "objective: O-001\n", "release: R-006\nobjective: O-001\n", 1)
+	router = strings.Replace(router, "task: T-001\n", "task: T-001\nissue: none\n", 1)
+	path := filepath.Join(root, "router.md")
+	testutil.WriteFile(t, path, router)
+
+	message := writeTaskAdvanceCmd(root, "T-001")().(actionMsg)
+	if message.err != nil || !message.reload {
+		t.Fatalf("last Task completion result = %#v, want successful reload", message)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Router.Task; got != "" {
+		t.Fatalf("router Task = %q, want cleared after the last Task", got)
+	}
+	if !strings.Contains(nextPanelText(loaded.State.Next), "· Check") {
+		t.Fatalf("board Next line = %q, want the Objective Check rung", nextPanelText(loaded.State.Next))
+	}
+	want := strings.Replace(router, "task: T-001\n", "task: none\n", 1)
+	if got := readActionFile(t, path); got != want {
+		t.Fatalf("last Task completion changed bytes outside Task selection:\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestObjectiveExceptionCompletionClearsOnlyObjectiveAndTaskSelection(t *testing.T) {
+	root := writeEmptyProjectFromTemplate(t)
+	addTestRelease(t, root, "R-006", "Test Release")
+	writeObjectiveExtra(t, root, "O-001", "Objective exception", "in_progress",
+		"release: R-006\nlast_check: C-001\nexception:\n"+
+			"  requirements: [TEST-02]\n  reason: \"owner accepted the documented integration gap\"\n"+"  owner: \"owner-fixture\"\n  recorded_at: 2026-01-05T00:00:00Z\n  check: C-001\n")
+	writeCheck(t, root, "C-001", "objective", "O-001", "NEEDS WORK")
+	writeTask(t, root, "O-001", "T-001", "Completed with owner waiver",
+		"status: done\ncheck_waiver:\n  task: T-001\n  reason: \"owner completed without requesting a Task Check\"\n"+
+			"  actor: {role: owner, session: owner-fixture}\n  recorded_at: 2026-01-05T00:00:00Z\n")
+	router := routerContent("task", "O-001", "T-001")
+	router = strings.Replace(router, "objective: O-001\n", "release: R-006\nobjective: O-001\n", 1)
+	router = strings.Replace(router, "task: T-001\n", "task: T-001\nissue: none\n", 1)
+	path := filepath.Join(root, "router.md")
+	testutil.WriteFile(t, path, router)
+	before := router
+
+	message := writeExceptionCompletionCmd(root, actionTarget{Kind: DetailObjective, ID: "O-001"})().(actionMsg)
+	if message.err != nil || !message.reload {
+		t.Fatalf("Objective exception completion result = %#v, want successful reload; error: %v", message, message.err)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("loadProject() diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Index.Objectives["O-001"].Status; got != data.ColumnDone {
+		t.Fatalf("O-001 status = %q, want done", got)
+	}
+	if got := loaded.State.Router.Objective; got != "" {
+		t.Fatalf("router Objective = %q, want cleared", got)
+	}
+	if got := loaded.State.Router.Task; got != "" {
+		t.Fatalf("router Task = %q, want cleared", got)
+	}
+	want := strings.Replace(before, "objective: O-001\n", "objective: none\n", 1)
+	want = strings.Replace(want, "task: T-001\n", "task: none\n", 1)
+	if got := readActionFile(t, path); got != want {
+		t.Fatalf("Objective closure changed bytes outside objective/task selection:\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestGoalSelectionPreservesIssueContext(t *testing.T) {
+	root := writeEvidenceProject(t)
+	path, before := addTestReleaseAndRouterContext(t, root, "T-002")
+	addTestRelease(t, root, "R-007", "Second test Release")
+	objectiveFile := objectivePath(root, "O-002")
+	objectiveBytes, err := os.ReadFile(objectiveFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objective := strings.Replace(string(objectiveBytes), "status: planned\n", "status: planned\nrelease: R-007\n", 1)
+	if objective == string(objectiveBytes) {
+		t.Fatal("O-002 fixture has no planned status to attach Release")
+	}
+	testutil.WriteFile(t, objectiveFile, objective)
+
+	message := writeReleaseSelectionCmd(root, "R-007")().(actionMsg)
+	if message.err != nil || !message.reload {
+		t.Fatalf("Goal selection result = %#v, want successful reload", message)
+	}
+	want := strings.Replace(before, "release: R-006\n", "release: R-007\n", 1)
+	want = strings.Replace(want, "objective: O-001\n", "objective: none\n", 1)
+	want = strings.Replace(want, "task: T-002\n", "task: none\n", 1)
+	if got := readActionFile(t, path); got != want {
+		t.Fatalf("Goal selection changed bytes outside its Release and matching Objective/Task keys:\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func addTestReleaseAndRouterContext(t *testing.T, root, selectedTask string) (string, string) {
+	t.Helper()
+	addTestRelease(t, root, "R-006", "Test Release")
+
+	objectiveFile := objectivePath(root, "O-001")
+	objectiveBytes, err := os.ReadFile(objectiveFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objective := strings.Replace(string(objectiveBytes), "status: in_progress\n", "status: in_progress\nrelease: R-006\n", 1)
+	if objective == string(objectiveBytes) {
+		t.Fatal("Objective fixture has no in_progress status to attach Release")
+	}
+	testutil.WriteFile(t, objectiveFile, objective)
+
+	path := filepath.Join(root, "router.md")
+	router := routerContent("task", "O-001", selectedTask)
+	router = strings.Replace(router, "objective: O-001\n", "release: R-006\nobjective: O-001\n", 1)
+	router = strings.Replace(router, "task: "+selectedTask+"\n", "task: "+selectedTask+"\nissue: I-001\n", 1)
+	testutil.WriteFile(t, path, router)
+	return path, router
+}
+
+func addTestRelease(t *testing.T, root, id, title string) {
+	t.Helper()
+	releaseDir := filepath.Join(root, "releases", id+"-test")
+	testutil.WriteFile(t, filepath.Join(releaseDir, "Release.md"), "---\nid: "+id+"\ntitle: "+title+"\nstatus: planned\n---\n\n## Outcome\n\nA test Release.\n\n## Why\n\nA test Release fixture.\n\n## Success Conditions\n\n- The record loads.\n\n## Boundaries\n\n- Test fixture only.\n")
+}
+
+func readActionFile(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
+}
+
 func hasAction(actions []BoardAction, kind ActionKind) bool {
 	for _, action := range actions {
 		if action.Kind == kind {
@@ -341,5 +650,106 @@ func TestExceptionCompletionCommandWritesOnlyWhenOwnerAuthorityRemains(t *testin
 	}
 	if got := loaded.State.Index.Tasks["T-005"].Status; got != data.ColumnDone {
 		t.Errorf("T-005 status = %q, want done", got)
+	}
+}
+
+// writeObjectiveStartProject is one Objective with one planned Task, selected
+// by the router, with the Objective at the given status.
+func writeObjectiveStartProject(t *testing.T, objectiveStatus string) string {
+	t.Helper()
+	root := savepointRoot(t)
+	writeConfig(t, root)
+	writeRouter(t, root, "task", "O-001", "T-001")
+	writeObjective(t, root, "O-001", "First objective", objectiveStatus)
+	writeTask(t, root, "O-001", "T-001", "First task", "status: planned\n")
+	return root
+}
+
+// TestTaskStartMovesPlannedObjectiveToInProgress is I-044's regression test:
+// every earlier fixture wrote its Objective already in_progress, so nothing
+// covered starting work under a planned one.
+func TestTaskStartMovesPlannedObjectiveToInProgress(t *testing.T) {
+	root := writeObjectiveStartProject(t, "planned")
+	before := readActionFile(t, objectivePath(root, "O-001"))
+
+	result := writeTaskAdvanceCmd(root, "T-001")().(actionMsg)
+	if result.err != nil || !result.reload || !strings.Contains(result.message, "Objective O-001 is now in progress") {
+		t.Fatalf("start result = %#v, want a successful reload naming the Objective", result)
+	}
+	loaded := loadProject(root)
+	if loaded.Failed() {
+		t.Fatalf("reload diagnostic = %q", loaded.Diagnostic)
+	}
+	if got := loaded.State.Index.Objectives["O-001"].Status; got != data.ColumnInProgress {
+		t.Fatalf("O-001 status = %q, want in_progress after its first Task started", got)
+	}
+	want := strings.Replace(before, "status: planned\n", "status: in_progress\n", 1)
+	if got := readActionFile(t, objectivePath(root, "O-001")); got != want {
+		t.Errorf("Objective write changed bytes beyond status:\n got:\n%s\nwant:\n%s", got, want)
+	}
+	if got, want := nextPanelText(loaded.State.Next), "In Progress O-001 · Build T-001 — First task"; got != want {
+		t.Errorf("Next line = %q, want %q", got, want)
+	}
+}
+
+func TestTaskStartLeavesInProgressAndDoneObjectivesUntouched(t *testing.T) {
+	root := writeObjectiveStartProject(t, "in_progress")
+	path := objectivePath(root, "O-001")
+	before := readActionFile(t, path)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := writeTaskAdvanceCmd(root, "T-001")().(actionMsg)
+	if result.err != nil || strings.Contains(result.message, "now in progress") {
+		t.Fatalf("start result = %#v, want a plain start with no Objective change", result)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readActionFile(t, path); got != before || !after.ModTime().Equal(info.ModTime()) {
+		t.Errorf("an in_progress Objective was rewritten on Task start")
+	}
+
+	loaded := loadProject(root)
+	objective := loaded.State.Index.Objectives["O-001"]
+	objective.Status = data.ColumnDone
+	msg := startedTaskAction(loaded.State.Index, loaded.State.Index.Tasks["T-001"], "T-001 moved.", func(*data.ObjectiveV2) error {
+		t.Fatal("a done Objective must never be written on Task start")
+		return nil
+	}).(actionMsg)
+	if msg.err != nil {
+		t.Errorf("done Objective start result = %#v, want no error", msg)
+	}
+}
+
+func TestStartedTaskActionReportsObjectiveWriteFailure(t *testing.T) {
+	root := writeObjectiveStartProject(t, "planned")
+	loaded := loadProject(root)
+
+	msg := startedTaskAction(loaded.State.Index, loaded.State.Index.Tasks["T-001"], "T-001 moved.", func(*data.ObjectiveV2) error {
+		return errors.New("disk full")
+	}).(actionMsg)
+	if msg.err == nil || !msg.reload || !strings.Contains(msg.err.Error(), "O-001 is still planned") || !strings.Contains(msg.err.Error(), "disk full") {
+		t.Fatalf("result = %#v, want a reloading error naming the still-planned Objective and the cause", msg)
+	}
+}
+
+func TestTaskRetreatLeavesObjectiveStatusAlone(t *testing.T) {
+	root := writeObjectiveStartProject(t, "planned")
+	if result := writeTaskAdvanceCmd(root, "T-001")().(actionMsg); result.err != nil {
+		t.Fatalf("start error = %v", result.err)
+	}
+	if result := writeTaskRetreatCmd(root, "T-001")().(actionMsg); result.err != nil {
+		t.Fatalf("retreat error = %v", result.err)
+	}
+	loaded := loadProject(root)
+	if got := loaded.State.Index.Tasks["T-001"].Status; got != data.ColumnPlanned {
+		t.Fatalf("T-001 status = %q, want planned after retreat", got)
+	}
+	if got := loaded.State.Index.Objectives["O-001"].Status; got != data.ColumnInProgress {
+		t.Errorf("O-001 status = %q, want in_progress kept after the Task retreated", got)
 	}
 }

@@ -3,11 +3,18 @@ id: T-031
 title: Let the router select an Issue to work on
 objective: O-014
 planned_by: {role: planner, session: o014-design-20260924}
-status: planned
+status: done
 complexity_tier: medium
 complexity_reason: "New optional router key through decode, write, and selection resolution with backward compatibility, plus context display on two surfaces."
 depends_on: [{task: T-030, requires: clear}]
 owner_validation: {required: false}
+check_waiver:
+    task: T-031
+    reason: "Check at objective level."
+    actor:
+        role: owner
+        session: owner-chat
+    recorded_at: "2026-09-24T07:11:41Z"
 ---
 
 # T-031: Let the router select an Issue to work on
@@ -85,7 +92,88 @@ test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Preflight: the router selects T-031 and directs continuation of O-014 after
+T-029. The `requires: clear` predecessor T-030 is recorded as `done` with an
+explicit owner Task-check waiver; the repository dependency contract treats
+that waiver as satisfying `requires: clear`.
+
+Extra reads before implementation:
+
+- `.savepoint/objectives/O-014-next-area-objective-word-and-router-issue-target/tasks/T-030-warn-about-finished-selections.md` — checked the named predecessor's status and explicit waiver for the `requires: clear` dependency.
+
+Acceptance evidence:
+
+- Router decode accepts `issue` by itself, maps the `none` sentinel to empty,
+  and leaves absent `issue` at its prior zero value:
+  `TestReadStateV2_decodesIssueAloneWithoutObjective`,
+  `TestReadStateV2_noneSelectionsDecodeAsEmpty`, and the exact decoded-state
+  assertion in `TestReadStateV2_decodesSelectedTask`. Wrong-family/scalar
+  inputs return named errors in `TestReadStateV2_malformedIssueID` and
+  `TestReadStateV2_issueMustBeScalar`.
+- The writer accepts an Issue alone, writes an existing Issue field, clears it
+  with `none`, and preserves all bytes outside selection keys:
+  `TestWriteRouterStateV2_addsIssueAlone`,
+  `TestWriteRouterStateV2_setsIssueAndPreservesEveryOtherByte`, and
+  `TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel`. Invalid
+  Issue identities are refused in
+  `TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched`.
+- `ResolveSelection` carries an Issue-only selection, reports a missing
+  Issue as `SelectionNotFound` with record kind `issue`, and reports a
+  resolved Issue as `SelectionDone`:
+  `TestResolveSelection_issueAloneBecomesNextAndResolvedIssueIsStale` and
+  `TestResolveSelection_unknownIssueNamesIssueAndKeepsValidTaskNext`.
+- `ResolveNext` returns an Issue Next when it is selected alone, and keeps a
+  selected Task's rung while carrying the Issue as context:
+  `TestResolveSelection_issueAloneBecomesNextAndResolvedIssueIsStale`,
+  `TestResolveSelection_issueTravelsAsTaskContext`, and
+  `TestResolveSelection_unknownIssueNamesIssueAndKeepsValidTaskNext`.
+- The shared line builder formats Open, In Progress, and Resolved Issues
+  without a stage separator in `TestNextLineFormatsEverySelectionShape`.
+  `TestRouterSelectedIssueFlowsAcrossBoardAndResume` checks the real loaded
+  project path: the board TUI, non-TTY board, and resume first line agree for
+  both standalone Issue selection and Task selection with Issue context.
+- Resume and the board render the selected Issue context when a Task line
+  wins: `TestRender_selectedIssueIsContextWhenTaskWinsNext`,
+  `TestNextPanelNamesIssueAndShowsItAsContext`, and
+  `TestRouterSelectedIssueFlowsAcrossBoardAndResume`.
+- The entire focused package set passed, including the existing Next tests
+  for routers without an `issue` key:
+  `go test ./internal/data ./internal/resume ./internal/board/v2 . -count=1`.
+  `git diff --check` passed during iteration.
+
+Handoff gate:
+
+- The first `make build && make test-fast` attempt stopped because the
+  sandbox could not write Go's cache under `/home/user/.cache/go-build`.
+- Retried `make build && make test-fast` with the required filesystem access;
+  both passed. The test-fast gate ran `go test -json -count=1 -skip
+  '^(TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability|TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits|TestEndToEnd_goldenIsReproducible)$' ./...` and all packages passed.
+- Final `git diff --check` passed.
+
+Files read: `.savepoint/router.md`, this Task, the owning `Objective.md`,
+`agent-skills/savepoint-task/SKILL.md`, the Context Files listed above,
+T-030's dependency record, `.savepoint/Guardrails.md` (named rules only),
+`.savepoint/Design.md` (sections 1 and 8), and targeted symbol/diff output for
+those files. `git status --short` was read to identify the already-present
+T-030 changes and router selection before recording the scoped file list.
+
+Files changed for T-031: this Task, `internal/data/router_v2.go`,
+`internal/data/router_v2_test.go`, `internal/data/write.go`,
+`internal/data/write_test.go`, `internal/data/next.go`,
+`internal/data/next_test.go`, `internal/resume/resume.go`,
+`internal/resume/evidence.go`, `internal/resume/resume_test.go`,
+`internal/board/v2/next_panel.go`, `internal/board/v2/next_panel_test.go`,
+and `main_board_next_parity_test.go`.
+
+The shared worktree also contains the prior completed T-030 changes recorded
+in T-030's Technical Evidence, plus the router selection that points at
+T-031; those existing changes were left intact. No optional Task Check has
+been requested. The owner explicitly waived it with reason `Check at
+objective level.` (`owner-chat`, 2026-09-24T07:11:41Z). The waiver is not
+technical CLEAR and routes this evidence to the mandatory Full Objective
+Check. This executor has not written a Check or marked T-031 done. T-031 is
+at `stage: audit` and awaits owner completion after the required Objective
+Check.
 
 ## Drift Notes
 

@@ -77,6 +77,9 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 			want: "In Progress O-010 · Check — Ready to close",
 		},
 		{name: "nothing selected", next: data.Next{Kind: data.NextNothingSelected}, want: "Nothing selected"},
+		{name: "open issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusOpen}}, want: "Fix I-042 — Repair the parser"},
+		{name: "in progress issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-043", Title: "Continue the repair", Status: data.IssueStatusInProgress}}, want: "Fix I-043 — Continue the repair"},
+		{name: "resolved issue", next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-044", Title: "Finished repair", Status: data.IssueStatusResolved}}, want: "Resolved I-044 — Finished repair"},
 	}
 
 	for _, tc := range cases {
@@ -194,7 +197,7 @@ func TestRender_checkNeeded(t *testing.T) {
 		"\n" +
 		"Technical clearance: No Check has ever been recorded for this target.\n" +
 		"\n" +
-		"Next action: Record a fresh Check against this target.\n"
+		"Next action: Owner: request an optional Task Check or record an explicit owner waiver; the Full Objective Check remains mandatory before Objective closure.\n"
 	assertRenderEquals(t, next, want)
 }
 
@@ -465,6 +468,16 @@ func TestActionPhraseSelectionGuidance(t *testing.T) {
 			next: data.Next{Kind: data.NextNothingSelected},
 			want: "Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".",
 		},
+		{
+			name: "choose optional Task Check or owner waiver",
+			next: data.Next{Kind: data.NextCheckNeeded, Task: &data.TaskV2{ID: "T-004", Status: data.ColumnInProgress, Stage: data.StageAudit}},
+			want: "Owner: request an optional Task Check or record an explicit owner waiver; the Full Objective Check remains mandatory before Objective closure.",
+		},
+		{
+			name: "work on selected Issue",
+			next: data.Next{Kind: data.NextIssue, Issue: &data.IssueV2{ID: "I-042", Status: data.IssueStatusOpen}},
+			want: "Work on Issue I-042.",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -495,6 +508,68 @@ func TestRender_selectionDiagnosticAndNextActionTogether(t *testing.T) {
 		"\n" +
 		"Next action: Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".\n"
 	assertRenderEquals(t, next, want)
+}
+
+func TestSelectionPhrase_doneSelectionsNameFinishedRecord(t *testing.T) {
+	cases := []struct {
+		name       string
+		recordKind data.SelectionRecordKind
+		id         string
+		want       string
+	}{
+		{"Task", data.SelectionRecordTask, "T-001", "Warning: router still selects finished Task T-001."},
+		{"Objective", data.SelectionRecordObjective, "O-001", "Warning: router still selects finished Objective O-001."},
+		{"Issue", data.SelectionRecordIssue, "I-042", "Warning: router still selects resolved Issue I-042."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SelectionPhrase(&data.SelectionDiagnostic{
+				Kind: data.SelectionDone, RecordKind: tc.recordKind, ID: tc.id,
+			})
+			if got != tc.want {
+				t.Errorf("SelectionPhrase() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRender_selectedIssueIsContextWhenTaskWinsNext(t *testing.T) {
+	issue := &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusInProgress}
+	next := data.Next{
+		Kind:      data.NextExecute,
+		Objective: &data.ObjectiveV2{ID: "O-014", Title: "Router Issue target", Status: data.ColumnInProgress},
+		Task:      &data.TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: data.ColumnInProgress, Stage: data.StageBuild},
+		Issue:     issue,
+	}
+
+	if got, want := NextLine(next), "In Progress O-014 · Build T-028 — Copy the line"; got != want {
+		t.Fatalf("NextLine() = %q, want Task line %q", got, want)
+	}
+	if got, want := IssueContextLine(issue), "Issue: Fix I-042 — Repair the parser"; got != want {
+		t.Fatalf("IssueContextLine() = %q, want %q", got, want)
+	}
+	if text := renderText(next); !strings.Contains(text, IssueContextLine(issue)) {
+		t.Errorf("renderText() = %q, want selected Issue context %q", text, IssueContextLine(issue))
+	}
+}
+
+func TestRender_doneSelectionWarningAlongsideCurrentNext(t *testing.T) {
+	diagnostic := &data.SelectionDiagnostic{
+		Kind: data.SelectionDone, RecordKind: data.SelectionRecordTask, ID: "T-001",
+	}
+	next := data.Next{
+		Kind:                data.NextSelectTask,
+		Objective:           &data.ObjectiveV2{ID: "O-001", Title: "Ship it", Status: data.ColumnInProgress},
+		SelectionDiagnostic: diagnostic,
+	}
+
+	text := renderText(next)
+	if want := "Selection: " + SelectionPhrase(diagnostic); !strings.Contains(text, want) {
+		t.Errorf("renderText() = %q, want stale-selection warning %q", text, want)
+	}
+	if !strings.Contains(text, "Objective: O-001 — Ship it") || !strings.Contains(text, "Next action: ") {
+		t.Errorf("renderText() = %q, want the selected Objective and its existing Next action alongside the warning", text)
+	}
 }
 
 // TestRender_selectionMismatch proves the mismatch diagnostic names both IDs

@@ -545,3 +545,39 @@ func TestInspectObjectiveConsistency_sortedOrderReturnsEveryProblem(t *testing.T
 		t.Fatalf("InspectObjectiveConsistency() order = [%s, %s], want sorted [O-001, O-002]", got[0].Objective, got[1].Objective)
 	}
 }
+
+// TestInspectObjectiveConsistency_plannedWithStartedTask covers I-044's
+// backstop: a planned Objective whose Task has started or finished is named
+// once, with the first started Task, and a planned Objective whose Tasks are
+// all still planned is not.
+func TestInspectObjectiveConsistency_plannedWithStartedTask(t *testing.T) {
+	for _, status := range []ColumnType{ColumnInProgress, ColumnDone} {
+		t.Run(string(status), func(t *testing.T) {
+			index := newV2TestIndex()
+			index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+			index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+			index.Tasks["T-002"] = &TaskV2{ID: "T-002", Objective: "O-001", Status: status}
+			index.Tasks["T-003"] = &TaskV2{ID: "T-003", Objective: "O-001", Status: status}
+			index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002", "T-003"}
+
+			got := InspectObjectiveConsistency(index)
+			if len(got) != 1 || got[0].Kind != ObjectiveConsistencyPlannedWithStartedTask || got[0].Objective != "O-001" {
+				t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyPlannedWithStartedTask naming O-001", got)
+			}
+			if !strings.Contains(got[0].Detail, "T-002") {
+				t.Errorf("Detail = %q, want the first started task T-002 named", got[0].Detail)
+			}
+		})
+	}
+}
+
+func TestInspectObjectiveConsistency_plannedWithOnlyPlannedTasksReportsNothing(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
+	index.ObjectiveTasks["O-001"] = []string{"T-001"}
+
+	if got := InspectObjectiveConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectObjectiveConsistency() = %+v, want none while no task has started", got)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
 // RunV2Checks is the live doctor entry point. It accepts a .savepoint root
@@ -16,7 +17,8 @@ import (
 func RunV2Checks(root string) *DiagnosticReport {
 	report := &DiagnosticReport{}
 	report.ConfigCheck = CheckConfig(root)
-	report.RouterCheck = checkRouterV2(root)
+	router, routerErr := checkRouterV2(root)
+	report.RouterCheck = routerErr
 	report.Gates.Results = runQualityGatesV2(root)
 
 	version, err := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
@@ -36,19 +38,35 @@ func RunV2Checks(root string) *DiagnosticReport {
 		}}
 		return report
 	}
+	if router != nil && router.HasRetiredNextAction {
+		report.Project = append(report.Project, Problem{
+			File:     filepath.Join(root, "router.md"),
+			Message:  "[router-next-action-retired] router.md has a retired next_action field",
+			Repair:   "Delete the next_action line from router.md.",
+			Category: HealthPendingReview,
+		})
+	}
 
 	index, err := data.LoadV2Index(root)
 	if err != nil {
 		name := v2DiagnosticName(err)
-		report.Project = []Problem{{
+		report.Project = append(report.Project, Problem{
 			File:    root,
 			Message: fmt.Sprintf("[%s] %v", name, err),
 			Repair:  V2ProblemRepair(name),
-		}}
+		})
 		return report
 	}
 
-	report.Project = v2ConsistencyProblems(index)
+	report.Project = append(report.Project, v2ConsistencyProblems(index)...)
+	if _, diagnostic := data.ResolveSelection(index, router); diagnostic != nil && diagnostic.Kind == data.SelectionDone {
+		report.Project = append(report.Project, Problem{
+			File:     filepath.Join(root, "router.md"),
+			Message:  resume.SelectionPhrase(diagnostic),
+			Repair:   "Use p on an unfinished Task in the board, or edit the router's objective/task selection in router.md",
+			Category: HealthPendingReview,
+		})
+	}
 	releaseDiagnostics := releaseDiagnosticsForIndex(root, index)
 	report.Releases = releaseDiagnostics.Problems
 	report.ReleaseNotes = releaseDiagnostics.Notes
@@ -56,19 +74,20 @@ func RunV2Checks(root string) *DiagnosticReport {
 	return report
 }
 
-func checkRouterV2(root string) error {
+func checkRouterV2(root string) (*data.RouterStateV2, error) {
 	path := filepath.Join(root, "router.md")
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("router.md not found: %w", data.ErrConfigNotFound)
+		return nil, fmt.Errorf("router.md not found: %w", data.ErrConfigNotFound)
 	}
 	if err != nil {
-		return fmt.Errorf("router.md unreadable: %w", err)
+		return nil, fmt.Errorf("router.md unreadable: %w", err)
 	}
-	if _, err := data.NewRouterReader().ReadStateV2(string(raw)); err != nil {
-		return fmt.Errorf("router.md invalid V2 state block: %w", err)
+	router, err := data.NewRouterReader().ReadStateV2(string(raw))
+	if err != nil {
+		return nil, fmt.Errorf("router.md invalid V2 state block: %w", err)
 	}
-	return nil
+	return router, nil
 }
 
 // runQualityGatesV2 reads only configuration and executes the configured

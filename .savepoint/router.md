@@ -1,7 +1,9 @@
 # Agent State Machine
 
 This file routes the active V2 agent workflow. The matching skill is the
-canonical workflow source; this router records state and next action only.
+canonical workflow source; this router records state and selection only.
+Agents run `savepoint resume` to read the `Next` line computed from this
+selection; the command does not write project files.
 
 ## Read order
 
@@ -16,9 +18,9 @@ canonical workflow source; this router records state and next action only.
 ```yaml
 state: task
 release: R-006
-objective: O-014
-task: T-030
-next_action: "T-029 is done; the owner waived its optional Task Check for low complexity. Continue O-014's remaining Tasks; the Full Objective Check remains mandatory before Objective closure."
+objective: none
+task: none
+issue: I-044
 ```
 
 ## State → action

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,6 +111,7 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 			return actionMsg{err: fmt.Errorf("exception completion refused for %s: %s", target.ID, decisionRefusal(decision))}
 		}
 
+		closed := data.RouterSelectionV2{}
 		switch target.Kind {
 		case DetailTask:
 			task := index.Tasks[target.ID]
@@ -118,21 +120,77 @@ func writeExceptionCompletionCmd(root string, target actionTarget) tea.Cmd {
 			if err := data.WriteTaskV2(task); err != nil {
 				return actionFailure(err, "task completion")
 			}
+			closed = data.RouterSelectionV2{Objective: task.Objective, Task: task.ID}
 		case DetailObjective:
 			objective := index.Objectives[target.ID]
 			objective.Status = data.ColumnDone
 			if err := data.WriteObjectiveV2(objective); err != nil {
 				return actionFailure(err, "objective completion")
 			}
+			closed = data.RouterSelectionV2{Objective: objective.ID}
 		default:
 			return actionMsg{err: fmt.Errorf("exception completion is not supported for %s", target.Kind)}
 		}
 
+		return completedRecordAction(root, closed, fmt.Sprintf("%s completed by recorded exception.", target.ID), data.WriteRouterStateV2)
+	}
+}
+
+type routerStateWriter func(string, data.RouterSelectionV2, time.Time) error
+
+// completedRecordAction updates the router only after the completion write
+// succeeds. If selection persistence fails, the completed record remains and
+// the reload surfaces the stale-selection diagnostic alongside this message.
+func completedRecordAction(root string, closed data.RouterSelectionV2, message string, writer routerStateWriter) tea.Msg {
+	if err := advanceRouterAfterClosure(root, closed, writer); err != nil {
+		closedID := closed.Task
+		if closedID == "" {
+			closedID = closed.Objective
+		}
 		return actionMsg{
-			message: fmt.Sprintf("%s completed by recorded exception.", target.ID),
-			reload:  true,
+			err:    fmt.Errorf("%s completed, but the router still selects %s; the selection could not be advanced: %w", closedID, closedID, err),
+			reload: true,
 		}
 	}
+	return actionMsg{message: message, reload: true}
+}
+
+func advanceRouterAfterClosure(root string, closed data.RouterSelectionV2, writer routerStateWriter) error {
+	index, err := freshV2Index(root)
+	if err != nil {
+		return fmt.Errorf("reload project after completion: %w", err)
+	}
+
+	path := filepath.Join(root, "router.md")
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat router.md: %w", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read router.md: %w", err)
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(content))
+	if err != nil {
+		return fmt.Errorf("read router selection: %w", err)
+	}
+	current := data.RouterSelectionV2{
+		Release:   router.Release,
+		Objective: router.Objective,
+		Task:      router.Task,
+		Issue:     router.Issue,
+	}
+	selection, changed := data.RouterSelectionAfterClosureV2(index, current, closed)
+	if !changed {
+		return nil
+	}
+	if writer == nil {
+		writer = data.WriteRouterStateV2
+	}
+	if err := writer(root, selection, info.ModTime()); err != nil {
+		return fmt.Errorf("write router selection: %w", err)
+	}
+	return nil
 }
 
 // writeTaskAdvanceCmd is Space on a focused Task: start a planned Task, move
@@ -155,7 +213,7 @@ func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 			return actionMsg{err: fmt.Errorf("task %s is no longer present", taskID)}
 		}
 
-		waivedNow := false
+		waivedNow, started := false, false
 		switch {
 		case task.Status == data.ColumnDone:
 			return actionMsg{err: fmt.Errorf("%s is already done", taskID)}
@@ -165,6 +223,7 @@ func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 				return actionMsg{err: fmt.Errorf("cannot start %s: %s", taskID, decisionRefusal(decision))}
 			}
 			task.Status, task.Stage = data.ColumnInProgress, data.StageBuild
+			started = true
 		case task.Stage == data.StageAudit:
 			decision := data.ResolveTaskCompletion(index, taskID)
 			if !decision.Allowed {
@@ -215,8 +274,38 @@ func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 		if waivedNow {
 			message = fmt.Sprintf("%s completed; no Task Check was requested, so an owner waiver was recorded.", taskID)
 		}
+		if task.Status == data.ColumnDone {
+			closed := data.RouterSelectionV2{Objective: task.Objective, Task: task.ID}
+			return completedRecordAction(root, closed, message, data.WriteRouterStateV2)
+		}
+		if started {
+			return startedTaskAction(index, task, message, data.WriteObjectiveV2)
+		}
 		return actionMsg{message: message, reload: true}
 	}
+}
+
+type objectiveWriter func(*data.ObjectiveV2) error
+
+// startedTaskAction moves the started Task's owning Objective from planned to
+// in_progress, so every surface that shows the Objective's recorded status
+// agrees that its work has begun (I-044). It runs only after the Task write
+// succeeded: a failed Objective write leaves the Task started and reports the
+// error, and doctor's planned-with-started-Task warning names the Objective
+// until it is set. An Objective already in_progress or done is never rewritten.
+func startedTaskAction(index *data.V2Index, task *data.TaskV2, message string, writer objectiveWriter) tea.Msg {
+	objective, ok := index.Objectives[task.Objective]
+	if !ok || objective.Status != data.ColumnPlanned {
+		return actionMsg{message: message, reload: true}
+	}
+	objective.Status = data.ColumnInProgress
+	if err := writer(objective); err != nil {
+		return actionMsg{
+			err:    fmt.Errorf("%s started, but Objective %s is still planned; its status could not be set to in_progress: %w", task.ID, objective.ID, err),
+			reload: true,
+		}
+	}
+	return actionMsg{message: fmt.Sprintf("%s; Objective %s is now in progress.", strings.TrimSuffix(message, "."), objective.ID), reload: true}
 }
 
 // writeTaskRetreatCmd is Backspace on a focused Task: move it one lifecycle
@@ -352,6 +441,7 @@ func writeReleaseSelectionCmd(root, release string, expectedMtime ...time.Time) 
 			Release:   release,
 			Objective: router.Objective,
 			Task:      router.Task,
+			Issue:     router.Issue,
 		}
 		if objective := index.Objectives[selection.Objective]; objective == nil || string(objective.Release) != release {
 			selection.Objective = ""

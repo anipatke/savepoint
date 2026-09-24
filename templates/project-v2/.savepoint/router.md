@@ -1,6 +1,8 @@
 # Agent State Machine
 
-This file routes the agent. The active skill is the canonical workflow source for each state; this router records state and next action only.
+This file routes the agent. The active skill is the canonical workflow source for each state; this router records state and selection only.
+Agents run `savepoint resume` to read the `Next` line computed from this
+selection; the command does not write project files.
 
 ## Read order
 
@@ -16,7 +18,6 @@ This file routes the agent. The active skill is the canonical workflow source fo
 state: idea
 objective: none
 task: none
-next_action: "Turn a rough idea — a single sentence is a valid starting point, no prepared requirements document needed — into .savepoint/Idea.md through a short back-and-forth with the owner. If the directory already holds a codebase, the same conversation grounds intent while Design.md's Current Technical State is reconstructed from targeted reads, per AGENTS.md's Existing Codebase Adoption section: one route, two branches, not two workflows."
 ```
 
 ## Skill Activation

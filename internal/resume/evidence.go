@@ -267,12 +267,23 @@ func objectiveStatusPhrase(objective *data.ObjectiveV2) string {
 	return fmt.Sprintf("Status %s.", objective.Status)
 }
 
-// SelectionPhrase reports a router selection that did not resolve, naming the
-// ID or the mismatch it read rather than guessing at a replacement record. It
-// is exported alongside EvidenceLines and ActionPhrase so the board's Next
-// area names an unresolved selection in these same words.
+// SelectionPhrase reports an unresolved or stale router selection, naming the
+// ID or mismatch it read rather than guessing at a replacement record. It is
+// exported alongside EvidenceLines and ActionPhrase so the board's Next area
+// names a diagnostic in these same words.
 func SelectionPhrase(diagnostic *data.SelectionDiagnostic) string {
 	switch diagnostic.Kind {
+	case data.SelectionDone:
+		switch diagnostic.RecordKind {
+		case data.SelectionRecordTask:
+			return fmt.Sprintf("Warning: router still selects finished Task %s.", diagnostic.ID)
+		case data.SelectionRecordObjective:
+			return fmt.Sprintf("Warning: router still selects finished Objective %s.", diagnostic.ID)
+		case data.SelectionRecordIssue:
+			return fmt.Sprintf("Warning: router still selects resolved Issue %s.", diagnostic.ID)
+		default:
+			return fmt.Sprintf("Warning: router selection %s is finished.", diagnostic.ID)
+		}
 	case data.SelectionNotFound:
 		return fmt.Sprintf("The router names %s %s, which does not exist among the project's live records.", diagnostic.RecordKind, diagnostic.ID)
 	case data.SelectionMismatch:

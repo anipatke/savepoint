@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // sidebarBoard opens a board wide enough to carry the sidebar beside the three
@@ -648,4 +650,88 @@ func rowsFor(lines []string, id string) string {
 func objectiveRowStart(line string) bool {
 	trimmed := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(line), "│"), " "+glyphCursor+glyphSelected)
 	return strings.HasPrefix(trimmed, "O") && len(trimmed) > 4 && trimmed[1] >= '0' && trimmed[1] <= '9'
+}
+
+// writeIssueOnlyRouter selects issue alone, the way an Issue repair is routed.
+func writeIssueOnlyRouter(t *testing.T, root, issue string) {
+	t.Helper()
+	testutil.WriteFile(t, filepath.Join(root, "router.md"),
+		"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: none\ntask: none\nissue: "+issue+"\n```\n")
+}
+
+// TestIssueOnlySelectionOpensOnTheIssuesObjective covers I-045: a router that
+// selects an Issue alone opens the board on the one Objective the Issue's
+// linked Tasks and Objective-scoped Checks belong to, and on the labelled
+// unfiltered view when that is not exactly one Objective.
+func TestIssueOnlySelectionOpensOnTheIssuesObjective(t *testing.T) {
+	tests := []struct {
+		name        string
+		task, check string
+		want        string
+	}{
+		// C-002 is scoped to Task T-001, so it names no Objective.
+		{name: "task link only", task: "T-003", check: "C-002", want: "O-003"},
+		{name: "task and objective check agree", task: "T-002", check: "C-002", want: "O-002"},
+		// C-003 is scoped to Objective O-004; T-003 belongs to O-003.
+		{name: "two objectives", task: "T-003", check: "C-003", want: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := writeNavigationProject(t)
+			writeIssue(t, root, "I-001", "Repair something", "defect", test.check, test.task)
+			writeIssueOnlyRouter(t, root, "I-001")
+
+			model := sidebarBoard(t, root)
+			if model.SelectedObjective != test.want {
+				t.Fatalf("SelectedObjective = %q, want %q", model.SelectedObjective, test.want)
+			}
+			labelled := strings.Contains(xansi.Strip(model.View()), allObjectivesLabel)
+			if labelled != (test.want == "") {
+				t.Errorf("%s shown = %v with SelectedObjective %q", allObjectivesLabel, labelled, test.want)
+			}
+
+			var plain bytes.Buffer
+			if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			wantLine := "Selected: " + test.want
+			if test.want == "" {
+				wantLine = "Selected: all Objectives"
+			}
+			if !strings.Contains(plain.String(), wantLine+"\n") {
+				t.Errorf("plain output is missing %q:\n%s", wantLine, plain.String())
+			}
+		})
+	}
+}
+
+// TestIssueOnlySelectionWithUnknownIssueOpensUnfiltered keeps a router naming
+// a missing Issue on the labelled unfiltered view instead of guessing one.
+func TestIssueOnlySelectionWithUnknownIssueOpensUnfiltered(t *testing.T) {
+	root := writeNavigationProject(t)
+	writeIssueOnlyRouter(t, root, "I-404")
+
+	model := sidebarBoard(t, root)
+	if model.SelectedObjective != "" {
+		t.Fatalf("SelectedObjective = %q, want nothing for a missing Issue", model.SelectedObjective)
+	}
+	if !strings.Contains(xansi.Strip(model.View()), allObjectivesLabel) {
+		t.Errorf("unfiltered view is missing %s", allObjectivesLabel)
+	}
+}
+
+// TestFilteredViewHasNoAllObjectivesLabel keeps the label to the unfiltered
+// view: a board filtered to one Objective never claims to show them all.
+func TestFilteredViewHasNoAllObjectivesLabel(t *testing.T) {
+	model := sidebarBoard(t, writeNavigationProject(t))
+	if model.SelectedObjective == "" {
+		t.Fatal("fixture router should select an Objective")
+	}
+	if strings.Contains(xansi.Strip(model.View()), allObjectivesLabel) {
+		t.Errorf("filtered view shows %s", allObjectivesLabel)
+	}
+	model.selectObjective("")
+	if !strings.Contains(xansi.Strip(model.View()), allObjectivesLabel) {
+		t.Errorf("view after clearing the filter is missing %s", allObjectivesLabel)
+	}
 }

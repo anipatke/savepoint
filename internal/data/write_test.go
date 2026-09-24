@@ -1160,12 +1160,10 @@ freshness:
 	}
 }
 
-// routerV2FixtureContent reproduces the shipped V2 router's document shape:
-// prose, headings and a second fenced block around the anchor, and the four
-// anchor keys with a long quoted next_action. The anchor's key set is closed
-// — ReadStateV2 decodes it with KnownFields(true) — so what a selection
-// write must preserve is state, next_action, key order, and every byte of
-// the document outside the anchor.
+// routerV2FixtureContent includes an old router's long quoted next_action to
+// prove that selection writes preserve the retired key byte-for-byte. The
+// reader tolerates it for compatibility, while the writer changes selection
+// keys only and never creates the retired field.
 func routerV2FixtureContent() string {
 	return `# Agent State Machine
 
@@ -1234,6 +1232,106 @@ func TestWriteRouterStateV2_setsSelectionAndPreservesEveryOtherByte(t *testing.T
 	}
 }
 
+func TestWriteRouterStateV2_setsIssueAndPreservesEveryOtherByte(t *testing.T) {
+	content := routerV2FixtureContent()
+	content = strings.Replace(content, "task: none", "task: none\nissue: none", 1)
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001", Task: "T-005", Issue: "I-042"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+
+	want := strings.Replace(content, "objective: none", "objective: O-001", 1)
+	want = strings.Replace(want, "task: none", "task: T-005", 1)
+	want = strings.Replace(want, "issue: none", "issue: I-042", 1)
+	if got := readFileString(t, path); got != want {
+		t.Errorf("file content changed beyond the selection keys.\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestWriteRouterStateV2_addsIssueAlone(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\n```\n"
+	root, path, mtime := writeRouterV2Fixture(t, content)
+
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Issue: "I-042"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+	state, err := NewRouterReader().ReadStateV2(readFileString(t, path))
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Issue != "I-042" || state.Objective != "" || state.Task != "" {
+		t.Fatalf("selection = issue %q objective %q task %q, want I-042 alone", state.Issue, state.Objective, state.Task)
+	}
+}
+
+func TestRouterSelectionAfterClosureV2_advancesToLowestUnfinishedEvenWhenBlocked(t *testing.T) {
+	index := &V2Index{
+		Objectives: map[string]*ObjectiveV2{
+			"O-001": {ID: "O-001", Status: ColumnInProgress},
+		},
+		Tasks: map[string]*TaskV2{
+			"T-001": {ID: "T-001", Objective: "O-001", Status: ColumnDone},
+			"T-002": {ID: "T-002", Objective: "O-001", Status: ColumnPlanned,
+				DependsOn: []TaskDependencyV2{{Task: "T-004", Requires: TaskDependencyClear}}},
+			"T-004": {ID: "T-004", Objective: "O-001", Status: ColumnInProgress, Stage: StageBuild},
+			"T-900": {ID: "T-900", Objective: "O-001", Status: ColumnDone},
+		},
+		ObjectiveTasks: map[string][]string{"O-001": {"T-001", "T-002", "T-004", "T-900"}},
+	}
+	current := RouterSelectionV2{Release: "R-006", Objective: "O-001", Task: "T-900", Issue: "I-042"}
+	closed := RouterSelectionV2{Objective: "O-001", Task: "T-900"}
+
+	got, changed := RouterSelectionAfterClosureV2(index, current, closed)
+	if !changed {
+		t.Fatal("RouterSelectionAfterClosureV2() changed = false, want selected Task advanced")
+	}
+	want := RouterSelectionV2{Release: "R-006", Objective: "O-001", Task: "T-002", Issue: "I-042"}
+	if got != want {
+		t.Fatalf("RouterSelectionAfterClosureV2() = %+v, want %+v", got, want)
+	}
+	if decision := ResolveTaskStart(index, "T-002"); decision.Allowed || len(decision.Blockers) == 0 {
+		t.Fatalf("ResolveTaskStart(T-002) = %+v, want blocked next Task", decision)
+	}
+}
+
+func TestRouterSelectionAfterClosureV2_clearsMatchingSelectionsAndLeavesOthersAlone(t *testing.T) {
+	index := &V2Index{
+		Objectives: map[string]*ObjectiveV2{"O-001": {ID: "O-001", Status: ColumnDone}},
+		Tasks: map[string]*TaskV2{
+			"T-001": {ID: "T-001", Objective: "O-001", Status: ColumnDone},
+		},
+		ObjectiveTasks: map[string][]string{"O-001": {"T-001"}},
+	}
+	current := RouterSelectionV2{Release: "R-006", Objective: "O-001", Task: "T-001", Issue: "I-042"}
+
+	got, changed := RouterSelectionAfterClosureV2(index, current, RouterSelectionV2{Objective: "O-001", Task: "T-001"})
+	if !changed {
+		t.Fatal("RouterSelectionAfterClosureV2() changed = false, want completed Task selection cleared")
+	}
+	if want := (RouterSelectionV2{Release: "R-006", Objective: "O-001", Issue: "I-042"}); got != want {
+		t.Fatalf("all-done Task selection = %+v, want %+v", got, want)
+	}
+
+	got, changed = RouterSelectionAfterClosureV2(index, current, RouterSelectionV2{Objective: "O-002", Task: "T-001"})
+	if changed || got != current {
+		t.Fatalf("non-matching Task closure = %+v, changed %t; want original selection and no change", got, changed)
+	}
+
+	got, changed = RouterSelectionAfterClosureV2(index, current, RouterSelectionV2{Objective: "O-001"})
+	if !changed {
+		t.Fatal("RouterSelectionAfterClosureV2() changed = false, want matching Objective selection cleared")
+	}
+	if want := (RouterSelectionV2{Release: "R-006", Issue: "I-042"}); got != want {
+		t.Fatalf("Objective selection = %+v, want %+v", got, want)
+	}
+
+	got, changed = RouterSelectionAfterClosureV2(index, current, RouterSelectionV2{Objective: "O-002"})
+	if changed || got != current {
+		t.Fatalf("non-matching Objective closure = %+v, changed %t; want original selection and no change", got, changed)
+	}
+}
+
 func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *testing.T) {
 	content := routerV2FixtureContent()
 	root, path, mtime := writeRouterV2Fixture(t, content)
@@ -1253,8 +1351,8 @@ func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *test
 	if state.Release != "R-001" || state.Objective != "O-001" || state.Task != "T-005" {
 		t.Fatalf("selections = release %q objective %q task %q, want R-001/O-001/T-005", state.Release, state.Objective, state.Task)
 	}
-	if state.State != before.State || state.NextAction != before.NextAction {
-		t.Fatalf("router lifecycle/prose changed: before state %q next_action %q, after state %q next_action %q", before.State, before.NextAction, state.State, state.NextAction)
+	if state.State != before.State || state.HasRetiredNextAction != before.HasRetiredNextAction {
+		t.Fatalf("router lifecycle/retired-key presence changed: before state %q key-present %t, after state %q key-present %t", before.State, before.HasRetiredNextAction, state.State, state.HasRetiredNextAction)
 	}
 	got := readFileString(t, path)
 	if !strings.Contains(got, "project_note: a second fenced block the writer must not touch") || !strings.Contains(got, "This file routes the agent.") {
@@ -1288,6 +1386,7 @@ func TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel(t *testing.T)
 		"objective: none", "objective: O-001",
 		"task: none", "task: T-005",
 	).Replace(routerV2FixtureContent())
+	content = strings.Replace(content, "task: T-005", "task: T-005\nissue: I-042", 1)
 	root, path, mtime := writeRouterV2Fixture(t, content)
 
 	if err := WriteRouterStateV2(root, RouterSelectionV2{}, mtime); err != nil {
@@ -1295,7 +1394,7 @@ func TestWriteRouterStateV2_clearingSelectionWritesTheNoneSentinel(t *testing.T)
 	}
 
 	got := readFileString(t, path)
-	if !strings.Contains(got, "objective: none") || !strings.Contains(got, "task: none") {
+	if !strings.Contains(got, "objective: none") || !strings.Contains(got, "task: none") || !strings.Contains(got, "issue: none") {
 		t.Errorf("cleared selection not written as the none sentinel:\n%s", got)
 	}
 
@@ -1355,6 +1454,9 @@ func TestWriteRouterStateV2_refusesMalformedSelectionAndLeavesFileUntouched(t *t
 		{"two objectives", RouterSelectionV2{Objective: "O-001 O-002"}, ErrV2InvalidID},
 		{"task wrong family", RouterSelectionV2{Objective: "O-001", Task: "C-001"}, ErrV2InvalidID},
 		{"task too few digits", RouterSelectionV2{Objective: "O-001", Task: "T4"}, ErrV2InvalidID},
+		{"issue wrong family", RouterSelectionV2{Issue: "C-001"}, ErrV2InvalidID},
+		{"issue too few digits", RouterSelectionV2{Issue: "I4"}, ErrV2InvalidID},
+		{"issue with trailing slug", RouterSelectionV2{Issue: "I-001-recovery"}, ErrV2InvalidID},
 		{"task without objective", RouterSelectionV2{Task: "T-005"}, ErrV2InvalidOwnership},
 	}
 
@@ -1490,8 +1592,49 @@ func TestWriteRouterStateV2_roundTripsThroughReadStateV2(t *testing.T) {
 	if state.State != RouterPhaseDesign {
 		t.Errorf("state changed to %q, want design", state.State)
 	}
-	if !strings.Contains(state.NextAction, "Turn a rough idea") {
-		t.Errorf("next_action changed to %q", state.NextAction)
+	if !state.HasRetiredNextAction {
+		t.Error("HasRetiredNextAction = false after selection write, want true")
+	}
+}
+
+func TestWriteRouterStateV2_preservesRetiredNextActionLineByteForByte(t *testing.T) {
+	content := routerV2FixtureContent()
+	var nextActionLine string
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "next_action:") {
+			nextActionLine = line
+			break
+		}
+	}
+	if nextActionLine == "" {
+		t.Fatal("router fixture has no next_action line")
+	}
+
+	root, path, mtime := writeRouterV2Fixture(t, content)
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001", Task: "T-005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+	if got := readFileString(t, path); strings.Count(got, nextActionLine) != 1 {
+		t.Errorf("selection write did not preserve the retired line exactly once:\n%s", got)
+	}
+}
+
+func TestWriteRouterStateV2_doesNotAddRetiredNextAction(t *testing.T) {
+	content := routerV2FixtureContent()
+	var nextActionLine string
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "next_action:") {
+			nextActionLine = line
+			break
+		}
+	}
+	content = strings.Replace(content, nextActionLine+"\n", "", 1)
+	root, path, mtime := writeRouterV2Fixture(t, content)
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Objective: "O-001", Task: "T-005"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+	if got := readFileString(t, path); strings.Contains(got, "next_action:") {
+		t.Errorf("selection write added retired next_action:\n%s", got)
 	}
 }
 

@@ -6,24 +6,25 @@ import (
 )
 
 // SelectionRecordKind names which record family a selection diagnostic is
-// about: the router's Release, Objective, or Task.
+// about: the router's Release, Objective, Task, or Issue.
 type SelectionRecordKind string
 
 const (
 	SelectionRecordRelease   SelectionRecordKind = "release"
 	SelectionRecordObjective SelectionRecordKind = "objective"
 	SelectionRecordTask      SelectionRecordKind = "task"
+	SelectionRecordIssue     SelectionRecordKind = "issue"
 )
 
-// SelectionDiagnosticKind names why the router's contextual selection could
-// not be honored. Release diagnostics are separate from the older Task /
+// SelectionDiagnosticKind names why the router's contextual selection is
+// unresolved or stale. Release diagnostics are separate from the older Task /
 // Objective diagnostics so a renderer can explain an archived Release,
 // unassigned Objective, and cross-Release mismatch without inspecting the
 // index again.
 type SelectionDiagnosticKind string
 
 const (
-	// SelectionNotFound means a router-named Objective or Task ID does not
+	// SelectionNotFound means a router-named Objective, Task, or Issue ID does not
 	// exist among the project's live records. Archived records are out of
 	// scope for lookup, so this is also what a migrated-away ID reports.
 	SelectionNotFound SelectionDiagnosticKind = "not_found"
@@ -32,6 +33,11 @@ const (
 	// Objective. Ownership always comes from the Task record, never the
 	// router, so this is reported rather than silently reconciled.
 	SelectionMismatch SelectionDiagnosticKind = "mismatch"
+	// SelectionDone means the exact selection resolved, but its selected
+	// Task is done, its selected Objective is done with no Task selected, or
+	// its selected Issue is resolved.
+	// The selection remains intact so Next continues to describe that record.
+	SelectionDone SelectionDiagnosticKind = "done"
 	// SelectionReleaseNotFound means the router names a Release absent from
 	// the live index. No similarly named Release is substituted.
 	SelectionReleaseNotFound SelectionDiagnosticKind = "release_not_found"
@@ -51,9 +57,9 @@ const (
 	SelectionUnassigned = SelectionObjectiveUnassigned
 )
 
-// SelectionDiagnostic is the typed, branchable result of a selection that
-// could not be honored. A caller inspects Kind and the ID fields below it;
-// nothing here is a formatted message standing in for the IDs read.
+// SelectionDiagnostic is the typed, branchable result of an unresolved or
+// stale selection. A caller inspects Kind and the ID fields below it; nothing
+// here is a formatted message standing in for the IDs read.
 type SelectionDiagnostic struct {
 	Kind SelectionDiagnosticKind
 
@@ -80,21 +86,22 @@ type SelectionDiagnostic struct {
 }
 
 // Selection is one honest resolved outcome: no context selected, a Release
-// with no Objective selected, an Objective with no Task selected under it, or
-// a matched Release/Objective/Task context. When a Release diagnostic names a
-// live Release, the Release is retained for rendering while Objective/Task
-// action remains unresolved.
+// with no Objective selected, an Objective with no Task selected under it, a
+// matched Release/Objective/Task context, or a selected Issue. When a Release
+// diagnostic names a live Release, the Release is retained for rendering
+// while Objective/Task action remains unresolved.
 type Selection struct {
 	Release   *ReleaseV2
 	Objective *ObjectiveV2
 	Task      *TaskV2
+	Issue     *IssueV2
 }
 
-// ResolveSelection turns router's Objective/Task hint into an exactly
-// matched Selection against index, or a typed SelectionDiagnostic.
+// ResolveSelection turns the router's Objective/Task/Issue selections into
+// exactly matched records against index, or a typed SelectionDiagnostic.
 //
-// Matching is by exact global ID only: a map lookup against index.Objectives
-// and index.Tasks, with no prefix, suffix, numeric-proximity, title, or
+// Matching is by exact global ID only: a map lookup against the matching
+// record map, with no prefix, suffix, numeric-proximity, title, or
 // path-based fallback anywhere in this function. A router-named ID that does
 // not resolve is reported as itself; a similarly numbered record is never
 // substituted for it.
@@ -111,18 +118,36 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 		return Selection{}, nil
 	}
 
+	var issue *IssueV2
+	var issueDiagnostic *SelectionDiagnostic
+	if router.Issue != "" {
+		var ok bool
+		issue, ok = index.Issues[router.Issue]
+		if !ok {
+			issueDiagnostic = &SelectionDiagnostic{
+				Kind: SelectionNotFound, RecordKind: SelectionRecordIssue,
+				ID: router.Issue,
+			}
+		} else if issue.Status == IssueStatusResolved {
+			issueDiagnostic = &SelectionDiagnostic{
+				Kind: SelectionDone, RecordKind: SelectionRecordIssue,
+				ID: issue.ID,
+			}
+		}
+	}
+
 	var release *ReleaseV2
 	if router.Release != "" {
 		candidate, ok := index.Releases[router.Release]
 		if !ok {
-			return Selection{}, &SelectionDiagnostic{
+			return Selection{Issue: issue}, &SelectionDiagnostic{
 				Kind: SelectionReleaseNotFound, RecordKind: SelectionRecordRelease,
 				ID: router.Release, Release: router.Release,
 			}
 		}
 		release = candidate
 		if release.LegacyCompletion != nil {
-			return Selection{Release: release}, &SelectionDiagnostic{
+			return Selection{Release: release, Issue: issue}, &SelectionDiagnostic{
 				Kind: SelectionReleaseArchived, RecordKind: SelectionRecordRelease,
 				ID: router.Release, Release: router.Release,
 			}
@@ -133,12 +158,12 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 		// ReadStateV2 already refuses a Task selected with no Objective
 		// (ErrV2InvalidOwnership), so an empty Objective here means no
 		// selection at all, regardless of router phase.
-		return Selection{Release: release}, nil
+		return Selection{Release: release, Issue: issue}, issueDiagnostic
 	}
 
 	objective, ok := index.Objectives[router.Objective]
 	if !ok {
-		return Selection{Release: release}, &SelectionDiagnostic{
+		return Selection{Release: release, Issue: issue}, &SelectionDiagnostic{
 			Kind: SelectionNotFound, RecordKind: SelectionRecordObjective,
 			ID: router.Objective, Release: router.Release, Objective: router.Objective,
 		}
@@ -161,7 +186,14 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 	}
 
 	if router.Task == "" {
-		return Selection{Release: release, Objective: objective}, nil
+		selection := Selection{Release: release, Objective: objective, Issue: issue}
+		if objective.Status == ColumnDone {
+			return selection, &SelectionDiagnostic{
+				Kind: SelectionDone, RecordKind: SelectionRecordObjective,
+				ID: objective.ID, Release: router.Release, Objective: objective.ID,
+			}
+		}
+		return selection, issueDiagnostic
 	}
 
 	task, ok := index.Tasks[router.Task]
@@ -183,7 +215,14 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 		}
 	}
 
-	return Selection{Release: release, Objective: objective, Task: task}, nil
+	selection := Selection{Release: release, Objective: objective, Task: task, Issue: issue}
+	if task.Status == ColumnDone {
+		return selection, &SelectionDiagnostic{
+			Kind: SelectionDone, RecordKind: SelectionRecordTask,
+			ID: task.ID, Release: router.Release, Objective: objective.ID,
+		}
+	}
+	return selection, issueDiagnostic
 }
 
 // NextKind names the selected record's next action. ResolveNext never
@@ -241,10 +280,13 @@ const (
 	// NextPlanObjective means the selected Objective owns no Tasks yet, so
 	// its next action is to plan the work under that Objective.
 	NextPlanObjective NextKind = "plan_objective"
+	// NextIssue means the router selected an Issue without an Objective or
+	// Task, so the Issue itself is the next record to work on.
+	NextIssue NextKind = "issue"
 )
 
 // Next is the one derived answer ResolveNext returns for a project: the
-// router-selected Objective and/or Task, its next action kind, and any
+// router-selected Objective, Task, or Issue, its next action kind, and any
 // resolver-derived gate evidence. When a Task is selected, Objective also
 // carries its owning record when that record exists. GateDecision and
 // Clearance are populated only when the selected action reports them; each
@@ -254,6 +296,7 @@ type Next struct {
 	Release   *ReleaseV2
 	Objective *ObjectiveV2
 	Task      *TaskV2
+	Issue     *IssueV2
 
 	// GateDecision is the decision the rung was derived from. For a Release
 	// rung it is ResolveReleaseCompletion; for older rungs it remains the
@@ -265,8 +308,9 @@ type Next struct {
 	Clearance *Clearance
 
 	// SelectionDiagnostic is set whenever the router's selection did not
-	// resolve. An unresolved selection yields NextNothingSelected rather than a
-	// search-derived action for another record.
+	// resolve or points at finished work. Unresolved selections yield
+	// NextNothingSelected; a SelectionDone diagnostic leaves the resolved
+	// selection in place so its existing Next rung remains visible.
 	SelectionDiagnostic *SelectionDiagnostic
 
 	// Issues are the Issues relevant to Task (when set) or otherwise
@@ -284,9 +328,9 @@ type NextInput struct {
 	Router *RouterStateV2
 }
 
-// ResolveNext computes the next action for the router's exact Objective and
-// Task selection, using the existing resolvers for that record's gate state.
-// When no Objective is selected, or a selection cannot be resolved, it does
+// ResolveNext computes the next action for the router's exact Objective,
+// Task, or Issue selection, using the existing resolvers for Objective/Task
+// gate state. When no record is selected, or a selection cannot be resolved, it does
 // not substitute work found elsewhere. A valid selected Release retains its
 // completion rungs once all of its member Objectives are done. ResolveNext
 // never returns an error. A nil Index or Router is read as an empty project
@@ -310,6 +354,7 @@ func ResolveNext(input NextInput) Next {
 	selection, diagnostic := ResolveSelection(index, router)
 
 	next := resolveLadder(index, selection, diagnostic)
+	next.Issue = selection.Issue
 	if next.Task != nil && next.Objective == nil {
 		next.Objective = index.Objectives[next.Task.Objective]
 	}
@@ -372,8 +417,16 @@ func relevantIssues(index *V2Index, next Next) []*IssueV2 {
 // resolveLadder resolves only the router's selection. A diagnostic or an
 // empty Objective selection never falls through to a project-wide search.
 func resolveLadder(index *V2Index, selection Selection, diagnostic *SelectionDiagnostic) Next {
-	if diagnostic != nil {
-		return Next{Kind: NextNothingSelected, Release: selection.Release}
+	if diagnostic != nil && diagnostic.Kind != SelectionDone {
+		validIssueContext := diagnostic.RecordKind == SelectionRecordIssue && (selection.Task != nil || selection.Objective != nil)
+		issueWinsOverReleaseDiagnostic := selection.Issue != nil && selection.Task == nil && selection.Objective == nil && diagnostic.RecordKind == SelectionRecordRelease
+		if !validIssueContext && !issueWinsOverReleaseDiagnostic {
+			return Next{Kind: NextNothingSelected, Release: selection.Release}
+		}
+	}
+
+	if selection.Task == nil && selection.Objective == nil && selection.Issue != nil {
+		return Next{Kind: NextIssue, Release: selection.Release, Issue: selection.Issue}
 	}
 
 	if selection.Release != nil {

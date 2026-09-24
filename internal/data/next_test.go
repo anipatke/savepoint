@@ -28,6 +28,69 @@ func TestResolveSelection_exactMatch(t *testing.T) {
 	}
 }
 
+func TestResolveSelection_issueAloneBecomesNextAndResolvedIssueIsStale(t *testing.T) {
+	index := newV2TestIndex()
+	index.Issues = map[string]*IssueV2{}
+	openIssue := &IssueV2{ID: "I-042", Title: "Repair the parser", Status: IssueStatusOpen}
+	index.Issues[openIssue.ID] = openIssue
+	router := &RouterStateV2{State: RouterPhaseTask, Issue: openIssue.ID}
+
+	selection, diagnostic := ResolveSelection(index, router)
+	if diagnostic != nil {
+		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+	}
+	if selection.Issue != openIssue || selection.Objective != nil || selection.Task != nil {
+		t.Fatalf("ResolveSelection() = %+v, want Issue I-042 alone", selection)
+	}
+	next := ResolveNext(NextInput{Index: index, Router: router})
+	if next.Kind != NextIssue || next.Issue != openIssue {
+		t.Fatalf("ResolveNext() = %+v, want NextIssue carrying I-042", next)
+	}
+
+	resolved := *openIssue
+	resolved.Status = IssueStatusResolved
+	index.Issues[resolved.ID] = &resolved
+	selection, diagnostic = ResolveSelection(index, router)
+	if selection.Issue != &resolved || diagnostic == nil || diagnostic.Kind != SelectionDone || diagnostic.RecordKind != SelectionRecordIssue || diagnostic.ID != resolved.ID {
+		t.Fatalf("ResolveSelection() = (%+v, %+v), want resolved Issue SelectionDone", selection, diagnostic)
+	}
+	next = ResolveNext(NextInput{Index: index, Router: router})
+	if next.Kind != NextIssue || next.Issue != &resolved || next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone {
+		t.Fatalf("ResolveNext() = %+v, want resolved Issue line with stale-selection diagnostic", next)
+	}
+}
+
+func TestResolveSelection_unknownIssueNamesIssueAndKeepsValidTaskNext(t *testing.T) {
+	index := newV2TestIndex()
+	index.Objectives["O-014"] = &ObjectiveV2{ID: "O-014", Title: "Router Issue target", Status: ColumnInProgress}
+	index.Tasks["T-028"] = &TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: ColumnInProgress, Stage: StageBuild}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-014", Task: "T-028", Issue: "I-042"}
+
+	selection, diagnostic := ResolveSelection(index, router)
+	if selection.Task == nil || selection.Task.ID != "T-028" || diagnostic == nil || diagnostic.Kind != SelectionNotFound || diagnostic.RecordKind != SelectionRecordIssue || diagnostic.ID != "I-042" {
+		t.Fatalf("ResolveSelection() = (%+v, %+v), want selected Task plus named Issue not-found diagnostic", selection, diagnostic)
+	}
+	next := ResolveNext(NextInput{Index: index, Router: router})
+	if next.Task == nil || next.Task.ID != "T-028" || next.Kind == NextNothingSelected || next.SelectionDiagnostic == nil || next.SelectionDiagnostic.RecordKind != SelectionRecordIssue {
+		t.Fatalf("ResolveNext() = %+v, want T-028's Next with Issue diagnostic", next)
+	}
+}
+
+func TestResolveSelection_issueTravelsAsTaskContext(t *testing.T) {
+	index := newV2TestIndex()
+	index.Issues = map[string]*IssueV2{}
+	index.Objectives["O-014"] = &ObjectiveV2{ID: "O-014", Title: "Router Issue target", Status: ColumnInProgress}
+	index.Tasks["T-028"] = &TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: ColumnInProgress, Stage: StageBuild}
+	issue := &IssueV2{ID: "I-042", Title: "Repair the parser", Status: IssueStatusInProgress}
+	index.Issues[issue.ID] = issue
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-014", Task: "T-028", Issue: issue.ID}
+
+	next := ResolveNext(NextInput{Index: index, Router: router})
+	if next.Task == nil || next.Task.ID != "T-028" || next.Issue != issue {
+		t.Fatalf("ResolveNext() = %+v, want Task T-028 with Issue I-042 in context", next)
+	}
+}
+
 // TestResolveSelection_nearMissIDNeverSubstituted proves a project holding
 // both T-014 and T-140 resolves a router naming T-014 to exactly T-014: no
 // numeric-proximity or prefix fallback ever selects the other record.
@@ -134,6 +197,79 @@ func TestResolveSelection_objectiveOnly(t *testing.T) {
 	}
 	if selection.Task != nil {
 		t.Errorf("Selection.Task = %+v, want nil", selection.Task)
+	}
+}
+
+func TestResolveSelection_doneTaskKeepsSelectionAndAddsDiagnostic(t *testing.T) {
+	index := &V2Index{
+		Objectives:     map[string]*ObjectiveV2{"O-001": {ID: "O-001", Title: "Ship it", Status: ColumnInProgress}},
+		Tasks:          map[string]*TaskV2{"T-001": {ID: "T-001", Title: "Write it", Objective: "O-001", Status: ColumnDone}},
+		ObjectiveTasks: map[string][]string{"O-001": {"T-001"}},
+	}
+	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
+
+	selection, diagnostic := ResolveSelection(index, router)
+	if diagnostic == nil || diagnostic.Kind != SelectionDone {
+		t.Fatalf("ResolveSelection() diagnostic = %+v, want SelectionDone", diagnostic)
+	}
+	if diagnostic.RecordKind != SelectionRecordTask || diagnostic.ID != "T-001" {
+		t.Errorf("diagnostic = %+v, want finished Task T-001", diagnostic)
+	}
+	if selection.Objective == nil || selection.Objective.ID != "O-001" || selection.Task == nil || selection.Task.ID != "T-001" {
+		t.Fatalf("ResolveSelection() selection = %+v, want the original Objective O-001 / Task T-001", selection)
+	}
+
+	next := ResolveNext(NextInput{Index: index, Router: router})
+	if next.Kind == NextNothingSelected || next.Objective == nil || next.Objective.ID != "O-001" || next.Task != nil {
+		t.Errorf("ResolveNext() = %+v, want T-029's Objective rung for O-001 while retaining the warning", next)
+	}
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone || next.SelectionDiagnostic.ID != "T-001" {
+		t.Errorf("ResolveNext().SelectionDiagnostic = %+v, want SelectionDone for T-001", next.SelectionDiagnostic)
+	}
+}
+
+func TestResolveSelection_doneObjectiveWithoutTaskAddsDiagnostic(t *testing.T) {
+	index := &V2Index{
+		Objectives: map[string]*ObjectiveV2{"O-002": {ID: "O-002", Title: "Ship it", Status: ColumnDone}},
+	}
+	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-002"}
+
+	selection, diagnostic := ResolveSelection(index, router)
+	if diagnostic == nil || diagnostic.Kind != SelectionDone {
+		t.Fatalf("ResolveSelection() diagnostic = %+v, want SelectionDone", diagnostic)
+	}
+	if diagnostic.RecordKind != SelectionRecordObjective || diagnostic.ID != "O-002" {
+		t.Errorf("diagnostic = %+v, want finished Objective O-002", diagnostic)
+	}
+	if selection.Objective == nil || selection.Objective.ID != "O-002" || selection.Task != nil {
+		t.Fatalf("ResolveSelection() selection = %+v, want the original Objective O-002 without a Task", selection)
+	}
+
+	next := ResolveNext(NextInput{Index: index, Router: router})
+	if next.Kind != NextPlanObjective || next.Objective == nil || next.Objective.ID != "O-002" {
+		t.Errorf("ResolveNext() = %+v, want the same selected Objective rung as before the diagnostic", next)
+	}
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone || next.SelectionDiagnostic.ID != "O-002" {
+		t.Errorf("ResolveNext().SelectionDiagnostic = %+v, want SelectionDone for O-002", next.SelectionDiagnostic)
+	}
+}
+
+func TestResolveSelection_notDoneSelectionsHaveNoDoneDiagnostic(t *testing.T) {
+	index := &V2Index{
+		Objectives: map[string]*ObjectiveV2{
+			"O-003": {ID: "O-003", Title: "Active", Status: ColumnInProgress},
+		},
+		Tasks: map[string]*TaskV2{
+			"T-003": {ID: "T-003", Title: "Build it", Objective: "O-003", Status: ColumnPlanned},
+		},
+	}
+	for _, router := range []*RouterStateV2{
+		{State: RouterPhaseDesign, Objective: "O-003"},
+		{State: RouterPhaseTask, Objective: "O-003", Task: "T-003"},
+	} {
+		if selection, diagnostic := ResolveSelection(index, router); diagnostic != nil {
+			t.Errorf("ResolveSelection(%+v) = (%+v, %+v), want no done diagnostic", router, selection, diagnostic)
+		}
 	}
 }
 

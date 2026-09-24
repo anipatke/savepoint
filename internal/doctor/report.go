@@ -262,10 +262,14 @@ func printHealthSummary(b *strings.Builder, findings []HealthFinding) {
 		}
 		fmt.Fprintf(b, "  %s:\n", category)
 		for _, f := range matched {
+			indicator := "✗"
+			if f.Category == HealthPendingReview {
+				indicator = "!"
+			}
 			if f.File != "" {
-				fmt.Fprintf(b, "    ✗ %s: %s\n", f.File, f.Message)
+				fmt.Fprintf(b, "    %s %s: %s\n", indicator, f.File, f.Message)
 			} else {
-				fmt.Fprintf(b, "    ✗ %s\n", f.Message)
+				fmt.Fprintf(b, "    %s %s\n", indicator, f.Message)
 			}
 			if f.Repair != "" {
 				fmt.Fprintf(b, "      repair: %s\n", f.Repair)
@@ -296,7 +300,11 @@ func printProblems(b *strings.Builder, category string, problems []Problem) {
 		return
 	}
 	for _, p := range problems {
-		fmt.Fprintf(b, "  ✗ %s: %s\n", category, p.Error())
+		indicator := "✗"
+		if p.Category == HealthPendingReview {
+			indicator = "!"
+		}
+		fmt.Fprintf(b, "  %s %s: %s\n", indicator, category, p.Error())
 		fmt.Fprintf(b, "    repair: %s\n", problemRepair(p))
 	}
 	b.WriteString("\n")

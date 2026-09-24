@@ -1,7 +1,7 @@
 ---
 id: O-014
 title: Give the Next area an Objective word and let the router target Issues
-status: planned
+status: in_progress
 depends_on: [O-012]
 release: R-006
 ---
@@ -78,8 +78,10 @@ Confirmed by the owner on 2026-09-24:
 - **An Issue can be the selection.** (Revised 2026-09-24; replaces "Issue
   selection is context only".) The router may select an Issue on its own,
   with no Objective or Task; Next is then that Issue:
-  `<Issue word> I-### — <title>`, Issue word `Open`, `In Progress`, or
-  `Resolved` (Issues carry no stage). When an
+  `<Issue word> I-### — <title>`, Issue word `Fix` for an open or
+  in-progress Issue, or `Resolved` (Issues carry no stage). (Word revised
+  2026-09-24 under I-044: `Open`/`In Progress` read as a command and did not
+  say what to do; `Fix` is the Issue's activity, as `Build` is a Task's.) When an
   Objective or Task is also selected, their line wins and the Issue is shown
   as context (the Task is the repair). A selected resolved Issue gets the
   stale-selection warning. Board Issue lifecycle actions stay with O-015.

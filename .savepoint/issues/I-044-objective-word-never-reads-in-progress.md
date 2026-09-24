@@ -19,6 +19,36 @@ history:
     note: >-
       The owner reported that the live line "Planned O-014 · Check" reads in
       the wrong order. It was confirmed during the O-014 Full Objective Check.
+  - at: '2026-09-24T10:30:00Z'
+    actor: {role: owner, session: owner-chat-20260924}
+    kind: owner_decision
+    note: >-
+      Record the Objective status (option 2), repaired directly under this
+      Issue. Also change the Issue word on the Next line: an open or
+      in-progress Issue reads Fix, as a Task's build stage reads Build.
+  - at: '2026-09-24T10:45:00Z'
+    actor: {role: executor, session: o014-i044-repair-20260924}
+    kind: repair_attempted
+    note: >-
+      Board Space on a planned Task sets a planned owning Objective to
+      in_progress after the Task write (internal/board/v2/io.go
+      startedTaskAction); a failed Objective write keeps the Task started and
+      reports the error. InspectObjectiveConsistency adds
+      planned_with_started_task, reported by doctor as a pending-review
+      warning. savepoint-task step 2 and AGENTS.md (live and scaffold) let an
+      agent make the same change; Design section 4 records it. O-014 set to
+      in_progress. resume.IssueWord reads Fix for open and in_progress;
+      AGENTS.md, Design section 8 and O-014's decisions updated. Tests:
+      TestTaskStartMovesPlannedObjectiveToInProgress,
+      TestTaskStartLeavesInProgressAndDoneObjectivesUntouched,
+      TestStartedTaskActionReportsObjectiveWriteFailure,
+      TestTaskRetreatLeavesObjectiveStatusAlone,
+      TestInspectObjectiveConsistency_plannedWithStartedTask,
+      TestInspectObjectiveConsistency_plannedWithOnlyPlannedTasksReportsNothing,
+      TestRunV2ChecksWarnsWhenPlannedObjectiveHasStartedTask, and the updated
+      Issue-word cases. Three doctor fixtures now write their Objective
+      in_progress. make build && make test-fast pass; git diff --check clean.
+      Left open for the O-014 re-check.
 ---
 
 # I-044: The Next line's Objective word never reads In Progress
@@ -66,7 +96,8 @@ Expected: `In Progress` once any owned Task has started. Actual: `Planned`.
 ## Repair
 
 Owner decision, 2026-09-24: record the status (option 2), not a derived
-word, so every surface agrees from the file. It is repaired directly under
+word, so every surface agrees from the file. Added to scope the same day: an
+open or in-progress Issue's Next-line word becomes `Fix` (`Resolved` stays). It is repaired directly under
 this Issue (issue-capture.md, Out-Of-Scope Repair), with no new Task.
 
 Options considered: Either derive the word in `internal/data`: an

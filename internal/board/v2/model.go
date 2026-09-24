@@ -191,11 +191,49 @@ func selectedObjectiveUnscoped(state ProjectState, filter string) string {
 	if filter != "" {
 		return filter
 	}
-	if state.Index == nil || state.Router == nil || state.Router.Objective == "" {
+	objective := routerObjective(state)
+	if state.Index == nil || objective == "" {
 		return ""
 	}
-	if _, ok := state.Index.Objectives[state.Router.Objective]; !ok {
+	if _, ok := state.Index.Objectives[objective]; !ok {
 		return ""
 	}
-	return state.Router.Objective
+	return objective
+}
+
+// routerObjective is the Objective the router's selection puts in view: its
+// selected Objective, or, when it selects an Issue alone, the one Objective
+// that Issue's linked Tasks and Objective-scoped Checks belong to. An Issue
+// linked to no Objective, or to more than one, puts none in view rather than
+// guessing between them.
+func routerObjective(state ProjectState) string {
+	router := state.Router
+	if router == nil {
+		return ""
+	}
+	if router.Objective != "" || router.Issue == "" || state.Index == nil {
+		return router.Objective
+	}
+	issue, ok := state.Index.Issues[router.Issue]
+	if !ok {
+		return ""
+	}
+	owners := map[string]bool{}
+	for _, taskID := range issue.Tasks {
+		if task, ok := state.Index.Tasks[taskID]; ok {
+			owners[task.Objective] = true
+		}
+	}
+	for _, checkID := range issue.Checks {
+		if check, ok := state.Index.Checks[checkID]; ok && check.Scope.Kind == data.CheckScopeObjective {
+			owners[check.Scope.ID] = true
+		}
+	}
+	if len(owners) != 1 {
+		return ""
+	}
+	for objective := range owners {
+		return objective
+	}
+	return ""
 }

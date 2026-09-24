@@ -84,6 +84,16 @@ func writeV2Objective(t *testing.T, root, dirName, id, title string) string {
 	return path
 }
 
+// writeV2ObjectiveInProgress writes an Objective whose Tasks have started, so
+// fixtures about other diagnostics are not also flagged as a planned
+// Objective with started work.
+func writeV2ObjectiveInProgress(t *testing.T, root, dirName, id, title string) string {
+	t.Helper()
+	path := filepath.Join(root, "objectives", dirName, "Objective.md")
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: in_progress\n---\n\n# "+title+"\n")
+	return path
+}
+
 func writeV2Task(t *testing.T, root, objDirName, fileName, id, title, objective string) string {
 	t.Helper()
 	path := filepath.Join(root, "objectives", objDirName, "tasks", fileName)
@@ -803,7 +813,7 @@ func TestIssuePostureReport_v1ProjectReturnsNil(t *testing.T) {
 func TestCheckProject_v2ValidWithChecksNoProblems(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
+	writeV2ObjectiveInProgress(t, root, "O-001-ship", "O-001", "Ship it")
 	writeV2Check(t, root, "C-001", "{kind: task, id: T-001}", "CLEAR", "")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-write.md"),
 		"---\nid: T-001\ntitle: \"Write it\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: done\n"+
@@ -823,7 +833,7 @@ func TestCheckProject_v2ValidWithChecksNoProblems(t *testing.T) {
 func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
+	writeV2ObjectiveInProgress(t, root, "O-001-ship", "O-001", "Ship it")
 
 	// T-001: marked done but no Check was ever recorded.
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-alpha.md"),
@@ -875,7 +885,7 @@ func TestCheckProject_ConsistencyDiagnostics(t *testing.T) {
 func TestCheckProject_MissingCheckVersusStaleVersusUnknownEvidence(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
+	writeV2ObjectiveInProgress(t, root, "O-001-ship", "O-001", "Ship it")
 
 	// T-001: done, no Check ever recorded — clearance missing.
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-alpha.md"),
