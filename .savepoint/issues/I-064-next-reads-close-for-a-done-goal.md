@@ -2,7 +2,7 @@
 id: I-064
 title: Next reads "Close" for a Goal that is already done
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -29,6 +29,24 @@ history:
       with the fix reverted. gofmt, git diff --check, and make build && make
       test-fast passed. Live repo resume now reads "Done R-006". Issue remains
       open for independent verification.
+  - at: "2026-09-25T22:52:38Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: '2026-09-25T23:03:15Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved once its fix
+      was deployed. The fix shipped in savepoint 2.0.1 on npm (tag v2.0.1).
+      No technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-25T23:03:15Z'
+  reason: Owner accepted the fix as deployed in savepoint 2.0.1.
 ---
 
 # I-064: Next reads "Close" for a Goal that is already done
