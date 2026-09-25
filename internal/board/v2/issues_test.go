@@ -341,6 +341,30 @@ func TestIssueColumnsGroupByTypeUnderTheAllFilter(t *testing.T) {
 	}
 }
 
+// TestEscalatedIssueRowNamesItsObjective proves an escalated Issue's ID line
+// carries the Objective it was promoted into, in the Objective purple, and
+// that an Issue without escalated_to shows its ID alone.
+func TestEscalatedIssueRowNamesItsObjective(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	escalated := &data.IssueV2{ID: "I-060", Title: "Remove the Goal Check", Type: "drift", Status: data.IssueStatusResolved, EscalatedTo: "O-025"}
+	row := renderIssueRow(IssueRow{Issue: escalated}, data.IssueStatusResolved, 40, false)
+	if first := xansi.Strip(strings.SplitN(row, "\n", 2)[0]); first != "  I-060 → O-025" {
+		t.Errorf("escalated ID line = %q, want %q", first, "  I-060 → O-025")
+	}
+	if !strings.Contains(row, styles.IssueEscalatedObjective.Render("O-025")) {
+		t.Errorf("escalation target is not in the Objective purple:\n%q", row)
+	}
+	if got, want := styles.IssueEscalatedObjective.GetForeground(), styles.SidebarTitleFocused.GetForeground(); got != want {
+		t.Errorf("escalation target color = %v, want the sidebar's Objective purple %v", got, want)
+	}
+
+	plain := &data.IssueV2{ID: "I-031", Title: "Reload errors", Type: "defect", Status: data.IssueStatusOpen}
+	if first := xansi.Strip(strings.SplitN(renderIssueRow(IssueRow{Issue: plain}, data.IssueStatusOpen, 40, false), "\n", 2)[0]); first != "  I-031" {
+		t.Errorf("unescalated ID line = %q, want %q", first, "  I-031")
+	}
+}
+
 func TestIssuesSplitIntoThreeStatusColumns(t *testing.T) {
 	root := writeIssuesProject(t)
 

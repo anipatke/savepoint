@@ -287,4 +287,10 @@ var (
 				BorderStyle(boxBorder).
 				BorderForeground(clrRed).
 				Padding(0, 1)
+
+	// IssueEscalatedObjective names the Objective an escalated Issue was
+	// promoted into, in the purple Objectives wear in the sidebar.
+	IssueEscalatedObjective = lipgloss.NewStyle().
+				Foreground(clrPurple).
+				Bold(true)
 )

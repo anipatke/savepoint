@@ -181,7 +181,13 @@ func renderIssueRow(row IssueRow, status data.IssueStatus, width int, selected b
 		marker = "▸ "
 	}
 
-	lines := []string{idStyle.Render(xansi.Truncate(marker+issue.ID, width, "…"))}
+	idLine := idStyle.Render(marker + issue.ID)
+	if issue.EscalatedTo != "" {
+		// An escalated Issue names the Objective its repair became, so the
+		// row says where the work went without opening the detail.
+		idLine += styles.CardMeta.Render(" → ") + styles.IssueEscalatedObjective.Render(issue.EscalatedTo)
+	}
+	lines := []string{xansi.Truncate(idLine, width, "…")}
 
 	innerWidth := width - len(issueRowIndent)
 	if innerWidth < 1 {
