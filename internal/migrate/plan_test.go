@@ -374,6 +374,31 @@ func TestPlan_v1History_findingDispositions(t *testing.T) {
 	}
 }
 
+// TestPlan_v1ShippedAuditReadmesAreArchivedNotParsed proves the READMEs V1
+// init shipped into audit/findings and audit/runs neither abort planning nor
+// become Issues: both are archived byte-for-byte, and real findings still
+// convert.
+func TestPlan_v1ShippedAuditReadmesAreArchivedNotParsed(t *testing.T) {
+	root := copyFixtureProject(t, "v1-history")
+	const findingsReadme = ".savepoint/audit/findings/README.md"
+	const runsReadme = ".savepoint/audit/runs/README.md"
+	writeFile(t, filepath.Join(root, filepath.FromSlash(findingsReadme)), "# Audit Findings\n\nOne file per finding.\n")
+	writeFile(t, filepath.Join(root, filepath.FromSlash(runsReadme)), "# Audit Runs\n\nOne file per run.\n")
+
+	p := mustPlan(t, root)
+	for _, path := range []string{findingsReadme, runsReadme} {
+		if _, ok := archiveByPath(p, path); !ok {
+			t.Errorf("%s was not archived", path)
+		}
+		if target, ok := targetByPath(p, path); ok {
+			t.Errorf("%s was planned as a target: %+v", path, target)
+		}
+	}
+	if target, ok := targetByPath(p, ".savepoint/audit/findings/F001-awaiting-proof.md"); !ok || target.Kind != TargetIssue {
+		t.Errorf("F001 no longer converts to an Issue alongside the README: %+v", target)
+	}
+}
+
 // TestPlan_v1History_epicAuditAndRegisterArchived proves the epic audit file
 // and the project-level audit prompt/register/run are archived as immutable
 // history, independent of any finding's disposition.

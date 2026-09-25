@@ -41,6 +41,8 @@ type classifyRule struct {
 	pattern *regexp.Regexp
 }
 
+const shippedFindingsReadme = ".savepoint/audit/findings/README.md"
+
 // classifyRules matches against a project-relative, forward-slash normalized
 // path — the same form Inventory returns in SourceFile.Path. Every pattern is
 // anchored start-to-end so a role never matches a path it merely contains.
@@ -67,6 +69,11 @@ var classifyRules = []classifyRule{
 // Classify assigns path (project-relative, forward-slash form) the role of
 // the first matching rule, or RoleUnclassified when none match.
 func Classify(path string) Role {
+	// V1 init shipped a README into the findings directory. It is a folder
+	// guide, not a finding, so it is archived as-is rather than parsed.
+	if path == shippedFindingsReadme {
+		return RoleUnclassified
+	}
 	for _, rule := range classifyRules {
 		if rule.pattern.MatchString(path) {
 			return rule.role
