@@ -56,6 +56,15 @@ history:
       Owner reported that a RELOAD rejected Task T-046 because
       owner_validation.accepted_by is missing. The reported diagnostic is
       recorded in the Evidence section.
+  - at: '2026-09-25T20:29:12Z'
+    actor: {role: planner, session: i031-analysis-20260926}
+    kind: observed
+    note: >-
+      Analysis only, no code changed. The reports have three independent
+      causes: the board reloading mid-way through non-atomic agent edits, a
+      stale dist/npm binary behind npx, and a retired free-text router field.
+      Every reported record loads cleanly at its committed state. Causes and
+      recommended fixes are recorded in the Analysis section.
 ---
 
 # I-031: Frequent V2 board load errors for project records
@@ -80,6 +89,64 @@ reported symptoms without asserting a cause.
 - `No board is drawn: this project's records did not load.`
 - `RELOAD v2 issue link names a record that does not exist: issues/I-040-data-loadproject-unreachable-v1-dispatch.md: issue I-040 names missing check C-914`
 - `RELOAD v2 record is missing a required field: objectives/O-015-owner-advance-issues/tasks/T-046-use-space-and-backspace-in-the-issues-panel.md: task T-046 missing required field owner_validation.accepted_by`
+
+## Analysis
+
+Recorded 2026-09-26 (analysis only; no code changed). Every reported record
+loads cleanly at its committed state; a full load of this project takes about
+13 ms and succeeds. The ten evidence lines have three independent causes.
+
+### A. Reload reads a half-finished multi-step edit
+
+The board reloads 100 ms after the last filesystem event
+(`internal/board/v2/watch.go`), and one invalid record fails the whole load
+(`LoadV2Index`, `internal/data/project.go`). The board's own writes are atomic
+(temp file plus rename, `internal/data/write.go`); agent and editor writes are
+not, and one logical change often spans several edits and several files.
+
+- I030 named T018 after the owner removed T018 and T019 from O016, until the
+  Issue was updated.
+- I-040 names C-914, and I029 names C908, where both records first appear in
+  one commit (`ab2ef37`, `cd7ef36`): the Issue was written before its Check.
+- T-046: `accepted_check` without `accepted_by` is rejected
+  (`decodeOwnerValidationV2`, `internal/data/evidence_v2.go`); an edit that
+  adds them one at a time passes through that state. The committed file has
+  both.
+- I029 "no frontmatter found" and I-038 "no closing frontmatter delimiter
+  found": the file was empty or partly written when read. Which writer produced
+  it is not determined from git history.
+
+Latent contributor, not observed: `projectLoadedMsg` carries no sequence, so an
+older failed load finishing after a newer good one would leave the RELOAD line
+up until the next change. With a 13 ms load against a 100 ms debounce this is
+unlikely.
+
+### B. `npx savepoint` runs a stale local binary (O-001)
+
+Inside this repo `npx savepoint` resolves to `bin/savepoint.js`, which launches
+`dist/npm/<platform>/savepoint`. That binary was built 2026-09-22 19:00, before
+O-018 hyphenated identities (`bb03eaf`), and still contains the old rule text
+"must match O plus" with no "must match O- plus". It rejects valid `O-001`. The
+npm advisory notice is unrelated npm output.
+
+### C. Free-text router field broke YAML (router line 5)
+
+The router's line 5 was an unquoted prose `next_action:` value; any `: ` in it
+yields "mapping values are not allowed". Committed router `a4e3db6` has this
+shape. `next_action` was removed in `f159fc8` (2026-09-24), so the cause is
+already retired.
+
+### Recommended fixes
+
+1. Board: on a failed reload keep the last good board, retry once after about
+   300-500 ms, and show RELOAD only if the failure persists; add a load
+   sequence so a stale result cannot overwrite a newer one. Covers cause A.
+2. npx: rebuild `dist/npm` as part of `make build` so the local npm launcher
+   cannot lag the source. Covers cause B.
+3. Router: no action.
+
+Deferred: loading a dangling Issue link as a per-Issue warning instead of a
+project-wide failure. Reconsider only if link errors persist after fix 1.
 
 ## Proof Needed
 
