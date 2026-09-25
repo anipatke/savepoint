@@ -208,10 +208,7 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 
 	// Raw YAML still reports the original legacy phase; the healed Stage
 	// above is a parser interpretation, not a rewrite of the source.
-	rawFrontmatter, err := parser.ParseFrontmatter(rawContent["T002-follow-up"])
-	if err != nil {
-		t.Fatalf("ParseFrontmatter(T002) error = %v", err)
-	}
+	rawFrontmatter := rawFrontmatterMap(t, rawContent["T002-follow-up"])
 	if rawFrontmatter["phase"] != "implementation" {
 		t.Errorf("raw T002 frontmatter phase = %v, want implementation", rawFrontmatter["phase"])
 	}
@@ -282,6 +279,24 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	if t2.Acceptance[1] != wantTruncated {
 		t.Errorf("T002.Acceptance[1] = %q, want %q (Acceptance extraction drops continuation lines)", t2.Acceptance[1], wantTruncated)
 	}
+}
+
+// TestMigrationSourceBasicDiscoverEpics proves the migration reader still
+// discovers the epic in the frozen v1-basic fixture without touching the
+// source bytes.
+func TestMigrationSourceBasicDiscoverEpics(t *testing.T) {
+	const fixture = "v1-basic"
+	savepointRoot := filepath.Join(migrationFixtureDir(fixture), "project", ".savepoint")
+
+	epics, err := NewDiscover().ListEpics(savepointRoot, "v1")
+	if err != nil {
+		t.Fatalf("NewDiscover().ListEpics() error = %v", err)
+	}
+	if len(epics) != 1 || epics[0].ID != "E01-example" {
+		t.Fatalf("NewDiscover().ListEpics() = %v, want [E01-example]", epics)
+	}
+
+	assertFixtureBytesMatchManifest(t, fixture)
 }
 
 func TestMigrationSourceBasicFailures(t *testing.T) {

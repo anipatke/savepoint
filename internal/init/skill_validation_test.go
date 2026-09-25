@@ -7,17 +7,29 @@ import (
 	"testing"
 )
 
-// skillRoots are the two trees that must stay in agreement: the skills this
-// repository runs on, and the copies scaffolded into generated projects.
-func skillRoots() map[string]string {
-	return map[string]string{
-		"live":     filepath.Join("..", "..", "agent-skills"),
-		"template": filepath.Join("..", "..", "templates", "project", "agent-skills"),
-	}
+// liveSkillRoot is the canonical skill source this repository runs on. The
+// shipped V2 tree below must stay byte-identical to whichever of its skills
+// and references it carries.
+func liveSkillRoot() string {
+	return filepath.Join("..", "..", "agent-skills")
 }
 
-// splitAuditSkillNames are the two skills that replaced the generic audit skill.
-var splitAuditSkillNames = []string{"savepoint-audit-task", "savepoint-audit-epic"}
+// v2TemplateSkillRoot is the shipped tree for a V2 project: the four V2
+// skills plus their three shared references.
+func v2TemplateSkillRoot() string {
+	return filepath.Join("..", "..", "templates", "project-v2", "agent-skills")
+}
+
+// v2SkillRoots pairs the live source with the V2 shipped tree. Use it for
+// tests scoped to the four V2 skills and their three shared references, and
+// for discovery-based checks that validate whatever skills a root happens to
+// carry (frontmatter shape, non-empty sections).
+func v2SkillRoots() map[string]string {
+	return map[string]string{
+		"live":     liveSkillRoot(),
+		"template": v2TemplateSkillRoot(),
+	}
+}
 
 func savepointSkillDirs(t *testing.T, root string) []string {
 	t.Helper()
@@ -78,7 +90,7 @@ func sectionBody(content, heading string) (string, bool) {
 }
 
 func TestSavepointSkillsHaveValidFrontmatter(t *testing.T) {
-	for tree, root := range skillRoots() {
+	for tree, root := range v2SkillRoots() {
 		for _, name := range savepointSkillDirs(t, root) {
 			path := filepath.Join(root, name, "SKILL.md")
 			data, err := os.ReadFile(path)
@@ -99,7 +111,7 @@ func TestSavepointSkillsHaveValidFrontmatter(t *testing.T) {
 }
 
 func TestSavepointSkillsHaveNonEmptyTriggerAndWorkflow(t *testing.T) {
-	for tree, root := range skillRoots() {
+	for tree, root := range v2SkillRoots() {
 		for _, name := range savepointSkillDirs(t, root) {
 			path := filepath.Join(root, name, "SKILL.md")
 			data, err := os.ReadFile(path)
@@ -118,60 +130,6 @@ func TestSavepointSkillsHaveNonEmptyTriggerAndWorkflow(t *testing.T) {
 					t.Errorf("%s: %s has an empty %s section", tree, path, heading)
 				}
 			}
-		}
-	}
-}
-
-func TestSplitAuditSkillsPassStructureValidation(t *testing.T) {
-	required := []string{"## Purpose", "## Trigger", "## Read", "## Workflow", "## Rules"}
-
-	for tree, root := range skillRoots() {
-		for _, name := range splitAuditSkillNames {
-			path := filepath.Join(root, name, "SKILL.md")
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Errorf("%s: split audit skill %s missing: %v", tree, path, err)
-				continue
-			}
-			content := string(data)
-
-			if got := frontmatterField(content, "name"); got != name {
-				t.Errorf("%s: %s frontmatter name = %q, want %q", tree, path, got, name)
-			}
-			for _, heading := range required {
-				body, found := sectionBody(content, heading)
-				if !found {
-					t.Errorf("%s: %s missing %s", tree, path, heading)
-					continue
-				}
-				if body == "" {
-					t.Errorf("%s: %s has an empty %s section", tree, path, heading)
-				}
-			}
-		}
-	}
-}
-
-// The shared audit method is loaded by both audit skills but must never trigger
-// on its own, so it carries reference frontmatter rather than skill frontmatter.
-func TestSharedAuditMethodIsNonTriggerableReference(t *testing.T) {
-	for tree, root := range skillRoots() {
-		path := filepath.Join(root, "references", "audit-method.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
-		if got := frontmatterField(content, "type"); got != "audit-method-reference" {
-			t.Errorf("%s: %s type = %q, want audit-method-reference", tree, path, got)
-		}
-		if got := frontmatterField(content, "triggerable"); got != "false" {
-			t.Errorf("%s: %s triggerable = %q, want false", tree, path, got)
-		}
-		if frontmatterField(content, "name") != "" {
-			t.Errorf("%s: %s carries a skill name and would be discoverable as a skill", tree, path)
 		}
 	}
 }

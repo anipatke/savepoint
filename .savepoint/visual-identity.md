@@ -29,6 +29,7 @@ A serious digital system that loves old arcade hardware. Dark, cinematic, playfu
 | Atari Orange  | `#FC6323` | Primary CTA, active highlight |
 | NPP Green     | `#A4C639` | Success, live systems         |
 | Vibe Purple   | `#B1A1DF` | AI, reflection                |
+| Issue Red     | `#F2404F` | Issues surface: IDs, headings, Open column |
 
 **Color rules:**
 

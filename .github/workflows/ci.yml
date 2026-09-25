@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, v2]
   pull_request:
-    branches: [master]
+    branches: [master, v2]
+
+permissions:
+  contents: read
 
 permissions:
   contents: read
@@ -20,4 +23,25 @@ jobs:
           go-version: '1.26'
           check-latest: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - run: make ci
+
+  windows-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run the full test suite with timing summary
+        run: go run ./internal/buildtool test -json -count=1 ./...

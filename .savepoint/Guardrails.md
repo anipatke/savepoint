@@ -53,7 +53,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 
 | ID | Severity | Rule |
 |---|---|---|
-| TPL-01 | Blocker | Canonical `agent-skills/{skill}/SKILL.md` and the scaffolded `templates/project/agent-skills/{skill}/SKILL.md` copy must stay byte-identical. |
+| TPL-01 | Blocker | Canonical `agent-skills/{skill}/SKILL.md` must stay byte-identical to its scaffolded copy in `templates/project-v2/agent-skills/` — the four V2 skills plus their three shared references. |
 | TPL-02 | Required | Shipped guidance must describe behavior that the current code actually has. |
 | TPL-03 | Required | A template that references another `.savepoint/` file must degrade gracefully when that file is absent; absence is not a finding. |
 | TPL-04 | Required | New scaffold files must reach existing projects through a declared upgrade path, or the epic must state why they are fresh-init only. |
@@ -73,6 +73,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 |---|---|---|
 | CFG-01 | Required | Invalid or missing required configuration must fail with a clear, actionable message. |
 | CFG-02 | Required | Behavior must not vary silently across platforms; platform differences must be explicit and tested. |
+| CFG-03 | Blocker | Windows is a supported platform. The full Go test suite must pass natively on Windows in CI, not only cross-compile. A test may skip on Windows only when its situation cannot exist there (for example, two names differing only by case), and the skip must say why. |
 | DEP-01 | Required | New third-party dependencies require explicit justification against existing project patterns. |
 | DEP-02 | Guideline | Prefer the standard library and the existing Bubble Tea / Lip Gloss stack over new abstractions. |
 
@@ -87,7 +88,8 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 | TEST-05 | Required | Bug fixes must include a regression test or an explicit failing scenario that proves the bug. |
 | TEST-06 | Required | "Existing tests cover it" is acceptable only when the exact test file and test case names are recorded. |
 | TEST-07 | Required | Coverage percentage alone does not satisfy evidence for changed behavior. |
-| TEST-08 | Blocker | `make build && make test` must pass before task handoff. |
+| TEST-08 | Blocker | `make build && make test-fast` must pass before ordinary Task handoff. Migration/platform-sensitive Task handoff requires fresh `make test-full`; Full Objective Checks require current successful `make test-full` evidence. Focused tests are iteration aids only. A prior full result may be reused only for a metadata-only correction with the original run recorded and code, tests, fixtures, dependencies, and gate definitions proven unchanged. |
+| TEST-09 | Required | If an optional Task Check is skipped, Task evidence must carry an explicit owner waiver naming the Task, reason, actor, and time; the waiver never replaces the mandatory Objective Check. |
 
 ### Release And Distribution
 
@@ -121,13 +123,17 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 
 ## Savepoint Enforcement
 
-Savepoint health checks define how these policies are applied:
+Savepoint checks define how these policies are applied:
 
-- Quick: task handoff evidence.
-- Full: epic audit evidence.
-- Deep: release readiness evidence.
+- Task handoff: per-criterion implementation evidence and configured quality
+  gates. An independent Task Check is optional and may be skipped only with
+  the explicit owner waiver required by TEST-09.
+- Full Objective Check: mandatory before Objective closure; it reviews every
+  owned Task, including waived Tasks, plus integration and Design
+  reconciliation.
 
-Release audit plans map active epics to the rule IDs they must verify. Health checks may fail work only on rules defined here, unmet Savepoint acceptance criteria, missing evidence, or explicit release gates.
+Checks may fail work only on rules defined here, unmet Savepoint acceptance
+criteria, missing evidence, or explicit release gates.
 
 Required waivers must be explicit and documented. Blocker exceptions require direct owner approval.
 

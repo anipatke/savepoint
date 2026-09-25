@@ -6,11 +6,13 @@ import (
 	"io"
 )
 
-const boardUsage = "Usage: board [--release <release>] [--epic <epic>]"
+const boardUsage = "Usage: board [--objective <objective>]"
 
+// BoardOptions is the V2 board's whole parsed filter surface. Legacy Release
+// and Epic filters are intentionally absent from the live command contract;
+// migration remains the only V1 reader.
 type BoardOptions struct {
-	Release string
-	Epic    string
+	Objective string
 }
 
 type BoardRunner func(BoardOptions) error
@@ -35,18 +37,12 @@ func ParseBoardArgs(args []string) (BoardOptions, bool, error) {
 		switch arg {
 		case "--help":
 			return BoardOptions{}, true, nil
-		case "--release":
+		case "--objective":
 			i++
 			if i >= len(args) {
-				return BoardOptions{}, false, fmt.Errorf("--release requires a value")
+				return BoardOptions{}, false, fmt.Errorf("--objective requires a value")
 			}
-			options.Release = args[i]
-		case "--epic":
-			i++
-			if i >= len(args) {
-				return BoardOptions{}, false, fmt.Errorf("--epic requires a value")
-			}
-			options.Epic = args[i]
+			options.Objective = args[i]
 		default:
 			if len(arg) > 0 && arg[0] == '-' {
 				return BoardOptions{}, false, fmt.Errorf("unknown board flag %q", arg)

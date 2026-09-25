@@ -25,26 +25,6 @@ func FuzzExtractFrontmatter(f *testing.F) {
 	})
 }
 
-func FuzzParseFrontmatter(f *testing.F) {
-	seeds := []string{
-		"---\nid: E01/T001\nstatus: planned\n---\nbody",
-		"---\n---\n",
-		"---\nid: [broken\n---\n",
-		"---\nname: héllo\n---\n",
-		"",
-		"no frontmatter",
-		"---\ntags: [a, b, c]\n---\n",
-		"---\nnested:\n  key: val\n---\n",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, content string) {
-		p := NewParser()
-		_, _ = p.ParseFrontmatter(content)
-	})
-}
-
 func FuzzSplitFrontmatterBody(f *testing.F) {
 	seeds := []string{
 		"---\nid: E01/T001\nstatus: planned\n---\nbody",

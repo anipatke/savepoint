@@ -1,291 +1,199 @@
 package board
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
-func TestNewModelUsesBoardCore(t *testing.T) {
-	m := NewModel(nil, "v1", "E03-board-tui-core")
-	m.Width = 100
+// Every test here builds its project in a temporary directory and drives the
+// dispatch through runWithFilters, so neither the live Savepoint project nor
+// the process working directory is involved (TEST-04, ARCH-03).
 
-	got := m.View()
-	if strings.Contains(got, "Welcome to Savepoint") {
-		t.Fatal("program model still renders placeholder welcome screen")
-	}
-	for _, title := range []string{"PLANNED", "IN PROGRESS", "DONE"} {
-		if !strings.Contains(got, title) {
-			t.Fatalf("program model view missing board column %q", title)
-		}
-	}
-}
-
-func TestNewProjectModelLoadsReleasesEpicsAndTasks(t *testing.T) {
+func writeV1ProjectForDispatch(t *testing.T) string {
+	t.Helper()
 	projectRoot := t.TempDir()
 	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "task-building", "v2", "E03-live", "", "test")
-	writeTask(t, savepointRoot, "v1", "E01-old", "T001-old", data.ColumnPlanned)
-	writeTask(t, savepointRoot, "v2", "E03-live", "T001-live", data.ColumnInProgress)
-
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
-	}
-
-	if model.Root != savepointRoot {
-		t.Errorf("Root = %q, want %q", model.Root, savepointRoot)
-	}
-	if model.SelectedRelease != "v2" {
-		t.Errorf("SelectedRelease = %q, want v2", model.SelectedRelease)
-	}
-	if model.SelectedEpic != "E03-live" {
-		t.Errorf("SelectedEpic = %q, want E03-live", model.SelectedEpic)
-	}
-	if len(model.Releases) != 2 {
-		t.Errorf("Releases = %v, want two releases", model.Releases)
-	}
-	if len(model.Epics) != 1 || model.Epics[0] != "E03-live" {
-		t.Errorf("Epics = %v, want [E03-live]", model.Epics)
-	}
-	tasks := model.Tasks[data.ColumnInProgress]
-	if len(tasks) != 1 || tasks[0].ID != "E03-live/T001-live" {
-		t.Errorf("visible in-progress tasks = %v, want E03-live/T001-live", tasks)
-	}
-	if model.Watcher == nil {
-		t.Fatal("Watcher is nil, want auto-refresh watcher")
-	}
-	t.Cleanup(func() { model.Watcher.Close() })
-}
-
-func TestNewProjectModelUsesPathReleaseForTaskWithoutReleaseFrontmatter(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "task-building", "v1.1", "E01-tui-optimisation", "E01-tui-optimisation/T001-border-resize-fix", "test")
-	writeTaskWithoutRelease(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T001-border-resize-fix", data.ColumnInProgress)
-
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
-	}
-
-	if model.SelectedRelease != "v1.1" {
-		t.Errorf("SelectedRelease = %q, want v1.1", model.SelectedRelease)
-	}
-	tasks := model.Tasks[data.ColumnInProgress]
-	if len(tasks) != 1 {
-		t.Fatalf("visible in-progress tasks = %v, want one v1.1 task", tasks)
-	}
-	if tasks[0].Release != "v1.1" {
-		t.Errorf("Task.Release = %q, want v1.1", tasks[0].Release)
-	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
-	}
-}
-
-func TestNewProjectModelLoadsLegacyImplementationStageOutsideInProgress(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "task-building", "v1", "E01-live", "", "test")
-	testutil.WriteTask(t, savepointRoot, "v1", "E01-live", testutil.TaskFixture{
-		Slug:      "T001-legacy-stage",
+	testutil.SetupMinimalProject(t, savepointRoot, "v1", "E01-alpha")
+	testutil.WriteTask(t, savepointRoot, "v1", "E01-alpha", testutil.TaskFixture{
+		Slug:      "T001-first",
 		Release:   "v1",
 		Status:    string(data.ColumnPlanned),
-		Stage:     "implementation",
 		Objective: "Test task",
 	})
+	return projectRoot
+}
 
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
+func writeV2ProjectForDispatch(t *testing.T) string {
+	t.Helper()
+	projectRoot := t.TempDir()
+	savepointRoot := filepath.Join(projectRoot, ".savepoint")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "config.yml"), "schema_version: 2\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "releases", "R-001-fixture", "Release.md"),
+		"---\nid: R-001\ntitle: \"Fixture Goal\"\nstatus: planned\n---\n"+
+			"# Goal\n\n## Outcome\n\nShip the fixture outcome.\n\n## Why\n\nThe fixture has a named delivery context.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nGoal does not own Tasks.\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "router.md"),
+		"# Router\n\n## Current state\n\n```yaml\nstate: task\nrelease: R-001\nobjective: O-001\ntask: T-001\nnext_action: \"go\"\n```\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O-001-alpha", "Objective.md"),
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\nrelease: R-001\n---\n\n# First objective\n")
+	testutil.WriteFile(t, filepath.Join(savepointRoot, "objectives", "O-001-alpha", "tasks", "T-001-first.md"),
+		"---\nid: T-001\ntitle: \"Do the thing\"\nobjective: O-001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
+	return projectRoot
+}
+
+func TestRunWithFiltersRefusesV1ProjectBeforeStartingBoard(t *testing.T) {
+	projectRoot := writeV1ProjectForDispatch(t)
+	var stdout bytes.Buffer
+
+	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want the V1 project routed to migration")
 	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
+	if !strings.Contains(err.Error(), "schema_version 1") || !strings.Contains(err.Error(), "migrate --dry-run") {
+		t.Errorf("error = %q, want the named migration preview route", err.Error())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no V1 board rendered", stdout.String())
+	}
+}
+
+func TestRunWithFiltersDispatchesV2ProjectToTheV2Board(t *testing.T) {
+	projectRoot := writeV2ProjectForDispatch(t)
+	var stdout bytes.Buffer
+
+	if err := runWithFilters(projectRoot, Filters{}, &stdout, false); err != nil {
+		t.Fatalf("runWithFilters() error = %v", err)
 	}
 
-	tasks := model.Tasks[data.ColumnPlanned]
-	if len(tasks) != 1 {
-		t.Fatalf("planned tasks = %v, want one legacy task", tasks)
+	got := stdout.String()
+	if !strings.Contains(got, "Start T-001") || !strings.Contains(got, "Objectives: 1  Tasks: 1") {
+		t.Errorf("V2 project did not reach the V2 board:\n%s", got)
 	}
-	if tasks[0].Stage != "" {
-		t.Fatalf("Task.Stage = %q, want empty for planned legacy task", tasks[0].Stage)
+	if strings.Contains(got, "releases directory not found") {
+		t.Errorf("V2 project reached V1 discovery:\n%s", got)
 	}
+}
 
-	model.FocusedColumn = data.ColumnPlanned
-	got, cmd := model.Update(tea.KeyMsg{Type: tea.KeySpace})
-	if cmd == nil {
-		t.Fatal("space on legacy planned task returned nil command")
-	}
-	msg := cmd()
-	got2, _ := requireModel(t, got).Update(msg)
-	updated := requireModel(t, got2)
-
-	if updated.AllTasks[0].Column != data.ColumnInProgress || updated.AllTasks[0].Stage != data.StageBuild {
-		t.Fatalf("updated task = %q/%q, want in_progress/build", updated.AllTasks[0].Column, updated.AllTasks[0].Stage)
-	}
-	raw, err := os.ReadFile(updated.AllTasks[0].Path)
-	if err != nil {
+// TestRunWithFiltersV2LoadFailureReportsTheDiagnosticWithoutV1Fallback proves a
+// project the V2 index refuses is reported by name: the fixture has no
+// releases/ directory at all, so any retry through V1 discovery would surface
+// as "releases directory not found" instead.
+func TestRunWithFiltersV2LoadFailureReportsTheDiagnosticWithoutV1Fallback(t *testing.T) {
+	projectRoot := writeV2ProjectForDispatch(t)
+	if err := os.RemoveAll(filepath.Join(projectRoot, ".savepoint", "releases")); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "implementation") {
-		t.Fatalf("legacy implementation stage was not repaired:\n%s", raw)
+	testutil.WriteFile(t, filepath.Join(projectRoot, ".savepoint", "objectives", "O-001-alpha", "tasks", "T-001-first.md"),
+		"---\nid: T-001\nobjective: O-001\nplanned_by: {role: planner, session: dispatch-fixture}\nstatus: planned\n---\n\n# Untitled\n")
+	var stdout bytes.Buffer
+
+	err := runWithFilters(projectRoot, Filters{}, &stdout, false)
+
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want the load diagnostic")
 	}
-	if !strings.Contains(string(raw), "stage: build") {
-		t.Fatalf("advanced task missing canonical stage:\n%s", raw)
+	if !strings.Contains(err.Error(), "T-001-first.md") || !strings.Contains(err.Error(), "missing required field title") {
+		t.Errorf("error = %q, want the file and the problem named", err.Error())
+	}
+	if strings.Contains(err.Error(), "releases directory not found") {
+		t.Errorf("error = %q, want no V1 discovery fallback", err.Error())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no partial board", stdout.String())
 	}
 }
 
-func TestNewProjectModelResolvesShortRouterEpicToFullEpicID(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "task-building", "v1.1", "E03", "T001", "Build v1.1 E03/T001")
-	writeTask(t, savepointRoot, "v1.1", "E01-tui-optimisation", "T007-column-focus-border-stability", data.ColumnInProgress)
-	writeTask(t, savepointRoot, "v1.1", "E03-ui-visual-refinement", "T001-border-resize-fix", data.ColumnInProgress)
-
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
+func TestRunWithFiltersRejectsFiltersTheSchemaHasNoMeaningFor(t *testing.T) {
+	tests := []struct {
+		name      string
+		project   func(t *testing.T) string
+		filters   Filters
+		wantParts []string
+	}{
+		{
+			name:      "release against a V2 project",
+			project:   writeV2ProjectForDispatch,
+			filters:   Filters{Release: "v1"},
+			wantParts: []string{"--release", "V2-only runtime"},
+		},
+		{
+			name:      "epic against a V2 project",
+			project:   writeV2ProjectForDispatch,
+			filters:   Filters{Epic: "E01-alpha"},
+			wantParts: []string{"--epic", "V2-only runtime"},
+		},
+		{
+			name:      "objective against a V1 project",
+			project:   writeV1ProjectForDispatch,
+			filters:   Filters{Objective: "O001"},
+			wantParts: []string{"schema_version 1", "migrate --dry-run"},
+		},
 	}
 
-	if model.SelectedEpic != "E03-ui-visual-refinement" {
-		t.Errorf("SelectedEpic = %q, want E03-ui-visual-refinement", model.SelectedEpic)
-	}
-	tasks := model.Tasks[data.ColumnInProgress]
-	if len(tasks) != 1 || tasks[0].ID != "E03-ui-visual-refinement/T001-border-resize-fix" {
-		t.Errorf("visible in-progress tasks = %v, want E03-ui-visual-refinement/T001-border-resize-fix", tasks)
-	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			projectRoot := test.project(t)
+			var stdout bytes.Buffer
+
+			err := runWithFilters(projectRoot, test.filters, &stdout, false)
+
+			if err == nil {
+				t.Fatal("runWithFilters() error = nil, want the filter refused")
+			}
+			for _, part := range test.wantParts {
+				if !strings.Contains(err.Error(), part) {
+					t.Errorf("error = %q, want it to name %q", err.Error(), part)
+				}
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want no board started", stdout.String())
+			}
+		})
 	}
 }
 
-func TestUpdateReloadMsgRefreshesReleaseEpicIndex(t *testing.T) {
-	m := NewModel(nil, "v1", "E01-old")
-	m.Releases = []string{"v1"}
-	m.ReleaseEpics = map[string][]string{"v1": []string{"E01-old"}}
+func TestRunWithFiltersRejectsUnknownObjectiveOnAV2Project(t *testing.T) {
+	projectRoot := writeV2ProjectForDispatch(t)
+	var stdout bytes.Buffer
 
-	task := data.Task{
-		ID:      "E02-new/T001-new",
-		Release: "v1",
-		Epic:    "E02-new",
-		Column:  data.ColumnPlanned,
-	}
-	got, _ := m.Update(reloadMsg{
-		tasks:        []data.Task{task},
-		releases:     []string{"v1"},
-		releaseEpics: map[string][]string{"v1": []string{"E02-new"}},
-	})
-	updated := requireModel(t, got)
+	err := runWithFilters(projectRoot, Filters{Objective: "O404"}, &stdout, false)
 
-	if updated.SelectedEpic != "E02-new" {
-		t.Errorf("SelectedEpic = %q, want E02-new", updated.SelectedEpic)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want the unknown objective refused")
 	}
-	if len(updated.Epics) != 1 || updated.Epics[0] != "E02-new" {
-		t.Errorf("Epics = %v, want [E02-new]", updated.Epics)
+	if !strings.Contains(err.Error(), "--objective O404") {
+		t.Errorf("error = %q, want the flag and value named", err.Error())
 	}
-	if len(updated.Tasks[data.ColumnPlanned]) != 1 {
-		t.Errorf("planned tasks = %v, want reloaded task visible", updated.Tasks[data.ColumnPlanned])
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no board written", stdout.String())
 	}
 }
 
-func TestNewProjectModelFreshInit(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "pre-implementation", "v1", "none", "", "")
-	testutil.MkdirAll(t, filepath.Join(savepointRoot, "releases", "v1", "epics"))
+func TestRunWithFiltersReportsAMissingProject(t *testing.T) {
+	err := runWithFilters(t.TempDir(), Filters{}, &bytes.Buffer{}, false)
 
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v (board must not fail after fresh init)", err)
-	}
-	if model.Root != savepointRoot {
-		t.Errorf("Root = %q, want %q", model.Root, savepointRoot)
-	}
-	if len(model.Releases) != 1 || model.Releases[0] != "v1" {
-		t.Errorf("Releases = %v, want [v1]", model.Releases)
-	}
-	if len(model.Epics) != 0 {
-		t.Errorf("Epics = %v, want empty for zero-epic project", model.Epics)
-	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want a missing .savepoint reported")
 	}
 }
 
-func writeTask(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
-	t.Helper()
-	tf := testutil.TaskFixture{
-		Slug:      taskSlug,
-		Release:   release,
-		Status:    string(column),
-		Objective: "Test task",
-	}
-	if column == data.ColumnInProgress {
-		tf.Stage = "build"
-	}
-	testutil.WriteTask(t, root, release, epic, tf)
-}
+func TestRunWithFiltersRejectsV1FiltersWithoutStartingBoard(t *testing.T) {
+	projectRoot := writeV1ProjectForDispatch(t)
+	var stdout bytes.Buffer
 
-func TestNewProjectModelLoadsDefectsForRelease(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "task-building", "v2", "E01-alpha", "", "")
-	writeTask(t, savepointRoot, "v2", "E01-alpha", "T001-task", data.ColumnPlanned)
-	writeDefect(t, savepointRoot, "v2", "D001-crash", data.DefectOpen)
-	writeDefect(t, savepointRoot, "v2", "D002-done-bug", data.DefectResolved)
-
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
+	err := runWithFilters(projectRoot, Filters{Release: "v1", Epic: "E01-alpha"}, &stdout, false)
+	if err == nil {
+		t.Fatal("runWithFilters() error = nil, want V1 filters refused")
 	}
-	if len(model.AllDefects) != 2 {
-		t.Fatalf("AllDefects len = %d, want 2", len(model.AllDefects))
+	if !strings.Contains(err.Error(), "V2-only runtime") {
+		t.Errorf("error = %q, want the V2-only filter diagnostic", err.Error())
 	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want no V1 board rendered", stdout.String())
 	}
-}
-
-func TestNewProjectModelZeroDefectsWhenNoDefectDir(t *testing.T) {
-	projectRoot := t.TempDir()
-	savepointRoot := filepath.Join(projectRoot, ".savepoint")
-	testutil.WriteRouter(t, savepointRoot, "pre-implementation", "v1", "none", "", "")
-	testutil.MkdirAll(t, filepath.Join(savepointRoot, "releases", "v1", "epics"))
-
-	model, err := newProjectModel(projectRoot, "", "")
-	if err != nil {
-		t.Fatalf("newProjectModel() error = %v", err)
-	}
-	if len(model.AllDefects) != 0 {
-		t.Errorf("AllDefects = %v, want empty", model.AllDefects)
-	}
-	if model.Watcher != nil {
-		t.Cleanup(func() { model.Watcher.Close() })
-	}
-}
-
-func writeDefect(t *testing.T, root, release, slug string, status data.DefectStatus) {
-	t.Helper()
-	content := "---\nid: " + slug + "\nrelease: " + release + "\nstatus: " + string(status) + "\nseverity: medium\ntitle: " + slug + "\n---\n\n# " + slug + "\n"
-	path := filepath.Join(root, "releases", release, "defects", slug+".md")
-	testutil.WriteFile(t, path, content)
-}
-
-func writeTaskWithoutRelease(t *testing.T, root, release, epic, taskSlug string, column data.ColumnType) {
-	t.Helper()
-	tf := testutil.TaskFixture{
-		Slug:      taskSlug,
-		Status:    string(column),
-		Objective: "Test task",
-	}
-	if column == data.ColumnInProgress {
-		tf.Stage = "build"
-	}
-	testutil.WriteTask(t, root, release, epic, tf)
 }

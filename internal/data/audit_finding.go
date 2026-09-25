@@ -134,101 +134,6 @@ func NormalizeFindingForLoad(f *AuditFinding, path string) {
 	}
 }
 
-// FindingDiagnosticCode classifies a recoverable finding problem so callers can
-// react to a class without string matching the message.
-type FindingDiagnosticCode string
-
-const (
-	FindingMissingFieldCode      FindingDiagnosticCode = "missing_field"
-	FindingInvalidIDCode         FindingDiagnosticCode = "invalid_id"
-	FindingIDMismatchCode        FindingDiagnosticCode = "id_mismatch"
-	FindingInvalidStatusCode     FindingDiagnosticCode = "invalid_status"
-	FindingInvalidSeverityCode   FindingDiagnosticCode = "invalid_severity"
-	FindingInvalidConfidenceCode FindingDiagnosticCode = "invalid_confidence"
-)
-
-// FindingDiagnostic is a warning about a recoverable finding problem that
-// NormalizeFindingForLoad heals (or leaves empty) at load time.
-type FindingDiagnostic struct {
-	Code    FindingDiagnosticCode
-	Message string
-}
-
-// DiagnoseFinding reports every recoverable problem in a finding read from raw,
-// un-normalized frontmatter, mirroring DiagnoseDefectLifecycle. ParseFindingFile
-// returns already-healed values, so doctor passes the raw frontmatter here to
-// recover the original problems as warnings. The path lets it flag a frontmatter
-// ID that disagrees with the filename.
-func DiagnoseFinding(f *AuditFinding, path string) []FindingDiagnostic {
-	var diagnostics []FindingDiagnostic
-
-	filenameID := findingIDFromFilename(path)
-	switch {
-	case f.ID == "":
-		diagnostics = appendMissingField(diagnostics, "id")
-	case !findingIDPattern.MatchString(f.ID):
-		diagnostics = append(diagnostics, FindingDiagnostic{
-			Code:    FindingInvalidIDCode,
-			Message: fmt.Sprintf("finding id invalid %q; use F### with at least three digits", f.ID),
-		})
-	case filenameID != "" && filenameID != f.ID:
-		diagnostics = append(diagnostics, FindingDiagnostic{
-			Code:    FindingIDMismatchCode,
-			Message: fmt.Sprintf("finding id %q does not match filename id %q (loads as %s)", f.ID, filenameID, filenameID),
-		})
-	}
-
-	if f.Title == "" {
-		diagnostics = appendMissingField(diagnostics, "title")
-	}
-
-	if f.Status == "" {
-		diagnostics = appendMissingField(diagnostics, "status")
-	} else if !isValidFindingStatus(f.Status) {
-		diagnostics = append(diagnostics, FindingDiagnostic{
-			Code:    FindingInvalidStatusCode,
-			Message: fmt.Sprintf("finding status invalid %q; use %s (loads as open)", f.Status, joinFindingStatuses()),
-		})
-	}
-
-	if f.Severity == "" {
-		diagnostics = appendMissingField(diagnostics, "severity")
-	} else if !isValidFindingSeverity(f.Severity) {
-		diagnostics = append(diagnostics, FindingDiagnostic{
-			Code:    FindingInvalidSeverityCode,
-			Message: fmt.Sprintf("finding severity invalid %q; use critical, high, medium, or low (loads as medium)", f.Severity),
-		})
-	}
-
-	if f.Confidence == "" {
-		diagnostics = appendMissingField(diagnostics, "confidence")
-	} else if !isValidFindingConfidence(f.Confidence) {
-		diagnostics = append(diagnostics, FindingDiagnostic{
-			Code:    FindingInvalidConfidenceCode,
-			Message: fmt.Sprintf("finding confidence invalid %q; use high, medium, or low (loads as medium)", f.Confidence),
-		})
-	}
-
-	if f.ProofNeeded == "" {
-		diagnostics = appendMissingField(diagnostics, "proof_needed")
-	}
-	if f.FirstSeen == "" {
-		diagnostics = appendMissingField(diagnostics, "first_seen")
-	}
-	if f.LastSeen == "" {
-		diagnostics = appendMissingField(diagnostics, "last_seen")
-	}
-
-	return diagnostics
-}
-
-func appendMissingField(diagnostics []FindingDiagnostic, field string) []FindingDiagnostic {
-	return append(diagnostics, FindingDiagnostic{
-		Code:    FindingMissingFieldCode,
-		Message: fmt.Sprintf("finding missing required field: %s", field),
-	})
-}
-
 // findingIDFromFilename extracts the F### prefix from an F###-slug.md path.
 // It returns "" when the filename has no recognizable finding ID, leaving the
 // frontmatter ID as the sole authority in that case.
@@ -272,12 +177,4 @@ func isValidFindingConfidence(c FindingConfidence) bool {
 		}
 	}
 	return false
-}
-
-func joinFindingStatuses() string {
-	parts := make([]string, len(findingStatuses))
-	for i, s := range findingStatuses {
-		parts[i] = string(s)
-	}
-	return strings.Join(parts, ", ")
 }

@@ -1,0 +1,510 @@
+package resume
+
+import (
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/opencode/savepoint/internal/data"
+)
+
+// nextActionCopy holds the static resume instructions separately from the
+// rung-selection logic, so copy changes do not add another decision path.
+var nextActionCopy = struct {
+	planObjective         string
+	planTasks             string
+	selectTask            string
+	selectTaskNoID        string
+	nothingSelected       string
+	chooseGoal            string
+	completeObjective     string
+	completeWithException string
+	completedObjective    string
+}{
+	planObjective:         "Plan the next Objective — for a project with nothing underway yet, start with Idea/Design.",
+	planTasks:             "Plan Tasks under Objective %s.",
+	selectTask:            "Select a Task under Objective %s: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+	selectTaskNoID:        "Select a Task for the selected Objective.",
+	nothingSelected:       "Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+	chooseGoal:            "press g on the board",
+	completeObjective:     "Owner: record Objective %s as done.",
+	completeWithException: "Owner: record Objective %s as done under the recorded exception.",
+	completedObjective:    "Objective %s is already done; select another Objective or clear the router selection.",
+}
+
+// Render writes next as deterministic, plain-text narrative to w. It takes
+// no project root and performs no discovery: every fact it writes is read
+// straight off next, the value data.ResolveNext already resolved (E48-Detail
+// §"Resume reads; it does not act."). Render carries no ANSI styling and
+// produces byte-identical output for the same next on every call.
+func Render(w io.Writer, next data.Next) error {
+	_, err := io.WriteString(w, renderText(next))
+	return err
+}
+
+// NextLine is the single plain-text summary shared by the board and resume:
+// what to do, the record to do it to, and that record's title — for example
+// `Build T-028 — Print one Next line (O-014)` or `Check O-014 — <title>`. It
+// reads the selected records and rung from data.Next and makes no gate or
+// selection decisions of its own.
+func NextLine(next data.Next) string {
+	verb := NextVerb(next)
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose a Goal — " + nextActionCopy.chooseGoal
+	}
+	switch {
+	case next.Task != nil:
+		line := fmt.Sprintf("%s %s — %s", verb, next.Task.ID, next.Task.Title)
+		if next.Objective != nil {
+			line += fmt.Sprintf(" (%s)", next.Objective.ID)
+		}
+		return line
+	case next.Objective != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Objective.ID, next.Objective.Title)
+	case next.Kind == data.NextIssue && next.Issue != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Issue.ID, next.Issue.Title)
+	case verb != "" && next.Release != nil:
+		return fmt.Sprintf("%s %s — %s", verb, next.Release.ID, next.Release.Title)
+	}
+	return "Nothing selected"
+}
+
+// NextVerb is the Next line's leading word: what to do with the selected
+// record, read from the record's lifecycle and the rung data.ResolveNext
+// already chose. It is empty when nothing is selected.
+func NextVerb(next data.Next) string {
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose"
+	}
+	switch {
+	case next.Task != nil:
+		return taskVerb(next)
+	case next.Objective != nil:
+		return objectiveVerb(next)
+	case next.Kind == data.NextIssue && next.Issue != nil:
+		return IssueWord(next.Issue)
+	case next.Release != nil:
+		switch next.Kind {
+		case data.NextReleaseReady:
+			return "Close"
+		}
+	}
+	return ""
+}
+
+// taskVerb reads the selected Task's stage, then the rung for the two places a
+// stage alone is ambiguous: a planned Task that cannot start yet, and a Task
+// at audit, whose next move is a Check, owner acceptance, or closure.
+func taskVerb(next data.Next) string {
+	task := next.Task
+	if next.Kind == data.NextReplan {
+		return "Replan"
+	}
+	switch task.Status {
+	case data.ColumnPlanned:
+		if next.Kind == data.NextDependency {
+			return "Blocked"
+		}
+		return "Start"
+	case data.ColumnDone:
+		return "Done"
+	}
+	switch task.Stage {
+	case data.StageBuild:
+		return "Build"
+	case data.StageTest:
+		return "Test"
+	}
+	switch next.Kind {
+	case data.NextOwnerValidationRequired:
+		return "Accept"
+	case data.NextExecute:
+		return "Close"
+	}
+	return "Check"
+}
+
+// objectiveVerb names the selected Objective's step when no Task is selected.
+// An Objective whose Check is current but still awaits owner acceptance reads
+// Accept, so an agent is never sent to re-run a Check that already passed.
+func objectiveVerb(next data.Next) string {
+	if next.Objective.Status == data.ColumnDone {
+		return "Done"
+	}
+	switch next.Kind {
+	case data.NextObjectiveIntegration:
+		if onlyOwnerAcceptance(next.GateDecision) {
+			return "Accept"
+		}
+		return "Check"
+	case data.NextObjectiveReady:
+		return "Close"
+	case data.NextPlanObjective:
+		return "Plan"
+	}
+	return "Pick a Task in"
+}
+
+// onlyOwnerAcceptance reports whether owner acceptance is the one thing still
+// blocking a decision, so the line asks the owner to accept rather than for
+// another Check.
+func onlyOwnerAcceptance(decision *data.GateDecision) bool {
+	if decision == nil || decision.Allowed || len(decision.Blockers) == 0 {
+		return false
+	}
+	for _, blocker := range decision.Blockers {
+		if blocker.Kind != data.GateBlockOwnerAcceptance {
+			return false
+		}
+	}
+	return true
+}
+
+// IssueWord translates an Issue lifecycle value for the shared Next line and
+// the contextual line shown when an Objective or Task remains the selection.
+// An unresolved Issue reads Fix: its only activity is the repair, the way a
+// Task's build stage reads Build, and nothing gates starting it, so the line
+// does not split Open from In Progress.
+func IssueWord(issue *data.IssueV2) string {
+	if issue == nil {
+		return ""
+	}
+	switch issue.Status {
+	case data.IssueStatusOpen, data.IssueStatusInProgress:
+		return "Fix"
+	case data.IssueStatusResolved:
+		return "Resolved"
+	default:
+		return string(issue.Status)
+	}
+}
+
+// IssueContextLine names the selected Issue when the Objective or Task still
+// wins the Next line.
+func IssueContextLine(issue *data.IssueV2) string {
+	if issue == nil {
+		return ""
+	}
+	return fmt.Sprintf("Issue: %s %s — %s", IssueWord(issue), issue.ID, issue.Title)
+}
+
+// renderText builds the shared Next line and full narrative as a string, so
+// exact-text and determinism tests never have to go through an io.Writer.
+func renderText(next data.Next) string {
+	lines := []string{NextLine(next)}
+
+	if next.SelectionDiagnostic != nil {
+		lines = append(lines, "", "Selection: "+SelectionPhrase(next.SelectionDiagnostic), "")
+	}
+	if len(next.ObjectivesWithoutGoal) > 0 {
+		lines = append(lines, "Objectives without a Goal: "+strings.Join(next.ObjectivesWithoutGoal, ", "), "")
+	}
+
+	lines = append(lines, identityLines(next)...)
+	lines = append(lines, rungLines(next)...)
+	lines = append(lines, issueLines(next.Issues)...)
+	lines = append(lines, "Next action: "+ActionPhrase(next))
+
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// identityLines names the selected Objective and/or Task and its recorded
+// implementation state. It renders nothing when Next has no selected record.
+func identityLines(next data.Next) []string {
+	lines := ReleaseIdentityLines(next)
+	if next.Objective != nil {
+		lines = append(lines, fmt.Sprintf("Objective: %s — %s", next.Objective.ID, next.Objective.Title))
+		if next.Task == nil {
+			lines = append(lines, "Implementation: "+objectiveStatusPhrase(next.Objective))
+		}
+	}
+	if next.Task != nil {
+		lines = append(lines, fmt.Sprintf("Task: %s — %s", next.Task.ID, next.Task.Title))
+		lines = append(lines, "Implementation: "+implementationPhrase(next.Task))
+	}
+	if next.Issue != nil && (next.Task != nil || next.Objective != nil) {
+		lines = append(lines, IssueContextLine(next.Issue))
+	}
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+	return lines
+}
+
+// rungLines is EvidenceLines laid out for the narrative: the same lines,
+// followed by the blank line that separates sections here. A rung carrying no
+// evidence contributes nothing rather than a stray blank.
+func rungLines(next data.Next) []string {
+	lines := EvidenceLines(next)
+	if len(lines) == 0 {
+		return nil
+	}
+	return append(lines, "")
+}
+
+// EvidenceLines renders the rung-specific evidence: the technical clearance,
+// owner-wait, exception, dependency, or replan state that explains why this
+// rung — and no other — was reached. Each rung's rendering is distinct, and
+// none of it claims anything was verified, run, checked, or confirmed — these
+// lines report what a record already says.
+//
+// It is exported because the V2 board's Next area reports the same facts from
+// the same data.Next in a compact layout of its own. The layouts differ; the
+// wording must not, so both surfaces read it from here rather than keeping a
+// second copy of the evidence vocabulary (STYLE-07, STYLE-09).
+func EvidenceLines(next data.Next) []string {
+	switch next.Kind {
+	case data.NextReplan:
+		return []string{"Replan: " + replanBlockerPhrase(next.GateDecision)}
+	case data.NextDependency:
+		return dependencyBlockerLines(next.GateDecision)
+	case data.NextExecute:
+		return executeLines(next.GateDecision, next.Task)
+	case data.NextCheckNeeded:
+		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
+	case data.NextOwnerValidationRequired:
+		return []string{
+			"Technical clearance: " + ClearancePhrase(next.Clearance),
+			"Owner wait: " + OwnerWaitPhrase(clearanceCheckID(next.Clearance)),
+		}
+	case data.NextObjectiveIntegration:
+		lines := []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
+		if hasBlockerKind(next.GateDecision, data.GateBlockOwnerAcceptance) {
+			lines = append(lines, "Owner wait: "+OwnerWaitPhrase(clearanceCheckID(next.Clearance)))
+		}
+		return lines
+	case data.NextObjectiveReady:
+		if next.GateDecision != nil && next.GateDecision.AllowedByException {
+			return []string{"Completion: " + ExceptionPhrase(next.GateDecision.Exception)}
+		}
+		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
+	case data.NextReleaseReady:
+		return releaseReadyLines(next)
+	case data.NextSelectTask, data.NextNothingSelected, data.NextPlanObjective, data.NextIssue:
+		return nil
+	default:
+		return nil
+	}
+}
+
+// releaseReadyLines reports the membership decision or preserved migrated
+// historical completion. A current Goal Check and Goal owner acceptance do
+// not participate in completion.
+func releaseReadyLines(next data.Next) []string {
+	if next.GateDecision != nil && next.GateDecision.AllowedByLegacyCompletion {
+		return []string{HistoricalCompletionPhrase(releaseID(next), next.GateDecision.LegacyCompletion)}
+	}
+	return []string{"Goal readiness: every member Objective is complete."}
+}
+
+// replanBlockerPhrase reads the recorded replan reason straight off the
+// GateDecision's own GateBlockReplan blocker, never restating the flag
+// itself.
+func replanBlockerPhrase(decision *data.GateDecision) string {
+	if decision != nil {
+		for _, blocker := range decision.Blockers {
+			if blocker.Kind == data.GateBlockReplan {
+				return ReplanPhrase(blocker.Detail)
+			}
+		}
+	}
+	return ReplanPhrase("")
+}
+
+// dependencyBlockerLines renders one "Blocked:" line per unmet Task or
+// Objective dependency the GateDecision carries. ResolveTaskStart never
+// mixes dependency blockers with any other kind on the same decision, so
+// every blocker here is one of the two dependency kinds.
+func dependencyBlockerLines(decision *data.GateDecision) []string {
+	if decision == nil {
+		return []string{"Blocked: a dependency is unsatisfied, with no detail carried on this rung."}
+	}
+	var lines []string
+	for _, blocker := range decision.Blockers {
+		switch blocker.Kind {
+		case data.GateBlockDependency:
+			lines = append(lines, "Blocked: "+DependencyPhrase(blocker.Dependency))
+		case data.GateBlockObjectiveDependency:
+			lines = append(lines, "Blocked: The owning Objective is waiting: "+ObjectiveDependencyPhrase(blocker.ObjectiveDependency))
+		}
+	}
+	if len(lines) == 0 {
+		lines = append(lines, "Blocked: a dependency is unsatisfied, with no detail carried on this rung.")
+	}
+	return lines
+}
+
+// executeLines renders the NextExecute rung: a completion allowed only by a
+// recorded exception is reported as exactly that, never as clearance: a
+// Task that may start or advance is reported by what allows it.
+func executeLines(decision *data.GateDecision, task *data.TaskV2) []string {
+	if decision != nil && decision.AllowedByException {
+		return []string{"Completion: " + ExceptionPhrase(decision.Exception)}
+	}
+	return []string{"Ready: " + executeReadyPhrase(task)}
+}
+
+func executeReadyPhrase(task *data.TaskV2) string {
+	switch {
+	case task.Status == data.ColumnPlanned:
+		return "Its dependencies are satisfied; it may start."
+	case task.Status == data.ColumnInProgress && task.Stage != data.StageAudit:
+		return "It may advance to its next stage."
+	default:
+		return "Its technical clearance is current; it may complete."
+	}
+}
+
+// clearanceCheckID reads the Check ID a resolved Clearance names, or "" when
+// no clearance was carried on this rung.
+func clearanceCheckID(clearance *data.Clearance) string {
+	if clearance == nil {
+		return ""
+	}
+	return clearance.Check
+}
+
+// hasBlockerKind reports whether decision carries a blocker of kind.
+func hasBlockerKind(decision *data.GateDecision, kind data.GateBlockKind) bool {
+	if decision == nil {
+		return false
+	}
+	for _, blocker := range decision.Blockers {
+		if blocker.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// issueLines renders the Issues section, omitted entirely rather than
+// printed empty when next carries none.
+func issueLines(issues []*data.IssueV2) []string {
+	if len(issues) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(issues)+2)
+	lines = append(lines, "Issues:")
+	for _, issue := range issues {
+		lines = append(lines, IssueLine(issue))
+	}
+	return append(lines, "")
+}
+
+// ActionPhrase is the one closing instruction every rendering ends with:
+// what a user or agent reading this output should actually do next. It is
+// exported for the same reason EvidenceLines is — the board's Next area
+// states the same action, and two surfaces phrasing one answer differently
+// is the divergence the shared projection exists to prevent.
+func ActionPhrase(next data.Next) string {
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose a Goal with g on the board."
+	}
+	switch next.Kind {
+	case data.NextReplan:
+		return "Resolve the recorded replan before resuming build, test, or audit."
+	case data.NextDependency:
+		return "Wait on the named dependency before starting or advancing this Task."
+	case data.NextExecute:
+		return executeNextActionPhrase(next)
+	case data.NextCheckNeeded:
+		return "Owner: request an optional Task Check or record an explicit owner waiver; the Full Objective Check remains mandatory before Objective closure."
+	case data.NextOwnerValidationRequired:
+		return "Ask the owner to accept the current Check."
+	case data.NextObjectiveIntegration:
+		return objectiveIntegrationNextActionPhrase(next)
+	case data.NextObjectiveReady:
+		return objectiveReadyNextActionPhrase(next)
+	case data.NextReleaseReady:
+		return releaseReadyNextActionPhrase(next)
+	case data.NextSelectTask:
+		if next.Objective == nil {
+			return nextActionCopy.selectTaskNoID
+		}
+		return fmt.Sprintf(nextActionCopy.selectTask, next.Objective.ID)
+	case data.NextNothingSelected:
+		return nextActionCopy.nothingSelected
+	case data.NextIssue:
+		if next.Issue == nil {
+			return "Work on the selected Issue."
+		}
+		if next.Issue.Status == data.IssueStatusResolved {
+			return fmt.Sprintf("Issue %s is already resolved; select another Issue or clear the router selection.", next.Issue.ID)
+		}
+		return fmt.Sprintf("Work on Issue %s.", next.Issue.ID)
+	case data.NextPlanObjective:
+		if next.Objective != nil {
+			return fmt.Sprintf(nextActionCopy.planTasks, next.Objective.ID)
+		}
+		return nextActionCopy.planObjective
+	default:
+		return fmt.Sprintf("No next action is defined for rung %q.", next.Kind)
+	}
+}
+
+func hasMissingGoalDiagnostic(next data.Next) bool {
+	return next.SelectionDiagnostic != nil && next.SelectionDiagnostic.Kind == data.SelectionReleaseMissing
+}
+
+func executeNextActionPhrase(next data.Next) string {
+	if next.GateDecision != nil && next.GateDecision.AllowedByException {
+		return "Proceed under the recorded exception; no further clearance is required."
+	}
+	switch {
+	case next.Task.Status == data.ColumnPlanned:
+		return fmt.Sprintf("Start Task %s.", next.Task.ID)
+	case next.Task.Status == data.ColumnInProgress && next.Task.Stage != data.StageAudit:
+		return fmt.Sprintf("Advance Task %s to its next stage.", next.Task.ID)
+	default:
+		return fmt.Sprintf("Complete Task %s.", next.Task.ID)
+	}
+}
+
+func objectiveIntegrationNextActionPhrase(next data.Next) string {
+	if hasBlockerKind(next.GateDecision, data.GateBlockOwnerAcceptance) {
+		return "Ask the owner to accept the Objective's current integration Check."
+	}
+	return fmt.Sprintf("Record the Objective %s integration Check.", next.Objective.ID)
+}
+
+func releaseReadyNextActionPhrase(next data.Next) string {
+	id := releaseID(next)
+	if next.GateDecision != nil {
+		if next.GateDecision.AllowedByLegacyCompletion {
+			if id != "" {
+				return fmt.Sprintf("Review the archived historical completion for Goal %s; it is already marked done.", id)
+			}
+			return "Review the archived historical Goal completion; it is already marked done."
+		}
+	}
+	if next.Release != nil && next.Release.Status == data.ColumnDone {
+		if id != "" {
+			return fmt.Sprintf("Goal %s is already done; no further Goal action is required.", id)
+		}
+		return "The Goal is already done; no further Goal action is required."
+	}
+	if id != "" {
+		return fmt.Sprintf("Record Goal %s as done.", id)
+	}
+	return "Record the Goal as done."
+}
+
+func releaseID(next data.Next) string {
+	if next.Release == nil {
+		return ""
+	}
+	return next.Release.ID
+}
+
+func objectiveReadyNextActionPhrase(next data.Next) string {
+	if next.Objective == nil {
+		return "The Objective is ready for its owner to record as done."
+	}
+	if next.Objective.Status == data.ColumnDone {
+		return fmt.Sprintf(nextActionCopy.completedObjective, next.Objective.ID)
+	}
+	if next.GateDecision != nil && next.GateDecision.AllowedByException {
+		return fmt.Sprintf(nextActionCopy.completeWithException, next.Objective.ID)
+	}
+	return fmt.Sprintf(nextActionCopy.completeObjective, next.Objective.ID)
+}

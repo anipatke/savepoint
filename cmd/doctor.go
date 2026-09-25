@@ -6,11 +6,9 @@ import (
 	"io"
 )
 
-const doctorUsage = "Usage: doctor [--epic <epic>]"
+const doctorUsage = "Usage: doctor"
 
-type DoctorOptions struct {
-	Epic string
-}
+type DoctorOptions struct{}
 
 // DoctorRunner receives parsed options and returns an exit code: 0=clean, 1=problems, 2=internal error.
 type DoctorRunner func(DoctorOptions) (int, error)
@@ -35,12 +33,6 @@ func ParseDoctorArgs(args []string) (DoctorOptions, bool, error) {
 		switch arg {
 		case "--help":
 			return DoctorOptions{}, true, nil
-		case "--epic":
-			i++
-			if i >= len(args) {
-				return DoctorOptions{}, false, fmt.Errorf("--epic requires a value")
-			}
-			options.Epic = args[i]
 		default:
 			if len(arg) > 0 && arg[0] == '-' {
 				return DoctorOptions{}, false, fmt.Errorf("unknown doctor flag %q", arg)

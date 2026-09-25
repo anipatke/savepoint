@@ -1,0 +1,187 @@
+fixture: v1-basic
+note: Converted output under the fixed clock in end_to_end_test.go. The manifest omits apply-recovery generated_at and operation_id fields; this is the intentional golden diff for T-025. Regenerate only through the documented procedure at regenerateGoldenEnv; other mismatches are behavior changes to review.
+files:
+    - path: .savepoint/Idea.md
+      content: |
+        ---
+        type: project-prd
+        status: active
+        ---
+
+        # Example Project — Product Requirements
+
+        A minimal frozen product intent used only as migration source evidence: a
+        small tool with one release, one epic, and two dependent tasks.
+
+        ## Vision
+
+        Ship the example baseline, then extend it with one dependent follow-up.
+    - path: .savepoint/migrations/v1-to-v2.yml
+      content: |
+        manifest_schema_version: 1
+        sources:
+            - path: .savepoint/Design.md
+              sha256: 26ed3d0ec84693981c0b1148b41e08544d2a3244263d82dc6b300ee9482c3b01
+            - path: .savepoint/PRD.md
+              sha256: 0fcced5a532ded92f19a050edf97f66235db147638249af8f376924bfe40dbb4
+            - path: .savepoint/config.yml
+              sha256: 295c7181c4a0645a191b9782963c34a04797ebe4523015c1f261e545f8a4d01f
+            - path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              sha256: db4a44d9d92e32de28ea0fb61281568ffbdfd17b21b26e49da3b51fa870ba175
+            - path: .savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              sha256: aef3a13047dc88363459cbbe25b0a9eec221240c8c37c1b3a11062fa6d49a951
+            - path: .savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              sha256: 47821d7cb07a6f8bc5abee4c0f529db73595a5c056c4586d7d035f826bd8ebb9
+            - path: .savepoint/releases/v1/v1-PRD.md
+              sha256: 4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc
+            - path: .savepoint/router.md
+              sha256: 79eaeb016f252257fe8cf98085664b53272725d16424611a67c918059116ed3b
+            - path: AGENTS.md
+              sha256: 6bd6456fb764e142731bbdaa4d948ec1ee36f16c3051327e30bfc40cb43de73b
+        identities:
+            - global_id: O-001
+              kind: objective
+              release: v1
+              release_id: R-001
+              epic: E01-example
+              path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              original_id: E01-example
+              target_path: objectives/O-001-example/Objective.md
+            - global_id: R-001
+              kind: release
+              release: v1
+              path: .savepoint/releases/v1/v1-PRD.md
+              original_id: v1
+              target_path: releases/R-001-v1/Release.md
+            - global_id: T-001
+              kind: task
+              release: v1
+              epic: E01-example
+              path: .savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              original_id: E01-example/T002-follow-up
+              target_path: objectives/O-001-example/tasks/T-001-follow-up.md
+        archives:
+            - source_path: .savepoint/PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/PRD.md
+              role: product-prd
+            - source_path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/E01-Detail.md
+              role: epic-detail
+              release: v1
+              epic: E01-example
+              original_id: E01-example
+            - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              role: task
+              release: v1
+              epic: E01-example
+              original_id: E01-example/T001-original
+            - source_path: .savepoint/releases/v1/v1-PRD.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
+              sha256: 4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc
+              role: release-prd
+              release: v1
+              original_id: v1
+        legacy_prerequisites:
+            - task: T-001
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md
+              evidence: 'recorded done; acceptance criteria: Baseline output exists'
+    - path: .savepoint/objectives/O-001-example/Objective.md
+      content: |
+        ---
+        id: O-001
+        title: 'Epic E01: Example'
+        status: in_progress
+        release: R-001
+        ---
+        ## Migrated from V1
+
+        Relocated verbatim from the V1 epic body at `.savepoint/releases/v1/epics/E01-example/E01-Detail.md` (release `v1`).
+
+        ## V1 Body (verbatim)
+
+        # Epic E01: Example
+
+        ## Purpose
+
+        Produce a small baseline output, then extend it with one dependent
+        follow-up task. Frozen as migration source evidence only; not a real
+        epic with further work.
+
+        ## What this epic adds
+
+        - T001: the baseline output, completed.
+        - T002: a follow-up extending the baseline, in progress and depending on
+          T001.
+
+        ## Components and files
+
+        None; this is a documentation-only example epic.
+    - path: .savepoint/objectives/O-001-example/tasks/T-001-follow-up.md
+      content: "---\r\nid: T-001\r\ntitle: Extend the baseline with a dependent follow-up\r\nobjective: O-001\r\nplanned_by:\r\n    role: planner\r\n    session: migration\r\nstatus: in_progress\r\nstage: build\r\nrelease: v1\r\nlegacy_fields:\r\n    legacy_note: kept from v1 authoring; not part of the current schema\r\n    metadata:\r\n        origin: hand-authored\r\n        reviewer:\r\n            name: sam\r\n            role: peer\r\n---\r\n## Migrated from V1\r\n\r\nRelocated verbatim from the V1 task body at `.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md` (release `v1`).\r\n\r\n## V1 Body (verbatim)\r\n\r\n<!-- Author note: this task intentionally keeps v1-era authoring shape,\r\n     including the phase field and this comment, as migration source\r\n     evidence. Do not \"fix\" it to match current templates. -->\r\n\r\n# T002: Follow-up\r\n\r\n## Acceptance Criteria\r\n\r\n- [x] Baseline extended\r\n- [ ] Follow-up documented across more than\r\n      one line, describing the exact expected\r\n      behavior for the dependent step\r\n\r\n## Implementation Plan\r\n\r\n- [x] Read the baseline output\r\n- [ ] Extend it with the following steps: first\r\n      gather inputs, then apply the follow-up\r\n      transform, then record results\r\n\r\n## Evidence\r\n\r\nRecorded across more than one authored line so the raw\r\nbody preserves its original v1 formatting, including this\r\ntrailing note about scope and intent.\r\n\r\n\r\n## Legacy Prerequisite\r\n\r\nThis Task's V1 source depended on completed V1 work that received no V2 identity, archived at `.savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T001-original.md`. Recorded completion evidence: recorded done; acceptance criteria: Baseline output exists\r\n"
+    - path: .savepoint/releases/R-001-v1/Release.md
+      content: |
+        ---
+        id: R-001
+        title: Example Release
+        status: in_progress
+        ---
+        ## Outcome
+
+        The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1/v1-PRD.md`.
+
+        ## Why
+
+        This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+        ## Success Conditions
+
+        - Converted Objectives sourced from this V1 release reference this Release identity.
+        - Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+        ## Boundaries
+
+        Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+        ## Legacy Source (verbatim)
+
+        Source path: `.savepoint/releases/v1/v1-PRD.md`
+
+        SHA-256: `4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc`
+
+        Original frontmatter:
+
+        ```yaml
+        version: 1
+        name: "Example Release"
+        status: in_progress
+        ```
+
+        ````markdown
+
+
+        # Release v1 — Example
+
+        Minimal frozen release scope, kept only as migration source evidence for
+        E41. One epic, two tasks: a completed baseline and a dependent follow-up.
+        ````
+    - path: .savepoint/router.md
+      content: |
+        # Agent State Machine
+
+        ## Read order
+
+        1. This file (router.md)
+        2. Current state → next action
+        3. Active epic E##-Detail.md
+        4. Active task file
+
+        ## Current state
+
+        ```yaml
+        state: task
+        release: R-001
+        objective: O-001
+        task: T-001
+        next_action: Build E01-example/T002-follow-up.
+        ```

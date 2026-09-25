@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/opencode/savepoint/internal/data"
 )
 
 // GateResult holds the outcome of a single quality gate.
@@ -19,27 +20,13 @@ type GateResult struct {
 	Output   string
 }
 
-// RunQualityGates executes configured quality gates (lint, typecheck, test).
-func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult {
-	deps := doctorDependencies(overrides)
-	configPath := filepath.Join(root, "config.yml")
-	cfg, err := deps.ConfigReader.Read(configPath)
-	if err != nil {
-		return []GateResult{{
-			Name:    "config",
-			Command: "",
-			Passed:  false,
-			Output:  fmt.Sprintf("cannot read config: %v", err),
-		}}
-	}
-
+func runConfiguredQualityGates(root string, cfg *data.Config) []GateResult {
 	timeout := 60 * time.Second
 	if cfg.QualityGates.Timeout != "" {
 		if d, err := time.ParseDuration(cfg.QualityGates.Timeout); err == nil {
 			timeout = d
 		}
 	}
-
 	var results []GateResult
 
 	if cfg.QualityGates.Lint != nil && *cfg.QualityGates.Lint != "" {
@@ -47,6 +34,9 @@ func RunQualityGates(root string, overrides ...DoctorDependencies) []GateResult 
 	}
 	if cfg.QualityGates.Typecheck != nil && *cfg.QualityGates.Typecheck != "" {
 		results = append(results, runGate("typecheck", *cfg.QualityGates.Typecheck, root, timeout))
+	}
+	if cfg.QualityGates.Build != nil && *cfg.QualityGates.Build != "" {
+		results = append(results, runGate("build", *cfg.QualityGates.Build, root, timeout))
 	}
 	if cfg.QualityGates.Test != nil && *cfg.QualityGates.Test != "" {
 		results = append(results, runGate("test", *cfg.QualityGates.Test, root, timeout))

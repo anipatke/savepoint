@@ -1,0 +1,3 @@
+# Store text files with LF line endings regardless of the editor or OS that
+# wrote them. Frozen migration fixtures opt out in their own .gitattributes.
+* text=auto eol=lf

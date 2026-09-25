@@ -260,57 +260,6 @@ func TestScaffold_overwritesExistingAfterValidation(t *testing.T) {
 	}
 }
 
-func TestScaffold_createsReleaseSkeleton(t *testing.T) {
-	target := t.TempDir()
-	templates := fstest.MapFS{
-		".savepoint/releases/v1/epics":     &fstest.MapFile{Mode: fs.ModeDir | 0755},
-		".savepoint/releases/v1/v1-PRD.md": &fstest.MapFile{Data: []byte("# v{{RELEASE_NUMBER}} PRD for {{PROJECT_NAME}}")},
-	}
-
-	if err := Scaffold(templates, target, "myapp", false); err != nil {
-		t.Fatalf("Scaffold() error = %v", err)
-	}
-
-	epicsPath := filepath.Join(target, ".savepoint", "releases", "v1", "epics")
-	if info, err := os.Stat(epicsPath); err != nil || !info.IsDir() {
-		t.Errorf(".savepoint/releases/v1/epics not created as directory: %v", err)
-	}
-
-	prdPath := filepath.Join(target, ".savepoint", "releases", "v1", "v1-PRD.md")
-	data, err := os.ReadFile(prdPath)
-	if err != nil {
-		t.Errorf(".savepoint/releases/v1/v1-PRD.md not created: %v", err)
-	}
-	if got := string(data); !strings.Contains(got, "v1 PRD for myapp") {
-		t.Errorf("v1-PRD.md = %q, want interpolated content", got)
-	}
-}
-
-func TestScaffold_createsAuditRegisterAssets(t *testing.T) {
-	target := t.TempDir()
-	templates := fstest.MapFS{
-		".savepoint/audit/prompt.md":          &fstest.MapFile{Data: []byte("# Audit Prompt")},
-		".savepoint/audit/register.md":        &fstest.MapFile{Data: []byte("# Audit Register")},
-		".savepoint/audit/findings/README.md": &fstest.MapFile{Data: []byte("# Audit Findings")},
-		".savepoint/audit/runs/README.md":     &fstest.MapFile{Data: []byte("# Audit Runs")},
-	}
-
-	if err := Scaffold(templates, target, "myapp", false); err != nil {
-		t.Fatalf("Scaffold() error = %v", err)
-	}
-
-	for _, path := range []string{
-		filepath.Join(".savepoint", "audit", "prompt.md"),
-		filepath.Join(".savepoint", "audit", "register.md"),
-		filepath.Join(".savepoint", "audit", "findings", "README.md"),
-		filepath.Join(".savepoint", "audit", "runs", "README.md"),
-	} {
-		if _, err := os.Stat(filepath.Join(target, path)); err != nil {
-			t.Errorf("audit asset %s not created: %v", path, err)
-		}
-	}
-}
-
 // scaffoldFromRealTemplates runs a fresh init against the templates that ship in
 // the binary, so scaffold assertions test what a user actually gets rather than
 // a synthetic fixture.
@@ -318,48 +267,23 @@ func scaffoldFromRealTemplates(t *testing.T) string {
 	t.Helper()
 
 	target := t.TempDir()
-	templates := os.DirFS(filepath.Join("..", "..", "templates", "project"))
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
 	if err := Scaffold(templates, target, "myapp", false); err != nil {
 		t.Fatalf("Scaffold() from real templates error = %v", err)
 	}
 	return target
 }
 
-func TestScaffold_installsSplitAuditSkillsAndSharedMethod(t *testing.T) {
+func TestScaffold_installsGuardrails(t *testing.T) {
 	target := scaffoldFromRealTemplates(t)
 
-	for _, path := range []string{
-		filepath.Join("agent-skills", "savepoint-audit-task", "SKILL.md"),
-		filepath.Join("agent-skills", "savepoint-audit-epic", "SKILL.md"),
-		filepath.Join("agent-skills", "references", "audit-method.md"),
-	} {
-		if _, err := os.Stat(filepath.Join(target, path)); err != nil {
-			t.Errorf("scaffolded project missing %s: %v", path, err)
-		}
+	path := filepath.Join(target, ".savepoint", "Guardrails.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("scaffolded project missing .savepoint/Guardrails.md: %v", err)
 	}
-
-	// The generic skill it replaced must not be installed in any form.
-	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit")); !os.IsNotExist(err) {
-		t.Errorf("scaffolded project still has agent-skills/savepoint-audit, stat err = %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit", "SKILL.md")); !os.IsNotExist(err) {
-		t.Errorf("scaffolded project still has a triggerable generic audit skill, stat err = %v", err)
-	}
-}
-
-func TestScaffold_installsGuardrailsAndHealthCheck(t *testing.T) {
-	target := scaffoldFromRealTemplates(t)
-
-	for _, name := range []string{"Guardrails.md", "Health-Check.md"} {
-		path := filepath.Join(target, ".savepoint", name)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("scaffolded project missing .savepoint/%s: %v", name, err)
-			continue
-		}
-		if strings.Contains(string(data), "{{PROJECT_NAME}}") {
-			t.Errorf(".savepoint/%s left an uninterpolated project name", name)
-		}
+	if strings.Contains(string(data), "{{PROJECT_NAME}}") {
+		t.Errorf(".savepoint/Guardrails.md left an uninterpolated project name")
 	}
 }
 

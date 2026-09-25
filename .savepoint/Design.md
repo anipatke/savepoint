@@ -1,72 +1,95 @@
 ---
 type: project-design
 status: active
-last_audited: v1.5/E40-upgrade-safety
+last_audited: v2/E51-first-class-releases
 ---
 
 # Savepoint — System Architecture
 
-> Project-level architecture. Audit-kept fresh: every epic's audit step merges its delta into this document.
+> Project-level architecture. Check-kept fresh: each Objective Check merges its reconciled delta into this document.
 
-> **Planned V2 delta:** [v2-Design.md](releases/v2/v2-Design.md) records the proposed successor architecture and implementation boundaries. This document remains the current V1 baseline until changes are implemented and reconciled; proposed V2 behavior must not be treated as shipped behavior.
+> **Current V2 architecture:** E50's owner-approved migration activated schema 2 in this repository. `internal/data` owns the identity-keyed V2 index, Task/Objective/Issue/Check gates, and first-class Goal completion through Release-compatible records; board, doctor, resume, and migration use those boundaries without a second readiness policy.
+>
+> **Historical V1 evidence:** Former V1 project records remain byte-preserved under `.savepoint/archive/v1/`. The V1 readers retained in `internal/data` are used by `internal/migrate`; they are not part of ordinary runtime commands.
 >
 > **Visual identity** lives separately in `.savepoint/visual-identity.md` and is loaded only for TUI/theme/visual tasks.
 
 ## 1. Architecture model
 
-- **File-only.** No MCP server in v1. Agents read and edit Markdown + YAML files directly using their native file tools.
-- **Agent routing:** AGENTS.md → `.savepoint/router.md` → phase skills. See AGENTS.md Workflow section.
-- **Bundled Agent Skills:** Savepoint ships with custom skills (`savepoint-draft-prd`, `savepoint-system-design`, `savepoint-create-plan`, `savepoint-create-task`, `savepoint-create-defect`, `savepoint-build-task`, `savepoint-audit-task`, `savepoint-audit-epic`, and `savepoint-audit-register`) to enforce the state machine, capture release-level defects, and converge register-backed audit findings when `.savepoint/audit/` exists. Audit is split by intent: `savepoint-audit-task` is a read-only review of one in-progress task, `savepoint-audit-epic` owns `audit-pending` closeout. Both load the shared, non-triggerable method at `agent-skills/references/audit-method.md`, which is a reference rather than a skill and never triggers on its own.
+- **File-first.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools. `savepoint resume` is read-only; `savepoint create-task` is the sole agent write command and is limited to creating a new Task from an ID-free draft.
+- **Agent routing:** `savepoint resume` prints Next from the structured router selection; AGENTS.md maps that line to a phase skill, which reads the router and scoped files. The router does not carry hand-written next-step prose. See AGENTS.md Workflow and Router Selection sections.
+- **Bundled Agent Skills:** The active V2 workflow uses `savepoint-idea`, `savepoint-design`, `savepoint-task`, and `savepoint-check`, with three non-triggerable shared references. Retired V1 workflow files are preserved only as historical evidence.
 - **Token-efficiency principle.**
   - Cold session bootstrap: ~5–7K tokens (one-time per conversation).
   - Per-task incremental: <2KB.
   - Audit: 5–15KB.
   - Anything that breaks these bounds violates the wedge.
-- **Go data-reader boundary:** established in epic `E02-data-readers` (2026-05-01). `internal/data` owns Savepoint file parsing and discovery for the Go implementation: task frontmatter models including task complexity metadata, markdown YAML extraction, router state parsing, config theme defaults, release/epic/task directory listing, task lifecycle validation/defaulting, write-time status validation, and boundary error sentinels.
-- **Template assets** live under `templates/` with helpers in `src/templates/` (epic E04).
-- **Init command** (`savepoint init`) validates target directories, scaffolds rendered copies of `templates/project/`, merges Savepoint instructions into an existing root agent guide using a managed block while preserving user content and casing variants, creates the initial `.savepoint/releases/v1/epics` skeleton plus release PRD, prints the rendered magic prompt, attempts best-effort clipboard copy, and optionally runs `npm install` after scaffolding (v1.1 E07, refined in E16).
-- **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned skills and shared references while preserving project-owned state. `.savepoint/.upgrade-manifest.yml` records SHA-256 provenance for each `agent-skills/*/SKILL.md`: an unmodified outdated skill refreshes in place, a customized skill is kept with the incoming version written as `SKILL.md.new`, and `--force` first saves the prior content as `SKILL.md.bak`. A pre-manifest project takes the one-time recoverable backup-and-replace path. The root agent guide refreshes only its marked managed block; an unmarked or half-marked guide conflicts unless forced, with casing preserved for sidecars. Dry run follows the same decisions without writes. Missing Guardrails, Health-Check, and audit scaffold assets install without overwriting existing copies; all other `.savepoint/` project state remains untouched, so router compatibility is maintained by the tolerant reader contract rather than migration. A retired generic audit skill is archived under `.savepoint/migrations/` before removal. Writes are ordered for recoverability: the command proves the manifest is writable before touching any asset, writes a backup before the replacement it protects, and returns the partial report with the error if a write still fails.
-- **Board command** (`savepoint board`, and bare `savepoint`) reads project state, renders the Atari-Noir TUI board when stdout is a TTY, falls back to a deterministic plain table in non-TTY mode, supports `--release`/`--epic` filtering, detail overlays, task status transitions with mtime-guarded writes, release/epic-scoped router priority markers, fsnotify-based task and defect auto-refresh, header Next Activity display, height-aware column/detail viewport scrolling, stable focused/unfocused column border geometry (v1.1 E01), dedicated phase-colored Next Activity line below the header including `DEFECT` router state, sentence-boundary checklist rendering in task details, shared status glyph mapping for task cards and the epic sidebar, task complexity labels on cards and full complexity reasons in detail overlays, a forced ANSI256 Lipgloss color profile for board startup (v1.1 E03), a focusable wide-screen epic sidebar with purple epic focus, epic detail overlays, status glyphs loaded from epic detail frontmatter (v1.1 E04), an epic Detail/Audit tab switch that renders user-facing audit findings from `{epic}/E##-Audit.md` (v1.1 E06), release-scoped open-defect counts, a keyboard-driven `d` defect overlay, defect detail overlays, related-defect task card markers, a header release indicator, a top-level `D` Release Docs overlay for the selected release PRD plus overall PRD and Design (v1.2 E17-E33), and a read-only top-level `A` Audit Register overlay with Prompt/Findings/Runs tabs, a grouped finding list, finding detail drill-in, and linked-finding backlinks inside task and epic detail overlays (v1.4 E32).
-- **Doctor command** (`savepoint doctor`, `savepoint doctor --epic E##`) runs read-only integrity diagnostics for config, router state, release/epic/task/defect structure, frontmatter validity, acceptance criteria presence, dependencies, duplicate task IDs, stale audit files, orphaned task IDs, broken defect references, and configured quality gates. It prints a human-readable report with repair suggestions and exits 0 when clean, 1 when problems are diagnosed, and 2 for internal or invocation failures.
+- **Go data-reader boundary:** `internal/data` owns Savepoint file parsing and discovery for the Go implementation: Objective/Task/Check/Issue/Release models (the internal Release model backs the public Goal), markdown YAML extraction, V2 router state parsing, config/theme defaults, identity-keyed record discovery, lifecycle validation/defaulting, write-time status validation, and boundary error sentinels. Its `CheckRuntimeSchema` front door rejects schema 1 with the named migrate-required diagnostic, directing the owner to preview with `savepoint migrate --dry-run` and apply with `savepoint migrate --apply` without importing conversion code.
+- **V2 evidence and identity boundary:** `internal/data` strictly loads identity-keyed Objective, Task, Check, Issue, and Release-compatible Goal records through confined paths, preserves authored record content on managed writes, resolves numeric Check history and freshness (a CLEAR Check signed by a checker is current on its own; an optional freshness assessment naming that Check can only mark it stale or unknown), and owns canonical dependency, lifecycle, authority, acceptance, exception, and replan decisions. `internal/doctor` reports the same structural and evidence diagnostics without rewriting project files.
+- **Objective planning order:** `internal/data` decodes optional Objective priority and rank and provides the canonical order within a Goal. Unfinished Objectives sort first by priority, then by rank with unranked entries after ranked ones, then by stable ID; finished Objectives follow under one Done group in stable ID order. Doctor reports duplicate ranks among unfinished Objectives; finished Objectives do not participate in ordering by rank or duplicate-rank diagnostics. This metadata does not change lifecycle, dependencies, or gates.
+- **V2 follow-up and integration boundary:** `internal/data` owns the mutable Issue family and bidirectional Check/Issue/Task links. Objective completion derives from owned work, independent integration evidence, material Issue posture, and exact owner acceptance; Goal completion derives from its member Objectives. The Goal is backed by the existing Release record and completion resolver. `internal/doctor`, `internal/board/v2`, and `internal/resume` report those decisions without duplicating policy. Issue resolution carries four dispositions — `verified` (Check-proven repair), `accepted` (owner risk decision), `duplicate` (points at a canonical Issue), and `escalated` (points at the Objective, `escalated_to: O-###`, the repair was promoted into) — each with its own proof obligation enforced by `internal/data`. Owner acceptance may resolve an Issue directly as `accepted` from the board with Space, without a Check and without claiming technical `CLEAR`; Backspace in the Issues panel reopens any resolved Issue. Space resolving an In Progress Issue records the board's fixed reason. Escalation is the Issue closure the planning workflow performs directly rather than `savepoint-check`: `savepoint-design` retires an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective, since that Objective's own mandatory Full Objective Check and owner acceptance become the proof.
+- **V2 agent workflow assets:** The four active skills and three non-triggerable shared references are byte-identical between the live and V2 scaffold trees. Task `planned_by` provenance and Check `executed_session` provenance are strict typed fields; the decoder rejects a Check that claims the executor and checker were the same session.
+- **Configured build gate:** established in E46. `quality_gates.build` is decoded by `internal/data` and executed by `internal/doctor` after typecheck and before test, using the existing timeout and result-reporting path.
+- **V2 Goal boundary (Release-compatible storage):** Every Savepoint project must have a declared live Goal selected by the router, and every live Objective must reference exactly one Goal through `release:`. `internal/data` reports a missing router Goal with the typed `SelectionReleaseMissing` diagnostic; Next says `Choose a Goal`. An Objective missing `release:` remains loadable as the `ObjectivesWithoutGoal` index fact; resume and the board flag it, and doctor names the Objective and the exact repair. Unknown or malformed Objective references remain errors. Goals do not own Tasks or publish, deploy, tag, or generate changelogs. Existing Goals remain stable `R-###` records under `.savepoint/releases/<slug>/Release.md`; membership comes from Objective records. A Goal is complete when every member Objective is complete. Existing Checks with `scope.kind: release` remain loadable for compatibility, but no completion decision reads them. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
+- **Template assets** live under `templates/project-v2/` for the active workflow; the V1 scaffold tree and its retired skills are gone (O-021), and `savepoint migrate` converts a legacy project onto this same tree.
+- **Init command** (`savepoint init`) validates targets and scaffolds `templates/project-v2/`, including the four V2 skills, Idea/Design/Guardrails/router files, and schema version 2. It creates R-001 with stub sections, titles it after the project, and selects it in the router. Existing user content is preserved through the managed-guide boundary.
+- **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned V2 skills and shared references with provenance; migration history and project records remain untouched.
+- **Board command** (`savepoint board`, and bare `savepoint`) loads the V2 index and router once, resolves the shared `data.Next`, and renders the Goal-scoped Objective/Task/Check/Issue surface in TUI or deterministic non-TTY form. It never shows project-wide Objectives or Tasks: a missing or invalid router Goal produces `Choose a Goal` and an empty work view. V1 filters are refused for V2 projects.
+- **Doctor command** (`savepoint doctor`) runs read-only V2 structure, lifecycle, dependency, Issue, evidence, quality-gate, and canonical Goal-readiness diagnostics through the existing Release resolver. It names a missing router Goal and directs the owner to select or create one; it names every Objective missing `release:` and gives the exact line to add. It performs no automatic writes.
+- `internal/board/v2`, `internal/doctor`, and `internal/resume` consume the existing first-class Release records and canonical Release completion resolver for the public Goal context. The board's `g` key is the canonical Goal selector; `r` remains an undisplayed compatibility alias. Goal detail, the plain board, and resume expose that context.
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
-- **Agent audit workflow** is skill-driven, not a CLI pipeline. At `audit-pending`, a fresh audit agent writes one epic-local `E##-Audit.md`; the user reviews its Audit tab, then asks an agent to apply the admin proposal blocks, update the visible audit findings to reflect the applied outcome, and close the epic.
+- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C-###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory. The executor cannot clear its own work or infer Issue acceptance and may only record the owner's explicit `accepted` decision.
+- **Board-recorded Task-check waivers**: pressing Space on the V2 board to complete a Task at stage check that has no recorded Check at all (`ClearanceMissing`) is itself the explicit owner action TEST-09 requires — only a human at the interactive keyboard reaches that key, never an agent. The board auto-records the `check_waiver` block (task, reason, `actor: {role: owner, session: board-owner}`, time) in the same write that sets the Task done, rather than requiring the owner to hand-write that fact first. This never applies when a Check was actually recorded and found a problem (`needs_work`, `stale`, `unverified`): that result stands, and completion stays refused.
 
 ## 2. Directory layout
 
 ```
 <project-root>/
-├── AGENTS.md                       ← agent entry point
+├── AGENTS.md                       ← active V2 routing and policy entry point
+├── agent-skills/                   ← four V2 skills plus shared references
 └── .savepoint/
-    ├── PRD.md                      ← project vision (rare changes)
-    ├── Design.md                   ← project architecture (this file)
-    ├── visual-identity.md          ← design system; loaded conditionally for TUI work
-    ├── router.md                   ← state-machine routing
-    ├── config.yml                  ← theme, quality_gates, verify_strict
-    └── releases/
-        └── {release}/              ← e.g. v1, v1.1
-            ├── {release}-PRD.md    ← release-scoped PRD
-            ├── defects/
-            │   └── D001-slug.md    ← release-level repair record
-            └── epics/
-                └── E##-{epic-name}/
-                    ├── E##-Detail.md   ← epic delta
-                    ├── E##-Audit.md    ← audit findings + admin apply proposals
-                    └── tasks/
-                        └── T001-slug.md
+    ├── Idea.md                     ← product intent
+    ├── Design.md                   ← current architecture (this file)
+    ├── Guardrails.md               ← durable engineering policy
+    ├── router.md                   ← V2 state and next action
+    ├── config.yml                  ← schema_version, theme, quality gates
+    ├── task-ids.yml                ← durable Task-ID high-water mark
+    ├── task-ids.lock               ← exclusive Task-ID reservation lock
+    ├── releases/                   ← compatibility storage for required V2 Goals (R-###)
+    │   └── R-###-slug/Release.md
+    ├── objectives/                 ← Objective records and owned Tasks
+    │   └── O-###-slug/
+    │       ├── Objective.md
+    │       └── tasks/T-###-slug.md
+    ├── checks/                     ← immutable independent evidence
+    ├── issues/                     ← durable follow-up records
+    ├── archive/v1/                 ← byte-preserved historical source
+    └── migrations/v1-to-v2.yml    ← source hashes and conversion mappings
 ```
 
-AGENTS.md at root (uppercase, cross-vendor spec). Design.md in `.savepoint/` (working doc, not public-facing). visual-identity.md conditional — only loaded for TUI/theme/visual tasks. Subtasks are inline checklists inside task `.md` — never separate files. Epic folders and task files use `E##`/`T##` prefix. Scaffold assets live under `templates/`; generated projects receive rendered copies, not hardcoded strings.
+Every Savepoint project selects a live Goal from these first-class Release records,
+and every live Objective names exactly one through `release: R-###`. Membership
+is derived from Objective records, and Goal completion does not publish,
+deploy, tag, or generate changelogs.
+
+AGENTS.md at root is the active cross-vendor guide. Design.md in `.savepoint/`
+is the working architecture record. `visual-identity.md` is conditional and
+loaded only for TUI/theme/visual tasks. V2 Tasks are owned by Objectives;
+legacy E##/T## paths remain only under the preserved V1 archive. Scaffold
+assets live under `templates/project-v2/`; generated projects receive rendered
+copies, not hardcoded strings.
 
 ## 3. Hierarchy semantics
 
 | Level        | Definition                                                                             |
 | ------------ | -------------------------------------------------------------------------------------- |
-| **Release**  | The thing being built. One PRD per release. v1 = MVP.                                  |
-| **Epic**     | A major feature within a release. Has its own E##-Detail.md (delta from project Design). |
-| **Task**     | Independently buildable. Objective-led. **Requires implementation plan before build.** |
-| **Defect**   | Release-level repair artifact for observed bugs or regressions; separate from planned epic/task scope. |
+| **Goal**     | Required project context selected by the router; an `R-###` record grouping Objectives under an outcome. |
+| **Objective**| A durable outcome with exactly one required Goal reference (serialized as `release:`) and owned Tasks. |
+| **Task**     | Independently buildable work owned by exactly one Objective; requires an implementation plan before build. |
+| **Check**    | Immutable independent evidence: optional Quick evidence for a requested Task Check and mandatory Full integration evidence for an Objective. |
+| **Issue**    | Durable follow-up for a defect, drift, guardrail gap, or verification problem; its lifecycle is separate from Task status. |
 | **Sub-task** | Inline checklist item — _evidence of the implementation plan_, not standalone work.    |
 
 ## 4. Status model & gates
@@ -83,19 +106,21 @@ Three statuses, with explicit gates and ownership boundaries:
 - `internal/data` is the single owner of task lifecycle rules: canonical statuses, canonical stages, parse compatibility for legacy `phase`, write validation, and transition helpers must flow through that package. `Task.Column` and `Task.Stage` are the canonical in-memory lifecycle fields; no denormalized status mirror exists on the Task struct.
 - Canonical task files and workflow guidance must use `status` plus `stage` only while `status: in_progress`; legacy `phase` is accepted only as read compatibility and should be reported as drift by diagnostics/templates.
 - Agents may only advance a task into `in_progress`; they must not set `done` or retreat a task to an earlier status.
+- An Objective moves from `planned` to `in_progress` when its first Task starts: the board's Space on a planned Task writes both records, and `savepoint-task` does the same when an agent starts a Task. Only the user sets an Objective `done`. Doctor warns (`v2-objective-planned-with-started-task`) about a `planned` Objective that owns a started or done Task.
 - Only the user may set a task to `done` or retreat it from `done` to `in_progress` when follow-up work is required.
-- Router updates are explicit TUI actions: after setting a task to `in_progress`, the agent prompts the user to press `p` in the board to mark the focused task as router priority. Navigation alone must not change router task priority.
-- Verification mode: see `config.yml`.
+- Router selection follows AGENTS.md's Router Selection section: `savepoint-design` selects the next Objective, `savepoint-task` selects the Task it starts, and the board advances after the owner closes a Task. Starting a Task does not require the agent to prompt the owner to press `p` as a handoff.
+- Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks. A Goal is complete when every member Objective is complete.
+- This verification contract's runtime enforcement lives in `internal/data`: `evidence_v2.go` decodes an explicit `check_waiver` Evidence sub-block (Task-only, owner-attributed), and `gate_v2.go`'s `ResolveTaskCompletion` grants completion `AllowedByWaiver` only when no Task Check was ever requested — never once a Check exists, and never for Objective completion, which remains mandatory and unaffected.
 
-Defects use defect-specific lifecycle statuses: `open`, `in_progress`, and `resolved`. `stage` is required while a defect is `in_progress`, and must be absent once the defect is `open` or `resolved`. Router state may enter `defect-building` with a `defect` field naming the active repair item, which the board renders as a `DEFECT` Next Activity line.
+Issues use `open`, `in_progress`, and `resolved`, and carry no `stage`. Agents record each `repair_attempted` in the Issue and leave verified closure to a checker; the owner may explicitly close an Issue as `accepted` under the owner decision rule. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
 
 Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) and `complexity_reason` as a short planning signal. The pair is validated together, preserved through task status writes, displayed on task cards/details, and required by the create-task planning skill for newly planned tasks.
 
 ## 5. Dependencies
 
-- Declared in YAML frontmatter. Full task IDs (`E##-epic/T###-task-id`) are preferred; same-epic shorthand may use either `T###` or the task filename stem (`T###-task-id`). The board transition gate and doctor diagnostics resolve these forms through `internal/data.ResolveDependency`.
+- Declared in YAML frontmatter. Task dependencies use `T-###` references and Objective dependencies use `O-###`; the board transition gate and doctor diagnostics resolve them through `internal/data.ResolveDependency`.
 - Doctor dependency checks detect duplicate task IDs, missing dependencies, and dependency cycles.
-- Cross-epic deps allowed but warned (signal that epic boundaries may be wrong).
+- Cross-Objective dependencies are explicit integration prerequisites and are evaluated by the canonical Objective gate. A Task-check waiver satisfies a Task dependency that requires `clear` — the waiver is the owner's own completion decision, standing in for "clear" there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
 ## 6. CLI surface
 
@@ -104,37 +129,42 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 | `savepoint init`       | Scaffold `.savepoint/`, merge the managed agent guide block, print magic prompt to stdout + clipboard |
 | `savepoint board`      | Launch TUI; auto-falls-back to plain table on non-TTY                             |
 | `savepoint doctor`     | Integrity check + ad-hoc quality-gate run + Layer-2 prompt for AI semantic review |
+| `savepoint create-task --objective O-### --draft <path> [dir]` | Create a Task from an ID-free draft, assign its project-wide ID, and strict-load the full V2 index |
+| `savepoint migrate [dir]` | Preview-first V1-to-V2 conversion; apply checks planned paths in Git before writing |
+| `savepoint resume [dir]` | Print the shared V2 Next projection without writing project files |
 | `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned agent skills and the managed agent-guide block without touching project state |
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.
+- Agents may run `savepoint resume` for read-only routing and `savepoint create-task` only to create a new Task from an ID-free draft. The creation command assigns the ID and path, then strict-loads the complete V2 index before success; all other Savepoint commands are human-only. After creating or renaming any other identity-bearing record, agents run `savepoint resume` to strict-load the full index.
 - Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
 
+`migrate --apply` requires a Git work tree. Every planned write or removal
+path must be free of modified, untracked, or ignored files; apply then writes
+the converted files directly and sets `schema_version: 2` last. The conversion
+manifest records source hashes and mappings, and an error after partial writes
+reports the touched paths with Git commands to undo them.
+
 **Names:** npm package `savepoint`; binary `savepoint`. No `vk` alias.
-## 7. Agent audit workflow
+## 7. Independent Check workflow
 
 ```
-0. Quality Gates  — Build agent runs configured build/test gates before audit handoff.
-1. Audit Pending  — Router enters `audit-pending` for the completed epic.
-2. Reconcile      — Fresh audit agent reads router, epic detail, task files, Design.md, AGENTS.md, and scoped source/test files. When `.savepoint/audit/` exists, the agent first follows `savepoint-audit-register`: prompt/register/findings/runs, stable `F###` reconciliation, and proof rules.
-3. Findings       — Agent writes exactly one `{epic}/E##-Audit.md`.
-4. Review         — User reviews the TUI Epic Detail Audit tab.
-5. Apply + Close  — After user approval, agent applies proposal blocks, updates the audit file's visible findings, marks the epic audited, updates `last_audited`, and advances router.
+0. Quality Gates       — Executor runs configured build/test gates before handoff.
+1. Optional Task Check — A fresh checker runs Quick evidence only when the owner requests it; an explicit owner waiver may skip it.
+2. Full Objective Check — A fresh checker must verify every owned Task, integration, and Design reconciliation before Objective closure; every material Issue linked to the current Check must be resolved, including explicit owner acceptance recorded as an Issue resolution.
+3. Repair              — `NEEDS WORK` records Issues; a Task Check returns the executor to `stage: build` within that Task, while an Objective Check's repair is made directly under the Issue by default, with new work under the Objective only when the repair needs planning, without retreating a completed Task; a fresh re-check supersedes the prior Check.
+4. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective outcome.
 ```
 
-- `audit-pending` is a **hard gate**: next epic's tasks cannot enter `in_progress` until prior epic is `audited` or the user explicitly skips the audit.
-- `E##-Audit.md` has two user-facing sections: `## Main Findings` and `## Code Style Review`.
-- `## Main Findings` contains narrative audit findings only: AC verification, important drift, and notable risks. It must not contain file-specific replacement blocks.
-- `## Code Style Review` contains one checkbox per `STYLE` rule defined in `.savepoint/Guardrails.md`.
-- `## Proposed Changes` contains admin/apply metadata using `### Target File`, `### Replace`, and `### With`. The TUI Audit tab intentionally does not render this section to avoid stale file-change details in the Epic Detail panel.
-- Apply/close must rewrite `## Main Findings` and `## Code Style Review` in the same `E##-Audit.md` so the TUI Audit tab shows resolved findings and remaining risks instead of stale pre-apply blockers. `## Proposed Changes` stays as the trace of what was applied unless the user asks otherwise.
-- There is no `savepoint audit` CLI pipeline in the active design. Epic audit is performed by agents using `agent-skills/savepoint-audit-epic/SKILL.md`; an explicit read-only review of one in-progress task uses `agent-skills/savepoint-audit-task/SKILL.md`. Both apply the shared method in `agent-skills/references/audit-method.md`.
+- Check records are immutable at `.savepoint/checks/C-###-slug.md`; a re-check writes a new record naming the one it supersedes.
+- `savepoint-check` alone writes Check records and closes proven Issues as `verified`; the owner may close an Issue as `accepted` after visual inspection with reason, actor, and time. The executor may record only the owner's explicit decision and does not grant technical clearance.
+- Requested Quick Task Checks and the mandatory Full Objective Check apply the shared non-triggerable method in `agent-skills/references/check-method.md`.
 
 Three layers:
 
 - **Layer 1 (mechanical):** user's chosen linter. Recommended: eslint+dependency-cruiser (TS), radon+pylint (Python), gocyclo+staticcheck (Go). Cross-language fallback: `lizard`. Quality gate config: see `.savepoint/config.yml`.
-- **Layer 2 (AI semantic review):** baked into the audit reconcile prompt. Outputs Main Findings and Code Style Review in the epic-local audit file. **Advisory, not blocking.**
+- **Layer 2 (semantic review):** supplied by the independent Check method. It records evidence and materiality in immutable Check/Issue records; style observations are advisory, not blocking.
 - **Layer 3:** `savepoint doctor` runs Layer 1 + prints Layer 2 prompt for ad-hoc use.
 
 ## 8. TUI
@@ -145,7 +175,26 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** single screen with a 3-column task board (`planned`, `in_progress`, `done`), optional epic sidebar on wide terminals, centered overlays for release/epic/help/task/epic-detail views, static Atari-Noir header/footer, full-width dividers, uniform black TUI backgrounds, and navigation hints. Active router `next_action` renders as a dedicated full-width line below the header with phase-colored `PLAN`, `BUILD`, or `AUDIT` prefix styling and truncates to terminal width. Columns and detail overlays use height-aware viewport slicing with subtle above/more scroll indicators. Focused and unfocused columns preserve the same rounded-border geometry so focus changes do not shift content. Task detail implementation-plan checkboxes render once per semantic sentence, not once per hard-wrapped markdown line. On terminals at least 120 columns wide, the epic sidebar is focusable from the Planned column; it uses the purple epic accent for focused panel borders, focused epic labels, and epic detail overlays while task-column focus remains orange. Task card and epic sidebar status glyphs share `internal/board/status.go`; task cards derive glyphs from canonical `Task.Column` and `Task.Stage` only, while the epic sidebar uses epic frontmatter status strings. Non-TTY output remains a plain table fallback.
+**Layout:** the V2 board uses an Objective sidebar grouped under non-empty `CRITICAL`, `HIGH`, `MEDIUM`, and `LOW` headings, followed by one `DONE` heading when the selected Goal has finished Objectives, then three Task columns (`planned`, `in_progress`, `done`), Goal selection scoped to the router's live Goal, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. Unfinished Objective rows sort by priority, then rank with ranked rows before unranked rows, then stable ID. Objectives with no priority default to Medium; unranked rows follow ranked rows in their priority group. Finished Objectives appear after every unfinished Objective under the single `DONE` heading, sorted by stable ID without priority subgroups. Empty headings are omitted. The plain output lists the selected Goal's Objectives after `Selected:` under the same headings and in the same order. The sidebar omits the separate Planned / In Progress / Done line beneath each Objective heading. Next is exactly the router's selected work plus the existing gate resolver for that record; no project-wide or Release-wide search substitutes other work. The columns open on the router's Objective, or, when the router selects an Issue alone, on the one Objective that Issue's linked Tasks and Objective-scoped Checks belong to; with no Objective filter, the board labels the view `ALL OBJECTIVES` for the selected Goal and the plain output names the selected Goal and its member Objectives. The board's Next area, non-TTY output, and the first line of `savepoint resume` print the same line:
+
+The board requires a valid router Goal to populate its Objective and Task
+views. If selection is missing or invalid, it shows `Choose a Goal`, points to
+`g` or doctor for repair, and displays no project-wide work. Missing Objective
+Goal references appear as the canonical index fact: the board flags their
+presence and doctor names each Objective and the `release: R-###` line to add.
+
+- Selected Task: `<verb> T-### — <Task title> (O-###)`.
+- Selected Objective with no Task: `<verb> O-### — <Objective title>`.
+- Selected Issue with no Objective or Task: `<verb> I-### — <Issue title>`.
+- Selected Goal with no Objective, at a completion rung: `<verb> R-### — <Goal title>`.
+
+The verb says what to do next (`resume.NextVerb`). Task: `Start` (or `Blocked` when a dependency waits), `Build`, `Test`, then at audit `Check`, `Accept` (current Check, owner acceptance the only blocker), or `Close`; `Replan` for a recorded replan; `Done`. Objective: `Check`, `Accept`, `Close` once every owned Task is done; `Plan` with no Tasks; `Pick a Task in` with Tasks left and none selected; `Done`. Issue: `Fix` for `open` and `in_progress`, `Resolved`. A Goal is complete when every member Objective is complete. The board accents the verb only: Build, Test, and Fix in the Task-phase colour; Check, Accept, and Close in the Check-phase colour. A selected Issue alongside an Objective or Task is context while the Objective/Task line remains Next. A selected resolved Issue, or a selected completed Task or Objective, gets a stale-selection diagnostic naming the selected record; the board, non-TTY output, resume, and doctor report it. Next still shows that selection and never substitutes other work. With no Objective or Issue selected, Next says nothing is selected and resume tells the owner to select an Objective with board `p` or ask an agent to `set router to O-### [T-###] [I-###]`; it does not search for one. An Issue can be selected alone with `set router to I-###`.
+
+When the owner closes the selected Task on the board, that action selects the Objective's lowest-ID unfinished Task, or clears `task` when all Tasks are done so Next reads `Check`. Closing the selected Objective clears `objective` and `task`. These actions and board `p` preserve `release:` byte-for-byte.
+
+**Task-card review outcome (O-012):** each non-planned Task card shows at most one review-outcome badge — `[ ] CHECK`, `[✓] CHECK`, `[!] NEEDS WORK`, `[!] REVIEW` (stale/unknown clearance and a checker-authority gate failure fold into this one label), `[✓] WAIVED`, or `[✓] OWNER ACCEPTED` — at fixed precedence (an owner-accepted exception first, an owner Check waiver second, resolved clearance otherwise), so a card never states two competing outcomes. Completion is the Done column's own fact now: the retired `✓ DONE`, `⚠ DONE`, `BY WAIVER`, and `BY EXCEPTION` badges no longer appear. An open Task's card states the outcome only when it is itself actionable (`NEEDS WORK` or the `REVIEW` fold) or the Task carries an owner's own waiver/exception; `ClearanceCurrent` and `ClearanceMissing` read as Done-column vocabulary instead. Waiver and owner-accepted risk keep the same green accent a current Check gets but stay distinct labels — neither is independent technical clearance, and neither replaces the mandatory Objective Check; `internal/data` still owns every underlying clearance, waiver, and exception decision (Section 1). This is presentation only.
+
+**Check code style review (O-023):** Task and Objective detail overlays show `CODE STYLE (C-###)` after `CHECKS` when a latest Check exists. The section displays only that Check's authored `## Code Style Review` lines, including checkbox markers and reasons, or says that the Check has no Code Style Review. A record without a Check omits the section. This display does not affect clearance, badges, Next, or the non-TTY plain table.
 
 **Visual guardrail:** the terminal board intentionally uses one black background for Background, Surface, and Surface 2. Do not restore subtly different dark panel fills; depth should come from spacing, dividers, glyphs, and focused Atari Orange borders.
 
@@ -153,22 +202,44 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Border policy:** focus must not change geometry or introduce terminal-specific broken border rendering. Use one consistent box-border family across columns, cards, and overlays. If rounded borders render as dash bars or broken segments in Warp, prefer the single-line border style already allowed by `.savepoint/visual-identity.md`; do not mix rounded and single-line borders as an ad-hoc per-component workaround.
 
-**Board persistence and refresh:** task status transitions write canonical task frontmatter through `internal/data.WriteTaskStatus` with mtime conflict checks. Board update handlers dispatch filesystem reads and writes through Bubble Tea command helpers (`routerWriteMsg`, `taskWriteMsg`, `epicDetailMsg`, `auditContentMsg`, and `errorMsg`) so `Update()` remains an event/message reducer. The board treats `Model.Root` as the `.savepoint` directory, watches `.savepoint/releases/` recursively with fsnotify, adds watches for newly-created release/epic/task directories, and reloads task plus release/epic index data plus epic status metadata after debounced file changes. Router priority markers match release + epic + task, not only the short `T###` value; completed cards render with the orange build glyph even if they previously matched router priority. The `p` key explicitly writes the focused non-done task to router state as `task-building`; it does not infer `audit-pending` from task position. Epic status glyphs are cached from each epic's `E##-Detail.md` frontmatter and shown in the wide epic sidebar only.
+**Board persistence and refresh:** Task status writes use canonical V2 frontmatter with mtime conflict checks. Objective priority and order actions run as explicit board commands through `data.WriteObjectiveGroupOrderV2`; the writer verifies the complete write set is current and belongs to the selected Goal before writing, patches only `priority` and `rank` on unfinished Objectives, and atomically replaces each changed Objective file. Finished Objectives are excluded from reorder write sets and retain their files unchanged. A multi-file reorder is not transactional: if a later write fails, ties retain deterministic ID fallback and the next move heals the group. Startup and every reload check the project schema with `data.CheckRuntimeSchema`, load the identity-keyed records with `data.LoadV2Index`, decode router state, and resolve `data.ResolveNext`; rendering performs no filesystem work. The board watches the V2 Objective/Task/Release-compatible Goal paths, preserves selection across reloads, and never infers completion or Goal readiness from sidebar position.
 
 **Implementation modules:** see AGENTS.md Codebase Map.
 
-**Keybindings:** arrow/vim navigation, enter opens focused task detail, space advances, backspace retreats, `p` marks the focused non-done task as router priority, `r`/`R` opens release selection or refreshes where supported, `d` opens defects, `D` opens Release Docs, `A` opens the Audit Register, `?` opens help, and `q` quits or closes overlays.
+**Keybindings:** arrow/vim navigation, enter opens focused task detail, space advances, backspace retreats, `p` marks the focused non-done task as router priority, `1`–`4` set the focused Objective's priority (Critical, High, Medium, Low), and `K`/`J` or `shift+↑`/`shift+↓` move it within its current priority group. In the Issues list, Space advances the selected Issue one status and Backspace retreats it one status; the selection follows the Issue after reload. Advancing an In Progress Issue resolves it as `accepted` with the board's fixed reason, and Backspace reopens a resolved Issue. These priority and reorder keys do nothing when a finished Objective row is focused. Reorder keys move only unfinished rows within their priority group and never cross group boundaries or include finished rows; priority changes append the Objective to the destination group's end. Selection follows a moved Objective after reload. These Objective keys apply while the sidebar is focused. `g` opens Goal selection (`r` remains an undisplayed compatibility alias); in it each Goal row shows a green `[✓]` when done and a grey `[ ]` otherwise, and `C` closes the focused Goal when `data.ResolveReleaseCompletion` allows it or reopens a done Goal to `in_progress`, patching only the Goal's `status`, never the router, and refusing archived historical Goals. `R` refreshes where supported, `d` opens defects, `D` opens Goal details, `A` opens the Audit Register, `?` opens help, and `q` quits or closes overlays.
 
 ## 9. Concurrency
 
 - **mtime-based optimistic concurrency.** TUI status writes compare the expected task-file mtime before parsing and again immediately before a no-op or write; conflicts are reported as non-destructive messages that require manual refresh before retry.
-- Agents edit freely; the TUI defers.
-- **No lockfile.**
+- Agents edit freely; the TUI defers. There is no global record lock.
+- **Task-ID allocation is the scoped locking exception.** `savepoint create-task` opens `.savepoint/task-ids.lock` with create-exclusive semantics and holds it through Task-file creation and strict V2 index validation. Contending processes retry for a bounded time and then refuse with the lock path; a leftover lock is reported for owner removal, never recovered automatically.
+- `.savepoint/task-ids.yml` stores `last_issued: N`. Bootstrap scans every active Task and never lowers the saved high-water mark. A reserved ID stays retired after a failed write, interrupted operation, or deletion; the allocator never reuses it.
+- The command creates the Task file exclusively and strict-loads the complete index before success. If strict loading fails, it removes only the newly created Task file and keeps the ID retired. Other identity-bearing record creation or renaming must be followed by `savepoint resume` so the full index is strictly loaded.
 
-## 10. Release versioning (PRDs)
+## 10. Goal records and PRD history
 
-- Sequential integer (`v1`, `v2`). Optional `name` in YAML.
-- `savepoint doctor` warns when creating `v2` while `v1` has un-audited epics.
+Every Savepoint project must have at least one declared live Goal selected by the
+router, and every live Objective must name exactly one Goal through
+`release: R-###`.
+
+- Goals use stable `R-###` identities with a title, outcome, and success
+  conditions. Storage remains under `.savepoint/releases/` as `Release.md`;
+  membership is derived from the serialized `Objective.release` field. A Goal
+  is complete when every member Objective is complete.
+- `savepoint init` creates R-001 with stub Goal sections, titles it after the
+  project, and selects it in the router. Idea fills in the Goal's Outcome
+  with the owner.
+- `savepoint migrate` assigns every converted Objective to a Goal and retains
+  the V1 router's live Goal. When that selection is missing or unresolvable, it
+  selects the live Goal containing the router's active Objective, or the sole
+  live Goal, when that choice is clear. If selected active work belongs only
+  to a historical Goal, migration creates and selects a live `Continued work
+  after migration` Goal and moves those active Objectives into it. An
+  unresolved release lifecycle decision remains in the preview and blocks
+  Apply.
+- Historical `v1`/`v2` PRDs remain in `.savepoint/archive/v1/` and are not
+  active Goal records. Goal completion means every member Objective is
+  complete, never publication, deployment, tagging, or changelog generation.
 
 ## 11. Failure modes
 
@@ -180,41 +251,38 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 | Missing dep                                  | Doctor flags. TUI shows `⚠ broken dep`.                     |
 | Dependency cycle                             | Doctor refuses to start either side; prints cycle path.     |
 | Duplicate task ID                            | Doctor flags.                                               |
-| Audit proposals without `audit_pending` flag | Doctor offers cleanup or restore.                           |
-| Task in nonexistent epic                     | Doctor moves to `.savepoint/orphans/`.                      |
+| Check or Issue reference invalid              | Doctor names the missing target and refuses unsafe actions. |
+| Task without an Objective                     | Doctor reports the missing owner and refuses V2 loading.    |
 | Missing `config.yml`                         | All commands except `init` refuse.                          |
 | Unknown CLI flag                             | Show help, exit 1.                                          |
 
 ## 12. Distribution & build
 
-> Audit note: the live repository is now a Go module (`github.com/opencode/savepoint`). Remaining TypeScript-era distribution details should be removed as Go epics are audited.
+> Distribution note: the live repository is a Go module (`github.com/opencode/savepoint`); package and archive checks use the Go build toolchain.
 
 - **License:** MIT.
 - **Runtime:** Go CLI binary. Source builds with `go build`; tests run with `go test ./...`.
 - **Local build:** `make build` delegates to `internal/buildtool`, builds `savepoint` or `savepoint.exe`, and injects `main.version` from `VERSION` or the latest git tag.
 - **Cross-platform builds:** `make build-all` cross-compiles linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64, and windows-arm64 raw binaries into `dist/{platform}-{arch}/savepoint` or `savepoint.exe` for Windows. `make ci` runs the repo-local verification sequence used by CI.
+- **Windows support:** Windows is a supported runtime platform (CFG-03). CI runs `make ci` on `ubuntu-latest` and the full Go test suite natively on `windows-latest`. Project paths are compared after resolving symlinks and Windows short (8.3) names, and the board watcher ignores directory-only metadata writes that Windows reports without a content change.
 - **Artifacts:** `make dist` creates versioned `.tar.gz` archives in `dist/` for Linux, Darwin, and Windows targets using Go archive APIs, not shell `tar`, and writes SHA256 hashes to `dist/checksums.txt`.
 - **Smoke validation:** `make smoke-test` builds the local binary and runs `--version` as a headless exit-0 check.
 - **No telemetry.** Ever.
 
 ## 13. Testing
 
-| Layer                                                    | Tool                             | Coverage                                                               |
-| -------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------- |
-| Unit: file ops, YAML, frontmatter, snapshot gen          | `vitest`                         | High                                                                   |
-| Unit: state transitions, dep resolution, cycle detection | `vitest`                         | High                                                                   |
-| Integration: CLI commands in temp dirs                   | `vitest` + `tmp`                 | Medium                                                                 |
-| TUI reducers (state, isolated from rendering)            | Go unit tests with Bubble Tea messages | Medium                                                                 |
-| TUI rendering (snapshot tests)                           | —                                | **None.** Brittle.                                                     |
-| End-to-end with real AI agents                           | Manual matrix                    | Pre-release: `[Claude, Cursor, Gemini, Aider]` × `[init, plan, audit]` |
+| Layer | Tool | Evidence |
+| --- | --- | --- |
+| Unit and package behavior | `go test ./...` | parser, lifecycle, gate, rendering, and filesystem branches |
+| Repository build | `make build` | Go binary and embedded template wiring |
+| Distribution | `make build-all`, `make dist`, `make package-check` | six declared platform/architecture targets and checksums |
+| Temporary-project integration | migration, board, doctor, resume tests | schema refusal, V2 loading, identity mapping, and non-TTY parity |
 
-~70% line coverage target; behavior coverage prioritized.
+Quality gates are named in `.savepoint/config.yml`; coverage percentage alone
+never substitutes for acceptance evidence.
 
 ## 14. Package versioning
 
-- `0.1.0` — first public release: scaffolding, status model, CLI, basic TUI, audit (no AI semantic review).
-- `0.2.0` — AI semantic review + broader quality-gate language presets.
-- `0.3.0` — file watching, search.
-- `1.0.0` — MCP server + production stability.
-
-Strict semver. Pre-1.0 minors may break.
+The Go binary reports the injected build version through `--version`; the npm
+wrapper distributes the six platform archives and their checksums. Versioning,
+publishing, and deployment remain outside Goal completion.

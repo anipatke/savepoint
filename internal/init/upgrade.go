@@ -10,6 +10,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/opencode/savepoint/internal/data"
 )
 
 type UpgradeAction string
@@ -19,6 +21,9 @@ const (
 	ActionInstalled UpgradeAction = "installed"
 	ActionMerged    UpgradeAction = "merged"
 	ActionMigrated  UpgradeAction = "migrated"
+	// ActionRetired reports a V1-era skill or reference archived under
+	// .savepoint/migrations/ and removed because the project has become V2.
+	ActionRetired   UpgradeAction = "retired"
 	ActionUnchanged UpgradeAction = "unchanged"
 	ActionSkipped   UpgradeAction = "skipped"
 	// ActionConflict reports work deliberately not done: the file on disk was
@@ -29,7 +34,15 @@ const (
 	// exists so a write failure still names its path and any sidecar already
 	// written for it, rather than vanishing behind the returned error.
 	ActionFailed UpgradeAction = "failed"
+	// ActionInfo reports a note about the upgrade that names no write of its
+	// own: a project still on V1 is told its route to V2 without that ever
+	// becoming a failure, a conflict, or a nonzero exit.
+	ActionInfo UpgradeAction = "info"
 )
+
+// noteMigrateRoute is the informational entry a V1 project's upgrade carries,
+// naming the one command that is allowed to change what a project is.
+const noteMigrateRoute = "V1 workflow is read-only here; run `savepoint migrate --dry-run`, review the plan, then `savepoint migrate --apply` before upgrading V2 assets"
 
 // Sidecar suffixes for content upgrade must not silently destroy: the incoming
 // version of a conflicted file, and the previous content of a replaced one.
@@ -52,7 +65,7 @@ type UpgradeReport struct {
 type UpgradeEntry struct {
 	Path   string
 	Action UpgradeAction
-	// Note names a sidecar file written alongside the target, empty when the
+	// Note names a recovery artifact written for the target, empty when the
 	// action needed none.
 	Note string
 }
@@ -62,7 +75,7 @@ func (r *UpgradeReport) Format() string {
 		return "No assets to upgrade."
 	}
 
-	var updated, installed, merged, migrated, unchanged, skipped, conflicts, failed int
+	var updated, installed, merged, migrated, retired, unchanged, skipped, conflicts, failed, info int
 	for _, e := range r.Actions {
 		switch e.Action {
 		case ActionFailed:
@@ -77,10 +90,14 @@ func (r *UpgradeReport) Format() string {
 			merged++
 		case ActionMigrated:
 			migrated++
+		case ActionRetired:
+			retired++
 		case ActionUnchanged:
 			unchanged++
 		case ActionSkipped:
 			skipped++
+		case ActionInfo:
+			info++
 		}
 	}
 
@@ -106,11 +123,17 @@ func (r *UpgradeReport) Format() string {
 	if migrated > 0 {
 		fmt.Fprintf(&b, "  Migrated: %d\n", migrated)
 	}
+	if retired > 0 {
+		fmt.Fprintf(&b, "  Retired: %d\n", retired)
+	}
 	if unchanged > 0 {
 		fmt.Fprintf(&b, "  Unchanged: %d\n", unchanged)
 	}
 	if skipped > 0 {
 		fmt.Fprintf(&b, "  Skipped: %d\n", skipped)
+	}
+	if info > 0 {
+		fmt.Fprintf(&b, "  Info: %d\n", info)
 	}
 
 	for _, e := range r.Actions {
@@ -129,11 +152,61 @@ func (r *UpgradeReport) Format() string {
 // prove what a project looks like after a failure part-way through an upgrade.
 type assetWriter func(path string, content []byte) error
 
-func UpgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
-	return upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite)
+// UpgradeProjectAssets refreshes a V2 project's assets from v2Templates. The
+// version is read through data.ReadSchemaVersion and never written — migrate
+// is the only operation that changes what a project is, and an upgrade that
+// could promote a project to V2 would be a migration wearing a different name.
+//
+// A malformed or unsupported schema_version refuses before the tree is ever
+// walked, naming the config path and touching nothing. A legacy V1 project's
+// upgrade is a read-only informational refusal naming savepoint migrate as the
+// route to V2.
+func UpgradeProjectAssets(v2Templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
+	absTarget, err := filepath.Abs(targetDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve target directory: %w", err)
+	}
+	if info, err := os.Stat(absTarget); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("target directory %q does not exist", targetDir)
+		}
+		return nil, fmt.Errorf("cannot access %q: %w", targetDir, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("target %q is not a directory", targetDir)
+	}
+	if info, err := os.Stat(filepath.Join(absTarget, ".savepoint")); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("target %q is not a Savepoint project: no .savepoint directory", targetDir)
+		}
+		return nil, fmt.Errorf("cannot check .savepoint directory: %w", err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("target %q is not a Savepoint project: .savepoint is not a directory", targetDir)
+	}
+
+	configPath := filepath.Join(absTarget, ".savepoint", "config.yml")
+	version, err := data.ReadSchemaVersion(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if version != data.SchemaVersionV2 {
+		return &UpgradeReport{Actions: []UpgradeEntry{{
+			Path:   filepath.ToSlash(filepath.Join(".savepoint", "config.yml")),
+			Action: ActionInfo,
+			Note:   noteMigrateRoute,
+		}}}, nil
+	}
+
+	// Retirement is enabled only after the project itself declares V2. It
+	// archives the old triggerable assets before installing the four V2 skills.
+	return upgradeProjectAssets(v2Templates, targetDir, dryRun, force, AtomicWrite, true)
 }
 
-func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool, write assetWriter) (*UpgradeReport, error) {
+// upgradeProjectAssets applies the upgrade policy over one already-selected
+// template tree. retireV1 gates the V1-skill retirement pass: true only when
+// the project this run is for has its own schema_version at V2, never when a
+// test is exercising template-tree policy independent of version dispatch.
+func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool, write assetWriter, retireV1 bool) (*UpgradeReport, error) {
 	absTarget, err := filepath.Abs(targetDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot resolve target directory: %w", err)
@@ -173,15 +246,18 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 
 	var report UpgradeReport
 
-	// Retire the legacy generic audit skill before installing the split skills,
-	// so an interrupted upgrade never leaves the old alias triggerable next to
-	// its replacements.
-	migration, err := migrateLegacyAuditSkill(absTarget, dryRun)
-	if err != nil {
-		return nil, err
-	}
-	if migration != nil {
-		report.Actions = append(report.Actions, *migration)
+	// Retire the nine V1 skills before installing the V2 assets, so an
+	// interrupted upgrade never leaves both routing vocabularies triggerable at
+	// once. Gated on the project's own version, never on the package version.
+	if retireV1 {
+		retirements, err := retireV1Skills(absTarget, manifest, dryRun, write)
+		report.Actions = append(report.Actions, retirements...)
+		if err != nil {
+			if dryRun {
+				return &report, err
+			}
+			return &report, errors.Join(err, manifest.save(absTarget, write))
+		}
 	}
 
 	err = fs.WalkDir(templates, ".", func(path string, d fs.DirEntry, err error) error {
@@ -513,8 +589,8 @@ func writeSidecar(targetPath, path, suffix string, content []byte, dryRun bool, 
 
 // isPackageSkillAsset reports whether a template path is a package-owned skill
 // asset that upgrade refreshes in place: a skill entrypoint, or a shared
-// reference such as agent-skills/references/audit-method.md that the split
-// audit skills load but that never triggers on its own.
+// reference such as agent-skills/references/check-method.md that a V2 skill
+// loads but that never triggers on its own.
 func isPackageSkillAsset(path string) bool {
 	if !strings.HasPrefix(path, "agent-skills/") {
 		return false

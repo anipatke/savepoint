@@ -110,7 +110,7 @@ func TestUpgrade_writeFailureLeavesRecoverableState(t *testing.T) {
 			manifestBefore, _ := projectFile(t, dir, ".savepoint/.upgrade-manifest.yml")
 
 			w := &countingWriter{failAt: tc.failAt}
-			report, err := upgradeProjectAssets(templates, dir, false, true, w.write)
+			report, err := upgradeProjectAssets(templates, dir, false, true, w.write, false)
 
 			if !errors.Is(err, errInjected) {
 				t.Fatalf("error = %v, want the injected failure to surface", err)
@@ -225,7 +225,7 @@ func TestUpgrade_refusesWhenTheManifestCannotBeWritten(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(savepointDir, 0755) })
 
-	_, err := UpgradeProjectAssets(templates, dir, false, true)
+	_, err := upgradeAssetsFromTree(templates, dir, false, true)
 	if err == nil {
 		t.Fatal("expected an error for an unwritable .savepoint directory")
 	}
@@ -276,7 +276,7 @@ func TestUpgrade_unchangedRunDoesNotProbe(t *testing.T) {
 	dir, templates := failureProject(t)
 
 	// Make the project match the templates so the second run has no writes.
-	if _, err := upgradeProjectAssets(templates, dir, false, true, AtomicWrite); err != nil {
+	if _, err := upgradeProjectAssets(templates, dir, false, true, AtomicWrite, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -285,7 +285,7 @@ func TestUpgrade_unchangedRunDoesNotProbe(t *testing.T) {
 		probed = true
 		return nil
 	})
-	report, err := upgradeProjectAssets(templates, dir, false, false, write)
+	report, err := upgradeProjectAssets(templates, dir, false, false, write, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -315,7 +315,7 @@ func TestUpgrade_dryRunNeedsNoWritableManifest(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(savepointDir, 0755) })
 
-	report, err := UpgradeProjectAssets(templates, dir, true, false)
+	report, err := upgradeAssetsFromTree(templates, dir, true, false)
 	if err != nil {
 		t.Fatalf("dry run on a read-only .savepoint error = %v", err)
 	}

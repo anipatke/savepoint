@@ -69,7 +69,6 @@ const (
 	relF001            = "project/.savepoint/audit/findings/F001-awaiting-proof.md"
 	relF002            = "project/.savepoint/audit/findings/F002-owner-waiver.md"
 	relF003            = "project/.savepoint/audit/findings/F003-duplicate.md"
-	relRun2026         = "project/.savepoint/audit/runs/2026-07-01-example.md"
 )
 
 // TestMigrationHistoryScopedReferences proves the epic/short-Task-ID collision
@@ -169,24 +168,6 @@ func TestMigrationHistoryDispositions(t *testing.T) {
 		t.Errorf("F003.DuplicateOf = %q, want %q", f3.DuplicateOf, f1.ID)
 	}
 
-	runRaw := readMigrationFile(t, "v1-history", relRun2026)
-	run, err := parser.ParseRunFile(relRun2026, string(runRaw))
-	if err != nil {
-		t.Fatalf("ParseRunFile() error = %v", err)
-	}
-	if run.Commit == "" {
-		t.Error("run.Commit = empty, want the frozen historical commit reference")
-	}
-	if run.Label != "example" || run.Date != "2026-07-01" {
-		t.Errorf("run.Label/Date = %q/%q, want example/2026-07-01", run.Label, run.Date)
-	}
-	if !strings.Contains(run.Body, "## Reconciliation") {
-		t.Error("run.Body did not retain its authored Reconciliation section")
-	}
-	if diags := DiagnoseRun(run, relRun2026); len(diags) != 0 {
-		t.Errorf("DiagnoseRun() = %v, want none for a well-formed frozen run", diags)
-	}
-
 	epicAudit := string(readMigrationFile(t, "v1-history", "project/.savepoint/releases/v1.1/epics/E01-example/E01-Audit.md"))
 	if !strings.Contains(epicAudit, "## Main Findings") {
 		t.Error("E01-Audit.md lost its authored Main Findings section")
@@ -259,9 +240,7 @@ func assertHistoryInventoryMatchesManifest(t *testing.T) {
 
 // TestMigrationHistoryRawAndNormalized shows raw source evidence surviving
 // even when the typed loader either drops an unknown field or heals an
-// invalid one. It also exercises LoadAuditRegisterSet across the whole
-// audit/ tree and shows it retains all three findings' canonical
-// distinctions rather than collapsing them.
+// invalid one.
 func TestMigrationHistoryRawAndNormalized(t *testing.T) {
 	f1raw := string(readMigrationFile(t, "v1-history", relF001))
 
@@ -314,43 +293,29 @@ func TestMigrationHistoryRawAndNormalized(t *testing.T) {
 		t.Errorf("ParseFindingFile().Status = %q, want healed to open", healedVariant.Status)
 	}
 
-	diags := DiagnoseFinding(rawVariant, dest)
-	if !hasDiagnostic(diags, FindingInvalidStatusCode) {
-		t.Errorf("DiagnoseFinding() = %v, want an invalid_status diagnostic for the unknown-status variant", diags)
-	}
-
-	// LoadAuditRegisterSet must retain all three findings distinctly, sorted
-	// by the canonical lifecycle order.
-	root := filepath.Join(migrationFixtureDir("v1-history"), "project", ".savepoint")
-	set, err := LoadAuditRegisterSet(root)
-	if err != nil {
-		t.Fatalf("LoadAuditRegisterSet() error = %v", err)
-	}
-	if !set.Prompt.Available || set.Prompt.Version != "v1" {
-		t.Errorf("prompt available/version = %v/%q, want true/v1", set.Prompt.Available, set.Prompt.Version)
-	}
-	if !set.Register.Available || !set.Register.HasSummary {
-		t.Errorf("register available/hasSummary = %v/%v, want true/true", set.Register.Available, set.Register.HasSummary)
-	}
-	if len(set.Findings) != 3 {
-		t.Fatalf("len(set.Findings) = %d, want 3", len(set.Findings))
-	}
-	byID := map[string]AuditFinding{}
-	for _, f := range set.Findings {
-		byID[f.ID] = f
-	}
-	if byID["F001"].Status != FindingFixed || byID["F002"].Status != FindingWaived || byID["F003"].Status != FindingDuplicate {
-		t.Errorf("set.Findings statuses = F001:%v F002:%v F003:%v, want fixed/waived/duplicate",
-			byID["F001"].Status, byID["F002"].Status, byID["F003"].Status)
-	}
-	if len(set.Runs) != 1 || set.Runs[0].Label != "example" {
-		t.Errorf("set.Runs = %v, want one run labeled example", set.Runs)
-	}
 }
 
 // TestMigrationHistoryFailures exercises the reader's behavior on malformed
 // and unresolved-reference variants using temporary copies only; the frozen
 // fixture bytes must be unchanged before and after.
+// TestMigrationHistoryDiscoverReleases proves the migration reader still
+// discovers the two releases in the frozen v1-history fixture without
+// touching the source bytes.
+func TestMigrationHistoryDiscoverReleases(t *testing.T) {
+	const fixture = "v1-history"
+	savepointRoot := filepath.Join(migrationFixtureDir(fixture), "project", ".savepoint")
+
+	releases, err := NewDiscover().ListReleases(savepointRoot)
+	if err != nil {
+		t.Fatalf("NewDiscover().ListReleases() error = %v", err)
+	}
+	if len(releases) != 2 || releases[0].ID != "v1" || releases[1].ID != "v1.1" {
+		t.Fatalf("NewDiscover().ListReleases() = %v, want [v1 v1.1]", releases)
+	}
+
+	assertFixtureBytesMatchManifest(t, fixture)
+}
+
 func TestMigrationHistoryFailures(t *testing.T) {
 	parser := NewParser()
 
@@ -372,27 +337,6 @@ func TestMigrationHistoryFailures(t *testing.T) {
 			t.Fatal("ParseFindingFile() error = nil, want a malformed-YAML parse error")
 		} else if !strings.Contains(err.Error(), "parse error for") {
 			t.Errorf("ParseFindingFile() error = %v, want the existing named parse-error shape", err)
-		}
-	})
-
-	t.Run("malformed run frontmatter produces the existing named parse error", func(t *testing.T) {
-		raw := string(readMigrationFile(t, "v1-history", relRun2026))
-		corrupted := strings.Replace(raw, "mode: full", "mode: [unterminated", 1)
-		if corrupted == raw {
-			t.Fatal("test setup: corruption target line not found in run fixture")
-		}
-		dest := filepath.Join(t.TempDir(), "2026-07-01-corrupt.md")
-		if err := os.WriteFile(dest, []byte(corrupted), 0644); err != nil {
-			t.Fatalf("write corrupted copy: %v", err)
-		}
-		content, err := os.ReadFile(dest)
-		if err != nil {
-			t.Fatalf("read corrupted copy: %v", err)
-		}
-		if _, err := parser.ParseRunFile(dest, string(content)); err == nil {
-			t.Fatal("ParseRunFile() error = nil, want a malformed-YAML parse error")
-		} else if !strings.Contains(err.Error(), "parse error for") {
-			t.Errorf("ParseRunFile() error = %v, want the existing named parse-error shape", err)
 		}
 	})
 

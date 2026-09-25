@@ -3,110 +3,248 @@ package init
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 )
 
-func TestProjectTemplatesUseCurrentWorkflow(t *testing.T) {
-	root := filepath.Join("..", "..")
-	agents := readTemplate(t, root, "templates", "project", "AGENTS.md")
-	router := readTemplate(t, root, "templates", "project", ".savepoint", "router.md")
-	auditSkill := readTemplate(t, root, "templates", "project", "agent-skills", "savepoint-audit-epic", "SKILL.md")
-
-	assertNotContains(t, agents, "`phase` (build/test/audit)")
-	assertNotContains(t, agents, "npm run build && npm run test")
-	assertContains(t, agents, "`stage` (build/test/audit): **required** when `status: in_progress`")
-	assertContains(t, agents, "make build && make test")
-
-	assertNotContains(t, router, ".savepoint/audit/{E##-epic}/snapshot.md")
-	assertNotContains(t, router, ".savepoint/audit/{release}/{E##-epic}/proposals.md")
-	assertNotContains(t, router, ".savepoint/audit/{E##-epic}/proposals.md")
-	assertContains(t, router, ".savepoint/releases/{release}/epics/{E##-epic}/E##-Audit.md")
-	assertContains(t, router, "`## Proposed Changes` — admin/apply metadata")
-	assertContains(t, agents, "During audit apply/close, update the same `E##-Audit.md` visible sections")
-	assertContains(t, auditSkill, "Update `E##-Audit.md` visible sections")
-	assertContains(t, auditSkill, "Updated audit findings")
-}
-
 func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	root := filepath.Join("..", "..")
 
-	liveAgents := readTemplate(t, root, "AGENTS.md")
-	templateAgents := readTemplate(t, root, "templates", "project", "AGENTS.md")
-	for _, canonical := range []string{
-		"The phase skill is the canonical workflow source.",
-		"Task `stage` (build/test/audit): **required** when `status: in_progress`",
-		"Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance.",
-		"Never write `stage: implementation`; use `stage: build` when starting implementation work.",
-		"Only the user may set a task to `status: done`",
-		"Never run `savepoint` commands.",
-		"make build && make test",
+	// Byte parity and set-completeness for the V2 skills and their shared
+	// references (see .savepoint/Guardrails.md TPL-01), in both directions:
+	// a skill added to the live tree and forgotten in the shipped tree still
+	// fails, and so does a skill shipped to the wrong tree.
+	assertSkillTreeParity(t, root, "agent-skills", "templates/project-v2/agent-skills", v2Skills, v2References)
+
+	// Every live skill belongs to the declared V2 set; a skill added live and
+	// forgotten there would otherwise pass silently.
+	liveSkills := savepointSkillDirs(t, filepath.Join(root, "agent-skills"))
+	declared := append([]string(nil), v2Skills...)
+	sort.Strings(declared)
+	if !slices.Equal(liveSkills, declared) {
+		t.Errorf("live agent-skills/ = %v, want exactly v2Skills = %v", liveSkills, declared)
+	}
+}
+
+func TestIdeaGuidanceFillsTheFreshProjectsGoal(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, path := range []string{
+		filepath.Join(root, "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"),
 	} {
-		assertContains(t, liveAgents, canonical)
-		assertContains(t, templateAgents, canonical)
+		content := readTemplate(t, path)
+		for _, phrase := range []string{
+			"Every Savepoint project has at least one live Goal selected by the router",
+			"R-001, titled after the project",
+			"Outcome, Why, Success Conditions, and Boundaries",
+			"do not create another Goal for the same initial outcome",
+			"only fill the fresh scaffold placeholder from owner-provided answers",
+		} {
+			assertContains(t, content, phrase)
+		}
+		assertNotContains(t, content, "Goal is optional planning context")
 	}
+}
 
-	liveSkillRoot := filepath.Join(root, "agent-skills")
-	templateSkillRoot := filepath.Join(root, "templates", "project", "agent-skills")
-	entries, err := os.ReadDir(liveSkillRoot)
-	if err != nil {
-		t.Fatalf("read live skill root: %v", err)
+func TestProjectGuidanceRequiresGoalContext(t *testing.T) {
+	root := filepath.Join("..", "..")
+	guidance := [][]string{
+		{"AGENTS.md"},
+		{"templates", "project-v2", "AGENTS.md"},
+		{".savepoint", "Design.md"},
+		{".savepoint", "router.md"},
+		{"templates", "project-v2", ".savepoint", "router.md"},
+		{"README.md"},
 	}
-
-	var skillNames []string
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "savepoint-") {
-			skillNames = append(skillNames, entry.Name())
+	for _, skill := range []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"} {
+		guidance = append(guidance,
+			[]string{"agent-skills", skill, "SKILL.md"},
+			[]string{"templates", "project-v2", "agent-skills", skill, "SKILL.md"},
+		)
+	}
+	stalePhrases := []string{
+		"goal is optional",
+		"goal is not required",
+		"goal is not mandatory",
+		"goal not required",
+		"goal may be omitted",
+		"goal can be omitted",
+		"goal may be left unassigned",
+		"goals are optional",
+		"goals are not required",
+		"optional goal",
+		"goal context is optional",
+		"goal selection is optional",
+		"release is optional",
+		"release may be omitted",
+		"release can be omitted",
+		"goal check is mandatory whenever a goal exists",
+		"goal check is mandatory when a goal exists",
+		"when a goal exists, a mandatory full goal check",
+		"whenever a goal exists",
+		"without a goal, continue",
+		"without a goal",
+		"a v2 project may have no goal",
+		"goal may be omitted",
+		"goal is not required",
+		"omit `release`",
+		"optional `release:",
+		"intentionally unassigned",
+	}
+	for _, parts := range guidance {
+		content := readTemplate(t, root, parts...)
+		lower := strings.ToLower(content)
+		for _, phrase := range stalePhrases {
+			if strings.Contains(lower, phrase) {
+				t.Errorf("%s still contains optional-Goal wording %q", filepath.Join(parts...), phrase)
+			}
 		}
 	}
-	sort.Strings(skillNames)
 
-	if len(skillNames) == 0 {
-		t.Fatal("no live skills found")
+	goalGuides := [][]string{
+		{"AGENTS.md"},
+		{"templates", "project-v2", "AGENTS.md"},
+		{"agent-skills", "savepoint-idea", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"},
+		{"agent-skills", "savepoint-design", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
+		{"agent-skills", "savepoint-task", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
+		{"agent-skills", "savepoint-check", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"},
 	}
+	for _, parts := range goalGuides {
+		content := readTemplate(t, root, parts...)
+		for _, phrase := range []string{"Choose a Goal", "savepoint doctor", "savepoint init", "savepoint migrate"} {
+			assertContains(t, content, phrase)
+		}
+		assertContains(t, content, "R-001")
+	}
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "Every Savepoint project must have a live Goal selected by the router")
+		assertContains(t, content, "every live Objective must name exactly one Goal")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-idea", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-design", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective must name exactly one live Goal")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-task", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
+		{"agent-skills", "savepoint-check", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "Every Savepoint project has at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
+	}
+
+	liveAgents := readTemplate(t, root, "AGENTS.md")
+	templateAgents := readTemplate(t, root, "templates", "project-v2", "AGENTS.md")
+	section := func(content string) string {
+		t.Helper()
+		const heading = "## Required Goal Context\n"
+		start := strings.Index(content, heading)
+		if start < 0 {
+			t.Fatalf("missing %q section", strings.TrimSpace(heading))
+		}
+		body := content[start+len(heading):]
+		if end := strings.Index(body, "\n## "); end >= 0 {
+			body = body[:end]
+		}
+		return body
+	}
+	if live, scaffold := section(liveAgents), section(templateAgents); live != scaffold {
+		t.Error("live and scaffold Required Goal Context sections differ")
+	}
+}
+
+func TestRouterFilesOmitRetiredNextActionKey(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, path := range [][]string{
+		{".savepoint", "router.md"},
+		{"templates", "project-v2", ".savepoint", "router.md"},
+	} {
+		content := readTemplate(t, root, path...)
+		assertNotContains(t, content, "next_action:")
+	}
+}
+
+// assertSkillTreeParity asserts, for one shipped tree, that every named
+// canonical skill and reference is byte-identical in that tree, and that the
+// tree carries exactly that set — no fewer, and nothing belonging to another
+// tree.
+func assertSkillTreeParity(t *testing.T, root, liveRel, shippedRel string, skillNames, referenceNames []string) {
+	t.Helper()
 
 	for _, name := range skillNames {
 		assertFileMatches(t, root,
-			filepath.Join("agent-skills", name, "SKILL.md"),
-			filepath.Join("templates", "project", "agent-skills", name, "SKILL.md"),
+			filepath.Join(liveRel, name, "SKILL.md"),
+			filepath.Join(shippedRel, name, "SKILL.md"),
 		)
-		if _, err := os.Stat(filepath.Join(templateSkillRoot, name, "SKILL.md")); err != nil {
-			t.Fatalf("missing scaffolded skill %s: %v", name, err)
-		}
+	}
+	for _, name := range referenceNames {
+		assertFileMatches(t, root,
+			filepath.Join(liveRel, "references", name),
+			filepath.Join(shippedRel, "references", name),
+		)
 	}
 
-	templateEntries, err := os.ReadDir(templateSkillRoot)
+	gotSkills := savepointSkillDirs(t, filepath.Join(root, filepath.FromSlash(shippedRel)))
+	wantSkills := append([]string(nil), skillNames...)
+	sort.Strings(wantSkills)
+	if !slices.Equal(gotSkills, wantSkills) {
+		t.Errorf("%s skill set = %v, want %v", shippedRel, gotSkills, wantSkills)
+	}
+
+	gotReferences := referenceFileNames(t, filepath.Join(root, filepath.FromSlash(shippedRel)))
+	wantReferences := append([]string(nil), referenceNames...)
+	sort.Strings(wantReferences)
+	if !slices.Equal(gotReferences, wantReferences) {
+		t.Errorf("%s reference set = %v, want %v", shippedRel, gotReferences, wantReferences)
+	}
+}
+
+// referenceFileNames lists the non-triggerable reference files shipped
+// alongside a skill root's savepoint-* directories.
+func referenceFileNames(t *testing.T, skillRoot string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Join(skillRoot, "references"))
 	if err != nil {
-		t.Fatalf("read scaffold skill root: %v", err)
-	}
-	var templateSkillCount int
-	for _, entry := range templateEntries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "savepoint-") {
-			templateSkillCount++
-		}
-	}
-	if templateSkillCount != len(skillNames) {
-		t.Fatalf("scaffolded skill count = %d, want %d", templateSkillCount, len(skillNames))
+		t.Fatalf("read references dir under %s: %v", skillRoot, err)
 	}
 
-	// The shared audit method is a non-triggerable reference, so it is mirrored
-	// outside the savepoint-* skill folders.
-	assertFileMatches(t, root,
-		filepath.Join("agent-skills", "references", "audit-method.md"),
-		filepath.Join("templates", "project", "agent-skills", "references", "audit-method.md"),
-	)
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 	root := filepath.Join("..", "..")
 	liveAgents := readTemplate(t, root, "AGENTS.md")
-	agents := readTemplate(t, root, "templates", "project", "AGENTS.md")
-	router := readTemplate(t, root, "templates", "project", ".savepoint", "router.md")
-	liveBuildSkill := readTemplate(t, root, "agent-skills", "savepoint-build-task", "SKILL.md")
-	buildSkill := readTemplate(t, root, "templates", "project", "agent-skills", "savepoint-build-task", "SKILL.md")
 
-	for _, content := range []string{liveAgents, agents, router, liveBuildSkill, buildSkill} {
+	for _, content := range []string{liveAgents} {
 		assertNotContains(t, content, "status: todo")
 		assertNotContains(t, content, "status: doing")
 		assertNotContains(t, content, "status: blocked")
@@ -119,163 +257,63 @@ func TestProjectTemplatesRejectStaleWorkflowTerms(t *testing.T) {
 		assertNotContains(t, content, "`phase` (build/test/audit)")
 		assertNotContains(t, content, "prompt-based phase")
 	}
-
-	assertContains(t, agents, "Task `stage` (build/test/audit): **required** when `status: in_progress`")
-	assertContains(t, buildSkill, "Set the task frontmatter to `status: in_progress` and `stage: build`")
-	assertContains(t, buildSkill, "Never write `stage: implementation`; implementation work starts at `stage: build`.")
-	assertContains(t, buildSkill, "legacy task `phase` as parser compatibility only")
 }
 
-func TestProjectConceptTemplateExists(t *testing.T) {
+func TestV2WorkflowAssetsHaveNoActiveV1Routing(t *testing.T) {
 	root := filepath.Join("..", "..")
-	concept := readTemplate(t, root, "templates", "project", ".savepoint", "Concept.md")
-
-	assertContains(t, concept, "type: project-concept")
-	assertContains(t, concept, "## When to use this")
-	assertContains(t, concept, "## Core impulse")
-	assertContains(t, concept, "## Target feeling")
-	assertContains(t, concept, "## The problem in one sentence")
-	assertContains(t, concept, "## Who this is NOT for")
-	assertContains(t, concept, "## Open questions")
-
-	for _, stale := range []string{
-		"status: todo",
-		"status: doing",
-		"status: blocked",
-		"status: review",
-		"status: audit",
-		"phase: build",
-		"phase: test",
-		"phase: audit",
-		"phase: implementation",
-		"`phase` (build/test/audit)",
-	} {
-		assertNotContains(t, concept, stale)
+	paths := []string{
+		filepath.Join(root, "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-design", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-task", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "savepoint-check", "SKILL.md"),
+		filepath.Join(root, "agent-skills", "references", "check-method.md"),
+		filepath.Join(root, "agent-skills", "references", "issue-capture.md"),
+		filepath.Join(root, "agent-skills", "references", "commands-and-procedures.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "check-method.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "issue-capture.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "references", "commands-and-procedures.md"),
+	}
+	forbidden := []string{
+		"pre-implementation",
+		"epic-design",
+		"epic-task-breakdown",
+		"task-building",
+		"audit-pending",
+		"defect-building",
+		"savepoint-draft-prd",
+		"savepoint-system-design",
+		"savepoint-create-task",
+		"savepoint-build-task",
+		"savepoint-audit-epic",
+		"savepoint-audit-task",
+		"savepoint-audit-register",
+		"savepoint-create-defect",
+	}
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read V2 workflow asset %s: %v", path, err)
+		}
+		for _, stale := range forbidden {
+			if strings.Contains(string(content), stale) {
+				t.Errorf("V2 workflow asset %s contains active V1 route %q", path, stale)
+			}
+		}
 	}
 }
 
-func TestProjectDesignTemplateListsGuardrailsAndHealthCheck(t *testing.T) {
-	root := filepath.Join("..", "..")
-	design := readTemplate(t, root, "templates", "project", ".savepoint", "Design.md")
-
-	// The Design.md directory listing is what tells an agent these two files
-	// exist, so a scaffolded file with no listing row is invisible in practice.
-	assertContains(t, design, "Guardrails.md")
-	assertContains(t, design, "Health-Check.md")
-	assertContains(t, design, "engineering policy, severity model, rule index")
-	assertContains(t, design, "Quick/Full/Deep evidence gates")
-
-	// The listing must name the split audit skills, never the retired generic one.
-	assertContains(t, design, "savepoint-audit-task")
-	assertContains(t, design, "savepoint-audit-epic")
-}
-
-func TestProjectGuardrailsAndHealthCheckTemplatesExist(t *testing.T) {
+func TestProjectGuardrailsTemplateExists(t *testing.T) {
 	root := filepath.Join("..", "..")
 
-	guardrails := readTemplate(t, root, "templates", "project", ".savepoint", "Guardrails.md")
+	guardrails := readTemplate(t, root, "templates", "project-v2", ".savepoint", "Guardrails.md")
 	assertContains(t, guardrails, "type: guardrails")
 	assertContains(t, guardrails, "## Severity Model")
 	assertContains(t, guardrails, "| Blocker |")
 	assertContains(t, guardrails, "## Rule Index")
-
-	health := readTemplate(t, root, "templates", "project", ".savepoint", "Health-Check.md")
-	assertContains(t, health, "type: health-check")
-	assertContains(t, health, "## Modes")
-	assertContains(t, health, "| Quick | Before task handoff |")
-	assertContains(t, health, "| Full | Before epic audit closeout |")
-	assertContains(t, health, "## Quick Check")
-}
-
-func TestUpgradeMigratesLegacyAuditSkillFromRealTemplates(t *testing.T) {
-	root := filepath.Join("..", "..")
-	templates := os.DirFS(filepath.Join(root, "templates", "project"))
-
-	target := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	legacyDir := filepath.Join(target, "agent-skills", "savepoint-audit")
-	if err := os.MkdirAll(legacyDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	legacy := "# Locally Edited Generic Audit Skill\n"
-	if err := os.WriteFile(filepath.Join(legacyDir, "SKILL.md"), []byte(legacy), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	report, err := UpgradeProjectAssets(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
-
-	if got := upgradeActionFor(t, report, "agent-skills/savepoint-audit/SKILL.md"); got != ActionMigrated {
-		t.Errorf("legacy skill action = %v, want migrated", got)
-	}
-	for _, path := range []string{
-		"agent-skills/savepoint-audit-task/SKILL.md",
-		"agent-skills/savepoint-audit-epic/SKILL.md",
-		"agent-skills/references/audit-method.md",
-	} {
-		if got := upgradeActionFor(t, report, path); got != ActionUpdated {
-			t.Errorf("%s action = %v, want updated", path, got)
-		}
-		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); err != nil {
-			t.Errorf("%s not installed by upgrade: %v", path, err)
-		}
-	}
-
-	// The legacy content survives in the non-triggerable archive, and no
-	// triggerable copy remains.
-	archived, err := os.ReadFile(filepath.Join(target, ".savepoint", "migrations", "savepoint-audit-SKILL.md"))
-	if err != nil {
-		t.Fatalf("legacy content not archived: %v", err)
-	}
-	if string(archived) != legacy {
-		t.Errorf("archived = %q, want verbatim %q", string(archived), legacy)
-	}
-	if _, err := os.Stat(filepath.Join(target, "agent-skills", "savepoint-audit", "SKILL.md")); !os.IsNotExist(err) {
-		t.Errorf("legacy skill still triggerable after upgrade, stat err = %v", err)
-	}
-}
-
-func TestProjectAuditRegisterTemplatesExist(t *testing.T) {
-	root := filepath.Join("..", "..")
-
-	prompt := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "prompt.md")
-	register := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "register.md")
-	findings := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "findings", "README.md")
-	runs := readTemplate(t, root, "templates", "project", ".savepoint", "audit", "runs", "README.md")
-
-	// Prompt and register/findings guidance are seeded by T001/T002; verify they survive.
-	assertContains(t, prompt, "register-backed Savepoint audit")
-	assertContains(t, register, "Convergence summary")
-	assertContains(t, register, "first real finding as `F001`")
-	assertNotContains(t, register, "Example finding")
-	assertContains(t, findings, "F###-slug.md")
-
-	// Run history guidance: naming convention.
-	assertContains(t, runs, "YYYY-MM-DD-label.md")
-
-	// Run records require date, auditor/model, prompt version, commit SHA, mode,
-	// coverage, source audits, and headline counts.
-	for _, field := range []string{
-		"date:",
-		"auditor:",
-		"model:",
-		"prompt_version:",
-		"commit:",
-		"mode:",
-		"coverage:",
-		"source_audits:",
-		"net_new:",
-		"reopened:",
-		"verified:",
-		"deferred:",
-		"coverage_gaps:",
-	} {
-		assertContains(t, runs, field)
-	}
 }
 
 func TestProjectDocumentTemplatesHaveTypeFrontmatter(t *testing.T) {
@@ -284,9 +322,9 @@ func TestProjectDocumentTemplatesHaveTypeFrontmatter(t *testing.T) {
 		path []string
 		want string
 	}{
-		{[]string{"templates", "project", ".savepoint", "PRD.md"}, "type: project-prd"},
-		{[]string{"templates", "project", ".savepoint", "Design.md"}, "type: project-design"},
-		{[]string{"templates", "project", ".savepoint", "Concept.md"}, "type: project-concept"},
+		{[]string{"templates", "project-v2", ".savepoint", "Design.md"}, "type: project-design"},
+		{[]string{"templates", "project-v2", ".savepoint", "Idea.md"}, "type: idea"},
+		{[]string{"templates", "project-v2", ".savepoint", "Guardrails.md"}, "type: guardrails"},
 	}
 	for _, c := range cases {
 		content := readTemplate(t, root, c.path...)
@@ -297,7 +335,7 @@ func TestProjectDocumentTemplatesHaveTypeFrontmatter(t *testing.T) {
 func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 	root := filepath.Join("..", "..")
 	liveAgents := readTemplate(t, root, "AGENTS.md")
-	templateAgents := readTemplate(t, root, "templates", "project", "AGENTS.md")
+	templateAgents := readTemplate(t, root, "templates", "project-v2", "AGENTS.md")
 
 	canonicalStatuses := []string{"planned", "in_progress", "done"}
 	for _, status := range canonicalStatuses {
@@ -307,72 +345,50 @@ func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 
 	assertContains(t, liveAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
 	assertContains(t, templateAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
+	for _, content := range []string{liveAgents, templateAgents} {
+		assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
+		assertContains(t, content, "No other `savepoint` command is for agents except the narrow Task creation operation below.")
+		assertContains(t, content, "After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.")
+	}
 
 	for _, content := range []string{liveAgents, templateAgents} {
 		assertNotContains(t, content, "phase:")
 	}
 }
 
-func TestUpgradeAddsAuditRegisterTemplatesFromRealTemplates(t *testing.T) {
-	root := filepath.Join("..", "..")
-	templates := os.DirFS(filepath.Join(root, "templates", "project"))
-
-	target := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	auditAssets := []string{
-		".savepoint/audit/prompt.md",
-		".savepoint/audit/register.md",
-		".savepoint/audit/findings/README.md",
-		".savepoint/audit/runs/README.md",
-	}
-
-	report, err := UpgradeProjectAssets(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
-
-	for _, path := range auditAssets {
-		if got := upgradeActionFor(t, report, path); got != ActionUpdated {
-			t.Errorf("audit asset %s action = %v, want updated", path, got)
-		}
-		if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(path))); err != nil {
-			t.Errorf("audit asset %s not written: %v", path, err)
-		}
-	}
-
-	// A second upgrade must leave the now-present audit assets untouched.
-	rerun, err := UpgradeProjectAssets(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() rerun error = %v", err)
-	}
-	for _, path := range auditAssets {
-		if got := upgradeActionFor(t, rerun, path); got != ActionUnchanged {
-			t.Errorf("audit asset %s rerun action = %v, want unchanged", path, got)
+func TestReadmeDocumentsTaskCreationCommand(t *testing.T) {
+	readme := strings.Join(strings.Fields(readTemplate(t, filepath.Join("..", ".."), "README.md")), " ")
+	for _, phrase := range []string{
+		"`savepoint create-task --objective O-### --draft <path> [dir]`",
+		"complete Task draft without an `id`",
+		"assigns the next project-wide ID and path",
+		"strict-loads the full V2 index before it reports success",
+	} {
+		if !strings.Contains(readme, phrase) {
+			t.Errorf("README.md does not document Task creation behavior %q", phrase)
 		}
 	}
 }
 
 func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
 	root := filepath.Join("..", "..")
-	templates := os.DirFS(filepath.Join(root, "templates", "project"))
+	templates := os.DirFS(filepath.Join(root, "templates", "project-v2"))
 
 	target := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(target, ".savepoint", "releases")); !os.IsNotExist(err) {
+		t.Fatalf("upgrade-assets added a Goal to an existing project, releases stat err = %v", err)
+	}
 
-	for _, path := range []string{".savepoint/Guardrails.md", ".savepoint/Health-Check.md"} {
-		if got := upgradeActionFor(t, report, path); got != ActionInstalled {
-			t.Errorf("policy asset %s action = %v, want installed", path, got)
-		}
+	if got := upgradeActionFor(t, report, ".savepoint/Guardrails.md"); got != ActionInstalled {
+		t.Errorf("policy asset .savepoint/Guardrails.md action = %v, want installed", got)
 	}
 
 	// End to end: the AGENTS.md code-style pointer must resolve in an upgraded
@@ -380,6 +396,7 @@ func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
 	agents := readTemplate(t, target, "AGENTS.md")
 	assertContains(t, agents, "## Code Style")
 	assertContains(t, agents, "`STYLE` rules in `.savepoint/Guardrails.md`")
+	assertContains(t, agents, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
 
 	guardrails := readTemplate(t, target, ".savepoint", "Guardrails.md")
 	assertContains(t, guardrails, "STYLE-01")

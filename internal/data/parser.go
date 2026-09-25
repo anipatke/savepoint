@@ -1,32 +1,20 @@
 package data
 
 import (
+	"crypto/sha256"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
+// Parser is the legacy V1 frontmatter reader. It remains available to the
+// explicit migration path and frozen historical fixtures; live V2 consumers
+// use the strict record decoders and ParseV2Document instead.
 type Parser struct{}
 
 func NewParser() *Parser {
 	return &Parser{}
-}
-
-func (p *Parser) ParseFrontmatter(content string) (map[string]any, error) {
-	frontmatter, err := extractFrontmatter(content)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]any
-	if err := yaml.Unmarshal([]byte(frontmatter), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
-	}
-
-	return result, nil
 }
 
 func (p *Parser) ParseTaskFile(path string, content string) (*Task, error) {
@@ -176,6 +164,59 @@ func extractChecklistItems(content, heading string) []CheckItem {
 	return items
 }
 
+// V2SourceDocument couples a V2 record's project-relative path with its raw
+// frontmatter YAML node and Markdown body. Strict V2 decoders project typed
+// fields from Frontmatter via Node.Decode while retaining the document a
+// later preserving rewrite needs, instead of going through the healing
+// map[string]any path V1 parsing uses.
+type V2SourceDocument struct {
+	// Path is retained as the project-relative source path when the record
+	// comes from discovery. ProjectRoot carries the resolution context for a
+	// later managed write, so callers do not need to keep the same cwd.
+	Path        string
+	ProjectRoot string
+	Frontmatter yaml.Node
+	Body        string
+	// frontmatterText is the exact frontmatter source Frontmatter was parsed
+	// from, so a managed write can keep untouched fields byte-for-byte.
+	frontmatterText string
+	// CRLF records whether the original source used Windows line endings, so
+	// a managed rewrite can reproduce the same line-ending form instead of
+	// silently normalizing it to LF.
+	CRLF bool
+
+	// contentHash is the load-time freshness token. It is deliberately based
+	// on the exact source bytes, rather than only mtime, because filesystems
+	// may have coarse timestamp resolution and editors may preserve mtimes.
+	contentHash    [sha256.Size]byte
+	contentHashSet bool
+}
+
+// ParseV2Document splits content into its frontmatter YAML node and body,
+// giving schema-specific V2 decoders a raw projection boundary distinct from
+// the V1 struct-tag decode path in ParseTaskFile.
+func ParseV2Document(path, content string) (V2SourceDocument, error) {
+	fm, body, err := SplitFrontmatterBody(content)
+	if err != nil {
+		return V2SourceDocument{}, fmt.Errorf("parse error for %s: %w", path, err)
+	}
+
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(fm), &node); err != nil {
+		return V2SourceDocument{}, fmt.Errorf("parse error for %s: failed to parse YAML: %w", path, err)
+	}
+
+	return V2SourceDocument{
+		Path:            path,
+		Frontmatter:     node,
+		Body:            body,
+		frontmatterText: fm,
+		CRLF:            strings.Contains(content, "\r\n"),
+		contentHash:     sha256.Sum256([]byte(content)),
+		contentHashSet:  true,
+	}, nil
+}
+
 type defectFrontmatter struct {
 	ID         string         `yaml:"id"`
 	Release    string         `yaml:"release"`
@@ -213,27 +254,6 @@ func (p *Parser) ParseDefectFile(path string, content string) (*Defect, error) {
 
 	NormalizeDefectLifecycleForLoad(defect)
 
-	return defect, nil
-}
-
-func (p *Parser) ParseDefectFileFromDisk(path string) (*Defect, error) {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("stat %s: %w", path, err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-
-	defect, err := p.ParseDefectFile(path, string(content))
-	if err != nil {
-		return nil, err
-	}
-
-	defect.Path = path
-	defect.Mtime = fi.ModTime().Truncate(time.Second)
 	return defect, nil
 }
 

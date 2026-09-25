@@ -1,0 +1,247 @@
+---
+id: R-005
+title: Split Audits, Template Uplift, and Policy Ownership
+status: done
+legacy_completion:
+    source_path: .savepoint/releases/v1.5/v1.5-PRD.md
+    archive_path: .savepoint/archive/v1/.savepoint/releases/v1.5/v1.5-PRD.md
+    sha256: 48fe4adad99ef40a18740e8b19b328134764a7eea27722754b609453c285ee37
+---
+## Outcome
+
+The V1 release promise is preserved in the Legacy Source section below. Source: `.savepoint/releases/v1.5/v1.5-PRD.md`.
+
+## Why
+
+This Release carries the V1 delivery boundary forward with a stable V2 identity.
+
+## Success Conditions
+
+- Converted Objectives sourced from this V1 release reference this Release identity.
+- Historical completion, when present, remains typed archive evidence rather than a V2 Check.
+
+## Boundaries
+
+Release membership is derived from Objective records; Tasks remain owned by Objectives.
+
+## Legacy Source (verbatim)
+
+Source path: `.savepoint/releases/v1.5/v1.5-PRD.md`
+
+SHA-256: `48fe4adad99ef40a18740e8b19b328134764a7eea27722754b609453c285ee37`
+
+Original frontmatter:
+
+```yaml
+version: 1.5
+name: "Split Audits, Template Uplift, and Policy Ownership"
+status: done
+```
+
+````markdown
+
+
+# Release v1.5 - Split Audits, Template Uplift, and Policy Ownership
+
+## Overview
+
+v1.5 removes the ambiguous generic audit skill from future Savepoint projects. It gives task-level read-only review and completed-epic closeout separate skills, while sharing one rigorous audit method. Additionally, v1.5 polishes the shipped visual-identity template to be project-agnostic, introduces new Guardrails.md and Health-Check.md template documents, moves code style from Savepoint-owned boilerplate to project-owned policy, and makes those policy files reach existing projects on upgrade. It closes by making upgrade itself safe on projects that have diverged from the shipped templates.
+
+## Epics
+
+### E35 — Split Task and Epic Audits
+
+Give task review and epic closeout distinct, unambiguous skills while keeping their audit reasoning consistent through one shared method.
+
+- Separate `savepoint-audit-task` and `savepoint-audit-epic` contracts
+- One shared audit-method reference covering frozen scope locks, mandatory coverage matrices, workflow/side-effect audit locks, convergence limits, admission ledgers, and credible-blocker exceptions
+- Request-qualified task-audit routing without a new router state
+- Safe existing-project migration away from `savepoint-audit`
+- Enriched audit rigor: materiality tables, repository handoff results (CLEAR TO COMMIT/PUSH), Guardrails Verification subsections, file reality evidence, and Final Response Output formats
+- Scaffold, upgrade, validator, and workflow regression coverage
+- Cross-reference updates: router overrides, AGENTS.md audit section, Design.md references, audit-register skill, build-task handoff
+- 4 tasks planned
+
+### E36 — Visual-identity template polish
+
+Rewrite `templates/project/.savepoint/visual-identity.md` so it serves as a project-agnostic design-system template. Atari-Noir stays as an illustrative example. Terminal/TUI-specific content is demoted to a clearly delimited optional appendix. The accompanying `templates/project/.savepoint/Design.md` prose is updated to no longer frame visual-identity as TUI-only.
+
+- 2 tasks planned
+
+### E37 — Guardrails.md template
+
+Add a new Guardrails.md scaffold template to the shipped project bundle, providing a canonical file for project-level engineering policy, severity model, and rule index. Content is adapted from a customised Savepoint project: QuizKids-specific rules are genericized (child-data → sensitive data, Supabase → generic privileged access, First Family Journey → critical user journey), and a customization note is added.
+
+- `templates/project/.savepoint/Guardrails.md` — genericized engineering policy template
+- Updated `templates/project/.savepoint/Design.md` directory listing
+- 1 task planned
+
+### E38 — Health-Check.md template
+
+Add a new Health-Check.md scaffold template to the shipped project bundle, providing a canonical file for health check modes (Quick/Full/Deep), check procedures, and evidence output templates. Content is adapted from a customised Savepoint project: environment-specific sandbox notes and migration references are removed.
+
+- `templates/project/.savepoint/Health-Check.md` — genericized health check template
+- Updated `templates/project/.savepoint/Design.md` directory listing
+- 1 task planned
+
+### E39 — Code-style ownership and policy-asset upgrade
+
+Make code style project-owned policy instead of Savepoint-owned boilerplate, and deliver `.savepoint/` policy files to existing projects on upgrade.
+
+The ten code-style rules currently live in the managed AGENTS.md block, which `upgrade-assets` overwrites wholesale, so project tailoring is lost on every upgrade. They are also restated as a hardcoded checklist in the audit skeleton, which the E37 Guardrails template's own POL-01 and POL-02 rules forbid. Separately, `upgrade-assets` skips the whole `.savepoint/` subtree, so the E37 and E38 templates would reach fresh `init` projects only — a defect independent of code style that becomes harmful once AGENTS.md points at a file upgraded projects do not have.
+
+- AGENTS.md (both copies) `## Code Style` becomes a pointer to the STYLE rules
+- `savepoint-build-task` reads the STYLE rules during build, closing the gap that no builder skill references code style today
+- `savepoint-audit-epic` sources `## Code Style Review` checkboxes from STYLE rule IDs
+- Generalized install-if-missing upgrade path for `Guardrails.md` and `Health-Check.md`
+- Savepoint's own `.savepoint/Guardrails.md`, dogfooding the E37 template
+- 2 tasks planned
+
+### E40 — Upgrade safety and backward compatibility
+
+Make `upgrade-assets` safe to run on a project that has diverged from the shipped templates, and prove with tests that template changes do not break files created by earlier versions.
+
+Three defects are silent today. Skill files are overwritten wholesale with no merge, backup, or warning, so a project that tailors one loses that work — and skills are user-facing by design, since `AGENTS.md` tells agents to read them directly when the skill tool cannot find a skill. An `AGENTS.md` without the managed markers gets a second block appended rather than merged, leaving two contradictory sets of workflow instructions in the file whose only job is instructing agents. And `--force` is accepted but never read, so the natural response to "my file did not update" produces no change and no error.
+
+- `.savepoint/.upgrade-manifest.yml` recording the SHA-256 of each skill file as Savepoint last wrote it
+- A `conflict` upgrade action: keep the user's file, write the incoming one as `<name>.new`, name it in the report
+- `--force` given real meaning: overwrite a customized file after saving `<name>.bak`
+- Marker-less `AGENTS.md` reports a conflict instead of gaining a duplicate block
+- Frozen legacy fixtures asserting old routers, agent guides, and task files still parse and upgrade cleanly
+- 4 tasks planned
+
+## Product rules (E35)
+
+- Task audit is an explicit request-qualified override while router state remains `task-building`.
+- Task audit is read-only, uses the Quick health check, and returns `CLEAR` or `NEEDS WORK`.
+- Epic audit is selected by `audit-pending` or an explicit completed-epic audit request, runs in an independent session, and uses the Full health check.
+- Epic audit writes exactly one `E##-Audit.md` and preserves proposal approval and closeout authority.
+- Both audit skills use one shared method that treats acceptance criteria as invariants and tests as evidence rather than proof.
+- New generated projects contain no active or triggerable `savepoint-audit` skill.
+- Existing-project upgrades preserve legacy user content while removing the generic skill from the active skill catalog.
+- Historical release artifacts are not rewritten solely to remove old skill names.
+
+## Product rules (E36)
+
+- `visual-identity.md` remains opaque to the binary (embedded, scaffolded verbatim, skipped by upgrade-assets). No Go code changes required.
+- The general design-system sections must be TUI-neutral. The Atari-Noir theme stays as a filled-in example, not as required content.
+- Terminal/TUI-specific content must be demoted to a clearly delimited optional appendix so non-TUI projects can ignore or remove it.
+- `templates/project/.savepoint/Design.md` prose references must be updated to no longer frame visual-identity as loaded only for TUI tasks.
+
+## Product rules (E37–E38)
+
+- New scaffold templates are added to `templates/project/.savepoint/`. Existing embedded-FS behavior (main.go:18) includes them automatically.
+- `internal/init/integration_test.go:63-76` enumerates an explicit expected-file list; new file existence assertions for `Guardrails.md` and `Health-Check.md` must be added there.
+- Templates are skipped by `upgrade-assets` (under `.savepoint/` subtree), so user edits are never clobbered after init. E39 adds a narrow install-if-missing exception for named policy assets, which never overwrites an existing file.
+- Source-material references to a per-release "release guardrails audit plan" (a QuizKids practice not scaffolded by Savepoint) are softened to an optional reference: "the release's guardrails mapping, if your project maintains one — otherwise the relevant `.savepoint/Guardrails.md` rule IDs directly."
+
+## Product rules (E39)
+
+- Code style is project-owned policy in `.savepoint/Guardrails.md`, not Savepoint-owned content in the managed AGENTS.md block.
+- Code style stays Guideline severity and advisory, consistent with `Design.md`'s existing "advisory, not blocking" framing. No skill treats a STYLE rule as a blocker.
+- AGENTS.md retains routing and discoverability only, which is what its own preamble states it is for.
+- No live guide, skill, or template restates the ten rules; each references the STYLE rule IDs.
+- Upgrade installs a missing policy asset but never overwrites an existing one, reusing the established `.savepoint/audit/` install-if-missing semantics.
+- The install-if-missing gate is an explicit allowlist. The rest of the `.savepoint/` subtree stays skipped.
+- Savepoint dogfoods its own Guardrails.md so the shipped template is exercised by its own repository.
+
+## Product rules (E40)
+
+- Never silently destroy, never silently duplicate. Upgrade replaces a file only when it is provably unmodified; otherwise it keeps the user's version and offers ours alongside.
+- Provenance, not guesswork, decides what "unmodified" means. Comparing on-disk content to the incoming template cannot tell a user edit from an outdated copy; the manifest supplies the missing third data point.
+- The manifest covers wholesale-owned files only — `agent-skills/*/SKILL.md`. `AGENTS.md` carries its own ownership signal in the marker pair, and no `.savepoint/` path is Savepoint-owned.
+- Skill files are never merged. A partially merged skill is a broken workflow; the choice is replace or preserve, never blend.
+- `router.md` and the rest of `.savepoint/` stay permanently skipped, so compatibility is a reader guarantee: additive fields only, previously valid `state` values always accepted, and the `## Current state` heading with its yaml fence frozen as the parse contract.
+- New `config.yml` keys must carry defaults, since existing files will never gain them.
+- Legacy fixtures are frozen. A test failing against one signals a compatibility break, not a stale fixture.
+
+## Epic breakdown
+
+Listed in build order. Epic numbering does not imply sequence.
+
+| Build | # | Epic | Status | Tasks |
+|-------|---|------|--------|-------|
+| 1 | 36 | Visual-identity template polish | Audited | 2/2 done |
+| 2 | 37 | Guardrails.md template | Planned | 0/1 done |
+| 3 | 38 | Health-Check.md template | Planned | 0/1 done |
+| 4 | 35 | Split Task and Epic Audits | Planned | 0/4 done |
+| 5 | 39 | Code-style ownership and policy-asset upgrade | Planned | 0/2 done |
+| 6 | 40 | Upgrade safety and backward compatibility | Planned | 0/4 done |
+
+## Build order
+
+Epic numbering does not imply build order. Build in this sequence:
+
+1. **E36** — complete. Both tasks are `done`, the epic is `audited`, and the work is committed, so later epics are free to touch `templates/project/.savepoint/Design.md`.
+2. **E37**, then **E38** — these create `templates/project/.savepoint/Guardrails.md` and `Health-Check.md`. E37 authors the `STYLE-01..10` category up front so the duplicated style list is never shipped mid-release.
+3. **E35** — its skill contracts reference `.savepoint/Guardrails.md` and `.savepoint/Health-Check.md`, and its T-004 asserts their scaffold existence, so it must build after E37/E38.
+4. **E39** — depends on E37 for the STYLE rules existing and on E35 for the final audit skeleton and build-task contracts.
+5. **E40** — builds last. It edits the same `internal/init/upgrade.go` walk that E39's policy-asset allowlist changes, so sequencing them avoids two epics reworking one function.
+
+## E35 success criteria
+
+- New projects contain both split audit skills and their shared method, with correct router mappings.
+- Task-audit guidance cannot create epic audit artifacts or change task/router lifecycle state.
+- Epic-audit guidance retains the single-artifact, proposal approval, and epic-closeout process.
+- The generic skill name is absent from newly generated output and active upgraded skill catalogs.
+- Both new skill folders pass automated skill-contract validation.
+- The full build and test suite passes, and stale live references are rejected while historical records remain intact.
+
+## E36 success criteria
+
+- Visual-identity template general sections are TUI-neutral. Atari-Noir is presented as an illustration, not a requirement.
+- Terminal feasibility table, terminal UI guardrails, scanlines/glow material, and What Survives in the Terminal table are demoted to a clearly delimited optional appendix.
+- `templates/project/.savepoint/Design.md` no longer frames visual-identity as "loaded only for TUI/theme/visual tasks."
+- Full build and test suite passes. No Go test breaks (only `integration_test.go:68` asserts file existence, not content).
+
+## E37 success criteria
+
+- `templates/project/.savepoint/Guardrails.md` exists in fresh scaffold and contains genericized rules (no QuizKids-specific references, including SEC-06 quiz generation, SEC-07 child data, Severity Model child-data prose, PRIV-01 waiver history, and OBS-03 purge wording).
+- The `STYLE-01..10` category is present at Guideline severity, and OPS-01/02/03 are absent so no duplicate style list ships.
+- Replacement note at top tells users to customize for their own project.
+- `templates/project/.savepoint/Design.md` directory listing includes `Guardrails.md`.
+- Full build and test suite passes.
+
+## E38 success criteria
+
+- `templates/project/.savepoint/Health-Check.md` exists in fresh scaffold with `type: health-check` frontmatter and `last_audited: never`.
+- WSL/Codex sandbox note and `.claude` migration reference are absent.
+- No project-specific Deep Check content remains (Opus traceability, billing/RLS/LLM-runtime concern list); `GUARDRAILS.md` references are updated to `.savepoint/Guardrails.md`; "release guardrails audit plan" is softened to an optional reference.
+- `templates/project/.savepoint/Design.md` directory listing includes `Health-Check.md`.
+- Full build and test suite passes.
+
+## E39 success criteria
+
+- No live AGENTS.md, skill, or template restates the ten style rules; each references the STYLE rule IDs in `.savepoint/Guardrails.md`.
+- `savepoint-build-task` reads the STYLE rules during build and degrades gracefully when `Guardrails.md` is absent.
+- The audit skeleton's `## Code Style Review` renders one checkbox per STYLE rule and stays visible in the TUI Audit tab.
+- An upgraded project missing `Guardrails.md` or `Health-Check.md` receives them; one that already has them is left byte-identical.
+- Dry-run reports policy-asset installs without touching the filesystem, and repeat upgrades are idempotent.
+- Every other `.savepoint/` path remains skipped by upgrade.
+- Savepoint's own `.savepoint/Guardrails.md` exists and carries the STYLE rules.
+- Full build and test suite passes.
+
+## E40 success criteria
+
+- A customized skill file survives an upgrade byte-identical, with the incoming version available as `<name>.new` and a `conflict` in the report.
+- An unmodified-but-outdated skill file is replaced silently, with no `.new` or `.bak` clutter.
+- `--force` overwrites a customized file after writing `<name>.bak`, and is actually read rather than accepted and ignored.
+- An `AGENTS.md` without markers is left byte-identical and reported `conflict`; one with markers still merges in place with surrounding prose untouched.
+- Dry run reports every action above and writes nothing at all.
+- Repeat upgrades with no intervening edits are fully idempotent, and an unresolved conflict re-reports rather than accumulating `.new` variants.
+- Frozen legacy fixtures for `router.md`, both `AGENTS.md` shapes, and a customized `SKILL.md` parse and upgrade cleanly.
+- The router reader contract is asserted: unknown keys ignored, absent optional keys defaulted, and both structural anchors required.
+- Full build and test suite passes.
+
+## Out of scope
+
+- A new router state for task audit
+- Runtime execution or sandbox enforcement for agent-authored audit instructions
+- Rewriting historical release plans, task logs, or audit records
+- Changing task completion or epic approval authority
+- Go code changes for template *content* — visual-identity, Guardrails, and Health-Check bodies stay opaque to the binary. E39 changes only which files upgrade installs, never how they are parsed.
+- Making code style blocking, or changing the wording of the ten style rules
+- Installing any `.savepoint/` file on upgrade beyond the named policy-asset allowlist
+- Migrating `router.md` or any other `.savepoint/` file into a new shape; E40 keeps them skipped and guarantees compatibility in the reader instead
+- Three-way or line-level merging of skill files
+````

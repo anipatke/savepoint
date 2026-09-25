@@ -2,12 +2,17 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -112,6 +117,83 @@ func TestWriteChecksums_missingFile(t *testing.T) {
 	err := writeChecksums(dest, []string{filepath.Join(dir, "nonexistent.tar.gz")})
 	if err == nil {
 		t.Error("expected error for missing archive, got nil")
+	}
+}
+
+func TestExpectedArchiveNamesCoverSixPlatformMatrix(t *testing.T) {
+	want := []string{
+		"savepoint-v1.0.0-linux-amd64.tar.gz",
+		"savepoint-v1.0.0-linux-arm64.tar.gz",
+		"savepoint-v1.0.0-darwin-amd64.tar.gz",
+		"savepoint-v1.0.0-darwin-arm64.tar.gz",
+		"savepoint-v1.0.0-windows-amd64.tar.gz",
+		"savepoint-v1.0.0-windows-arm64.tar.gz",
+	}
+	got := expectedArchiveNames("v1.0.0")
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("expected archive names = %v, want %v", got, want)
+	}
+}
+
+func TestVerifyDistributionStructureAcceptsExactSixArchives(t *testing.T) {
+	dir, release := fakeDistribution(t)
+	if err := verifyDistributionStructure(dir, release); err != nil {
+		t.Fatalf("verifyDistributionStructure: %v", err)
+	}
+}
+
+func TestDistributionInventoryRejectsMissingExtraRenamedAndChanged(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(t *testing.T, dir, release string)
+	}{
+		{name: "missing", mutate: func(t *testing.T, dir, release string) {
+			name := expectedArchiveNames(release)[0]
+			if err := os.Remove(filepath.Join(dir, name)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "extra", mutate: func(t *testing.T, dir, release string) {
+			if err := os.WriteFile(filepath.Join(dir, "renamed.tar.gz"), []byte("extra"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "unsupported", mutate: func(t *testing.T, dir, release string) {
+			if err := os.WriteFile(filepath.Join(dir, "savepoint-"+release+"-freebsd-amd64.tar.gz"), []byte("extra"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "renamed", mutate: func(t *testing.T, dir, release string) {
+			name := expectedArchiveNames(release)[0]
+			if err := os.Rename(filepath.Join(dir, name), filepath.Join(dir, "renamed.tar.gz")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "changed", mutate: func(t *testing.T, dir, release string) {
+			name := expectedArchiveNames(release)[0]
+			path := filepath.Join(dir, name)
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.Write([]byte("changed")); err != nil {
+				f.Close()
+				t.Fatal(err)
+			}
+			if err := f.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, release := fakeDistribution(t)
+			tc.mutate(t, dir, release)
+			if err := verifyDistributionStructure(dir, release); err == nil {
+				t.Fatal("verifyDistributionStructure succeeded for invalid inventory")
+			}
+		})
 	}
 }
 
@@ -247,4 +329,85 @@ func TestLocalExecutable(t *testing.T) {
 			t.Errorf("localExecutable() = %q, want %q", got, "savepoint")
 		}
 	}
+}
+
+func TestFocusedTestArgsRequiresPattern(t *testing.T) {
+	if _, err := focusedTestArgs(nil); err == nil {
+		t.Fatal("expected an empty focused-test pattern to fail")
+	}
+	if _, err := focusedTestArgs([]string{"   "}); err == nil {
+		t.Fatal("expected a whitespace focused-test pattern to fail")
+	}
+}
+
+func TestFocusedTestArgsAddsUncachedTimingAndPackage(t *testing.T) {
+	got, err := focusedTestArgs([]string{"TestResume", "./internal/resume"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"-json", "-count=1", "-run", "TestResume", "./internal/resume"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("focusedTestArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunGoTestCommandReportsTimingAndPropagatesFailure(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestGoTestCommandHelperProcess$")
+	cmd.Env = append(os.Environ(), "SAVEPOINT_BUILDTOOL_TEST_HELPER=1")
+	var output bytes.Buffer
+	err := runGoTestCommand(cmd, &output)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("runGoTestCommand() error = %v, want child exit error", err)
+	}
+	if got := exitErr.ExitCode(); got != 7 {
+		t.Fatalf("child exit code = %d, want 7", got)
+	}
+	for _, want := range []string{"internal/migrate.TestSlowFixture", "internal/migrate.TestBroken", "injected diagnostic", "Go test timing summary", "Slowest packages", "Slowest tests"} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("output does not contain %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestGoTestCommandHelperProcess(t *testing.T) {
+	if os.Getenv("SAVEPOINT_BUILDTOOL_TEST_HELPER") != "1" {
+		return
+	}
+	fmt.Println(`{"Action":"pass","Package":"internal/migrate","Test":"TestSlowFixture","Elapsed":0.35}`)
+	fmt.Println(`{"Action":"fail","Package":"internal/migrate","Test":"TestBroken","Elapsed":0.5}`)
+	fmt.Println(`{"Action":"fail","Package":"internal/migrate","Elapsed":0.8}`)
+	fmt.Fprintln(os.Stderr, "injected diagnostic")
+	os.Exit(7)
+}
+func fakeDistribution(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "sources")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	release := "v1.0.0"
+	archives := make([]string, 0, len(targets))
+	for _, target := range targets {
+		content := []byte{0x7f, 'E', 'L', 'F', 'f', 'a', 'k', 'e'}
+		if target.os == "windows" {
+			content = []byte{'M', 'Z', 'f', 'a', 'k', 'e'}
+		} else if target.os == "darwin" {
+			content = []byte{0xcf, 0xfa, 0xed, 0xfe, 'f', 'a', 'k', 'e'}
+		}
+		source := filepath.Join(sourceDir, target.os+"-"+target.arch)
+		if err := os.WriteFile(source, content, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		archive := filepath.Join(dir, archiveName(release, target))
+		if err := writeTarGz(archive, source, executableName(target.os)); err != nil {
+			t.Fatal(err)
+		}
+		archives = append(archives, archive)
+	}
+	if err := writeDistributionChecksums(dir, release, archives); err != nil {
+		t.Fatal(err)
+	}
+	return dir, release
 }

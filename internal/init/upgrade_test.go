@@ -15,7 +15,7 @@ func TestUpgradeProjectAssets_requiresSavepointProject(t *testing.T) {
 	target := t.TempDir()
 	templates := fstest.MapFS{}
 
-	_, err := UpgradeProjectAssets(templates, target, false, false)
+	_, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err == nil {
 		t.Fatal("expected error for non-savepoint project")
 	}
@@ -28,7 +28,7 @@ func TestUpgradeProjectAssets_requiresExistingDirectory(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "nonexistent")
 	templates := fstest.MapFS{}
 
-	_, err := UpgradeProjectAssets(templates, target, false, false)
+	_, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err == nil {
 		t.Fatal("expected error for missing directory")
 	}
@@ -51,7 +51,7 @@ func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(newContent)},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -129,7 +129,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(content)},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -159,7 +159,7 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Managed Content")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -195,7 +195,7 @@ func TestUpgradeProjectAssets_absentAgentsMdWritesWholeFile(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -233,7 +233,7 @@ func TestUpgradeProjectAssets_unmarkedAgentsMdConflicts(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -296,7 +296,7 @@ func TestUpgradeProjectAssets_halfMarkedAgentsMdConflicts(t *testing.T) {
 				"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 			}
 
-			report, err := UpgradeProjectAssets(templates, target, false, false)
+			report, err := upgradeAssetsFromTree(templates, target, false, false)
 			if err != nil {
 				t.Fatalf("UpgradeProjectAssets() error = %v", err)
 			}
@@ -338,7 +338,7 @@ func TestUpgradeProjectAssets_forceAdoptsUnmarkedAgentsMd(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, true)
+	report, err := upgradeAssetsFromTree(templates, target, false, true)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -402,7 +402,7 @@ func TestUpgradeProjectAssets_dryRunUnmarkedAgentsMdConflicts(t *testing.T) {
 				"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 			}
 
-			report, err := UpgradeProjectAssets(templates, target, true, tc.force)
+			report, err := upgradeAssetsFromTree(templates, target, true, tc.force)
 			if err != nil {
 				t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 			}
@@ -445,7 +445,7 @@ func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -461,9 +461,26 @@ func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
 	if _, err := os.Stat(variantPath + incomingSuffix); err != nil {
 		t.Errorf("sidecar not written beside the on-disk casing: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(target, "AGENTS.md")); !os.IsNotExist(err) {
+	if hasExactEntry(t, target, "AGENTS.md") {
 		t.Errorf("upgrade created a second agent guide under canonical casing")
 	}
+}
+
+// hasExactEntry reports whether dir lists name with exactly that casing. A
+// Stat would also find a differently cased file on a case-insensitive
+// filesystem, where both spellings name the same guide.
+func hasExactEntry(t *testing.T, dir, name string) bool {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Name() == name {
+			return true
+		}
+	}
+	return false
 }
 
 func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
@@ -478,7 +495,7 @@ func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
 	}
 
 	for range 2 {
-		_, err := UpgradeProjectAssets(templates, target, false, false)
+		_, err := upgradeAssetsFromTree(templates, target, false, false)
 		if err != nil {
 			t.Fatalf("UpgradeProjectAssets() run error = %v", err)
 		}
@@ -492,6 +509,60 @@ func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
 	count := strings.Count(got, managedBegin)
 	if count != 1 {
 		t.Errorf("AGENTS.md has %d managed begin markers, want 1: %q", count, got)
+	}
+}
+
+// TestUpgradeProjectAssets_ignoresLegacyMigrationDirectory proves upgrade
+// assets treats an old .savepoint/.migration directory as inert historical
+// content now that apply no longer creates or reads operation journals.
+func TestUpgradeProjectAssets_ignoresLegacyMigrationDirectory(t *testing.T) {
+	target := t.TempDir()
+	savepointDir := filepath.Join(target, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	legacyOperationDir := filepath.Join(savepointDir, ".migration", "op-1")
+	if err := os.MkdirAll(legacyOperationDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacyOperationDir, "operation.yml"), []byte("legacy journal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	oldContent := "# Old Content"
+	testutil.WriteFile(t, filepath.Join(skillDir, "SKILL.md"), oldContent)
+
+	templates := fstest.MapFS{
+		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
+	}
+
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v, want the leftover operation directory ignored", err)
+	}
+	found := false
+	for _, e := range report.Actions {
+		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
+			found = true
+			if e.Action != ActionUpdated {
+				t.Errorf("action = %v, want updated", e.Action)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("skill path not in report")
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "# New Content" {
+		t.Fatalf("skill content = %q, want the upgrade to have written the new content", string(data))
 	}
 }
 
@@ -513,7 +584,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Content")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, true, false)
+	report, err := upgradeAssetsFromTree(templates, target, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
@@ -558,7 +629,7 @@ func TestUpgradeProjectAssets_dryRunReportsUnchanged(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(content)},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, true, false)
+	report, err := upgradeAssetsFromTree(templates, target, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
@@ -584,7 +655,7 @@ func TestUpgradeProjectAssets_skipsNonAllowlistedFiles(t *testing.T) {
 		"README.md":          &fstest.MapFile{Data: []byte("# Readme")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -608,7 +679,7 @@ func TestUpgradeProjectAssets_skipsPromptTemplates(t *testing.T) {
 		"prompts/task-building.prompt.md":           &fstest.MapFile{Data: []byte("stale phase prompt")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -637,7 +708,7 @@ func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Skill")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -674,7 +745,7 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -726,7 +797,7 @@ func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, true, false)
+	report, err := upgradeAssetsFromTree(templates, target, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
@@ -760,7 +831,7 @@ func TestUpgradeProjectAssets_multipleSkills(t *testing.T) {
 		"agent-skills/skill-b/SKILL.md": &fstest.MapFile{Data: []byte("# Skill B")},
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -811,7 +882,7 @@ func TestUpgradeProjectAssets_addsMissingAuditAssets(t *testing.T) {
 
 	templates := auditTemplates()
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -850,7 +921,7 @@ func TestUpgradeProjectAssets_preservesEditedAuditAssets(t *testing.T) {
 
 	templates := auditTemplates()
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -886,11 +957,11 @@ func TestUpgradeProjectAssets_pristineAuditAssetsUnchanged(t *testing.T) {
 	templates := auditTemplates()
 
 	// First upgrade writes the assets; second sees them pristine.
-	if _, err := UpgradeProjectAssets(templates, target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, target, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -914,7 +985,7 @@ func TestUpgradeProjectAssets_dryRunDoesNotAddAuditAssets(t *testing.T) {
 
 	templates := auditTemplates()
 
-	report, err := UpgradeProjectAssets(templates, target, true, false)
+	report, err := upgradeAssetsFromTree(templates, target, true, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() dry-run error = %v", err)
 	}
@@ -960,7 +1031,7 @@ func TestUpgradeProjectAssets_installsMissingPolicyAssets(t *testing.T) {
 
 	templates := policyTemplates()
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -1032,7 +1103,7 @@ func TestUpgradeProjectAssets_policyAssetBranches(t *testing.T) {
 					testutil.WriteFile(t, targetPath, existing)
 				}
 
-				report, err := UpgradeProjectAssets(templates, target, c.dryRun, false)
+				report, err := upgradeAssetsFromTree(templates, target, c.dryRun, false)
 				if err != nil {
 					t.Fatalf("UpgradeProjectAssets() error = %v", err)
 				}
@@ -1077,7 +1148,7 @@ func TestUpgradeProjectAssets_policyAssetsIdempotent(t *testing.T) {
 
 	templates := policyTemplates()
 
-	if _, err := UpgradeProjectAssets(templates, target, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, target, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 
@@ -1090,7 +1161,7 @@ func TestUpgradeProjectAssets_policyAssetsIdempotent(t *testing.T) {
 		before[path] = string(data)
 	}
 
-	report, err := UpgradeProjectAssets(templates, target, false, false)
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("second UpgradeProjectAssets() error = %v", err)
 	}
@@ -1232,7 +1303,7 @@ func assertSkillHash(t *testing.T, dir, want string) {
 // upgradeSkill runs an upgrade of a single skill and returns its report entry.
 func upgradeSkill(t *testing.T, dir, template string, dryRun, force bool) UpgradeEntry {
 	t.Helper()
-	report, err := UpgradeProjectAssets(skillTemplates(template), dir, dryRun, force)
+	report, err := upgradeAssetsFromTree(skillTemplates(template), dir, dryRun, force)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -1397,7 +1468,7 @@ func TestUpgradeSkill_secondRunIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := UpgradeProjectAssets(skillTemplates("# Ours v2"), dir, false, false)
+	report, err := upgradeAssetsFromTree(skillTemplates("# Ours v2"), dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -1475,7 +1546,7 @@ func TestUpgradeProjectAssets_legacyProjectWithUnmarkedGuide(t *testing.T) {
 	dir, guide, skill := legacyProject(t, "AGENTS.unmarked.md")
 	templates := legacyTemplates()
 
-	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -1518,7 +1589,7 @@ func TestUpgradeProjectAssets_legacyProjectWithMarkedGuide(t *testing.T) {
 	dir, guide, _ := legacyProject(t, "AGENTS.marked.md")
 	templates := legacyTemplates()
 
-	report, err := UpgradeProjectAssets(templates, dir, false, false)
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
 	}
@@ -1567,7 +1638,7 @@ func TestUpgradeProjectAssets_legacyCustomizedSkillConflictsOnceTracked(t *testi
 	dir, _, skill := legacyProject(t, "AGENTS.marked.md")
 	templates := legacyTemplates()
 
-	if _, err := UpgradeProjectAssets(templates, dir, false, false); err != nil {
+	if _, err := upgradeAssetsFromTree(templates, dir, false, false); err != nil {
 		t.Fatalf("first UpgradeProjectAssets() error = %v", err)
 	}
 	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(policySkillPath)), skill)
@@ -1598,4 +1669,11 @@ func TestUpgradeReport_formatConflict(t *testing.T) {
 	if !strings.Contains(output, noteConflict) || !strings.Contains(output, noteBackup) {
 		t.Errorf("missing sidecar notes: %q", output)
 	}
+}
+
+// upgradeAssetsFromTree runs the upgrade core against one template tree with
+// the production writer, as UpgradeProjectAssets does once it has chosen the
+// tree for the target's schema.
+func upgradeAssetsFromTree(templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
+	return upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite, false)
 }
