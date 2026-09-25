@@ -49,6 +49,13 @@ history:
     note: >-
       Owner reported another RELOAD issue link diagnostic: issue I-040 names
       missing check C-914. Exact diagnostic is recorded in the Evidence section.
+  - at: '2026-09-25T10:22:13Z'
+    actor: {role: owner, session: user-report}
+    kind: observed
+    note: >-
+      Owner reported that a RELOAD rejected Task T-046 because
+      owner_validation.accepted_by is missing. The reported diagnostic is
+      recorded in the Evidence section.
 ---
 
 # I-031: Frequent V2 board load errors for project records
@@ -56,7 +63,7 @@ history:
 ## Summary
 
 The owner reports frequent V2 board load errors during startup and reload,
-including diagnostics for Issue records, the router, and an Objective. These
+including diagnostics for Issue, Task, and Objective records and the router. These
 errors disrupt the experience and need to be resolved before release.
 The owner will add further examples as they occur. This record captures the
 reported symptoms without asserting a cause.
@@ -72,6 +79,7 @@ reported symptoms without asserting a cause.
 - `parse error for issues/I-038-npx-board-rejects-canonical-objective-id.md: no closing frontmatter delimiter found`
 - `No board is drawn: this project's records did not load.`
 - `RELOAD v2 issue link names a record that does not exist: issues/I-040-data-loadproject-unreachable-v1-dispatch.md: issue I-040 names missing check C-914`
+- `RELOAD v2 record is missing a required field: objectives/O-015-owner-advance-issues/tasks/T-046-use-space-and-backspace-in-the-issues-panel.md: task T-046 missing required field owner_validation.accepted_by`
 
 ## Proof Needed
 
