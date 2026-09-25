@@ -31,6 +31,7 @@ func TestClassify_unclassifiedIsReportedNotDropped(t *testing.T) {
 		"README.md",
 		".savepoint/releases/v1",
 		".savepoint/releases/v1/random.md",
+		".savepoint/audit/findings/README.md",
 	}
 	for _, path := range cases {
 		want := RoleUnclassified
