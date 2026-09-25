@@ -57,7 +57,9 @@ func actionsForRecord(index *data.V2Index, target actionTarget) []BoardAction {
 	}
 
 	var actions []BoardAction
-	if target.Kind == DetailObjective && decision.Allowed && !decision.AllowedByException {
+	// A done Objective still resolves as closeable; there is nothing left to close.
+	if target.Kind == DetailObjective && index.Objectives[target.ID].Status != data.ColumnDone &&
+		decision.Allowed && !decision.AllowedByException {
 		actions = append(actions, BoardAction{
 			Key: objectiveCloseKey, Kind: ActionCompleteObjective,
 			TargetKind: target.Kind, TargetID: target.ID,
@@ -197,6 +199,14 @@ func actionForKey(actions []BoardAction, key string) (BoardAction, bool) {
 		}
 	}
 	return BoardAction{}, false
+}
+
+func (m Model) objectiveDone(id string) bool {
+	if m.State.Index == nil {
+		return false
+	}
+	objective, ok := m.State.Index.Objectives[id]
+	return ok && objective.Status == data.ColumnDone
 }
 
 func (m Model) focusedActionTarget() (actionTarget, bool) {

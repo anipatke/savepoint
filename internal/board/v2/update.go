@@ -76,6 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // keys do not cross at all, because they belong to what is on top.
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
+	// A status message shares the footer with the key hints. The next key
+	// dismisses it so the hints return; an action's own result replaces it.
+	m.StatusMessage = ""
 	if m.Help {
 		if key == "esc" || key == "q" || key == "?" {
 			m.Help = false
@@ -127,8 +130,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if m.SidebarFocused {
+		// A refusal explains why an open Objective cannot close yet; a done
+		// Objective has nothing to close, so space leaves it alone.
 		if key == objectiveCloseKey {
-			if target, ok := m.focusedActionTarget(); ok && target.Kind == DetailObjective {
+			if target, ok := m.focusedActionTarget(); ok && target.Kind == DetailObjective && !m.objectiveDone(target.ID) {
 				return m, writeObjectiveCompletionCmd(m.Root, target.ID)
 			}
 		}

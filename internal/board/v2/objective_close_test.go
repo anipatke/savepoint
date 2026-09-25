@@ -167,3 +167,35 @@ func TestObjectiveRouterConflictReportsStaleSelection(t *testing.T) {
 		t.Fatalf("router conflict = %+v", message)
 	}
 }
+
+func TestSpaceOnDoneObjectiveDoesNothingAndKeysRestoreHints(t *testing.T) {
+	root, path, before := closeableObjectiveProject(t)
+	writeObjectiveExtra(t, root, "O-001", "Ready Objective", "done",
+		"release: R-006\nlast_check: C-001\n"+currentFreshness("C-001"))
+	model := focusObjective(t, openSizedBoard(t, root, 120, 40), "O-001")
+	model.SidebarFocused = true
+	if got := renderHelp(model, 120, 40); strings.Contains(got, "space: close Objective") {
+		t.Fatalf("help offers closing a done Objective: %s", got)
+	}
+	updated, cmd := model.Update(keyMsg(" "))
+	if cmd != nil {
+		t.Fatalf("Space on a done Objective returned a command: %v", cmd().(actionMsg).err)
+	}
+	if got := readActionFile(t, path); got != before {
+		t.Fatalf("Space on a done Objective changed router: %q", got)
+	}
+
+	board := updated.(Model)
+	board.StatusMessage = "O-001 is already done"
+	if footer := board.renderStatusBar(120); strings.Contains(footer, "?:help") {
+		t.Fatalf("status message should occupy the footer: %q", footer)
+	}
+	next, _ := board.Update(keyMsg("down"))
+	board = next.(Model)
+	if board.StatusMessage != "" {
+		t.Fatalf("status message survived the next key: %q", board.StatusMessage)
+	}
+	if footer := board.renderStatusBar(120); !strings.Contains(footer, "?:help") {
+		t.Fatalf("key hints did not return after the next key: %q", footer)
+	}
+}
