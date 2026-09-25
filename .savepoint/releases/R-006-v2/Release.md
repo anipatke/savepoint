@@ -1,7 +1,7 @@
 ---
 id: R-006
 title: Savepoint V2 — Simple workflow, trustworthy completion
-status: in_progress
+status: done
 legacy_fields:
     release: v2
     type: release-prd

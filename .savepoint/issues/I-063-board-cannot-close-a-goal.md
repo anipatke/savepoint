@@ -2,7 +2,7 @@
 id: I-063
 title: The board cannot close or reopen a Goal
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -35,6 +35,18 @@ history:
       refusal, markers, hints, and help. make build && make test-fast
       passed. Not exercised by eye in a live terminal. Issue remains open for
       independent verification.
+  - at: '2026-09-25T22:04:39Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner exercised C on the live board, closed R-006, and reported "works,
+      verified". Recorded by the executor on the owner's instruction; no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-25T22:04:39Z'
+  reason: Owner verified the Goal close and reopen key on the live board.
 ---
 
 # I-063: The board cannot close or reopen a Goal
