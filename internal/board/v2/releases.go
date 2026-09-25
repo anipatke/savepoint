@@ -53,6 +53,12 @@ func selectedRelease(state ProjectState) string {
 	if state.Index == nil || state.Router == nil || state.Router.Release == "" {
 		return ""
 	}
+	if diagnostic := state.Next.SelectionDiagnostic; diagnostic != nil {
+		switch diagnostic.Kind {
+		case data.SelectionReleaseMissing, data.SelectionReleaseNotFound, data.SelectionReleaseArchived:
+			return ""
+		}
+	}
 	if releaseExists(state.Index, state.Router.Release) {
 		return state.Router.Release
 	}

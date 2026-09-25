@@ -16,10 +16,13 @@ func writeBoardV2Project(t *testing.T, dir string) {
 	t.Helper()
 	savepointDir := filepath.Join(dir, ".savepoint")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "config.yml"), "schema_version: 2\n")
+	testutil.WriteFile(t, filepath.Join(savepointDir, "releases", "R-001-fixture", "Release.md"),
+		"---\nid: R-001\ntitle: \"Fixture Goal\"\nstatus: planned\n---\n"+
+			"# Goal\n\n## Outcome\n\nShip the fixture outcome.\n\n## Why\n\nThe fixture has a named delivery context.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nGoal does not own Tasks.\n")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "router.md"),
-		"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"Build T-001.\"\n```\n")
+		"# Router\n\n## Current state\n\n```yaml\nstate: task\nrelease: R-001\nobjective: O-001\ntask: T-001\nnext_action: \"Build T-001.\"\n```\n")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "Objective.md"),
-		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\nrelease: R-001\n---\n\n# First objective\n")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "tasks", "T-001-alpha.md"),
 		"---\nid: T-001\ntitle: \"Do the thing\"\nobjective: O-001\nplanned_by: {role: planner, session: board-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
 }

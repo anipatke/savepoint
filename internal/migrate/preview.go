@@ -39,6 +39,7 @@ func FormatPreview(plan *ConversionPlan) string {
 		b.WriteString("\n")
 	}
 
+	writeGoalSelection(&b, plan.GoalSelection)
 	writePlannedRecords(&b, plan.Targets)
 	writeDocuments(&b, plan.Documents)
 	writeArchives(&b, plan.Archives)
@@ -53,6 +54,32 @@ func FormatPreview(plan *ConversionPlan) string {
 	return b.String()
 }
 
+func writeGoalSelection(b *strings.Builder, selection RouterGoalSelection) {
+	b.WriteString("Router Goal selection\n----------------------\n")
+	if selection.GoalID == "" {
+		if selection.Reason != "" {
+			fmt.Fprintf(b, "- %s.\n\n", selection.Reason)
+			return
+		}
+		b.WriteString("(no parseable V1 router selection was available)\n\n")
+		return
+	}
+	if selection.Generated {
+		fmt.Fprintf(b, "- %s; create and select live Goal %s (%q).\n\n",
+			selection.Reason, selection.GoalID, continuationGoalTitle)
+		return
+	}
+	if selection.Reason != "" {
+		fmt.Fprintf(b, "- %s.\n\n", selection.Reason)
+		return
+	}
+	if selection.SourceRelease != "" {
+		fmt.Fprintf(b, "- keep live Goal %s selected from V1 release %q.\n\n", selection.GoalID, selection.SourceRelease)
+		return
+	}
+	fmt.Fprintf(b, "- keep live Goal %s selected.\n\n", selection.GoalID)
+}
+
 func writePlannedRecords(b *strings.Builder, targets []PlannedTarget) {
 	b.WriteString("Planned records\n---------------\n")
 	if len(targets) == 0 {
@@ -64,6 +91,11 @@ func writePlannedRecords(b *strings.Builder, targets []PlannedTarget) {
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].GlobalID < sorted[j].GlobalID })
 
 	for _, t := range sorted {
+		if t.Generated {
+			fmt.Fprintf(b, "- Goal %s <- generated %q -> %s\n", t.GlobalID, t.GeneratedTitle, t.InstallPath())
+			fmt.Fprintf(b, "    status: %s\n", t.ReleaseStatus)
+			continue
+		}
 		legacy := t.Legacy
 		scope := legacy.Path
 		if legacy.Release != "" {

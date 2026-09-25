@@ -20,8 +20,8 @@ func writeIssuesProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-001", "T-001")
-	writeObjective(t, root, "O-001", "Issue surface", "in_progress")
+	writeFixtureRouter(t, root, "task", "O-001", "T-001")
+	writeFixtureObjective(t, root, "O-001", "Issue surface", "in_progress", "")
 	writeTask(t, root, "O-001", "T-001", "Task carrying follow-ups", "status: in_progress\nstage: audit\n")
 	writeCheck(t, root, "C-001", "task", "T-001", "CLEAR")
 

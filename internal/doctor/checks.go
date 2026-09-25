@@ -90,6 +90,11 @@ func releaseDiagnosticsForIndex(root string, index *data.V2Index) releaseDiagnos
 		}
 		clearance := data.ResolveClearance(index, releaseID)
 		for _, blocker := range decision.Blockers {
+			// A Goal may be active before its first Objective is planned. The
+			// completion gate still blocks closing it without members.
+			if release.Status == data.ColumnInProgress && blocker.Kind == data.GateBlockReleaseNoObjectives {
+				continue
+			}
 			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker, clearance.Check))
 		}
 	}

@@ -18,6 +18,7 @@ selection; the command does not write project files.
 state: idea
 objective: none
 task: none
+release: R-001
 ```
 
 ## Skill Activation
@@ -55,5 +56,7 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
   the Task evidence; the waiver is not technical `CLEAR`.
 - The Full Objective Check is mandatory and includes every owned Task,
   including waived Tasks, cross-Task integration, and Design reconciliation.
-- A Goal Check is mandatory whenever a Goal exists, followed by exact owner
+- A Goal Check is mandatory for every Goal, followed by exact owner
   acceptance of the current Check.
+- Every Savepoint project must select a declared live Goal in router `release:`, and
+  every live Objective must reference exactly one Goal in its `release:`.

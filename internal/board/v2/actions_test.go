@@ -454,9 +454,9 @@ func TestGoalSelectionPreservesIssueContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	objective := strings.Replace(string(objectiveBytes), "status: planned\n", "status: planned\nrelease: R-007\n", 1)
+	objective := strings.Replace(string(objectiveBytes), "release: R-001\n", "release: R-007\n", 1)
 	if objective == string(objectiveBytes) {
-		t.Fatal("O-002 fixture has no planned status to attach Release")
+		t.Fatal("O-002 fixture has no default Goal to replace")
 	}
 	testutil.WriteFile(t, objectiveFile, objective)
 
@@ -481,9 +481,9 @@ func addTestReleaseAndRouterContext(t *testing.T, root, selectedTask string) (st
 	if err != nil {
 		t.Fatal(err)
 	}
-	objective := strings.Replace(string(objectiveBytes), "status: in_progress\n", "status: in_progress\nrelease: R-006\n", 1)
+	objective := strings.Replace(string(objectiveBytes), "release: R-001\n", "release: R-006\n", 1)
 	if objective == string(objectiveBytes) {
-		t.Fatal("Objective fixture has no in_progress status to attach Release")
+		t.Fatal("Objective fixture has no default Goal to replace")
 	}
 	testutil.WriteFile(t, objectiveFile, objective)
 
@@ -659,8 +659,8 @@ func writeObjectiveStartProject(t *testing.T, objectiveStatus string) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-001", "T-001")
-	writeObjective(t, root, "O-001", "First objective", objectiveStatus)
+	writeFixtureRouter(t, root, "task", "O-001", "T-001")
+	writeFixtureObjective(t, root, "O-001", "First objective", objectiveStatus, "")
 	writeTask(t, root, "O-001", "T-001", "First task", "status: planned\n")
 	return root
 }

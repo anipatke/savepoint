@@ -986,28 +986,36 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 	}
 }
 
-func TestV2SkillsTeachOptionalGoalWorkflow(t *testing.T) {
+func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		idea := string(readSkillFile(t, root, "savepoint-idea"))
 		for _, phrase := range []string{
-			"Goal is optional planning context",
-			"related Objectives grouped under a navigable outcome",
-			"Ask whether the owner wants a Goal to group related Objectives",
-			"otherwise continue with Objective → Task",
+			"Every Savepoint project has at least one live Goal selected by the router",
+			"every live Objective names exactly one Goal through `release:`",
+			"R-001, titled after the project",
+			"do not create another Goal for the same initial outcome",
+			"only fill the fresh scaffold placeholder from owner-provided answers",
+			"Choose a Goal",
+			"savepoint doctor",
+			"savepoint migrate",
 		} {
 			if !strings.Contains(idea, phrase) {
-				t.Errorf("%s: savepoint-idea missing optional-Release phrase %q", tree, phrase)
+				t.Errorf("%s: savepoint-idea missing project-Goal phrase %q", tree, phrase)
 			}
 		}
 
 		design := string(readSkillFile(t, root, "savepoint-design"))
 		for _, phrase := range []string{
-			"## Optional Goal Boundary",
+			"## Required Goal Context",
+			"every live Objective must name exactly one live Goal",
+			"Choose a Goal",
+			"savepoint doctor",
+			"savepoint init",
+			"savepoint migrate",
+			"required `release: R-###` compatibility field",
 			"stable global `R-###` identity from the first unused number",
 			"Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
-			"existing optional `release: R-###` compatibility field",
 			"do not maintain a second membership list",
-			"without a Goal, continue through Idea → Design → Task → Check with no missing-record error",
 			"current CLEAR integration evidence exists",
 			"not whether anything has been published or deployed",
 		} {
@@ -1019,10 +1027,31 @@ func TestV2SkillsTeachOptionalGoalWorkflow(t *testing.T) {
 			t.Errorf("%s: savepoint-design retains the pre-E51 optional release-string placeholder", tree)
 		}
 
+		task := string(readSkillFile(t, root, "savepoint-task"))
+		for _, phrase := range []string{
+			"## Goal Context",
+			"Every Savepoint project has at least one live Goal selected by the router",
+			"Choose a Goal",
+			"savepoint doctor",
+			"R-001",
+			"savepoint migrate",
+		} {
+			if !strings.Contains(task, phrase) {
+				t.Errorf("%s: savepoint-task missing project-Goal phrase %q", tree, phrase)
+			}
+		}
+
 		check := string(readSkillFile(t, root, "savepoint-check"))
 		for _, phrase := range []string{
+			"## Goal Context",
+			"Every Savepoint project has at least one live Goal selected by the router",
+			"Choose a Goal",
+			"savepoint doctor",
+			"R-001",
+			"savepoint migrate",
 			"scope: {kind: task|objective|release, id: T-###, O-###, or R-###}",
 			"cross-Objective integration",
+			"Goal Check is mandatory for every Goal",
 			"creates or reuses ordinary Issues",
 			"never records owner acceptance on the owner's behalf",
 			"Goal `done` does not mean published or deployed",

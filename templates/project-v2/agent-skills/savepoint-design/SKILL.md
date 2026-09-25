@@ -70,22 +70,45 @@ Apply this contract to every implementation, not only to migration work:
 - The Full Objective Check is mandatory before Objective closure. It reviews
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.
-- A Goal Check is mandatory whenever a Goal exists, and exact owner
+- A Goal Check is mandatory for every Goal, and exact owner
   acceptance of its current Check remains required.
 - In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective/Goal Checks require the full gate through `make ci` or `make test-full`.
 - Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
-## Optional Goal Boundary
+## Required Goal Context
 
-When the owner chooses a Goal in Idea, define it as optional context grouping related Objectives under a navigable outcome. It is not another workflow phase; without a Goal, continue through Idea → Design → Task → Check with no missing-record error. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
+Every Savepoint project must have at least one live Goal selected by the router,
+and every live Objective must name exactly one live Goal in its `release:`
+field.
+If the router Goal is missing, blank, or `none`, Next says `Choose a Goal`;
+select a live Goal with `g`. Unknown or archived router selections are
+reported as selection diagnostics; choose a live Goal with `g`. If no live
+Goal exists, `savepoint doctor` directs the owner to create one. An Objective missing
+`release:` remains loadable, but resume and the board flag it and doctor names
+the Objective and exact `release: R-###` repair. Unknown or malformed
+Objective references remain errors.
 
-Existing V2 storage remains Release-compatible: Goals use stable `R-###` identities in `.savepoint/releases/<slug>/Release.md`; Objectives and router selection retain the `release: R-###` field, and Goal Checks retain `scope.kind: release`. The V2 board uses `g` as the canonical Goal selector; `r` is an undisplayed compatibility alias.
+`savepoint init` creates and selects R-001, titled after the project, with
+stub sections for Outcome, Why, Success Conditions, and Boundaries. Idea fills
+those sections with the owner. `savepoint migrate` retains the V1 router's live
+Goal. When that selection is missing or unresolvable, it reuses a uniquely
+identifiable existing live Goal for the converted active work when possible.
+If selected work belongs only to a historical Goal, migration creates a live
+continuation and moves that active Objective into it. An unresolved release
+lifecycle decision stays in the preview and blocks Apply.
 
-For an opted-in Goal:
+Existing V2 storage remains Release-compatible: Goals use stable `R-###`
+identities in `.savepoint/releases/<slug>/Release.md`; Objectives and router
+selection retain the `release: R-###` field, and Goal Checks retain
+`scope.kind: release`. The V2 board uses `g` as the canonical Goal selector;
+`r` is an undisplayed compatibility alias. A Goal does not own Tasks or
+publish, deploy, tag, or generate changelogs.
+
+When adding another Goal:
 
 1. Allocate a stable global `R-###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
 2. Author the Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes the grouped Objectives' result, not whether anything has been published or deployed.
-3. Link each member Objective with the existing optional `release: R-###` compatibility field. Derive membership from those Objective records; do not maintain a second membership list.
+3. Give each member Objective the required `release: R-###` compatibility field. Derive membership from those Objective records; do not maintain a second membership list.
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. Treat Goal `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
 
@@ -136,7 +159,7 @@ Interfaces, data ownership, and constraints this Objective must respect.
 - Excluded work
 ```
 
-Omit `release` when an Objective is intentionally unassigned; it is the compatibility field referencing a first-class Goal identity, not free-form text.
+Every Objective must set `release: R-###` to its Goal's stable identity; this is the compatibility field, not free-form text.
 
 Task membership is derived from which Tasks name this Objective as their owner. Do not also maintain a second, manually kept list of member Tasks in the Objective body — that list drifts from the Tasks themselves and becomes a second source of truth.
 

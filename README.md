@@ -35,19 +35,27 @@ Savepoint makes those boundaries explicit:
   hidden in a prompt or a chat transcript.
 - **Check at the right level.** A Task Check is optional and may be explicitly
   waived by the owner. The mandatory Full Objective Check verifies every owned
-  Task and its integration; a Goal Check is mandatory whenever a Goal
-  exists.
+  Task and its integration; a Full Goal Check is mandatory for every Goal.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
-- **Use Goals when they help.** A V2 project may add an optional Goal to group
-  related Objectives under a navigable delivery promise. A mandatory Full Goal
-  Check and owner acceptance are required before marking it done. Goals do not
-  publish, deploy, tag, or generate changelogs.
+- **Every project has a Goal.** The router selects a live Goal, and every
+  Objective belongs to exactly one Goal. A mandatory Full Goal Check and owner
+  acceptance are required before marking it done. Goals do not publish,
+  deploy, tag, or generate changelogs.
 
 Existing V2 projects keep the compatibility storage names: stable `R-###`
 identities under `.savepoint/releases/` as `Release.md`, Objective `release:`
 references, router `release:` selections, and Check `scope.kind: release`. The
-V2 board presents these records as Goals; no data migration is required.
+V2 board presents these records as Goals. `savepoint init` creates and selects
+R-001, titled after the project. `savepoint migrate` retains the V1 router's
+live Goal and, on an unresolved selection, reuses a uniquely identifiable
+existing live Goal for the active work when possible. If selected work belongs
+only to a historical Goal, migration creates a continuation Goal and moves
+that Objective into it. An unresolved release lifecycle decision stays in the
+preview. If an existing project is missing its router Goal,
+Next says `Choose a Goal`; doctor explains how to select or create one. A
+missing Objective `release:` remains loadable, but doctor names the Objective
+and exact line to add.
 
 Savepoint does not replace Git, your test runner, or human judgment. It gives
 those things a shared workflow.
@@ -55,12 +63,11 @@ those things a shared workflow.
 ## The workflow
 
 ```text
-IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  GOAL CHECK*
+IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  GOAL CHECK
   intent       architecture    bounded      mandatory Full           mandatory Full
   & outcome    & guardrails    execution     integration              cross-Objective
                                       ╰─ optional Quick Task Check
                                          or explicit owner waiver
-                                      *when a Goal exists
 ```
 
 ### Idea
@@ -90,8 +97,8 @@ requests it. If the owner skips that local review, the Task evidence records an
 explicit waiver; the waiver is not technical `CLEAR` and does not waive any
 acceptance criterion or guardrail. Before an Objective closes, a mandatory
 Full Objective Check verifies every owned Task, cross-Task integration, and
-Design reconciliation. When a Goal exists, a mandatory Full Goal Check
-verifies cross-Objective integration before the owner accepts that exact Check.
+Design reconciliation. A mandatory Full Goal Check for every Goal verifies
+cross-Objective integration before the owner accepts that exact Check.
 
 ## Quick start
 
@@ -166,9 +173,11 @@ project:
   current build/test/audit stage.
 - **Detail views** expose acceptance criteria, dependencies, evidence, and
   issues without leaving the terminal.
-- **Goal context** is optional: press `g` to switch the visible Goal (`r` remains
-  an undisplayed compatibility alias); membership comes from each Objective's
-  existing `release: R-###` field.
+- **Goal context** is required: the board shows the router-selected Goal and
+  only its Objectives and Tasks. Press `g` to switch Goals (`r` remains an
+  undisplayed compatibility alias); membership comes from each Objective's
+  `release: R-###` field. With no valid Goal selected, the board shows
+  `Choose a Goal` and no project-wide work.
 - **Router priority** lets you focus the next task without rewriting the
   history of the project.
 
@@ -190,7 +199,7 @@ Savepoint uses Markdown and YAML as its source of truth:
 │   └── O-001-example/
 │       ├── Objective.md
 │       └── tasks/
-├── releases/               # Compatibility storage for optional V2 Goals (R-###)
+├── releases/               # Compatibility storage for required V2 Goals (R-###)
 │   └── R-001-example/Release.md
 ├── checks/                # Independent verification evidence
 └── issues/                # Durable follow-up and discovered problems

@@ -33,6 +33,7 @@ import (
 
 	"github.com/opencode/savepoint/cmd"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/doctor"
 	"github.com/opencode/savepoint/internal/migrate"
 	"gopkg.in/yaml.v3"
 )
@@ -50,6 +51,19 @@ const (
 )
 
 var e2eClock = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
+
+type routerGoalFallbackCase struct {
+	name          string
+	routerRelease string
+	archive       bool
+	wantGenerated bool
+}
+
+var routerGoalFallbackCases = []routerGoalFallbackCase{
+	{name: "missing", routerRelease: ""},
+	{name: "unresolvable", routerRelease: "v9-missing"},
+	{name: "archived", routerRelease: "v1", archive: true, wantGenerated: true},
+}
 
 // e2ePreparedFixtures holds one converted result per frozen fixture. Unix
 // read-only assertions share these protected results; Windows consumers use
@@ -296,6 +310,107 @@ func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
 	}
 }
 
+func TestEndToEnd_routerFallbackCasesMigrateToLiveGoal(t *testing.T) {
+	t.Parallel()
+	for _, tc := range routerGoalFallbackCases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, plan := prepareRouterGoalFallbackCase(t, tc)
+			if plan.GoalSelection.Generated != tc.wantGenerated || plan.GoalSelection.GoalID == "" {
+				t.Fatalf("GoalSelection = %+v, want generated=%t and a live Goal", plan.GoalSelection, tc.wantGenerated)
+			}
+			v1RouterRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+			if err != nil {
+				t.Fatalf("read V1 router before migration: %v", err)
+			}
+			v1Router, err := data.NewRouterReader().ReadState(string(v1RouterRaw))
+			if err != nil {
+				t.Fatalf("parse V1 router before migration: %v", err)
+			}
+			preview := migrate.FormatPreview(plan)
+			if !strings.Contains(preview, plan.GoalSelection.Reason) || !strings.Contains(preview, plan.GoalSelection.GoalID) {
+				t.Fatalf("preview does not explain fallback Goal selection:\n%s", preview)
+			}
+			if strings.Contains(preview, "router now selects no Release") {
+				t.Fatalf("preview retains obsolete no-Release outcome:\n%s", preview)
+			}
+			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+				t.Fatalf("migrate --apply: %v\n%s", err, out)
+			}
+
+			index := mustIndex(t, root) // strict V2 load, including Goal references
+			if _, ok := index.Releases[plan.GoalSelection.GoalID]; !ok {
+				t.Fatalf("generated Goal %s is absent from strict V2 index", plan.GoalSelection.GoalID)
+			}
+			for _, target := range plan.Targets {
+				if target.Kind != migrate.TargetObjective {
+					continue
+				}
+				if target.ReleaseID == "" {
+					t.Errorf("Objective %s has no planned Goal reference", target.GlobalID)
+				} else if _, ok := index.Releases[target.ReleaseID]; !ok {
+					t.Errorf("Objective %s references missing Goal %s", target.GlobalID, target.ReleaseID)
+				}
+			}
+
+			routerRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+			if err != nil {
+				t.Fatalf("read converted router: %v", err)
+			}
+			router, err := data.NewRouterReader().ReadStateV2(string(routerRaw))
+			if err != nil {
+				t.Fatalf("strictly parse converted router: %v", err)
+			}
+			if router.Release != plan.GoalSelection.GoalID {
+				t.Errorf("converted router release = %q, want selected live Goal %q", router.Release, plan.GoalSelection.GoalID)
+			}
+			next := data.ResolveNext(data.NextInput{Index: index, Router: router})
+			if next.SelectionDiagnostic != nil || next.Kind == data.NextNothingSelected {
+				t.Errorf("ResolveNext() = %+v, want an actionable migrated selection without a mismatch diagnostic", next)
+			}
+			if next.Objective == nil || next.Task == nil {
+				t.Errorf("ResolveNext() omitted the selected active Objective or Task: %+v", next)
+			}
+			selectedGoalTasks := map[string]bool{}
+			for _, objectiveID := range index.ReleaseObjectives[router.Release] {
+				for _, taskID := range index.ObjectiveTasks[objectiveID] {
+					selectedGoalTasks[taskID] = true
+				}
+			}
+			selectedEpicTasks := 0
+			for _, target := range plan.Targets {
+				if target.Kind != migrate.TargetTask || target.Legacy.Epic != v1Router.Epic {
+					continue
+				}
+				selectedEpicTasks++
+				if !selectedGoalTasks[target.GlobalID] {
+					t.Errorf("selected Goal %s omits active Task %s from V1 epic %s", router.Release, target.GlobalID, v1Router.Epic)
+				}
+			}
+			if selectedEpicTasks == 0 {
+				t.Fatalf("plan has no active Task targets for selected V1 epic %s", v1Router.Epic)
+			}
+			doctorReport := doctor.RunV2Checks(filepath.Join(root, ".savepoint"))
+			for _, problem := range doctorReport.Releases {
+				if strings.Contains(problem.Message, "[v2-release-no-objectives]") && strings.Contains(problem.Message, plan.GoalSelection.GoalID) {
+					t.Errorf("doctor reports a problem for generated Goal %s: %+v", plan.GoalSelection.GoalID, problem)
+				}
+			}
+
+			manifest := readWrittenManifest(t, root)
+			for _, identity := range manifest.Identities {
+				if plan.GoalSelection.Generated && identity.GlobalID == plan.GoalSelection.GoalID {
+					t.Errorf("generated Goal was given a fabricated V1 identity mapping: %+v", identity)
+				}
+			}
+			for _, target := range plan.Targets {
+				if target.Generated {
+					mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+				}
+			}
+		})
+	}
+}
+
 func TestEndToEnd_sharedMigratedResultsAreReadOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		for _, fixture := range e2eFixtures {
@@ -397,6 +512,15 @@ func TestEndToEnd_releaseRecordsAndManifestMappingsAgree(t *testing.T) {
 			}
 
 			for _, target := range releaseTargets {
+				if target.Generated {
+					for _, identity := range manifest.Identities {
+						if identity.GlobalID == target.GlobalID {
+							t.Errorf("generated Goal %s has a fabricated legacy identity mapping: %+v", target.GlobalID, identity)
+						}
+					}
+					mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+					continue
+				}
 				var identity *migrate.ManifestIdentity
 				for i := range manifest.Identities {
 					candidate := &manifest.Identities[i]
@@ -1009,6 +1133,37 @@ func TestEndToEnd_goldenIsReproducible(t *testing.T) {
 	}
 }
 
+func TestEndToEnd_goldenRouterFallbackCases(t *testing.T) {
+	t.Parallel()
+	for _, tc := range routerGoalFallbackCases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, plan := prepareRouterGoalFallbackCase(t, tc)
+			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+				t.Fatalf("migrate --apply: %v\n%s", err, out)
+			}
+			fixture := "v1-router-" + tc.name
+			got := goldenFile{Fixture: fixture, Note: goldenNote, Files: convertedOutput(t, plan, root)}
+			path := filepath.Join("testdata", "golden", fixture+".yml")
+			if os.Getenv(regenerateGoldenEnv) != "" {
+				writeGolden(t, path, got)
+				t.Fatalf("%s was set: %s was regenerated. Review the diff and rerun without the variable.", regenerateGoldenEnv, path)
+			}
+			assertGoldenEqual(t, path, readGolden(t, path), got)
+		})
+	}
+}
+
+func TestEndToEnd_goldenRouterFallbackCasesAreReproducible(t *testing.T) {
+	t.Parallel()
+	for _, tc := range routerGoalFallbackCases {
+		t.Run(tc.name, func(t *testing.T) {
+			first := convertedRouterGoalFallbackOutputOf(t, tc)
+			second := convertedRouterGoalFallbackOutputOf(t, tc)
+			assertGoldenEqual(t, "rerun of v1-router-"+tc.name, goldenFile{Files: first}, goldenFile{Files: second})
+		})
+	}
+}
+
 // convertedOutput collects everything migration produced: each converted V2
 // record, each relocated or rewritten project document, and the v1-to-v2.yml
 // manifest that records the identity map. Archived copies are excluded — they
@@ -1043,6 +1198,15 @@ func convertedOutputOf(t *testing.T, fixture string) []goldenEntry {
 	plan := planFor(t, root)
 	if _, out, err := runMigrate(t, root, "--apply"); err != nil {
 		t.Fatalf("migrate --apply: %v\n%s", err, out)
+	}
+	return convertedOutput(t, plan, root)
+}
+
+func convertedRouterGoalFallbackOutputOf(t *testing.T, tc routerGoalFallbackCase) []goldenEntry {
+	t.Helper()
+	root, plan := prepareRouterGoalFallbackCase(t, tc)
+	if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+		t.Fatalf("migrate --apply for v1-router-%s: %v\n%s", tc.name, err, out)
 	}
 	return convertedOutput(t, plan, root)
 }
@@ -1214,6 +1378,65 @@ func planFor(t *testing.T, root string) *migrate.ConversionPlan {
 		t.Fatalf("Plan(%s) error = %v", root, err)
 	}
 	return plan
+}
+
+func prepareRouterGoalFallbackCase(t *testing.T, tc routerGoalFallbackCase) (string, *migrate.ConversionPlan) {
+	t.Helper()
+	root := copyFixture(t, "v1-basic")
+	routerPath := filepath.Join(root, ".savepoint", "router.md")
+	routerRaw, err := os.ReadFile(routerPath)
+	if err != nil {
+		t.Fatalf("read V1 router: %v", err)
+	}
+	v1Router, err := data.NewRouterReader().ReadState(string(routerRaw))
+	if err != nil {
+		t.Fatalf("parse V1 router: %v", err)
+	}
+	if v1Router.Release != tc.routerRelease {
+		old := "release: " + v1Router.Release
+		updated := strings.Replace(string(routerRaw), old, "release: "+tc.routerRelease, 1)
+		if updated == string(routerRaw) {
+			t.Fatalf("V1 router does not contain its parsed release field %q", v1Router.Release)
+		}
+		if err := os.WriteFile(routerPath, []byte(updated), 0644); err != nil {
+			t.Fatalf("set V1 router release to %q: %v", tc.routerRelease, err)
+		}
+	}
+
+	if tc.archive {
+		initial := planFor(t, root)
+		var sourcePath string
+		for _, target := range initial.Targets {
+			if target.Kind == migrate.TargetRelease && !target.Generated {
+				sourcePath = target.Legacy.Path
+				break
+			}
+		}
+		if sourcePath == "" {
+			t.Fatal("v1-basic has no source Release PRD to mark historical")
+		}
+		path := filepath.Join(root, filepath.FromSlash(sourcePath))
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read source Release %s: %v", sourcePath, err)
+		}
+		updated := string(raw)
+		for _, status := range []string{"in_progress", "planned", "todo"} {
+			old := "status: " + status
+			if strings.Contains(updated, old) {
+				updated = strings.Replace(updated, old, "status: done", 1)
+				break
+			}
+		}
+		if updated == string(raw) {
+			t.Fatalf("source Release %s has no active V1 status to mark historical", sourcePath)
+		}
+		if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
+			t.Fatalf("mark source Release %s historical: %v", sourcePath, err)
+		}
+	}
+
+	return root, planFor(t, root)
 }
 
 func mustIndex(t *testing.T, root string) *data.V2Index {

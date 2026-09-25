@@ -29,17 +29,17 @@ last_audited: v2/E51-first-class-releases
 - **V2 follow-up and integration boundary:** `internal/data` owns the mutable Issue family and bidirectional Check/Issue/Task links, while Objective and Goal completion remain derived from owned work, independent integration evidence, material Issue posture, and exact owner acceptance. The Goal is backed by the existing Release record and completion resolver. `internal/doctor`, `internal/board/v2`, and `internal/resume` report those decisions without duplicating policy. Issue resolution carries four dispositions — `verified` (Check-proven repair), `accepted` (owner risk decision), `duplicate` (points at a canonical Issue), and `escalated` (points at the Objective, `escalated_to: O-###`, the repair was promoted into) — each with its own proof obligation enforced by `internal/data`. Owner acceptance may close an Issue directly as `accepted` without a Check and without claiming technical `CLEAR`. Escalation is the Issue closure the planning workflow performs directly rather than `savepoint-check`: `savepoint-design` retires an Issue with disposition `escalated` at the moment it promotes that Issue's repair into a new Objective, since that Objective's own mandatory Full Objective Check and owner acceptance become the proof.
 - **V2 agent workflow assets:** The four active skills and three non-triggerable shared references are byte-identical between the live and V2 scaffold trees. Task `planned_by` provenance and Check `executed_session` provenance are strict typed fields; the decoder rejects a Check that claims the executor and checker were the same session.
 - **Configured build gate:** established in E46. `quality_gates.build` is decoded by `internal/data` and executed by `internal/doctor` after typecheck and before test, using the existing timeout and result-reporting path.
-- **V2 Goal boundary (Release-compatible storage):** A Goal is optional context grouping related Objectives under a navigable outcome; it does not own Tasks or publish, deploy, tag, or generate changelogs. Existing Goals remain stable `R-###` records under `.savepoint/releases/<slug>/Release.md`; Objective and router references retain `release: R-###`, and Goal Checks retain `scope.kind: release`. Membership comes from Objective records, and completion uses the existing Release-scoped Check resolver, material Issues, and exact owner acceptance. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
+- **V2 Goal boundary (Release-compatible storage):** Every Savepoint project must have a declared live Goal selected by the router, and every live Objective must reference exactly one Goal through `release:`. `internal/data` reports a missing router Goal with the typed `SelectionReleaseMissing` diagnostic; Next says `Choose a Goal`. An Objective missing `release:` remains loadable as the `ObjectivesWithoutGoal` index fact; resume and the board flag it, and doctor names the Objective and the exact repair. Unknown or malformed Objective references remain errors. Goals do not own Tasks or publish, deploy, tag, or generate changelogs. Existing Goals remain stable `R-###` records under `.savepoint/releases/<slug>/Release.md`; Goal Checks retain `scope.kind: release`. Membership comes from Objective records, and completion uses the existing Release-scoped Check resolver, material Issues, and exact owner acceptance. Migration maps every V1 Release PRD to a live record plus a byte-preserved archive; historical completion is typed evidence, never a fabricated current Check.
 - **Template assets** live under `templates/project-v2/` for the active workflow; the V1 scaffold tree and its retired skills are gone (O-021), and `savepoint migrate` converts a legacy project onto this same tree.
-- **Init command** (`savepoint init`) validates targets and scaffolds `templates/project-v2/`, including the four V2 skills, Idea/Design/Guardrails/router files, and schema version 2. Existing user content is preserved through the managed-guide boundary.
+- **Init command** (`savepoint init`) validates targets and scaffolds `templates/project-v2/`, including the four V2 skills, Idea/Design/Guardrails/router files, and schema version 2. It creates R-001 with stub sections, titles it after the project, and selects it in the router. Existing user content is preserved through the managed-guide boundary.
 - **Upgrade-assets command** (`savepoint upgrade-assets [dir] [--dry-run] [--force]`) refreshes package-owned V2 skills and shared references with provenance; migration history and project records remain untouched.
-- **Board command** (`savepoint board`, and bare `savepoint`) loads the V2 index and router once, resolves the shared `data.Next`, and renders the Objective/Task/Check/Issue surface in TUI or deterministic non-TTY form. Goal context is optional and derived from Objective membership; V1 filters are refused for V2 projects.
-- **Doctor command** (`savepoint doctor`) runs read-only V2 structure, lifecycle, dependency, Issue, evidence, quality-gate, and canonical Goal-readiness diagnostics through the existing Release resolver, with named repair guidance and no automatic writes.
+- **Board command** (`savepoint board`, and bare `savepoint`) loads the V2 index and router once, resolves the shared `data.Next`, and renders the Goal-scoped Objective/Task/Check/Issue surface in TUI or deterministic non-TTY form. It never shows project-wide Objectives or Tasks: a missing or invalid router Goal produces `Choose a Goal` and an empty work view. V1 filters are refused for V2 projects.
+- **Doctor command** (`savepoint doctor`) runs read-only V2 structure, lifecycle, dependency, Issue, evidence, quality-gate, and canonical Goal-readiness diagnostics through the existing Release resolver. It names a missing router Goal and directs the owner to select or create one; it names every Objective missing `release:` and gives the exact line to add. It performs no automatic writes.
 - `internal/board/v2`, `internal/doctor`, and `internal/resume` consume the existing first-class Release records and canonical Release completion resolver for the public Goal context. The board's `g` key is the canonical Goal selector; `r` remains an undisplayed compatibility alias. Goal detail, the plain board, and resume expose that context.
 - **Audit remediation baseline** (v1.1 E13) centralizes frontmatter/body splitting and line-ending normalization in `internal/data`, uses typed sentinel errors for doctor repair suggestions, applies a configurable `quality_gates.gate_timeout`, removes tracked build artifacts from source control, adds `.golangci.yml`, and moves board filesystem reads/writes behind Bubble Tea command messages while preserving direct file I/O inside command helpers.
 - **Structural improvement baseline** (v1.1 E14) groups board `Model` fields into focused embedded state structs, defines consumer-side board/doctor data-access interfaces, routes doctor orphan discovery through `Discover.ListRootDirs`, renders audit-tab hidden sections via exact heading matches, improves quality-gate shell tokenization for quoted and escaped arguments, removes the separate `TaskStatus` enum in favor of `ColumnType`, and adds `internal/testutil` for shared Go test fixtures.
 - **Hardening baseline** (v1.1 E15) adds board render/layout benchmarks, data frontmatter fuzz targets, debug logging via CLI `--debug` or `SAVEPOINT_DEBUG`, abbreviation-aware task checklist sentence splitting, root test package isolation, documented audit-tab hidden-section allowlisting, repo-local CI, `make ci`, distribution SHA256 checksums, and Windows amd64/arm64 build outputs.
-- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C-###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Goal Check is mandatory whenever a Goal exists. Goal Checks retain serialized `scope.kind: release`; the executor cannot clear its own work or infer Issue acceptance and may only record the owner's explicit `accepted` decision.
+- **Independent Check workflow** is skill-driven, not a CLI pipeline. A fresh `savepoint-check` session writes an immutable `C-###` record; an individual Task Check is optional and owner-waivable, while the Full Objective Check is mandatory and the Full Goal Check is mandatory for every Goal. Goal Checks retain serialized `scope.kind: release`; the executor cannot clear its own work or infer Issue acceptance and may only record the owner's explicit `accepted` decision.
 - **Board-recorded Task-check waivers**: pressing Space on the V2 board to complete a Task at stage check that has no recorded Check at all (`ClearanceMissing`) is itself the explicit owner action TEST-09 requires — only a human at the interactive keyboard reaches that key, never an agent. The board auto-records the `check_waiver` block (task, reason, `actor: {role: owner, session: board-owner}`, time) in the same write that sets the Task done, rather than requiring the owner to hand-write that fact first. This never applies when a Check was actually recorded and found a problem (`needs_work`, `stale`, `unverified`): that result stands, and completion stays refused.
 
 ## 2. Directory layout
@@ -54,9 +54,9 @@ last_audited: v2/E51-first-class-releases
     ├── Guardrails.md               ← durable engineering policy
     ├── router.md                   ← V2 state and next action
     ├── config.yml                  ← schema_version, theme, quality gates
-    ├── releases/                   ← compatibility storage for optional V2 Goals (R-###)
     ├── task-ids.yml                ← durable Task-ID high-water mark
     ├── task-ids.lock               ← exclusive Task-ID reservation lock
+    ├── releases/                   ← compatibility storage for required V2 Goals (R-###)
     │   └── R-###-slug/Release.md
     ├── objectives/                 ← Objective records and owned Tasks
     │   └── O-###-slug/
@@ -68,9 +68,10 @@ last_audited: v2/E51-first-class-releases
     └── migrations/v1-to-v2.yml    ← source hashes and conversion mappings
 ```
 
-Goal records are optional first-class V2 contexts, stored as Release records:
-Objective membership is derived from each Objective's existing `release: R-###`
-field, and Goal completion does not publish, deploy, tag, or generate changelogs.
+Every Savepoint project selects a live Goal from these first-class Release records,
+and every live Objective names exactly one through `release: R-###`. Membership
+is derived from Objective records, and Goal completion does not publish,
+deploy, tag, or generate changelogs.
 
 AGENTS.md at root is the active cross-vendor guide. Design.md in `.savepoint/`
 is the working architecture record. `visual-identity.md` is conditional and
@@ -83,8 +84,8 @@ copies, not hardcoded strings.
 
 | Level        | Definition                                                                             |
 | ------------ | -------------------------------------------------------------------------------------- |
-| **Goal**     | Optional `R-###` context grouping Objectives under an outcome; stored in Release-compatible records. |
-| **Objective**| A durable outcome with an optional Goal reference (serialized as `release:`) and owned Tasks. |
+| **Goal**     | Required project context selected by the router; an `R-###` record grouping Objectives under an outcome. |
+| **Objective**| A durable outcome with exactly one required Goal reference (serialized as `release:`) and owned Tasks. |
 | **Task**     | Independently buildable work owned by exactly one Objective; requires an implementation plan before build. |
 | **Check**    | Immutable independent evidence: optional Quick evidence for a requested Task Check, mandatory Full integration evidence for an Objective, and mandatory Full cross-Objective evidence for a Goal (`scope.kind: release`). |
 | **Issue**    | Durable follow-up for a defect, drift, guardrail gap, or verification problem; its lifecycle is separate from Task status. |
@@ -107,7 +108,7 @@ Three statuses, with explicit gates and ownership boundaries:
 - An Objective moves from `planned` to `in_progress` when its first Task starts: the board's Space on a planned Task writes both records, and `savepoint-task` does the same when an agent starts a Task. Only the user sets an Objective `done`. Doctor warns (`v2-objective-planned-with-started-task`) about a `planned` Objective that owns a started or done Task.
 - Only the user may set a task to `done` or retreat it from `done` to `in_progress` when follow-up work is required.
 - Router selection follows AGENTS.md's Router Selection section: `savepoint-design` selects the next Objective, `savepoint-task` selects the Task it starts, and the board advances after the owner closes a Task. Starting a Task does not require the agent to prompt the owner to press `p` as a handoff.
-- Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks; a Goal Check remains mandatory whenever a Goal exists.
+- Verification mode: see `config.yml`. Every Task still records implementation evidence and configured quality-gate results; an optional Task Check may be skipped only with an explicit owner waiver, which is not technical `CLEAR`. The Full Objective Check remains mandatory as the V2 epic-level integration gate and includes every owned Task, including waived Tasks; a Goal Check remains mandatory for every Goal.
 - This verification contract's runtime enforcement lives in `internal/data`: `evidence_v2.go` decodes an explicit `check_waiver` Evidence sub-block (Task-only, owner-attributed), and `gate_v2.go`'s `ResolveTaskCompletion` grants completion `AllowedByWaiver` only when no Task Check was ever requested — never once a Check exists, and never for Objective or Goal completion, which stay mandatory and unaffected.
 
 Issues use `open`, `in_progress`, and `resolved`, and carry no `stage`. Agents record each `repair_attempted` in the Issue and leave verified closure to a checker; the owner may explicitly close an Issue as `accepted` under the owner decision rule. A user-reported defect maps to `type: defect` on an Issue and does not create a separate router state.
@@ -151,7 +152,7 @@ reports the touched paths with Git commands to undo them.
 0. Quality Gates       — Executor runs configured build/test gates before handoff.
 1. Optional Task Check — A fresh checker runs Quick evidence only when the owner requests it; an explicit owner waiver may skip it.
 2. Full Objective Check — A fresh checker must verify every owned Task, integration, and Design reconciliation before Objective closure; every material Issue linked to the current Check must be resolved, including explicit owner acceptance recorded as an Issue resolution.
-3. Goal Check          — When a Goal exists, a fresh checker must verify cross-Objective integration before owner acceptance (`scope.kind: release` in stored Check records).
+3. Goal Check          — For every Goal, a fresh checker must verify cross-Objective integration before owner acceptance (`scope.kind: release` in stored Check records).
 4. Repair              — `NEEDS WORK` records Issues; a Task Check returns the executor to `stage: build` within that Task, while an Objective/Goal Check's repair is made directly under the Issue by default, with new work under the Objective only when the repair needs planning, without retreating a completed Task; a fresh re-check supersedes the prior Check.
 5. Clear               — `CLEAR` is evidence, not automatic ownership; a Task waiver is not `CLEAR`, and only the user closes a Task or accepts an Objective/Goal outcome.
 ```
@@ -174,7 +175,13 @@ Acknowledged terminal limits: fonts, scanlines, glows, letter-spacing, mouse-dri
 
 **Render fallbacks:** 256-color → 16-color hard-coded → `NO_COLOR=1` monochrome with glyphs → non-TTY plain table.
 
-**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), optional Goal selection, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. Next is exactly the router's selected work plus the existing gate resolver for that record; no project-wide or Release-wide search substitutes other work. The columns open on the router's Objective, or, when the router selects an Issue alone, on the one Objective that Issue's linked Tasks and Objective-scoped Checks belong to; with no Objective filter, the board labels the view `ALL OBJECTIVES` and the plain output prints `Selected: all Objectives`. The board's Next area, non-TTY output, and the first line of `savepoint resume` print the same line:
+**Layout:** the V2 board uses an Objective sidebar, three Task columns (`planned`, `in_progress`, `done`), Goal selection scoped to the router's live Goal, focused detail overlays, static Atari-Noir surfaces, and a deterministic non-TTY plain table. Next is exactly the router's selected work plus the existing gate resolver for that record; no project-wide or Release-wide search substitutes other work. The columns open on the router's Objective, or, when the router selects an Issue alone, on the one Objective that Issue's linked Tasks and Objective-scoped Checks belong to; with no Objective filter, the board labels the view `ALL OBJECTIVES` for the selected Goal and the plain output names the selected Goal and its member Objectives. The board's Next area, non-TTY output, and the first line of `savepoint resume` print the same line:
+
+The board requires a valid router Goal to populate its Objective and Task
+views. If selection is missing or invalid, it shows `Choose a Goal`, points to
+`g` or doctor for repair, and displays no project-wide work. Missing Objective
+Goal references appear as the canonical index fact: the board flags their
+presence and doctor names each Objective and the `release: R-###` line to add.
 
 - Selected Task: `<verb> T-### — <Task title> (O-###)`.
 - Selected Objective with no Task: `<verb> O-### — <Objective title>`.
@@ -211,11 +218,26 @@ When the owner closes the selected Task on the board, that action selects the Ob
 
 ## 10. Goal records and PRD history
 
+Every Savepoint project must have at least one declared live Goal selected by the
+router, and every live Objective must name exactly one Goal through
+`release: R-###`.
+
 - Goals use stable `R-###` identities with a title, outcome, success
   conditions, optional scoped Check evidence, material Issue links, and exact
   owner acceptance. Storage remains under `.savepoint/releases/` as
   `Release.md`; membership is derived from the serialized `Objective.release`
   field, and Goal Checks retain `scope.kind: release`.
+- `savepoint init` creates R-001 with stub Goal sections, titles it after the
+  project, and selects it in the router. Idea fills in the Goal's Outcome
+  with the owner.
+- `savepoint migrate` assigns every converted Objective to a Goal and retains
+  the V1 router's live Goal. When that selection is missing or unresolvable, it
+  selects the live Goal containing the router's active Objective, or the sole
+  live Goal, when that choice is clear. If selected active work belongs only
+  to a historical Goal, migration creates and selects a live `Continued work
+  after migration` Goal and moves those active Objectives into it. An
+  unresolved release lifecycle decision remains in the preview and blocks
+  Apply.
 - Historical `v1`/`v2` PRDs remain in `.savepoint/archive/v1/` and are not
   active Goal records. Goal completion means an accepted cross-Objective
   outcome, never publication, deployment, tagging, or changelog generation.

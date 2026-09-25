@@ -24,7 +24,9 @@ import (
 //  1. The board's own two surfaces — the drawn TUI and the deterministic
 //     non-TTY plain table — always render the same one-line Next summary as
 //     each other, and that line matches what the resolved projection's own
-//     Task or Objective says (expectedBoardLine).
+//     Task or Objective says (expectedBoardLine), except when no Goal exists:
+//     both board surfaces point to `savepoint doctor` because the projected
+//     Choose-a-Goal action cannot be completed in that project.
 //  2. `savepoint resume` starts with that exact same plain-text line, then
 //     reports the full identity/evidence/action narrative below it.
 //  3. A selected Task carries its owning Objective in the shared projection
@@ -50,6 +52,13 @@ func TestBoardNextAndResumeReportTheSameAnswer(t *testing.T) {
 			assertResumeReportsTheProjection(t, dir, want)
 
 			expected := expectedBoardLine(want)
+			index, err := data.LoadV2Index(filepath.Join(dir, ".savepoint"))
+			if err != nil {
+				t.Fatalf("LoadV2Index() error = %v", err)
+			}
+			if len(index.Releases) == 0 {
+				expected = "No Goals exist; run savepoint doctor."
+			}
 			assertBoardLine(t, dir, expected)
 			assertTUILine(t, dir, expected)
 		})
@@ -255,13 +264,20 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 				t.Fatalf("built resume failed: %v\nstderr: %s", resumeResult.err, resumeResult.stderr)
 			}
 
-			expected := expectedBoardLine(want)
-			if !hasExactLine(boardResult.stdout, expected) {
-				t.Errorf("built board output missing exact Next line %q:\n%s", expected, boardResult.stdout)
+			boardExpected := expectedBoardLine(want)
+			index, err := data.LoadV2Index(filepath.Join(dir, ".savepoint"))
+			if err != nil {
+				t.Fatalf("LoadV2Index() error = %v", err)
+			}
+			if len(index.Releases) == 0 {
+				boardExpected = "No Goals exist; run savepoint doctor."
+			}
+			if !hasExactLine(boardResult.stdout, boardExpected) {
+				t.Errorf("built board output missing exact Next line %q:\n%s", boardExpected, boardResult.stdout)
 			}
 			resumeFirstLine := strings.SplitN(resumeResult.stdout, "\n", 2)[0]
-			if resumeFirstLine != expected {
-				t.Errorf("built resume first line = %q, want the shared Next line %q", resumeFirstLine, expected)
+			if resumeFirstLine != expectedBoardLine(want) {
+				t.Errorf("built resume first line = %q, want the shared Next line %q", resumeFirstLine, expectedBoardLine(want))
 			}
 			if want.Task != nil && !strings.Contains(resumeResult.stdout, "Task: "+want.Task.ID+" — "+want.Task.Title) {
 				t.Errorf("built resume output does not name the projection's own Task:\n%s", resumeResult.stdout)
@@ -273,7 +289,8 @@ func TestBuiltBoardAndResumeReportTheSameAnswer(t *testing.T) {
 	}
 }
 
-// expectedBoardLine is the shared wording used by the board and resume.
+// expectedBoardLine is the shared projection wording used by the board and
+// resume when the project has a live Goal.
 func expectedBoardLine(next data.Next) string {
 	return resume.NextLine(next)
 }

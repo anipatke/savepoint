@@ -175,6 +175,7 @@ func TestConvertObjective_activeEpicFields(t *testing.T) {
 func TestConvertObjective_unauditedEpicWithAllTasksDone(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
+		".savepoint/releases/v1/v1-PRD.md": "---\nname: V1\nstatus: in_progress\n---\n\n# V1\n",
 		".savepoint/releases/v1/epics/E02-allDone/E02-Detail.md": "---\n" +
 			"type: epic-design\n" +
 			"status: in_progress\n" +
@@ -222,6 +223,7 @@ func TestConvertObjective_unauditedEpicWithAllTasksDone(t *testing.T) {
 func TestConvertObjective_dependsOnMapsToAllocatedObjective(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
+		".savepoint/releases/v1/v1-PRD.md": "---\nname: V1\nstatus: in_progress\n---\n\n# V1\n",
 		".savepoint/releases/v1/epics/E01-base/E01-Detail.md": "---\n" +
 			"type: epic-design\nstatus: in_progress\n---\n\n# Epic E01: Base\n\n## Purpose\n\nBase epic.\n",
 		".savepoint/releases/v1/epics/E02-dependent/E02-Detail.md": "---\n" +
@@ -255,6 +257,7 @@ func TestConvertObjective_dependsOnMapsToAllocatedObjective(t *testing.T) {
 func TestConvertObjective_unresolvedDependsOnRefused(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
+		".savepoint/releases/v1/v1-PRD.md": "---\nname: V1\nstatus: in_progress\n---\n\n# V1\n",
 		".savepoint/releases/v1/epics/E02-dependent/E02-Detail.md": "---\n" +
 			"type: epic-design\nstatus: planned\ndepends_on: [E99-missing]\n---\n\n# Epic E02: Dependent\n\n## Purpose\n\nDepends on a nonexistent epic.\n",
 	})

@@ -89,6 +89,7 @@ func TestConvertIssue_defectDispositions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeFiles(t, root, map[string]string{
+				".savepoint/releases/v1/v1-PRD.md":                 "---\nname: V1\nstatus: in_progress\n---\n\n# V1\n",
 				".savepoint/releases/v1/epics/E01-x/E01-Detail.md": "---\nstatus: in_progress\n---\n\n# E01\n",
 				".savepoint/releases/v1/epics/E01-x/tasks/T001-fix.md": "---\n" +
 					"id: E01-x/T001-fix\nstatus: planned\ndepends_on: []\n---\n\n# T001\n",

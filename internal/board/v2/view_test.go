@@ -33,8 +33,8 @@ func TestViewEmptyTemplateProjectOpensWithThreeEmptyColumns(t *testing.T) {
 			t.Errorf("view missing empty column %q:\n%s", label, got)
 		}
 	}
-	if !strings.Contains(got, "Nothing selected") {
-		t.Errorf("view does not report the plain fallback for a project with nothing to point at:\n%s", got)
+	if !strings.Contains(got, "savepoint doctor") || strings.Contains(got, "Choose a Goal") {
+		t.Errorf("zero-Goal view does not point to savepoint doctor:\n%s", got)
 	}
 	for _, forbidden := range []string{diagnosticHeading, "error", "not found", "MIGRATION"} {
 		if strings.Contains(got, forbidden) {

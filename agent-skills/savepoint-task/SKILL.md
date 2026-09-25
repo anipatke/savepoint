@@ -9,6 +9,10 @@ description: Executes one Savepoint Task within its planned boundaries when rout
 
 Build exactly one Task within the boundaries the planner already set, and leave behind a truthful record of what happened. This is the role with the most room to quietly lie: widening scope and calling it necessary, redesigning around an inconvenient plan without saying so, ticking acceptance criteria that were never actually verified, or granting itself clearance. This skill closes those off structurally: it can advance a Task's lifecycle and record evidence, but it can never write an optional Task Check or the mandatory Objective Check that evaluates that evidence, and a materially invalid plan produces `REPLAN REQUIRED` rather than an improvised rewrite.
 
+## Goal Context
+
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive R-001 from `savepoint init`. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation and moves that Objective into it; unresolved release lifecycle decisions remain in the preview.
+
 ## Trigger
 
 Use this skill when router `state` is `task`.

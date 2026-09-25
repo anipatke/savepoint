@@ -28,6 +28,152 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	}
 }
 
+func TestIdeaGuidanceFillsTheFreshProjectsGoal(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, path := range []string{
+		filepath.Join(root, "agent-skills", "savepoint-idea", "SKILL.md"),
+		filepath.Join(root, "templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"),
+	} {
+		content := readTemplate(t, path)
+		for _, phrase := range []string{
+			"Every Savepoint project has at least one live Goal selected by the router",
+			"R-001, titled after the project",
+			"Outcome, Why, Success Conditions, and Boundaries",
+			"do not create another Goal for the same initial outcome",
+			"only fill the fresh scaffold placeholder from owner-provided answers",
+		} {
+			assertContains(t, content, phrase)
+		}
+		assertNotContains(t, content, "Goal is optional planning context")
+	}
+}
+
+func TestProjectGuidanceRequiresGoalContext(t *testing.T) {
+	root := filepath.Join("..", "..")
+	guidance := [][]string{
+		{"AGENTS.md"},
+		{"templates", "project-v2", "AGENTS.md"},
+		{".savepoint", "Design.md"},
+		{".savepoint", "router.md"},
+		{"templates", "project-v2", ".savepoint", "router.md"},
+		{"README.md"},
+	}
+	for _, skill := range []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"} {
+		guidance = append(guidance,
+			[]string{"agent-skills", skill, "SKILL.md"},
+			[]string{"templates", "project-v2", "agent-skills", skill, "SKILL.md"},
+		)
+	}
+	stalePhrases := []string{
+		"goal is optional",
+		"goal is not required",
+		"goal is not mandatory",
+		"goal not required",
+		"goal may be omitted",
+		"goal can be omitted",
+		"goal may be left unassigned",
+		"goals are optional",
+		"goals are not required",
+		"optional goal",
+		"goal context is optional",
+		"goal selection is optional",
+		"release is optional",
+		"release may be omitted",
+		"release can be omitted",
+		"goal check is mandatory whenever a goal exists",
+		"goal check is mandatory when a goal exists",
+		"when a goal exists, a mandatory full goal check",
+		"whenever a goal exists",
+		"without a goal, continue",
+		"without a goal",
+		"a v2 project may have no goal",
+		"goal may be omitted",
+		"goal is not required",
+		"omit `release`",
+		"optional `release:",
+		"intentionally unassigned",
+	}
+	for _, parts := range guidance {
+		content := readTemplate(t, root, parts...)
+		lower := strings.ToLower(content)
+		for _, phrase := range stalePhrases {
+			if strings.Contains(lower, phrase) {
+				t.Errorf("%s still contains optional-Goal wording %q", filepath.Join(parts...), phrase)
+			}
+		}
+	}
+
+	goalGuides := [][]string{
+		{"AGENTS.md"},
+		{"templates", "project-v2", "AGENTS.md"},
+		{"agent-skills", "savepoint-idea", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"},
+		{"agent-skills", "savepoint-design", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
+		{"agent-skills", "savepoint-task", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
+		{"agent-skills", "savepoint-check", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"},
+	}
+	for _, parts := range goalGuides {
+		content := readTemplate(t, root, parts...)
+		for _, phrase := range []string{"Choose a Goal", "savepoint doctor", "savepoint init", "savepoint migrate"} {
+			assertContains(t, content, phrase)
+		}
+		assertContains(t, content, "R-001")
+	}
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "Every Savepoint project must have a live Goal selected by the router")
+		assertContains(t, content, "every live Objective must name exactly one Goal")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-idea", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-design", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective must name exactly one live Goal")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-task", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
+		{"agent-skills", "savepoint-check", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "Every Savepoint project has at least one live Goal selected by the router")
+		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
+	}
+
+	liveAgents := readTemplate(t, root, "AGENTS.md")
+	templateAgents := readTemplate(t, root, "templates", "project-v2", "AGENTS.md")
+	section := func(content string) string {
+		t.Helper()
+		const heading = "## Required Goal Context\n"
+		start := strings.Index(content, heading)
+		if start < 0 {
+			t.Fatalf("missing %q section", strings.TrimSpace(heading))
+		}
+		body := content[start+len(heading):]
+		if end := strings.Index(body, "\n## "); end >= 0 {
+			body = body[:end]
+		}
+		return body
+	}
+	if live, scaffold := section(liveAgents), section(templateAgents); live != scaffold {
+		t.Error("live and scaffold Required Goal Context sections differ")
+	}
+}
+
 func TestRouterFilesOmitRetiredNextActionKey(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, path := range [][]string{
@@ -236,6 +382,9 @@ func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
 	report, err := upgradeAssetsFromTree(templates, target, false, false)
 	if err != nil {
 		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, ".savepoint", "releases")); !os.IsNotExist(err) {
+		t.Fatalf("upgrade-assets added a Goal to an existing project, releases stat err = %v", err)
 	}
 
 	if got := upgradeActionFor(t, report, ".savepoint/Guardrails.md"); got != ActionInstalled {

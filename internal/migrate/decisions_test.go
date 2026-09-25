@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
-// writeMinimalV1Project writes the smallest config.yml + router.md pair every
-// ad hoc temp-dir test in this package builds on, so each test below only
-// authors the source files its own scenario actually needs.
+// writeMinimalV1Project writes the smallest config.yml, router.md, and live
+// Release PRD every ad hoc temp-dir test in this package builds on, so each
+// test below only authors the source files its own scenario actually needs.
 func writeMinimalV1Project(t *testing.T, root string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), "# Router\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"), "---\nstatus: in_progress\n---\n\n# V1\n")
 }
 
 func writeTaskWithStatus(t *testing.T, root, release, epic, taskID, status, dependsOn string) string {

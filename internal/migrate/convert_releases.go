@@ -13,6 +13,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const continuationGoalTitle = "Continued work after migration"
+
 type releaseOutputFrontmatter struct {
 	ID               string                  `yaml:"id"`
 	Title            string                  `yaml:"title"`
@@ -38,6 +40,9 @@ func ConvertRelease(root string, plan *ConversionPlan, target PlannedTarget) (st
 	}
 	if target.ReleaseStatus == "" {
 		return "", fmt.Errorf("convert release %s: missing planned release status", target.GlobalID)
+	}
+	if target.Generated {
+		return convertGeneratedGoal(target)
 	}
 
 	raw, err := readSourceFile(root, target.Legacy.Path)
@@ -115,6 +120,30 @@ func ConvertRelease(root string, plan *ConversionPlan, target PlannedTarget) (st
 	}
 	if _, err := data.DecodeReleaseV2(target.TargetPath, content); err != nil {
 		return "", fmt.Errorf("convert release %s: rendered content did not decode: %w", target.GlobalID, err)
+	}
+	return content, nil
+}
+
+func convertGeneratedGoal(target PlannedTarget) (string, error) {
+	title := target.GeneratedTitle
+	if title == "" {
+		title = continuationGoalTitle
+	}
+	frontmatter, err := yaml.Marshal(&releaseOutputFrontmatter{
+		ID:     target.GlobalID,
+		Title:  title,
+		Status: target.ReleaseStatus,
+	})
+	if err != nil {
+		return "", fmt.Errorf("convert generated Goal %s: marshal yaml: %w", target.GlobalID, err)
+	}
+	content := "---\n" + strings.TrimSpace(string(frontmatter)) + "\n---\n"
+	content += "## Outcome\n\nTODO: Define the outcome this Goal will deliver after migration.\n\n"
+	content += "## Why\n\nTODO: Record why this continued work matters.\n\n"
+	content += "## Success Conditions\n\n- TODO: Define observable conditions for completion.\n\n"
+	content += "## Boundaries\n\n- TODO: Define scope limits and exclusions.\n"
+	if _, err := data.DecodeReleaseV2(target.TargetPath, content); err != nil {
+		return "", fmt.Errorf("convert generated Goal %s: rendered content did not decode: %w", target.GlobalID, err)
 	}
 	return content, nil
 }

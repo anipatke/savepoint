@@ -38,6 +38,9 @@ const (
 	// its selected Issue is resolved.
 	// The selection remains intact so Next continues to describe that record.
 	SelectionDone SelectionDiagnosticKind = "done"
+	// SelectionReleaseMissing means the router has no Goal selected. No
+	// Objective, Task, or Issue selection is resolved until a Goal is chosen.
+	SelectionReleaseMissing SelectionDiagnosticKind = "release_missing"
 	// SelectionReleaseNotFound means the router names a Release absent from
 	// the live index. No similarly named Release is substituted.
 	SelectionReleaseNotFound SelectionDiagnosticKind = "release_not_found"
@@ -116,6 +119,11 @@ func ResolveSelection(index *V2Index, router *RouterStateV2) (Selection, *Select
 	}
 	if router == nil {
 		return Selection{}, nil
+	}
+	if router.Release == "" {
+		return Selection{}, &SelectionDiagnostic{
+			Kind: SelectionReleaseMissing, RecordKind: SelectionRecordRelease,
+		}
 	}
 
 	var issue *IssueV2
@@ -297,6 +305,10 @@ type Next struct {
 	Objective *ObjectiveV2
 	Task      *TaskV2
 	Issue     *IssueV2
+	// ObjectivesWithoutGoal is the sorted index fact copied into the shared
+	// Next projection so renderers can flag unassigned Objectives without
+	// consulting project data independently.
+	ObjectivesWithoutGoal []string
 
 	// GateDecision is the decision the rung was derived from. For a Release
 	// rung it is ResolveReleaseCompletion; for older rungs it remains the
@@ -359,6 +371,7 @@ func ResolveNext(input NextInput) Next {
 		next.Objective = index.Objectives[next.Task.Objective]
 	}
 	next.SelectionDiagnostic = diagnostic
+	next.ObjectivesWithoutGoal = index.ObjectivesWithoutGoal
 	next.Issues = relevantIssues(index, next)
 	return next
 }

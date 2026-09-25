@@ -114,13 +114,18 @@ func mapRouterState(plan *ConversionPlan, v1 data.RouterState) (routerV2State, s
 	out := routerV2State{State: v2, NextAction: v1.NextAction}
 	var notes []string
 
-	if v1.Release != "" {
-		if releaseID := resolveRouterRelease(plan, v1.Release); releaseID != "" {
-			out.Release = releaseID
-		} else {
-			notes = append(notes, fmt.Sprintf(
-				"The previously selected release %s does not resolve to a planned V2 Release; the router now selects no Release.", v1.Release))
+	if plan.GoalSelection.GoalID == "" {
+		return routerV2State{}, "", fmt.Errorf("no live Goal was planned for the converted router")
+	}
+	out.Release = plan.GoalSelection.GoalID
+	if plan.GoalSelection.Generated {
+		reason := plan.GoalSelection.Reason
+		if reason == "" {
+			reason = "the V1 router did not resolve to a live Goal"
 		}
+		notes = append(notes, fmt.Sprintf(
+			"%s; migration created `%s` (%s) and selected it as the live Goal.",
+			reason, plan.GoalSelection.GoalID, continuationGoalTitle))
 	}
 
 	if v1.Epic != "" {
@@ -158,15 +163,6 @@ func mapRouterState(plan *ConversionPlan, v1 data.RouterState) (routerV2State, s
 	return out, strings.Join(notes, "\n\n"), nil
 }
 
-func resolveRouterRelease(plan *ConversionPlan, release string) string {
-	for _, t := range plan.Targets {
-		if t.Kind == TargetRelease && t.Legacy.Release == release {
-			return t.GlobalID
-		}
-	}
-	return ""
-}
-
 // resolveRouterObjective resolves a V1 router epic selection to the
 // Objective's allocated O-### when it converted, or the archive path that
 // explains why it did not.
@@ -180,6 +176,30 @@ func resolveRouterObjective(plan *ConversionPlan, release, epic string) (globalI
 		if a.Role == RoleEpicDetail && a.Legacy != nil && a.Legacy.Release == release && a.Legacy.Epic == epic {
 			return "", a.ArchivePath
 		}
+	}
+	var matchedID string
+	matches := 0
+	for _, t := range plan.Targets {
+		if t.Kind == TargetObjective && t.Legacy.Epic == epic {
+			matchedID = t.GlobalID
+			matches++
+		}
+	}
+	if matches == 1 {
+		return matchedID, ""
+	}
+	if matches > 1 {
+		return "", ""
+	}
+	var matchedArchive string
+	for _, a := range plan.Archives {
+		if a.Role == RoleEpicDetail && a.Legacy != nil && a.Legacy.Epic == epic {
+			matchedArchive = a.ArchivePath
+			matches++
+		}
+	}
+	if matches == 1 {
+		return matchedID, matchedArchive
 	}
 	return "", ""
 }
@@ -198,6 +218,30 @@ func resolveRouterTask(plan *ConversionPlan, release, taskRef string) (globalID,
 		if a.Role == RoleTask && a.Legacy != nil && a.Legacy.Release == release && a.Legacy.OriginalID == taskRef {
 			return "", a.ArchivePath
 		}
+	}
+	var matchedID string
+	matches := 0
+	for _, t := range plan.Targets {
+		if t.Kind == TargetTask && t.Legacy.OriginalID == taskRef {
+			matchedID = t.GlobalID
+			matches++
+		}
+	}
+	if matches == 1 {
+		return matchedID, ""
+	}
+	if matches > 1 {
+		return "", ""
+	}
+	var matchedArchive string
+	for _, a := range plan.Archives {
+		if a.Role == RoleTask && a.Legacy != nil && a.Legacy.OriginalID == taskRef {
+			matchedArchive = a.ArchivePath
+			matches++
+		}
+	}
+	if matches == 1 {
+		return matchedID, matchedArchive
 	}
 	return "", ""
 }

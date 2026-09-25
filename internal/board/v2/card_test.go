@@ -260,7 +260,7 @@ func TestO900OutcomeSpreadRendersEveryOutcomeAndBlockerOnCards(t *testing.T) {
 		t.Fatalf("O-900-equivalent fixture did not load: %s", loaded.Diagnostic)
 	}
 
-	grouped := groupTaskCardsForRelease(loaded.State.Index, "", "O-900")
+	grouped := groupTaskCards(loaded.State.Index)
 	for column, want := range map[data.ColumnType]int{
 		data.ColumnPlanned: 4, data.ColumnInProgress: 4, data.ColumnDone: 4,
 	} {

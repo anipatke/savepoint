@@ -3,6 +3,7 @@ package v2
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/opencode/savepoint/internal/testutil"
@@ -19,8 +20,8 @@ func writeValidProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-001", "T-001")
-	writeObjective(t, root, "O-001", "First objective", "planned")
+	writeFixtureRouter(t, root, "task", "O-001", "T-001")
+	writeFixtureObjective(t, root, "O-001", "First objective", "planned", "")
 	writeTask(t, root, "O-001", "T-001", "Do the thing", "status: planned\n")
 	writeTask(t, root, "O-001", "T-002", "Already finished", "status: done\n")
 	return root
@@ -58,6 +59,28 @@ func writeConfig(t *testing.T, root string) {
 func writeRouter(t *testing.T, root, state, objective, task string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(root, "router.md"), routerContent(state, objective, task))
+}
+
+func writeFixtureGoal(t *testing.T, root string) {
+	t.Helper()
+	testutil.WriteFile(t, filepath.Join(root, "releases", "R-001-fixture", "Release.md"),
+		"---\nid: R-001\ntitle: \"Fixture Goal\"\nstatus: planned\n---\n"+
+			"# Goal\n\n## Outcome\n\nShip the fixture outcome.\n\n## Why\n\nThe fixture has a named delivery context.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nGoal does not own Tasks.\n")
+}
+
+func writeFixtureRouter(t *testing.T, root, state, objective, task string) {
+	t.Helper()
+	writeFixtureGoal(t, root)
+	content := strings.Replace(routerContent(state, objective, task), "\nobjective:", "\nrelease: R-001\nobjective:", 1)
+	testutil.WriteFile(t, filepath.Join(root, "router.md"), content)
+}
+
+func writeFixtureObjective(t *testing.T, root, id, title, status, extra string) {
+	t.Helper()
+	if !strings.Contains(extra, "release:") {
+		extra = "release: R-001\n" + extra
+	}
+	writeObjectiveExtra(t, root, id, title, status, extra)
 }
 
 func routerContent(state, objective, task string) string {
@@ -131,8 +154,8 @@ func writeBadgeProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-001", "T-001")
-	writeObjective(t, root, "O-001", "Ship the board", "in_progress")
+	writeFixtureRouter(t, root, "task", "O-001", "T-001")
+	writeFixtureObjective(t, root, "O-001", "Ship the board", "in_progress", "")
 
 	writeTask(t, root, "O-001", "T-001", "Planned with nothing recorded", "status: planned\n")
 	writeTask(t, root, "O-001", "T-002", "Planned and waiting on T-001", "status: planned\ndepends_on:\n  - {task: T-001, requires: clear}\n")
@@ -169,8 +192,8 @@ func writeO900OutcomeProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-900", "T-005")
-	writeObjective(t, root, "O-900", "O-900 outcome spread", "in_progress")
+	writeFixtureRouter(t, root, "task", "O-900", "T-005")
+	writeFixtureObjective(t, root, "O-900", "O-900 outcome spread", "in_progress", "")
 
 	writeTask(t, root, "O-900", "T-001", "Planned and ready", "status: planned\n")
 	writeTask(t, root, "O-900", "T-002", "Planned and waiting",
@@ -240,32 +263,32 @@ func writeNavigationProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-003", "T-003")
+	writeFixtureRouter(t, root, "task", "O-003", "T-003")
 
 	// O-001: every owned Task done, and its own integration Check current.
 	writeCheck(t, root, "C-001", "objective", "O-001", "CLEAR")
-	writeObjectiveExtra(t, root, "O-001", "Finished and integrated", "done",
+	writeFixtureObjective(t, root, "O-001", "Finished and integrated", "done",
 		"last_check: C-001\n"+currentFreshness("C-001"))
 	writeCheck(t, root, "C-002", "task", "T-001", "CLEAR")
 	writeTask(t, root, "O-001", "T-001", "Finished work", "status: done\nlast_check: C-002\n"+currentFreshness("C-002"))
 
 	// O-002: every owned Task done, no integration Check of its own.
-	writeObjective(t, root, "O-002", "Every task done, nothing integrated", "in_progress")
+	writeFixtureObjective(t, root, "O-002", "Every task done, nothing integrated", "in_progress", "")
 	writeTask(t, root, "O-002", "T-002", "Also finished", "status: done\n")
 
 	// O-003: waiting on O-002, which is not done.
-	writeObjectiveExtra(t, root, "O-003", "Waiting on the second", "planned", "depends_on: [\"O-002\"]\n")
+	writeFixtureObjective(t, root, "O-003", "Waiting on the second", "planned", "depends_on: [\"O-002\"]\n")
 	writeTask(t, root, "O-003", "T-003", "Blocked by an objective wait", "status: planned\n")
 	// Owned by O-003, filed under O-001's directory.
 	writeTaskInDir(t, root, "O-001", "O-003", "T-004", "Filed somewhere else entirely", "status: planned\n")
 
 	// O-004, O-005, O-006: the remaining clearance states.
 	writeCheck(t, root, "C-003", "objective", "O-004", "NEEDS WORK")
-	writeObjectiveExtra(t, root, "O-004", "Integration found problems", "in_progress", "last_check: C-003\n")
+	writeFixtureObjective(t, root, "O-004", "Integration found problems", "in_progress", "last_check: C-003\n")
 	writeCheck(t, root, "C-004", "objective", "O-005", "CLEAR")
-	writeObjectiveExtra(t, root, "O-005", "Integration marked unknown", "in_progress", "last_check: C-004\n"+unknownFreshness("C-004"))
+	writeFixtureObjective(t, root, "O-005", "Integration marked unknown", "in_progress", "last_check: C-004\n"+unknownFreshness("C-004"))
 	writeCheck(t, root, "C-005", "objective", "O-006", "CLEAR")
-	writeObjectiveExtra(t, root, "O-006", "Integration has gone stale", "in_progress",
+	writeFixtureObjective(t, root, "O-006", "Integration has gone stale", "in_progress",
 		"last_check: C-005\n"+staleFreshness("C-005"))
 
 	return root
@@ -279,12 +302,12 @@ func writeObjectiveDependencyProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-002", "T-002")
-	writeObjective(t, root, "O-001", "Comes first", "in_progress")
+	writeFixtureRouter(t, root, "task", "O-002", "T-002")
+	writeFixtureObjective(t, root, "O-001", "Comes first", "in_progress", "")
 	writeTask(t, root, "O-001", "T-001", "The work the other objective waits on", "status: planned\n")
 
 	testutil.WriteFile(t, objectivePath(root, "O-002"),
-		"---\nid: O-002\ntitle: \"Comes second\"\nstatus: planned\ndepends_on: [\"O-001\"]\n---\n\n# Comes second\n")
+		"---\nid: O-002\ntitle: \"Comes second\"\nstatus: planned\nrelease: R-001\ndepends_on: [\"O-001\"]\n---\n\n# Comes second\n")
 	writeTask(t, root, "O-002", "T-002", "Blocked by its own objective's wait", "status: planned\n")
 
 	return root
@@ -329,14 +352,14 @@ func writeEvidenceProject(t *testing.T) string {
 	t.Helper()
 	root := savepointRoot(t)
 	writeConfig(t, root)
-	writeRouter(t, root, "task", "O-001", "T-002")
+	writeFixtureRouter(t, root, "task", "O-001", "T-002")
 
 	// O-001's integration was checked twice; the rerun supersedes the first run.
 	writeCheck(t, root, "C-010", "objective", "O-001", "CLEAR")
 	writeCheckExtra(t, root, "C-011", "objective", "O-001", "CLEAR", "supersedes: C-010\n")
-	writeObjectiveExtra(t, root, "O-001", "Ship the evidence surface", "in_progress",
+	writeFixtureObjective(t, root, "O-001", "Ship the evidence surface", "in_progress",
 		"depends_on: [\"O-002\"]\nlast_check: C-011\n"+currentFreshness("C-011"))
-	writeObjective(t, root, "O-002", "Groundwork nobody has started", "planned")
+	writeFixtureObjective(t, root, "O-002", "Groundwork nobody has started", "planned", "")
 
 	writeCheck(t, root, "C-001", "task", "T-001", "CLEAR")
 	writeTask(t, root, "O-001", "T-001", "Cleared and accepted by the owner",

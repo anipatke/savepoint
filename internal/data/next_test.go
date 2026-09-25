@@ -7,6 +7,41 @@ import (
 	"testing"
 )
 
+// resolveSelectionWithTestGoal and resolveNextWithTestGoal put the older
+// in-memory resolver fixtures into a valid Goal context. Tests for a missing
+// router Goal call ResolveSelection or ResolveNext directly.
+func resolveSelectionWithTestGoal(index *V2Index, router *RouterStateV2) (Selection, *SelectionDiagnostic) {
+	addTestGoalContext(index, router, true)
+	return ResolveSelection(index, router)
+}
+
+func resolveNextWithTestGoal(input NextInput) Next {
+	addTestGoalContext(input.Index, input.Router, false)
+	return ResolveNext(input)
+}
+
+func addTestGoalContext(index *V2Index, router *RouterStateV2, includeEmptySelection bool) {
+	if index == nil || router == nil || router.Release != "" {
+		return
+	}
+	if !includeEmptySelection && router.Objective == "" && router.Task == "" && router.Issue == "" {
+		return
+	}
+	const goalID = "R-001"
+	router.Release = goalID
+	if index.Releases == nil {
+		index.Releases = map[string]*ReleaseV2{}
+	}
+	if _, ok := index.Releases[goalID]; !ok {
+		index.Releases[goalID] = &ReleaseV2{ID: goalID, Title: "Test Goal"}
+	}
+	for _, objective := range index.Objectives {
+		if objective.Release == "" {
+			objective.Release = goalID
+		}
+	}
+}
+
 // TestResolveSelection_exactMatch proves a router naming both an Objective
 // and a Task that resolve, and agree on ownership, returns both records and
 // no diagnostic.
@@ -16,9 +51,9 @@ func TestResolveSelection_exactMatch(t *testing.T) {
 	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Write the code", Objective: "O-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Objective == nil || selection.Objective.ID != "O-001" {
 		t.Fatalf("Selection.Objective = %+v, want O-001", selection.Objective)
@@ -35,28 +70,28 @@ func TestResolveSelection_issueAloneBecomesNextAndResolvedIssueIsStale(t *testin
 	index.Issues[openIssue.ID] = openIssue
 	router := &RouterStateV2{State: RouterPhaseTask, Issue: openIssue.ID}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Issue != openIssue || selection.Objective != nil || selection.Task != nil {
-		t.Fatalf("ResolveSelection() = %+v, want Issue I-042 alone", selection)
+		t.Fatalf("resolveSelectionWithTestGoal() = %+v, want Issue I-042 alone", selection)
 	}
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextIssue || next.Issue != openIssue {
-		t.Fatalf("ResolveNext() = %+v, want NextIssue carrying I-042", next)
+		t.Fatalf("resolveNextWithTestGoal() = %+v, want NextIssue carrying I-042", next)
 	}
 
 	resolved := *openIssue
 	resolved.Status = IssueStatusResolved
 	index.Issues[resolved.ID] = &resolved
-	selection, diagnostic = ResolveSelection(index, router)
+	selection, diagnostic = resolveSelectionWithTestGoal(index, router)
 	if selection.Issue != &resolved || diagnostic == nil || diagnostic.Kind != SelectionDone || diagnostic.RecordKind != SelectionRecordIssue || diagnostic.ID != resolved.ID {
-		t.Fatalf("ResolveSelection() = (%+v, %+v), want resolved Issue SelectionDone", selection, diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() = (%+v, %+v), want resolved Issue SelectionDone", selection, diagnostic)
 	}
-	next = ResolveNext(NextInput{Index: index, Router: router})
+	next = resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextIssue || next.Issue != &resolved || next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone {
-		t.Fatalf("ResolveNext() = %+v, want resolved Issue line with stale-selection diagnostic", next)
+		t.Fatalf("resolveNextWithTestGoal() = %+v, want resolved Issue line with stale-selection diagnostic", next)
 	}
 }
 
@@ -66,13 +101,13 @@ func TestResolveSelection_unknownIssueNamesIssueAndKeepsValidTaskNext(t *testing
 	index.Tasks["T-028"] = &TaskV2{ID: "T-028", Title: "Copy the line", Objective: "O-014", Status: ColumnInProgress, Stage: StageBuild}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-014", Task: "T-028", Issue: "I-042"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if selection.Task == nil || selection.Task.ID != "T-028" || diagnostic == nil || diagnostic.Kind != SelectionNotFound || diagnostic.RecordKind != SelectionRecordIssue || diagnostic.ID != "I-042" {
-		t.Fatalf("ResolveSelection() = (%+v, %+v), want selected Task plus named Issue not-found diagnostic", selection, diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() = (%+v, %+v), want selected Task plus named Issue not-found diagnostic", selection, diagnostic)
 	}
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Task == nil || next.Task.ID != "T-028" || next.Kind == NextNothingSelected || next.SelectionDiagnostic == nil || next.SelectionDiagnostic.RecordKind != SelectionRecordIssue {
-		t.Fatalf("ResolveNext() = %+v, want T-028's Next with Issue diagnostic", next)
+		t.Fatalf("resolveNextWithTestGoal() = %+v, want T-028's Next with Issue diagnostic", next)
 	}
 }
 
@@ -85,9 +120,9 @@ func TestResolveSelection_issueTravelsAsTaskContext(t *testing.T) {
 	index.Issues[issue.ID] = issue
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-014", Task: "T-028", Issue: issue.ID}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Task == nil || next.Task.ID != "T-028" || next.Issue != issue {
-		t.Fatalf("ResolveNext() = %+v, want Task T-028 with Issue I-042 in context", next)
+		t.Fatalf("resolveNextWithTestGoal() = %+v, want Task T-028 with Issue I-042 in context", next)
 	}
 }
 
@@ -101,9 +136,9 @@ func TestResolveSelection_nearMissIDNeverSubstituted(t *testing.T) {
 	index.Tasks["T-140"] = &TaskV2{ID: "T-140", Title: "A similarly numbered task", Objective: "O-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-014"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Task == nil || selection.Task.ID != "T-014" {
 		t.Fatalf("Selection.Task = %+v, want exactly T-014, never T-140", selection.Task)
@@ -118,9 +153,9 @@ func TestResolveSelection_absentTask(t *testing.T) {
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Ship it"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-999"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic == nil {
-		t.Fatal("ResolveSelection() diagnostic = nil, want SelectionNotFound for the absent task")
+		t.Fatal("resolveSelectionWithTestGoal() diagnostic = nil, want SelectionNotFound for the absent task")
 	}
 	if diagnostic.Kind != SelectionNotFound {
 		t.Errorf("diagnostic.Kind = %q, want SelectionNotFound", diagnostic.Kind)
@@ -139,9 +174,9 @@ func TestResolveSelection_absentObjective(t *testing.T) {
 	index := newV2TestIndex()
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-999"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic == nil {
-		t.Fatal("ResolveSelection() diagnostic = nil, want SelectionNotFound for the absent objective")
+		t.Fatal("resolveSelectionWithTestGoal() diagnostic = nil, want SelectionNotFound for the absent objective")
 	}
 	if diagnostic.Kind != SelectionNotFound {
 		t.Errorf("diagnostic.Kind = %q, want SelectionNotFound", diagnostic.Kind)
@@ -165,9 +200,9 @@ func TestResolveSelection_mismatch(t *testing.T) {
 	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Moved task", Objective: "O-002"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic == nil {
-		t.Fatal("ResolveSelection() diagnostic = nil, want SelectionMismatch")
+		t.Fatal("resolveSelectionWithTestGoal() diagnostic = nil, want SelectionMismatch")
 	}
 	if diagnostic.Kind != SelectionMismatch {
 		t.Errorf("diagnostic.Kind = %q, want SelectionMismatch", diagnostic.Kind)
@@ -188,9 +223,9 @@ func TestResolveSelection_objectiveOnly(t *testing.T) {
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Plan me"}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Objective == nil || selection.Objective.ID != "O-001" {
 		t.Fatalf("Selection.Objective = %+v, want O-001", selection.Objective)
@@ -208,23 +243,23 @@ func TestResolveSelection_doneTaskKeepsSelectionAndAddsDiagnostic(t *testing.T) 
 	}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic == nil || diagnostic.Kind != SelectionDone {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want SelectionDone", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want SelectionDone", diagnostic)
 	}
 	if diagnostic.RecordKind != SelectionRecordTask || diagnostic.ID != "T-001" {
 		t.Errorf("diagnostic = %+v, want finished Task T-001", diagnostic)
 	}
 	if selection.Objective == nil || selection.Objective.ID != "O-001" || selection.Task == nil || selection.Task.ID != "T-001" {
-		t.Fatalf("ResolveSelection() selection = %+v, want the original Objective O-001 / Task T-001", selection)
+		t.Fatalf("resolveSelectionWithTestGoal() selection = %+v, want the original Objective O-001 / Task T-001", selection)
 	}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind == NextNothingSelected || next.Objective == nil || next.Objective.ID != "O-001" || next.Task != nil {
-		t.Errorf("ResolveNext() = %+v, want T-029's Objective rung for O-001 while retaining the warning", next)
+		t.Errorf("resolveNextWithTestGoal() = %+v, want T-029's Objective rung for O-001 while retaining the warning", next)
 	}
 	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone || next.SelectionDiagnostic.ID != "T-001" {
-		t.Errorf("ResolveNext().SelectionDiagnostic = %+v, want SelectionDone for T-001", next.SelectionDiagnostic)
+		t.Errorf("resolveNextWithTestGoal().SelectionDiagnostic = %+v, want SelectionDone for T-001", next.SelectionDiagnostic)
 	}
 }
 
@@ -234,23 +269,23 @@ func TestResolveSelection_doneObjectiveWithoutTaskAddsDiagnostic(t *testing.T) {
 	}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-002"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic == nil || diagnostic.Kind != SelectionDone {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want SelectionDone", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want SelectionDone", diagnostic)
 	}
 	if diagnostic.RecordKind != SelectionRecordObjective || diagnostic.ID != "O-002" {
 		t.Errorf("diagnostic = %+v, want finished Objective O-002", diagnostic)
 	}
 	if selection.Objective == nil || selection.Objective.ID != "O-002" || selection.Task != nil {
-		t.Fatalf("ResolveSelection() selection = %+v, want the original Objective O-002 without a Task", selection)
+		t.Fatalf("resolveSelectionWithTestGoal() selection = %+v, want the original Objective O-002 without a Task", selection)
 	}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextPlanObjective || next.Objective == nil || next.Objective.ID != "O-002" {
-		t.Errorf("ResolveNext() = %+v, want the same selected Objective rung as before the diagnostic", next)
+		t.Errorf("resolveNextWithTestGoal() = %+v, want the same selected Objective rung as before the diagnostic", next)
 	}
 	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionDone || next.SelectionDiagnostic.ID != "O-002" {
-		t.Errorf("ResolveNext().SelectionDiagnostic = %+v, want SelectionDone for O-002", next.SelectionDiagnostic)
+		t.Errorf("resolveNextWithTestGoal().SelectionDiagnostic = %+v, want SelectionDone for O-002", next.SelectionDiagnostic)
 	}
 }
 
@@ -267,8 +302,8 @@ func TestResolveSelection_notDoneSelectionsHaveNoDoneDiagnostic(t *testing.T) {
 		{State: RouterPhaseDesign, Objective: "O-003"},
 		{State: RouterPhaseTask, Objective: "O-003", Task: "T-003"},
 	} {
-		if selection, diagnostic := ResolveSelection(index, router); diagnostic != nil {
-			t.Errorf("ResolveSelection(%+v) = (%+v, %+v), want no done diagnostic", router, selection, diagnostic)
+		if selection, diagnostic := resolveSelectionWithTestGoal(index, router); diagnostic != nil {
+			t.Errorf("resolveSelectionWithTestGoal(%+v) = (%+v, %+v), want no done diagnostic", router, selection, diagnostic)
 		}
 	}
 }
@@ -334,7 +369,7 @@ func TestResolveSelection_releaseContextDiagnostics(t *testing.T) {
 				tt.configure(index)
 			}
 
-			selection, diagnostic := ResolveSelection(index, &tt.router)
+			selection, diagnostic := resolveSelectionWithTestGoal(index, &tt.router)
 			if tt.wantKind == "" {
 				if diagnostic != nil {
 					t.Fatalf("diagnostic = %+v, want nil", diagnostic)
@@ -357,7 +392,7 @@ func TestResolveSelection_releaseMismatchNeverSubstitutesObjective(t *testing.T)
 	}
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Same title", Release: "R-002"}
 
-	selection, diagnostic := ResolveSelection(index, &RouterStateV2{Release: "R-001", Objective: "O-001"})
+	selection, diagnostic := resolveSelectionWithTestGoal(index, &RouterStateV2{Release: "R-001", Objective: "O-001"})
 	if diagnostic == nil || diagnostic.Kind != SelectionReleaseMismatch {
 		t.Fatalf("diagnostic = %+v, want release mismatch", diagnostic)
 	}
@@ -366,16 +401,72 @@ func TestResolveSelection_releaseMismatchNeverSubstitutesObjective(t *testing.T)
 	}
 }
 
-// TestResolveSelection_noSelection proves a router in idea or design with no
+func TestResolveSelection_missingGoalPreemptsOtherSelections(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{
+		"R-001": {ID: "R-001", Title: "Available Goal"},
+	}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Selected Objective", Release: "R-001"}
+	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Title: "Selected Task", Objective: "O-001", Status: ColumnPlanned}
+	index.Issues = map[string]*IssueV2{
+		"I-001": {ID: "I-001", Title: "Selected Issue", Type: IssueTypeDefect, Status: IssueStatusOpen},
+	}
+	cases := []struct {
+		name   string
+		router RouterStateV2
+	}{
+		{name: "no record", router: RouterStateV2{State: RouterPhaseIdea}},
+		{name: "objective and task", router: RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}},
+		{name: "issue", router: RouterStateV2{State: RouterPhaseTask, Issue: "I-001"}},
+		{name: "objective and issue", router: RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Issue: "I-001"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			selection, diagnostic := ResolveSelection(index, &tc.router)
+			if diagnostic == nil || diagnostic.Kind != SelectionReleaseMissing || diagnostic.RecordKind != SelectionRecordRelease {
+				t.Fatalf("ResolveSelection() diagnostic = %+v, want missing Goal diagnostic", diagnostic)
+			}
+			if selection != (Selection{}) {
+				t.Fatalf("ResolveSelection() = %+v, want no record resolved before Goal selection", selection)
+			}
+
+			next := ResolveNext(NextInput{Index: index, Router: &tc.router})
+			if next.Kind != NextNothingSelected || next.Release != nil || next.Objective != nil || next.Task != nil || next.Issue != nil || len(next.Issues) != 0 {
+				t.Fatalf("ResolveNext() = %+v, want only the missing Goal diagnostic and no selected work", next)
+			}
+			if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionReleaseMissing {
+				t.Errorf("ResolveNext().SelectionDiagnostic = %+v, want missing Goal diagnostic", next.SelectionDiagnostic)
+			}
+		})
+	}
+}
+
+func TestResolveNext_carriesObjectivesWithoutGoalFacts(t *testing.T) {
+	index := newV2TestIndex()
+	index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001", Title: "Available Goal"}}
+	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Unassigned Objective"}
+	index.ObjectivesWithoutGoal = []string{"O-001"}
+
+	next := ResolveNext(NextInput{
+		Index:  index,
+		Router: &RouterStateV2{State: RouterPhaseDesign, Release: "R-001", Objective: "O-001"},
+	})
+	if len(next.ObjectivesWithoutGoal) != 1 || next.ObjectivesWithoutGoal[0] != "O-001" {
+		t.Fatalf("ObjectivesWithoutGoal = %v, want [O-001] from the project index", next.ObjectivesWithoutGoal)
+	}
+}
+
+// TestResolveSelection_noSelection proves a valid Goal context with no
 // Objective and no Task resolves cleanly to no selection, not a diagnostic.
 func TestResolveSelection_noSelection(t *testing.T) {
 	index := newV2TestIndex()
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Title: "Unrelated"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Objective != nil || selection.Task != nil {
 		t.Errorf("Selection = %+v, want zero value for no selection", selection)
@@ -396,9 +487,9 @@ func TestResolveSelection_readsNoFilesystem(t *testing.T) {
 	}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	selection, diagnostic := ResolveSelection(index, router)
+	selection, diagnostic := resolveSelectionWithTestGoal(index, router)
 	if diagnostic != nil {
-		t.Fatalf("ResolveSelection() diagnostic = %+v, want nil", diagnostic)
+		t.Fatalf("resolveSelectionWithTestGoal() diagnostic = %+v, want nil", diagnostic)
 	}
 	if selection.Objective == nil || selection.Task == nil {
 		t.Fatalf("Selection = %+v, want both records resolved from the in-memory index", selection)
@@ -418,7 +509,7 @@ func TestResolveNext_replanOutranksExecution(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
 		t.Fatalf("Kind = %q, want replan", next.Kind)
 	}
@@ -435,7 +526,7 @@ func TestResolveNext_selectedReleaseReplanOutranksReleaseExecution(t *testing.T)
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	index.ReleaseObjectives = map[string][]string{"R-001": {"O-001"}}
 
-	next := ResolveNext(NextInput{
+	next := resolveNextWithTestGoal(NextInput{
 		Index: index, Router: &RouterStateV2{Release: "R-001", Objective: "O-001", Task: "T-001"},
 	})
 	if next.Kind != NextReplan || next.Task == nil || next.Task.ID != "T-001" {
@@ -462,7 +553,7 @@ func TestResolveNext_selectedReleaseWithoutObjectiveDoesNotChooseMemberTask(t *t
 	index.ReleaseObjectives["R-001"] = []string{"O-001"}
 	index.ReleaseObjectives["R-002"] = []string{"O-002"}
 
-	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
 	if next.Kind != NextNothingSelected || next.Task != nil || next.Objective != nil {
 		t.Fatalf("next = %+v, want nothing selected without substituting member work", next)
 	}
@@ -479,7 +570,7 @@ func TestResolveNext_selectedReleaseWithoutObjectiveDoesNotChooseActiveTask(t *t
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	index.ReleaseObjectives = map[string][]string{"R-001": {"O-001"}}
 
-	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
 	if next.Kind != NextNothingSelected || next.Task != nil || next.Objective != nil {
 		t.Fatalf("next = %+v, want nothing selected without substituting active member work", next)
 	}
@@ -531,7 +622,7 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			index := newV2TestIndex()
 			tt.configure(index)
-			next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
+			next := resolveNextWithTestGoal(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
 			if next.Kind != tt.wantKind {
 				t.Fatalf("next.Kind = %q, want %q; next = %+v", next.Kind, tt.wantKind, next)
 			}
@@ -554,7 +645,7 @@ func TestResolveNext_replanOutranksCheckNeeded(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextReplan {
 		t.Fatalf("Kind = %q, want replan (no check is recorded at all, which would otherwise be check_needed)", next.Kind)
 	}
@@ -574,7 +665,7 @@ func TestResolveNext_taskDependencyBlocks(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextDependency {
 		t.Fatalf("Kind = %q, want dependency", next.Kind)
 	}
@@ -598,7 +689,7 @@ func TestResolveNext_objectiveDependencyBlocks(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextDependency {
 		t.Fatalf("Kind = %q, want dependency", next.Kind)
 	}
@@ -619,7 +710,7 @@ func TestResolveNext_executeWhenTaskPlannedAndReady(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
 		t.Fatalf("Kind = %q, want execute", next.Kind)
 	}
@@ -637,7 +728,7 @@ func TestResolveNext_executeWhenTaskInProgress(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
 		t.Fatalf("Kind = %q, want execute", next.Kind)
 	}
@@ -655,7 +746,7 @@ func TestResolveNext_checkNeeded_missing(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceMissing {
 		t.Fatalf("next = %+v, want check_needed/missing", next)
 	}
@@ -669,7 +760,7 @@ func TestResolveNext_checkNeeded_needsWork(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceNeedsWork {
 		t.Fatalf("next = %+v, want check_needed/needs_work", next)
 	}
@@ -686,7 +777,7 @@ func TestResolveNext_checkNeeded_stale(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceStale {
 		t.Fatalf("next = %+v, want check_needed/stale", next)
 	}
@@ -703,7 +794,7 @@ func TestResolveNext_checkNeeded_unknown(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded || next.Clearance == nil || next.Clearance.State != ClearanceUnknown {
 		t.Fatalf("next = %+v, want check_needed/unknown", next)
 	}
@@ -723,7 +814,7 @@ func TestResolveNext_checkNeededOutranksOwnerValidation(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextCheckNeeded {
 		t.Fatalf("Kind = %q, want check_needed (clearance is missing, so owner validation is not yet in view)", next.Kind)
 	}
@@ -739,7 +830,7 @@ func TestResolveNext_ownerValidationRequiredAfterClearanceCurrent(t *testing.T) 
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextOwnerValidationRequired {
 		t.Fatalf("Kind = %q, want owner_validation_required", next.Kind)
 	}
@@ -768,7 +859,7 @@ func TestResolveNext_exceptionAllowedCompletionReportsExecuteNotClearance(t *tes
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
 		t.Fatalf("Kind = %q, want execute (allowed by exception)", next.Kind)
 	}
@@ -788,7 +879,7 @@ func TestResolveNext_selectedObjectiveDoesNotChooseUnrelatedReadyTask(t *testing
 	index.ObjectiveTasks["O-013"] = []string{"T-006"}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-018"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextPlanObjective {
 		t.Fatalf("Kind = %q, want plan_objective for the selected Task-less Objective", next.Kind)
 	}
@@ -805,7 +896,7 @@ func TestResolveNext_selectedTasklessObjectiveWinsWhenOtherObjectiveHasActiveTas
 	index.ObjectiveTasks["O-013"] = []string{"T-006"}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-018"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextPlanObjective {
 		t.Fatalf("Kind = %q, want plan_objective for the selected Task-less Objective", next.Kind)
 	}
@@ -830,7 +921,7 @@ func TestResolveNext_doneSelectedTaskKeepsObjectiveAheadOfReleaseActiveTask(t *t
 		State: RouterPhaseCheck, Release: "R-006", Objective: "O-018", Task: "T-020",
 	}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextObjectiveIntegration {
 		t.Fatalf("Kind = %q, want objective_integration for O-018", next.Kind)
 	}
@@ -850,7 +941,7 @@ func TestResolveNext_objectiveIntegrationRung(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextObjectiveIntegration {
 		t.Fatalf("Kind = %q, want objective_integration", next.Kind)
 	}
@@ -873,7 +964,7 @@ func TestResolveNext_selectedObjectiveReadyUsesCompletionResolver(t *testing.T) 
 	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001"}})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001"}})
 	if next.Kind != NextObjectiveReady {
 		t.Fatalf("Kind = %q, want objective_ready", next.Kind)
 	}
@@ -898,7 +989,7 @@ func TestResolveNext_selectedObjectiveWithIncompleteTasksRequestsTaskSelection(t
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextSelectTask {
 		t.Fatalf("Kind = %q, want select_task for the selected Objective", next.Kind)
 	}
@@ -917,9 +1008,12 @@ func TestResolveNext_noObjectiveSelectionDoesNotPickReadyTask(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001", "T-002"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextNothingSelected || next.Task != nil || next.Objective != nil {
 		t.Fatalf("next = %+v, want nothing selected and no substituted Task", next)
+	}
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionReleaseMissing {
+		t.Errorf("SelectionDiagnostic = %+v, want missing Goal", next.SelectionDiagnostic)
 	}
 }
 
@@ -930,24 +1024,27 @@ func TestResolveNext_unselectedObjectiveIsNotChosen(t *testing.T) {
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextNothingSelected || next.Objective != nil || next.Task != nil {
 		t.Fatalf("next = %+v, want nothing selected without choosing O-001", next)
 	}
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionReleaseMissing {
+		t.Errorf("SelectionDiagnostic = %+v, want missing Goal", next.SelectionDiagnostic)
+	}
 }
 
-// TestResolveNext_planObjectiveForEmptyProject proves a fresh project with
-// no selected Objective returns NextNothingSelected with no diagnostic.
-func TestResolveNext_planObjectiveForEmptyProject(t *testing.T) {
+// TestResolveNext_missingGoalForEmptyProject proves a fresh project with no
+// Goal points the owner to Goal selection before planning work.
+func TestResolveNext_missingGoalForEmptyProject(t *testing.T) {
 	index := newV2TestIndex()
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextNothingSelected {
 		t.Fatalf("Kind = %q, want nothing_selected", next.Kind)
 	}
-	if next.SelectionDiagnostic != nil {
-		t.Errorf("SelectionDiagnostic = %+v, want nil for an empty project with no router selection", next.SelectionDiagnostic)
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionReleaseMissing {
+		t.Errorf("SelectionDiagnostic = %+v, want missing Goal for an empty project", next.SelectionDiagnostic)
 	}
 	if next.Objective != nil || next.Task != nil {
 		t.Errorf("next = %+v, want no Objective or Task selected", next)
@@ -965,7 +1062,7 @@ func TestResolveNext_nothingSelectedWhenNothingSelected(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextNothingSelected {
 		t.Fatalf("Kind = %q, want nothing_selected when the router selects nothing", next.Kind)
 	}
@@ -981,7 +1078,7 @@ func TestResolveNext_unresolvedSelectionDoesNotSubstituteAvailableWork(t *testin
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-999"} // T-999 does not exist
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionNotFound {
 		t.Fatalf("SelectionDiagnostic = %+v, want SelectionNotFound for T-999", next.SelectionDiagnostic)
 	}
@@ -990,19 +1087,18 @@ func TestResolveNext_unresolvedSelectionDoesNotSubstituteAvailableWork(t *testin
 	}
 }
 
-// TestResolveNext_noSelectionCarriesNoDiagnostic proves a router naming no
-// selection at all — idea or design with no Objective — is not itself a
-// diagnostic.
-func TestResolveNext_noSelectionCarriesNoDiagnostic(t *testing.T) {
+// TestResolveNext_noGoalCarriesDiagnostic proves a router naming no Goal is
+// diagnosed even when it names no Objective.
+func TestResolveNext_noGoalCarriesDiagnostic(t *testing.T) {
 	index := newV2TestIndex()
 	index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
 	index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnPlanned}
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseIdea}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
-	if next.SelectionDiagnostic != nil {
-		t.Errorf("SelectionDiagnostic = %+v, want nil when the router names no selection at all", next.SelectionDiagnostic)
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
+	if next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != SelectionReleaseMissing {
+		t.Errorf("SelectionDiagnostic = %+v, want missing Goal", next.SelectionDiagnostic)
 	}
 	if next.Kind != NextNothingSelected || next.Task != nil || next.Objective != nil {
 		t.Errorf("next = %+v, want nothing selected without choosing O-001 or T-001", next)
@@ -1023,7 +1119,7 @@ func TestResolveNext_readsNoFilesystem(t *testing.T) {
 	}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Kind != NextExecute {
 		t.Fatalf("Kind = %q, want execute, from an in-memory-only index", next.Kind)
 	}
@@ -1044,7 +1140,7 @@ func TestResolveNext_issuesLinkedToSelectedTask(t *testing.T) {
 	index.TaskIssues = map[string][]string{"T-001": {"I-001"}}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if len(next.Issues) != 1 || next.Issues[0].ID != "I-001" {
 		t.Fatalf("Issues = %+v, want exactly [I-001]", next.Issues)
 	}
@@ -1069,7 +1165,7 @@ func TestResolveNext_issuesForObjectiveUnionOwnedTasksAndOwnChecks(t *testing.T)
 	index.CheckIssues = map[string][]string{"C-001": {"I-002"}}
 	router := &RouterStateV2{State: RouterPhaseDesign, Objective: "O-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if len(next.Issues) != 2 || next.Issues[0].ID != "I-001" || next.Issues[1].ID != "I-002" {
 		t.Fatalf("Issues = %+v, want [I-001 I-002] sorted", next.Issues)
 	}
@@ -1085,7 +1181,7 @@ func TestResolveNext_noIssuesLeavesNilNotEmpty(t *testing.T) {
 	index.ObjectiveTasks["O-001"] = []string{"T-001"}
 	router := &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"}
 
-	next := ResolveNext(NextInput{Index: index, Router: router})
+	next := resolveNextWithTestGoal(NextInput{Index: index, Router: router})
 	if next.Issues != nil {
 		t.Fatalf("Issues = %+v, want nil", next.Issues)
 	}
@@ -1146,30 +1242,33 @@ func TestResolveNext_nilInputsReturnAValueRatherThanPanicking(t *testing.T) {
 	router := &RouterStateV2{State: RouterPhaseDesign}
 
 	cases := []struct {
-		name  string
-		input NextInput
-		want  NextKind
+		name           string
+		input          NextInput
+		want           NextKind
+		wantDiagnostic SelectionDiagnosticKind
 	}{
-		{"nil index", NextInput{Router: router}, NextNothingSelected},
-		{"nil router", NextInput{Index: index}, NextNothingSelected},
-		{"both nil", NextInput{}, NextNothingSelected},
-		{"zero value", NextInput{}, NextNothingSelected},
+		{"nil index", NextInput{Router: router}, NextNothingSelected, SelectionReleaseMissing},
+		{"nil router", NextInput{Index: index}, NextNothingSelected, SelectionReleaseMissing},
+		{"both nil", NextInput{}, NextNothingSelected, SelectionReleaseMissing},
+		{"zero value", NextInput{}, NextNothingSelected, SelectionReleaseMissing},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			next := ResolveNext(tc.input)
+			next := resolveNextWithTestGoal(tc.input)
 			if next.Kind != tc.want {
-				t.Errorf("ResolveNext().Kind = %q, want %q", next.Kind, tc.want)
+				t.Errorf("resolveNextWithTestGoal().Kind = %q, want %q", next.Kind, tc.want)
 			}
 			if next.Objective != nil || next.Task != nil {
-				t.Errorf("ResolveNext() selected a record from an absent project: %+v", next)
+				t.Errorf("resolveNextWithTestGoal() selected a record from an absent project: %+v", next)
 			}
-			if next.SelectionDiagnostic != nil {
-				t.Errorf("ResolveNext() reported a selection diagnostic for an absent selection: %+v", next.SelectionDiagnostic)
+			if tc.wantDiagnostic == "" && next.SelectionDiagnostic != nil {
+				t.Errorf("resolveNextWithTestGoal() diagnostic = %+v, want nil for an absent router", next.SelectionDiagnostic)
+			} else if tc.wantDiagnostic != "" && (next.SelectionDiagnostic == nil || next.SelectionDiagnostic.Kind != tc.wantDiagnostic) {
+				t.Errorf("resolveNextWithTestGoal() diagnostic = %+v, want %q", next.SelectionDiagnostic, tc.wantDiagnostic)
 			}
 			if len(next.Issues) != 0 {
-				t.Errorf("ResolveNext() reported %d issues from an absent project", len(next.Issues))
+				t.Errorf("resolveNextWithTestGoal() reported %d issues from an absent project", len(next.Issues))
 			}
 		})
 	}
@@ -1179,11 +1278,10 @@ func TestResolveNext_nilInputsReturnAValueRatherThanPanicking(t *testing.T) {
 // reading it claims: an absent index answers exactly as a project that
 // loaded and has nothing in it.
 func TestResolveNext_nilInputMatchesAnEmptyProject(t *testing.T) {
-	empty := ResolveNext(NextInput{
-		Index:  &V2Index{},
-		Router: &RouterStateV2{State: RouterPhaseIdea},
+	empty := resolveNextWithTestGoal(NextInput{
+		Index: &V2Index{},
 	})
-	absent := ResolveNext(NextInput{})
+	absent := resolveNextWithTestGoal(NextInput{})
 
 	if empty.Kind != absent.Kind {
 		t.Errorf("empty project resolved %q, absent input resolved %q", empty.Kind, absent.Kind)

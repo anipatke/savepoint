@@ -17,15 +17,23 @@ func writeResumeV2Project(t *testing.T, root string) {
 	t.Helper()
 	savepointDir := filepath.Join(root, ".savepoint")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "config.yml"), "schema_version: 2\n")
+	writeResumeGoal(t, savepointDir)
 	testutil.WriteFile(t, filepath.Join(savepointDir, "router.md"), resumeRouterV2Content("task", "O-001", "T-001", "Build T-001."))
 	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "Objective.md"),
-		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\n---\n\n# First objective\n")
+		"---\nid: O-001\ntitle: \"First objective\"\nstatus: planned\nrelease: R-001\n---\n\n# First objective\n")
 	testutil.WriteFile(t, filepath.Join(savepointDir, "objectives", "O-001-first", "tasks", "T-001-alpha.md"),
 		"---\nid: T-001\ntitle: \"Do the thing\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Do the thing\n")
 }
 
 func resumeRouterV2Content(state, objective, task, nextAction string) string {
-	return "# Router\n\n## Current state\n\n```yaml\nstate: " + state + "\nobjective: " + objective + "\ntask: " + task + "\nnext_action: \"" + nextAction + "\"\n```\n"
+	return "# Router\n\n## Current state\n\n```yaml\nstate: " + state + "\nrelease: R-001\nobjective: " + objective + "\ntask: " + task + "\nnext_action: \"" + nextAction + "\"\n```\n"
+}
+
+func writeResumeGoal(t *testing.T, root string) {
+	t.Helper()
+	content := "---\nid: R-001\ntitle: \"Fixture Goal\"\nstatus: planned\n---\n" +
+		"# Goal\n\n## Outcome\n\nShip the fixture outcome.\n\n## Why\n\nThe fixture has a named delivery context.\n\n## Success Conditions\n\nEvery member Objective is complete.\n\n## Boundaries\n\nGoal does not own Tasks.\n"
+	testutil.WriteFile(t, filepath.Join(root, "releases", "R-001-fixture", "Release.md"), content)
 }
 
 func TestMainResumeV2ProjectRendersAndExitsZero(t *testing.T) {

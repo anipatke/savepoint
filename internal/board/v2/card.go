@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -67,18 +69,26 @@ func newTaskCard(index *data.V2Index, task *data.TaskV2) TaskCard {
 	return card
 }
 
-// groupTaskCards resolves every Task in index and groups the cards by recorded
-// status, in ascending Task ID order so a project renders the same way twice.
-// The three groups are the three columns: no status is promoted to a column of
-// its own, and a Task's group comes from TaskV2.Status alone.
+// groupTaskCards groups every indexed Task for the raw project projection.
+// Board views use groupTaskCardsForRelease so a missing Goal never exposes
+// this unscoped set. The three groups are the three columns: no status is
+// promoted to a column of its own, and a Task's group comes from TaskV2.Status.
 func groupTaskCards(index *data.V2Index) map[data.ColumnType][]TaskCard {
-	return groupTaskCardsForRelease(index, "", "")
+	ids := []string(nil)
+	if index != nil {
+		ids = slices.Sorted(maps.Keys(index.Tasks))
+	}
+	return groupTaskCardsForIDs(index, ids)
 }
 
 // groupTaskCardsForRelease is the card projection for a Release context. The
 // release filter is resolved before cards are built, so rendering still sees
 // only already-resolved TaskCard values and never performs membership work.
 func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string) map[data.ColumnType][]TaskCard {
+	return groupTaskCardsForIDs(index, taskIDsInReleaseView(index, releaseID, objectiveID))
+}
+
+func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string) map[data.ColumnType][]TaskCard {
 	grouped := map[data.ColumnType][]TaskCard{
 		data.ColumnPlanned:    {},
 		data.ColumnInProgress: {},
@@ -88,7 +98,7 @@ func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string
 		return grouped
 	}
 
-	for _, id := range taskIDsInReleaseView(index, releaseID, objectiveID) {
+	for _, id := range taskIDs {
 		task := index.Tasks[id]
 		grouped[task.Status] = append(grouped[task.Status], newTaskCard(index, task))
 	}

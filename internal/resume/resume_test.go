@@ -130,6 +130,57 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 	}
 }
 
+func TestNextLine_missingGoalAndObjectiveFacts(t *testing.T) {
+	next := data.Next{
+		Kind: data.NextNothingSelected,
+		SelectionDiagnostic: &data.SelectionDiagnostic{
+			Kind: data.SelectionReleaseMissing, RecordKind: data.SelectionRecordRelease,
+		},
+		ObjectivesWithoutGoal: []string{"O-002", "O-010"},
+	}
+	if got, want := NextLine(next), "Choose a Goal — press g on the board"; got != want {
+		t.Fatalf("NextLine() = %q, want %q", got, want)
+	}
+	if got := NextVerb(next); got != "Choose" {
+		t.Fatalf("NextVerb() = %q, want Choose", got)
+	}
+	text := renderText(next)
+	for _, want := range []string{
+		"Selection: The router has no Goal selected.",
+		"Objectives without a Goal: O-002, O-010",
+		"Next action: Choose a Goal with g on the board.",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("renderText() = %q, want it to contain %q", text, want)
+		}
+	}
+}
+
+func TestRender_validNextHasNoMissingGoalOutput(t *testing.T) {
+	text := renderText(data.Next{Kind: data.NextNothingSelected})
+	if strings.Contains(text, "Objectives without a Goal") || strings.Contains(text, "Choose a Goal") {
+		t.Fatalf("renderText() = %q, want no missing-Goal output for a valid Next", text)
+	}
+}
+
+func TestRender_flagsUnassignedObjectivesWithGoalSelected(t *testing.T) {
+	next := data.Next{
+		Kind:    data.NextNothingSelected,
+		Release: &data.ReleaseV2{ID: "R-001", Title: "Selected Goal"},
+		SelectionDiagnostic: &data.SelectionDiagnostic{
+			Kind: data.SelectionObjectiveUnassigned, Release: "R-001", Objective: "O-004",
+		},
+		ObjectivesWithoutGoal: []string{"O-004"},
+	}
+	text := renderText(next)
+	if !strings.Contains(text, "Objectives without a Goal: O-004") {
+		t.Fatalf("renderText() = %q, want Objective O-004 flagged", text)
+	}
+	if strings.Contains(NextLine(next), "Choose a Goal") {
+		t.Errorf("NextLine() = %q, want the selected Goal retained while Objective repair is flagged", NextLine(next))
+	}
+}
+
 // TestRender_replan is the golden rendering for rung two: a recorded replan
 // flag, reported by its own reason.
 func TestRender_replan(t *testing.T) {

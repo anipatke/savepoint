@@ -1,23 +1,26 @@
 package init
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/doctor"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
-// v2ScaffoldSavepointFiles are the files templates/project-v2/.savepoint must
-// contain, and no others besides objectives/.gitkeep.
+// v2ScaffoldSavepointFiles are the files at the root of
+// templates/project-v2/.savepoint that must be present.
 var v2ScaffoldSavepointFiles = []string{"Idea.md", "Design.md", "Guardrails.md", "config.yml", "router.md"}
 
 // v2ScaffoldForbiddenFiles are V1-lifecycle files that must never reach the
 // V2 scaffold: a fresh project has no epics, no release helper document, no
 // Concept, no Health-Check, and no audit register.
 var v2ScaffoldForbiddenFiles = []string{"PRD.md", "Concept.md", "Health-Check.md"}
-var v2ScaffoldForbiddenDirs = []string{"releases", "audit"}
+var v2ScaffoldForbiddenDirs = []string{"audit"}
 
 func TestV2ScaffoldSavepointFileSet(t *testing.T) {
 	root := filepath.Join("..", "..", "templates", "project-v2", ".savepoint")
@@ -33,6 +36,10 @@ func TestV2ScaffoldSavepointFileSet(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "objectives", ".gitkeep")); err != nil {
 		t.Errorf("templates/project-v2/.savepoint/objectives/.gitkeep missing: %v", err)
 	}
+	goalPath := filepath.Join(root, "releases", "R-001-first-goal", "Release.md")
+	if _, err := os.Stat(goalPath); err != nil {
+		t.Errorf("templates/project-v2/.savepoint/releases/R-001-first-goal/Release.md missing: %v", err)
+	}
 
 	for _, name := range v2ScaffoldForbiddenFiles {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
@@ -46,28 +53,33 @@ func TestV2ScaffoldSavepointFileSet(t *testing.T) {
 	}
 }
 
-func TestV2ScaffoldDoesNotCreateReleaseRecordOrPromise(t *testing.T) {
+func TestV2ScaffoldCreatesProjectGoalWithInterpolatedName(t *testing.T) {
 	target := t.TempDir()
 	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
 	if err := Scaffold(templates, target, "myapp", false); err != nil {
 		t.Fatalf("Scaffold() from templates/project-v2 error = %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(target, ".savepoint", "releases")); !os.IsNotExist(err) {
-		t.Fatalf("fresh V2 scaffold has a releases directory, stat err = %v", err)
-	}
-
-	err := filepath.WalkDir(target, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.Name() == "Release.md" {
-			t.Errorf("fresh V2 scaffold contains a Release record at %s", path)
-		}
-		return nil
-	})
+	goalPath := filepath.Join(target, ".savepoint", "releases", "R-001-first-goal", "Release.md")
+	content, err := os.ReadFile(goalPath)
 	if err != nil {
-		t.Fatalf("walk fresh V2 scaffold: %v", err)
+		t.Fatalf("read fresh Goal record: %v", err)
+	}
+	for _, want := range []string{
+		"id: R-001",
+		"title: myapp",
+		"status: in_progress",
+		"## Outcome",
+		"## Why",
+		"## Success Conditions",
+		"## Boundaries",
+	} {
+		if !strings.Contains(string(content), want) {
+			t.Errorf("fresh Goal record missing %q", want)
+		}
+	}
+	if strings.Contains(string(content), "{{PROJECT_NAME}}") {
+		t.Error("fresh Goal record retained the project-name placeholder")
 	}
 }
 
@@ -86,6 +98,7 @@ func TestV2ScaffoldRouterOpensAtIdeaWithObjectiveField(t *testing.T) {
 
 	assertContains(t, content, "state: idea")
 	assertContains(t, content, "objective:")
+	assertContains(t, content, "release: R-001")
 	assertContains(t, content, "| idea | savepoint-idea |")
 	assertContains(t, content, "| design | savepoint-design |")
 	assertContains(t, content, "| task | savepoint-task |")
@@ -200,14 +213,19 @@ func TestV2AgentsGuideCarriesExistingCodebaseAdoptionSection(t *testing.T) {
 		t.Error("adoption section does not name Idea.md as the destination for what the code is for")
 	}
 
-	// Optional files degrade gracefully; absence is normal, not a finding.
-	for _, optional := range []string{"Concept", "Health-Check", "procedures file", "Release record"} {
+	// Optional files degrade gracefully; Goal context is required.
+	for _, optional := range []string{"Concept", "Health-Check", "procedures file"} {
 		if !strings.Contains(body, optional) {
 			t.Errorf("adoption section does not name optional file %q as never required", optional)
 		}
 	}
 	if !strings.Contains(body, "Their absence is normal, not a finding") {
 		t.Error("adoption section does not state absence of optional files is normal, not a finding")
+	}
+	for _, phrase := range []string{"A Goal is required", "Choose a Goal", "savepoint doctor", "R-001", "savepoint init", "migration keeps or selects an existing live Goal"} {
+		if !strings.Contains(body, phrase) {
+			t.Errorf("adoption section does not explain required Goal context: %q", phrase)
+		}
 	}
 }
 
@@ -290,7 +308,44 @@ func TestV2ScaffoldLoadsCleanThroughRuntimeSchemaAndIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("data.LoadV2Index() on fresh V2 scaffold error = %v", err)
 	}
-	if len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
-		t.Errorf("fresh V2 scaffold index not empty: %+v", index)
+	if len(index.Releases) != 1 || len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
+		t.Errorf("fresh V2 scaffold index has unexpected records: %+v", index)
+	}
+	report := doctor.RunV2Checks(filepath.Join(target, ".savepoint"))
+	if report.HasProblems() {
+		t.Fatalf("doctor reports problems for a fresh V2 scaffold: %s", report.Format())
+	}
+}
+
+func TestV2ScaffoldResumesWithItsProjectGoalSelected(t *testing.T) {
+	target := t.TempDir()
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	if err := Scaffold(templates, target, "myapp", false); err != nil {
+		t.Fatalf("Scaffold() from templates/project-v2 error = %v", err)
+	}
+
+	savepointRoot := filepath.Join(target, ".savepoint")
+	index, err := data.LoadV2Index(savepointRoot)
+	if err != nil {
+		t.Fatalf("data.LoadV2Index() on fresh V2 scaffold error = %v", err)
+	}
+	routerContent, err := os.ReadFile(filepath.Join(savepointRoot, "router.md"))
+	if err != nil {
+		t.Fatalf("read fresh V2 router: %v", err)
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(routerContent))
+	if err != nil {
+		t.Fatalf("read fresh V2 router state: %v", err)
+	}
+	next := data.ResolveNext(data.NextInput{Index: index, Router: router})
+	var output bytes.Buffer
+	if err := resume.Render(&output, next); err != nil {
+		t.Fatalf("resume.Render() on fresh V2 scaffold error = %v", err)
+	}
+	if !strings.Contains(output.String(), "Next action:") {
+		t.Fatalf("fresh V2 scaffold resume output = %q, want a Next action", output.String())
+	}
+	if strings.Contains(output.String(), "Choose a Goal") {
+		t.Fatalf("fresh V2 scaffold resume unexpectedly asks for a Goal: %q", output.String())
 	}
 }

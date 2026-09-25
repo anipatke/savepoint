@@ -3,7 +3,7 @@
 ## Workflow
 
 1. If the owner pasted a `Next` line, act on it directly; it is the selection, so do not re-run `savepoint resume` to confirm it. Otherwise run the read-only `savepoint resume` command and act on its `Next` line.
-2. The Next line's first word says what to do; use it to choose the skill: `Start`, `Build`, or `Test` → `savepoint-task`; `Check` → `savepoint-check`; `Plan` or `Replan` → `savepoint-design`; `Pick a Task in` → select the Objective's next Task, then `savepoint-task`; `Fix` → repair with `savepoint-task` under `issue-capture.md`; `Accept`, `Close`, `Blocked`, `Done`, or `Resolved` → report it to the owner, who decides. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
+2. The Next line's first word says what to do; use it to choose the skill: `Start`, `Build`, or `Test` → `savepoint-task`; `Check` → `savepoint-check`; `Plan` or `Replan` → `savepoint-design`; `Pick a Task in` → select the Objective's next Task, then `savepoint-task`; `Fix` → repair with `savepoint-task` under `issue-capture.md`; `Choose` → report it to the owner, who decides; `Accept`, `Close`, `Blocked`, `Done`, or `Resolved` → report it to the owner, who decides. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
 3. Activate the skill per the table below and follow its Read section and the active Task's Context Files.
 
 If the Next line does not name an Objective, Task, or Issue, follow the router `state` and the resume guidance; do not guess a record. If the `savepoint` binary is unavailable, read the router selection, report that the tool is missing, and do not guess the next step.
@@ -57,24 +57,38 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   the V2 higher-level integration gate and covers every owned Task, including
   Tasks whose optional Task Check was waived, plus cross-Task integration and
   Design reconciliation.
-- A Goal Check is mandatory whenever a Goal exists. It covers all member
+- A Goal Check is mandatory for every Goal. It covers all member
   Objectives and cross-Objective integration, followed by exact owner
   acceptance of the current Check.
 
-## Optional Goals
+## Required Goal Context
 
-A Goal is an optional delivery context for related Objectives, not another
-workflow state or a required step. Without one, the ordinary Idea → Design →
-Task → Check path remains complete. In the V2 board, `g` opens the Goal
-selector; `r` remains an undisplayed compatibility alias.
+Every Savepoint project must have a live Goal selected by the router, and
+every live Objective must name exactly one Goal in its `release:` field.
+`savepoint init` creates and selects R-001, titled after the project.
+`savepoint migrate` keeps the V1 router's live Goal. When that selection is
+missing or unresolvable, it selects a uniquely identifiable existing live
+Goal for the converted active work when possible. If selected work belongs
+only to a historical Goal, migration creates a live continuation and moves
+that active Objective into it. An unresolved release lifecycle decision stays
+in the preview and blocks Apply.
+
+If the router Goal is missing, blank, or `none`, Next says `Choose a Goal`; use
+`g` to select a live Goal. Unknown or archived router selections are reported
+as selection diagnostics; use `g` to select a live Goal. If there are no live
+Goals, `savepoint doctor` says to create one. An Objective missing `release:` remains
+loadable, but resume and the board flag it and doctor names the Objective and
+the exact `release: R-###` repair. Unknown or malformed Objective references
+remain errors. The board shows only the selected Goal's Objectives and Tasks;
+it never falls back to a project-wide view.
 
 Existing storage is unchanged: Goals use stable `R-###` records under
 `.savepoint/releases/` (`Release.md`), Objective `release:` references, router
 `release:` selections, and Check `scope.kind: release`. These names are a
 compatibility boundary, not the public board vocabulary. Goals group
 Objectives, do not own Tasks, and do not publish, deploy, tag, or generate
-changelogs. A Goal Check retains the existing cross-Objective integration and
-exact-owner-acceptance requirements.
+changelogs. A Full Goal Check is mandatory for every Goal and covers
+cross-Objective integration before exact owner acceptance.
 
 ## Terminology
 
@@ -110,7 +124,7 @@ outcomes after the required evidence exists.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR` (it still satisfies a `requires: clear` dependency; see Verification Policy).
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
-- A Goal Check is mandatory whenever a Goal exists and covers cross-Objective integration before exact owner acceptance.
+- A Goal Check is mandatory for every Goal and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
@@ -127,7 +141,16 @@ What exists goes to `.savepoint/Design.md`: concrete structure to Components/Cod
 
 Adoption does not rewrite user-authored files. `savepoint init` may add or refresh the Savepoint-managed block in an existing agent guide, preserving every byte outside that block; all other Savepoint files are added under `.savepoint/`.
 
-This guidance degrades when optional files are absent: a V2 project may have no Goal (stored as an `R-###` Release record), no Concept, no Health-Check, or no procedures file, and none is required before adoption can proceed. Their absence is normal, not a finding.
+This guidance degrades when optional files are absent: a project may have no
+Concept, Health-Check, or procedures file, and none is required before
+adoption can proceed. Their absence is normal, not a finding. A Goal is required.
+If the router has no live Goal, Next says `Choose a Goal`; use `g` to select
+one or use `savepoint doctor`'s repair guidance to create one. If an Objective
+lacks `release:`, doctor names the
+Objective and the exact line to add. A fresh project receives R-001 from
+`savepoint init`; migration keeps or selects an existing live Goal when the
+active work can be resolved to it, and creates a continuation for work whose
+source Goal is historical.
 
 ## Code Style
 

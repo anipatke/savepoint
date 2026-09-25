@@ -106,6 +106,9 @@ func BuildManifest(plan *ConversionPlan) *ManifestV1ToV2 {
 	}
 
 	for _, t := range plan.Targets {
+		if t.Generated {
+			continue // generated Goals have no V1 source identity to map
+		}
 		releaseID := ""
 		if t.Kind == TargetObjective {
 			releaseID = t.ReleaseID

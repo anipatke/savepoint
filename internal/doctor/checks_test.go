@@ -79,6 +79,12 @@ func TestCheckConfigValid(t *testing.T) {
 
 func writeV2Objective(t *testing.T, root, dirName, id, title string) string {
 	t.Helper()
+	ensureV2TestGoal(t, root)
+	return writeV2ObjectiveWithRelease(t, root, dirName, id, title, "R-001")
+}
+
+func writeV2ObjectiveWithoutGoal(t *testing.T, root, dirName, id, title string) string {
+	t.Helper()
 	path := filepath.Join(root, "objectives", dirName, "Objective.md")
 	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: planned\n---\n\n# "+title+"\n")
 	return path
@@ -89,8 +95,9 @@ func writeV2Objective(t *testing.T, root, dirName, id, title string) string {
 // Objective with started work.
 func writeV2ObjectiveInProgress(t *testing.T, root, dirName, id, title string) string {
 	t.Helper()
+	ensureV2TestGoal(t, root)
 	path := filepath.Join(root, "objectives", dirName, "Objective.md")
-	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: in_progress\n---\n\n# "+title+"\n")
+	testutil.WriteFile(t, path, "---\nid: "+id+"\ntitle: \""+title+"\"\nstatus: in_progress\nrelease: R-001\n---\n\n# "+title+"\n")
 	return path
 }
 
@@ -111,6 +118,16 @@ func writeV2Release(t *testing.T, root, dirName, id, status, extraFrontmatter st
 		"## Boundaries\n\nMembership is derived from Objective records.\n"
 	testutil.WriteFile(t, path, content)
 	return path
+}
+
+func ensureV2TestGoal(t *testing.T, root string) {
+	t.Helper()
+	goalPath := filepath.Join(root, "releases", "R-001", "Release.md")
+	if _, err := os.Stat(goalPath); os.IsNotExist(err) {
+		writeV2Release(t, root, "R-001", "R-001", "planned", "")
+	} else if err != nil {
+		t.Fatalf("Stat(%s) error = %v", goalPath, err)
+	}
 }
 
 func writeV2ObjectiveWithRelease(t *testing.T, root, dirName, id, title, release string) string {
@@ -152,25 +169,29 @@ func TestCheckProject_missingReleaseNamesFileAndIDs(t *testing.T) {
 	}
 }
 
-func TestCheckReleaseReadiness_ordersCanonicalFindingsAndAllowsUnassignedObjectives(t *testing.T) {
+func TestCheckReleaseReadiness_ignoresEmptyActiveGoalAndKeepsCanonicalFindings(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
 	writeV2Release(t, root, "R-001-empty", "R-001", "in_progress", "")
 	writeV2Release(t, root, "R-002-active", "R-002", "in_progress", "")
 	writeV2Release(t, root, "R-003-done-empty", "R-003", "done", "")
 	writeV2ObjectiveWithRelease(t, root, "O-002-member", "O-002", "Member", "R-002")
-	writeV2Objective(t, root, "O-003-unassigned", "O-003", "Independent")
+	writeV2ObjectiveWithoutGoal(t, root, "O-003-unassigned", "O-003", "Independent")
 
 	problems := RunV2Checks(root).Releases
-	if len(problems) != 3 {
-		t.Fatalf("RunV2Checks().Releases = %v, want one finding per active or done Release", problems)
+	if len(problems) != 2 {
+		t.Fatalf("RunV2Checks().Releases = %v, want only actionable readiness findings", problems)
 	}
-	wants := []string{"[v2-release-no-objectives] release R-001", "[v2-release-objective-incomplete] release R-002", "[v2-release-no-objectives] release R-003"}
+	wants := []string{"[v2-release-objective-incomplete] release R-002", "[v2-release-no-objectives] release R-003"}
+	paths := []string{
+		filepath.Join("releases", "R-002-active", "Release.md"),
+		filepath.Join("releases", "R-003-done-empty", "Release.md"),
+	}
 	for i, want := range wants {
 		if !strings.Contains(problems[i].Message, want) {
 			t.Errorf("problems[%d].Message = %q, want %q", i, problems[i].Message, want)
 		}
-		if problems[i].File != filepath.Join("releases", map[int]string{0: "R-001-empty", 1: "R-002-active", 2: "R-003-done-empty"}[i], "Release.md") {
+		if problems[i].File != paths[i] {
 			t.Errorf("problems[%d].File = %q, want the Release source path", i, problems[i].File)
 		}
 		if problems[i].Repair == "" || !strings.Contains(problems[i].Repair, "doctor") {
@@ -708,8 +729,9 @@ func TestV2DiagnosticName_noNewIssueSentinelFallsThrough(t *testing.T) {
 func TestCheckProject_ObjectiveConsistencyDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
+	ensureV2TestGoal(t, root)
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "Objective.md"),
-		"---\nid: O-001\ntitle: \"Ship it\"\nstatus: done\n---\n\n# Ship it\n")
+		"---\nid: O-001\ntitle: \"Ship it\"\nstatus: done\nrelease: R-001\n---\n\n# Ship it\n")
 	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "tasks", "T-001-write.md"),
 		"---\nid: T-001\ntitle: \"Write it\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-001}\nstatus: in_progress\nstage: build\n---\n\n# Write it\n")
 

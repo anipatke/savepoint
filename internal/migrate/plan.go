@@ -59,13 +59,20 @@ type LegacyKey struct {
 	OriginalID string
 }
 
-// PlannedTarget is one V1 source becoming one new V2 record with a freshly
-// allocated global identity. TargetPath is relative to the .savepoint root.
+// PlannedTarget is one V1 source converted to a V2 record or one migration-
+// generated V2 record, with a freshly allocated global identity. TargetPath
+// is relative to the .savepoint root.
 type PlannedTarget struct {
 	Kind       TargetKind
 	GlobalID   string
 	Legacy     LegacyKey
 	TargetPath string
+	// Generated marks a V2 record created by migration without a V1 source
+	// record. It is used for the continuation Goal when the V1 router does not
+	// resolve to a live Goal; generated records have no legacy identity mapping.
+	Generated bool
+	// GeneratedTitle is populated only for generated records.
+	GeneratedTitle string
 	// ReleaseID is the allocated V2 Release identity an Objective belongs to.
 	// It is empty for records that are not Objective-owned by a Release.
 	ReleaseID string
@@ -220,13 +227,15 @@ type ConversionPlan struct {
 	GeneratedAt time.Time
 	OperationID string
 
-	Targets     []PlannedTarget
-	Documents   []PlannedDocument
-	Archives    []ArchiveEntry
-	Prereqs     []LegacyPrerequisite
-	WaivedRefs  []WaivedReference
-	Conflicts   []Conflict
-	Ambiguities []Ambiguity
+	Targets []PlannedTarget
+	// GoalSelection records the single live Goal the converted router selects.
+	GoalSelection RouterGoalSelection
+	Documents     []PlannedDocument
+	Archives      []ArchiveEntry
+	Prereqs       []LegacyPrerequisite
+	WaivedRefs    []WaivedReference
+	Conflicts     []Conflict
+	Ambiguities   []Ambiguity
 
 	// Appliable is false exactly when at least one blocking Ambiguity is
 	// unresolved; UnresolvedBlockingIDs names every one of them, sorted, so a
@@ -239,6 +248,17 @@ type ConversionPlan struct {
 	// Sources is the raw inventory Plan computed, retained so a manifest can
 	// be built from the same read without walking the project a second time.
 	Sources []SourceFile
+}
+
+// RouterGoalSelection is the plan's durable decision about the V2 router's
+// live Goal. SourceRelease is the V1 release named by the router, when any;
+// GoalID is empty while a blocking release-lifecycle decision is unresolved.
+// Generated is true when migration had to create a continuation Goal.
+type RouterGoalSelection struct {
+	SourceRelease string
+	GoalID        string
+	Generated     bool
+	Reason        string
 }
 
 const (
@@ -344,6 +364,7 @@ func Plan(projectRoot string, decisions Decisions, now Clock, newOperationID Ope
 		GeneratedAt:           now(),
 		OperationID:           newOperationID(),
 		Targets:               b.targets,
+		GoalSelection:         b.goalSelection,
 		Documents:             b.documents,
 		Archives:              b.archives,
 		Prereqs:               b.prereqs,
@@ -472,7 +493,8 @@ type planBuilder struct {
 	// releaseIDs is the one source-qualified mapping from a V1 release
 	// directory name to its allocated V2 R-### identity. Objectives and router
 	// selections use this map; they never derive an R-### independently.
-	releaseIDs map[string]string
+	releaseIDs    map[string]string
+	goalSelection RouterGoalSelection
 }
 
 type plannedTaskOutcome struct {
@@ -513,7 +535,6 @@ func (b *planBuilder) build() error {
 			return err
 		}
 	}
-
 	// Pass 1: plan every epic and its tasks, in release/epic order, so task
 	// dependency resolution (pass 1 itself, since a task may depend on an
 	// earlier task in the same epic) and later defect/finding passes can see
@@ -531,6 +552,9 @@ func (b *planBuilder) build() error {
 				return err
 			}
 		}
+	}
+	if err := b.planRouterGoalSelection(); err != nil {
+		return err
 	}
 
 	// Pass 2: release-scoped defects.
@@ -571,6 +595,198 @@ func (b *planBuilder) build() error {
 	})
 
 	return nil
+}
+
+// planRouterGoalSelection keeps the live Goal that contains the selected work
+// when possible. If active work belongs only to historical Goals, it plans a
+// continuation and moves those active Objectives into it.
+func (b *planBuilder) planRouterGoalSelection() error {
+	router, ok := b.byPath[".savepoint/router.md"]
+	if !ok {
+		return nil
+	}
+	raw, err := b.readSource(router.Path)
+	if err != nil {
+		return err
+	}
+	v1, err := data.NewRouterReader().ReadState(raw)
+	if err != nil {
+		// Older planning-only callers can supply a skeletal router. The
+		// existing conversion path still rejects it before Apply writes; leave
+		// selection unset here rather than pretending the router was resolved.
+		return nil
+	}
+
+	if v1.Release != "" {
+		if id := b.releaseIDs[v1.Release]; id != "" {
+			if b.isLiveGoal(id) {
+				b.goalSelection = RouterGoalSelection{
+					SourceRelease: v1.Release,
+					GoalID:        id,
+					Reason:        fmt.Sprintf("V1 router release %q resolves to live Goal %s", v1.Release, id),
+				}
+				return nil
+			}
+		}
+		if b.releaseLifecycleDecisionPending(v1.Release) {
+			b.goalSelection = RouterGoalSelection{
+				SourceRelease: v1.Release,
+				Reason:        fmt.Sprintf("V1 router release %q is awaiting an owner lifecycle decision", v1.Release),
+			}
+			return nil
+		}
+	}
+
+	selectedGoalID, selectedEpicFound := b.liveGoalForRouterEpic(v1.Release, v1.Epic)
+	if selectedEpicFound && b.isLiveGoal(selectedGoalID) {
+		b.goalSelection = RouterGoalSelection{
+			SourceRelease: v1.Release,
+			GoalID:        selectedGoalID,
+			Reason:        fmt.Sprintf("V1 router selection maps to existing live Goal %s containing its active Objective", selectedGoalID),
+		}
+		return nil
+	}
+	selectedEpicIsHistorical := selectedEpicFound && selectedGoalID != "" && !b.isLiveGoal(selectedGoalID)
+	if !selectedEpicIsHistorical {
+		if goalID, unique := b.uniqueLiveGoalWithObjectives(); unique {
+			b.goalSelection = RouterGoalSelection{
+				SourceRelease: v1.Release,
+				GoalID:        goalID,
+				Reason:        fmt.Sprintf("Selected existing live Goal %s because it contains the converted active Objectives", goalID),
+			}
+			return nil
+		}
+		if goalID, unique := b.uniqueLiveGoal(); unique {
+			b.goalSelection = RouterGoalSelection{
+				SourceRelease: v1.Release,
+				GoalID:        goalID,
+				Reason:        fmt.Sprintf("Selected the only existing live Goal %s after the V1 router selection did not resolve", goalID),
+			}
+			return nil
+		}
+	}
+
+	reason := "The V1 router has no selected release"
+	if v1.Release != "" {
+		reason = fmt.Sprintf("V1 router release %q does not resolve to a live Goal", v1.Release)
+		if id := b.releaseIDs[v1.Release]; id != "" && !b.isLiveGoal(id) {
+			reason = fmt.Sprintf("V1 router release %q resolves only to historical Goal %s", v1.Release, id)
+		}
+	}
+	if selectedEpicIsHistorical {
+		reason = fmt.Sprintf("V1 router selection points to historical Goal %s; active Objectives move to the continuation Goal", selectedGoalID)
+	}
+
+	hasExistingLiveGoal := b.hasSourceLiveGoal()
+	goalID := b.ids.allocate("R")
+	b.targets = append(b.targets, PlannedTarget{
+		Kind:           TargetRelease,
+		GlobalID:       goalID,
+		TargetPath:     filepath.ToSlash(filepath.Join(v2ReleasesDir, goalID+"-continued-after-migration", "Release.md")),
+		ReleaseID:      goalID,
+		ReleaseStatus:  string(data.ColumnInProgress),
+		Generated:      true,
+		GeneratedTitle: continuationGoalTitle,
+	})
+	b.goalSelection = RouterGoalSelection{
+		SourceRelease: v1.Release,
+		GoalID:        goalID,
+		Generated:     true,
+		Reason:        reason,
+	}
+	if selectedEpicIsHistorical || !hasExistingLiveGoal {
+		for i := range b.targets {
+			target := &b.targets[i]
+			if target.Kind == TargetObjective && !b.isLiveGoal(target.ReleaseID) {
+				target.ReleaseID = goalID
+			}
+		}
+	}
+	return nil
+}
+
+func (b *planBuilder) isLiveGoal(goalID string) bool {
+	for _, target := range b.targets {
+		if target.Kind == TargetRelease && target.GlobalID == goalID {
+			return !target.Generated && target.ReleaseStatus == string(data.ColumnInProgress)
+		}
+	}
+	return false
+}
+
+func (b *planBuilder) liveGoalForRouterEpic(release, epic string) (string, bool) {
+	if epic == "" {
+		return "", false
+	}
+	for _, target := range b.targets {
+		if target.Kind == TargetObjective && target.Legacy.Release == release && target.Legacy.Epic == epic {
+			return target.ReleaseID, true
+		}
+	}
+
+	var goalID string
+	matches := 0
+	for _, target := range b.targets {
+		if target.Kind != TargetObjective || target.Legacy.Epic != epic {
+			continue
+		}
+		matches++
+		goalID = target.ReleaseID
+	}
+	return goalID, matches == 1
+}
+
+func (b *planBuilder) uniqueLiveGoalWithObjectives() (string, bool) {
+	var goalID string
+	for _, target := range b.targets {
+		if target.Kind != TargetObjective || !b.isLiveGoal(target.ReleaseID) {
+			continue
+		}
+		if goalID != "" && goalID != target.ReleaseID {
+			return "", false
+		}
+		goalID = target.ReleaseID
+	}
+	return goalID, goalID != ""
+}
+
+func (b *planBuilder) uniqueLiveGoal() (string, bool) {
+	var goalID string
+	for _, target := range b.targets {
+		if target.Kind != TargetRelease || target.Generated || target.ReleaseStatus != string(data.ColumnInProgress) {
+			continue
+		}
+		if goalID != "" && goalID != target.GlobalID {
+			return "", false
+		}
+		goalID = target.GlobalID
+	}
+	return goalID, goalID != ""
+}
+
+func (b *planBuilder) hasSourceLiveGoal() bool {
+	for _, target := range b.targets {
+		if target.Kind == TargetRelease && !target.Generated && target.ReleaseStatus == string(data.ColumnInProgress) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *planBuilder) releaseLifecycleDecisionPending(release string) bool {
+	releaseDir := filepath.ToSlash(filepath.Join(".savepoint", "releases", release))
+	for _, ambiguity := range b.ambiguities {
+		if !ambiguity.Blocking || ambiguity.Resolved {
+			continue
+		}
+		if ambiguity.Kind != AmbiguityReleaseCompletion && ambiguity.Kind != AmbiguityReleaseLifecycle {
+			continue
+		}
+		if strings.HasPrefix(ambiguity.Path, releaseDir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func sourceReleaseIdentity(name string) string {
@@ -766,13 +982,21 @@ func (b *planBuilder) planEpic(discover *data.Discover, savepointRoot, release, 
 		return b.archiveAllTasks(discover, savepointRoot, release, epic)
 	}
 
+	goalID := b.releaseIDs[release]
+	if goalID == "" {
+		if b.releaseLifecycleDecisionPending(release) {
+			return nil
+		}
+		return fmt.Errorf("plan Objective for V1 epic %s/%s: V1 release %q has no resolvable V2 Goal", release, epic, release)
+	}
+
 	objectiveID := b.ids.allocate("O")
 	b.targets = append(b.targets, PlannedTarget{
 		Kind:       TargetObjective,
 		GlobalID:   objectiveID,
 		Legacy:     legacy,
 		TargetPath: filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2ObjectiveFile)),
-		ReleaseID:  b.releaseIDs[release],
+		ReleaseID:  goalID,
 	})
 	// The original epic detail is archived alongside conversion: migration
 	// preserves the source bytes even though their content became an

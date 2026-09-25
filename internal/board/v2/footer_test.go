@@ -1,8 +1,12 @@
 package v2
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // I-025 shrank the always-visible footer to the keys that actually do
@@ -11,7 +15,23 @@ import (
 // TestHelpListsOnlyFocusedOwnerCapabilities).
 
 func TestFooterOmitsGoalHintWithoutAGoal(t *testing.T) {
-	model := openSizedBoard(t, writeValidProject(t), 130, 40)
+	root := writeValidProject(t)
+	if err := os.RemoveAll(filepath.Join(root, "releases")); err != nil {
+		t.Fatal(err)
+	}
+	routerPath := filepath.Join(root, "router.md")
+	router, err := os.ReadFile(routerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.WriteFile(t, routerPath, strings.Replace(string(router), "release: R-001\n", "", 1))
+	objectiveFile := filepath.Join(root, "objectives", "O-001-fixture", "Objective.md")
+	objective, err := os.ReadFile(objectiveFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.WriteFile(t, objectiveFile, strings.Replace(string(objective), "release: R-001\n", "", 1))
+	model := openSizedBoard(t, root, 130, 40)
 	if strings.Contains(model.hints(), "g:goals") {
 		t.Errorf("footer offers the Goal selector with no Goal in the project:\n%q", model.hints())
 	}

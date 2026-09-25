@@ -99,6 +99,27 @@ func TestReleaseSelectorOpensOverTheBoardAndStartsOnCurrentRelease(t *testing.T)
 	}
 }
 
+func TestGoalSelectorCannotClearTheCurrentGoal(t *testing.T) {
+	model := releaseBoard(t)
+	opened, cmd := model.Update(keyMsg(goalSelectorKey))
+	selector := opened.(Model)
+	if cmd != nil || !selector.ReleaseOverlay || selector.SelectedRelease != "R-001" {
+		t.Fatalf("selector state = open %t, Goal %q, command %t; want open/R-001/no command", selector.ReleaseOverlay, selector.SelectedRelease, cmd != nil)
+	}
+	view := strings.ToLower(xansi.Strip(selector.View()))
+	if strings.Contains(view, "clear goal") || strings.Contains(view, "(none)") || strings.Contains(view, "(no goal)") {
+		t.Errorf("Goal selector offers an empty selection:\n%s", view)
+	}
+
+	for _, key := range []string{"backspace", "delete"} {
+		updated, cmd := selector.Update(keyMsg(key))
+		selector = updated.(Model)
+		if cmd != nil || !selector.ReleaseOverlay || selector.SelectedRelease != "R-001" || selector.State.Router.Release != "R-001" {
+			t.Errorf("%q cleared or changed the selected Goal: overlay=%t view=%q router=%+v command=%t", key, selector.ReleaseOverlay, selector.SelectedRelease, selector.State.Router, cmd != nil)
+		}
+	}
+}
+
 func TestLegacyReleaseKeyRemainsAnUndisclosedGoalSelectorAlias(t *testing.T) {
 	model := releaseBoard(t)
 	opened, cmd := model.Update(keyMsg(goalSelectorAlias))
@@ -340,6 +361,7 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	view := xansi.Strip(final.View())
 	for _, want := range []string{
 		"GOAL: R-002 — Second release",
+		"ALL OBJECTIVES IN GOAL R-002",
 		"NEXT: Nothing selected",
 	} {
 		if !strings.Contains(view, want) {
@@ -373,6 +395,184 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	}
 	if string(beforeRouter) == string(content) {
 		t.Error("canonical Release selection did not change router context")
+	}
+
+	var plain bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.Contains(plain.String(), "Selected: all Objectives in Goal R-002\n") {
+		t.Errorf("plain output does not scope the unfiltered view to R-002:\n%s", plain.String())
+	}
+	if strings.Contains(plain.String(), "Selected: all Objectives\n") {
+		t.Errorf("plain output retains the unscoped selection label:\n%s", plain.String())
+	}
+}
+
+func TestGoalScopedSelectionWithObjectiveFilter(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	writeRouterWithRelease(t, root, "R-002", "none", "none")
+
+	unfiltered := openSizedBoard(t, root, 130, 48)
+	if unfiltered.SelectedRelease != "R-002" || unfiltered.SelectedObjective != "" {
+		t.Fatalf("unfiltered selection = Goal %q, Objective %q; want R-002 and none", unfiltered.SelectedRelease, unfiltered.SelectedObjective)
+	}
+	if got := cardIDsInView(unfiltered); !equalIDs(got, []string{"T-002"}) {
+		t.Errorf("unfiltered Goal view shows Tasks %v, want only R-002's T-002", got)
+	}
+	if !strings.Contains(xansi.Strip(unfiltered.View()), "ALL OBJECTIVES IN GOAL R-002") {
+		t.Errorf("unfiltered TUI view does not name its Goal scope:\n%s", xansi.Strip(unfiltered.View()))
+	}
+
+	filtered := openBoard(t, root, "O-002")
+	if filtered.SelectedRelease != "R-002" || filtered.SelectedObjective != "O-002" {
+		t.Fatalf("filtered selection = Goal %q, Objective %q; want R-002/O-002", filtered.SelectedRelease, filtered.SelectedObjective)
+	}
+	if got := cardIDsInView(filtered); !equalIDs(got, []string{"T-002"}) {
+		t.Errorf("filtered Goal view shows Tasks %v, want only T-002", got)
+	}
+	if strings.Contains(xansi.Strip(filtered.View()), allObjectivesLabel) {
+		t.Errorf("filtered TUI view carries the unfiltered Goal label:\n%s", xansi.Strip(filtered.View()))
+	}
+
+	var plain bytes.Buffer
+	if err := Run(Options{Root: root, ObjectiveFilter: "O-002", Stdout: &plain, TTY: false}); err != nil {
+		t.Fatalf("Run() with Objective filter error = %v", err)
+	}
+	if !strings.Contains(plain.String(), "Selected: O-002\n") || strings.Contains(plain.String(), "Selected: all Objectives") {
+		t.Errorf("filtered plain output does not retain the Objective filter:\n%s", plain.String())
+	}
+}
+
+func TestBoardWithoutAValidGoalShowsNoProjectWideRecords(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	writeRouterWithRelease(t, root, "", "none", "none")
+
+	model := openSizedBoard(t, root, 130, 48)
+	if model.State.Next.SelectionDiagnostic == nil || model.State.Next.SelectionDiagnostic.Kind != data.SelectionReleaseMissing {
+		t.Fatalf("Next selection diagnostic = %+v, want the canonical missing-Goal diagnostic", model.State.Next.SelectionDiagnostic)
+	}
+	if len(taskIDsInReleaseView(model.State.Index, "", "")) != 0 || len(cardIDsInView(model)) != 0 || len(model.Objectives) != 0 {
+		t.Errorf("empty-Goal projection shows Tasks %v and Objectives %v", cardIDsInView(model), model.Objectives)
+	}
+	if model.SelectedRelease != "" || model.SelectedObjective != "" {
+		t.Errorf("empty-Goal selection = %q/%q, want no Goal or Objective", model.SelectedRelease, model.SelectedObjective)
+	}
+	view := xansi.Strip(model.View())
+	for _, want := range []string{"Choose a Goal", resume.SelectionPhrase(model.State.Next.SelectionDiagnostic), "g:goals", "(empty)"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("no-Goal TUI is missing %q:\n%s", want, view)
+		}
+	}
+	for _, forbidden := range []string{"ALL OBJECTIVES", "O-001", "O-002", "T-001", "T-002", "First objective", "Second objective"} {
+		if strings.Contains(view, forbidden) {
+			t.Errorf("no-Goal TUI shows project-wide record %q:\n%s", forbidden, view)
+		}
+	}
+
+	filtered := openBoard(t, root, "O-001")
+	if filtered.SelectedObjective != "" || len(cardIDsInView(filtered)) != 0 {
+		t.Errorf("Objective filter escaped the missing-Goal scope: selected %q, Tasks %v", filtered.SelectedObjective, cardIDsInView(filtered))
+	}
+
+	var plain bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	for _, want := range []string{"Choose a Goal", resume.SelectionPhrase(model.State.Next.SelectionDiagnostic), "Selected: no Goal selected"} {
+		if !strings.Contains(plain.String(), want) {
+			t.Errorf("no-Goal plain output is missing %q:\n%s", want, plain.String())
+		}
+	}
+	for _, forbidden := range []string{"Selected: all Objectives", "T-001 — First task", "T-002 — Second task"} {
+		if strings.Contains(plain.String(), forbidden) {
+			t.Errorf("no-Goal plain output shows project-wide content %q:\n%s", forbidden, plain.String())
+		}
+	}
+}
+
+func TestBoardWithZeroGoalsPointsToDoctor(t *testing.T) {
+	root := writeEmptyProjectFromTemplate(t)
+	writeRouterWithRelease(t, root, "R-001", "none", "none")
+	if err := os.RemoveAll(filepath.Join(root, "releases")); err != nil {
+		t.Fatal(err)
+	}
+
+	assertBoardPointsToDoctor(t, root)
+}
+
+func TestBoardWithOnlyArchivedGoalsPointsToDoctor(t *testing.T) {
+	root := writeEmptyProjectFromTemplate(t)
+	writeRouterWithRelease(t, root, "R-001", "none", "none")
+	testutil.WriteFile(t, filepath.Join(root, "releases", "R-001-history", "Release.md"),
+		"---\nid: R-001\ntitle: \"Historical Goal\"\nstatus: done\n"+
+			"legacy_completion:\n  source_path: releases/v1/PRD.md\n  archive_path: archive/v1/PRD.md\n"+
+			"  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n---\n\n"+
+			"## Outcome\n\nPreserve historical completion.\n\n"+
+			"## Why\n\nThe original scope is archived.\n\n"+
+			"## Success Conditions\n\nThe original work was completed.\n\n"+
+			"## Boundaries\n\nThis Goal is archived.\n")
+
+	assertBoardPointsToDoctor(t, root)
+}
+
+func assertBoardPointsToDoctor(t *testing.T, root string) {
+	t.Helper()
+	model := openSizedBoard(t, root, 130, 48)
+	view := xansi.Strip(model.View())
+	if !strings.Contains(view, "savepoint doctor") || strings.Contains(view, "Choose a Goal") {
+		t.Errorf("project with no live Goals does not direct the owner to doctor:\n%s", view)
+	}
+
+	var plain bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.Contains(plain.String(), "savepoint doctor") || strings.Contains(plain.String(), "Choose a Goal") {
+		t.Errorf("plain output with no live Goals does not direct the owner to doctor:\n%s", plain.String())
+	}
+}
+
+func TestUnassignedGoalNoticeUsesIndexFactInBothRenderers(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	writeObjectiveExtra(t, root, "O-003", "Unassigned objective", "planned", "")
+	model := openSizedBoard(t, root, 130, 48)
+	if got := len(model.State.Index.ObjectivesWithoutGoal); got != 1 {
+		t.Fatalf("T-036 missing-Goal index fact has %d IDs, want 1", got)
+	}
+	want := "1 Objective has no Goal; run savepoint doctor."
+	if !strings.Contains(xansi.Strip(model.View()), want) {
+		t.Errorf("TUI omits the missing-Goal count and repair pointer:\n%s", xansi.Strip(model.View()))
+	}
+	var plain bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.Contains(plain.String(), want) {
+		t.Errorf("plain output omits the missing-Goal count and repair pointer:\n%s", plain.String())
+	}
+
+	// The display count follows the index fact even if the Objective map would
+	// imply a different count, proving the board does not recompute membership.
+	model.State.Index.ObjectivesWithoutGoal = []string{"O-003", "O-004"}
+	want = "2 Objectives have no Goal; run savepoint doctor."
+	if !strings.Contains(xansi.Strip(model.View()), want) || !strings.Contains(renderPlain(model.State, model.SelectedObjective), want) {
+		t.Errorf("renderers recomputed instead of using ObjectivesWithoutGoal; TUI:\n%s\nplain:\n%s", xansi.Strip(model.View()), renderPlain(model.State, model.SelectedObjective))
+	}
+}
+
+func TestGoalScopedChromeFitsNarrowWidths(t *testing.T) {
+	root := writeReleaseBoardProject(t)
+	model := openSizedBoard(t, root, 130, 48)
+	for _, width := range []int{64, 80, 112} {
+		above, _ := model.boardChrome(width)
+		for _, section := range above {
+			for lineNo, line := range strings.Split(xansi.Strip(section), "\n") {
+				if got := lipgloss.Width(line); got > width {
+					t.Errorf("board chrome line %d is %d cells at width %d: %q", lineNo+1, got, width, line)
+				}
+			}
+		}
 	}
 }
 

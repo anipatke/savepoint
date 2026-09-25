@@ -59,12 +59,29 @@ func RunV2Checks(root string) *DiagnosticReport {
 	}
 
 	report.Project = append(report.Project, v2ConsistencyProblems(index)...)
-	if _, diagnostic := data.ResolveSelection(index, router); diagnostic != nil && diagnostic.Kind == data.SelectionDone {
+	if _, diagnostic := data.ResolveSelection(index, router); diagnostic != nil {
+		switch diagnostic.Kind {
+		case data.SelectionReleaseMissing, data.SelectionReleaseNotFound, data.SelectionReleaseArchived:
+			report.Project = append(report.Project, Problem{
+				File:    filepath.Join(root, "router.md"),
+				Message: "[router-goal-missing] " + resume.SelectionPhrase(diagnostic),
+				Repair:  routerGoalRepair(index),
+			})
+		case data.SelectionDone:
+			report.Project = append(report.Project, Problem{
+				File:     filepath.Join(root, "router.md"),
+				Message:  resume.SelectionPhrase(diagnostic),
+				Repair:   "Use p on an unfinished Task in the board, or edit the router's objective/task selection in router.md",
+				Category: HealthPendingReview,
+			})
+		}
+	}
+	for _, objectiveID := range index.ObjectivesWithoutGoal {
+		objective := index.Objectives[objectiveID]
 		report.Project = append(report.Project, Problem{
-			File:     filepath.Join(root, "router.md"),
-			Message:  resume.SelectionPhrase(diagnostic),
-			Repair:   "Use p on an unfinished Task in the board, or edit the router's objective/task selection in router.md",
-			Category: HealthPendingReview,
+			File:    filepath.Join(root, objective.Source.Path),
+			Message: fmt.Sprintf("[objective-goal-missing] Objective %s has no Goal reference", objectiveID),
+			Repair:  objectiveGoalRepair(index),
 		})
 	}
 	releaseDiagnostics := releaseDiagnosticsForIndex(root, index)
@@ -72,6 +89,20 @@ func RunV2Checks(root string) *DiagnosticReport {
 	report.ReleaseNotes = releaseDiagnostics.Notes
 	report.Issues = issuePostureForIndex(index)
 	return report
+}
+
+func routerGoalRepair(index *data.V2Index) string {
+	if !index.HasLiveGoal() {
+		return "Create a Goal first, then choose it with g on the board."
+	}
+	return "Choose a Goal with g on the board."
+}
+
+func objectiveGoalRepair(index *data.V2Index) string {
+	if !index.HasLiveGoal() {
+		return "Create a Goal first, then add `release: R-###` to this Objective file."
+	}
+	return "Add `release: R-###` to this Objective file, using an existing Goal ID."
 }
 
 func checkRouterV2(root string) (*data.RouterStateV2, error) {

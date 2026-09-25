@@ -35,6 +35,13 @@ func nextLines(next data.Next) []string {
 	return lines
 }
 
+func boardNextLines(state ProjectState) []string {
+	if state.Index != nil && !state.Index.HasLiveGoal() {
+		return []string{"No live Goals exist; run savepoint doctor."}
+	}
+	return nextLines(state.Next)
+}
+
 // renderNext draws the Next area: a bold orange "NEXT:" lead-in, then the
 // shared line. Only the verb is accented (verbStyle), in the router phase
 // row's colours, so the glance and the phase row agree on color.
@@ -44,7 +51,7 @@ func nextLines(next data.Next) []string {
 // the wrong part of it is exactly who needs that answer.
 func (m Model) renderNext(w int) string {
 	next := m.State.Next
-	lines := nextLines(next)
+	lines := boardNextLines(m.State)
 	rendered := make([]string, 0, len(lines)+1)
 	rendered = append(rendered, "")
 	for i, line := range lines {

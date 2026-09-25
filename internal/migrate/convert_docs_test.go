@@ -141,6 +141,9 @@ func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 			if !strings.Contains(content, "task: "+taskTarget.GlobalID) {
 				t.Errorf("content missing task %q:\n%s", taskTarget.GlobalID, content)
 			}
+			if !strings.Contains(content, "release: "+p.GoalSelection.GoalID) {
+				t.Errorf("content missing live Goal %q:\n%s", p.GoalSelection.GoalID, content)
+			}
 			if !strings.Contains(content, tc.wantNextParts) {
 				t.Errorf("content missing preserved next_action %q:\n%s", tc.wantNextParts, content)
 			}
@@ -161,6 +164,66 @@ func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 			if readBack.Task != taskTarget.GlobalID {
 				t.Errorf("readBack.Task = %q, want %q", readBack.Task, taskTarget.GlobalID)
 			}
+			if readBack.Release != p.GoalSelection.GoalID {
+				t.Errorf("readBack.Release = %q, want selected live Goal %q", readBack.Release, p.GoalSelection.GoalID)
+			}
+		})
+	}
+}
+
+func TestConvertRouter_fallbackSelectionPointsAtLiveGoal(t *testing.T) {
+	tests := []struct {
+		name          string
+		routerRelease string
+		releaseStatus string
+		wantGoal      string
+		wantGenerated bool
+	}{
+		{name: "missing release", routerRelease: "", releaseStatus: "in_progress", wantGoal: "R-001"},
+		{name: "unresolvable release", routerRelease: "v9-missing", releaseStatus: "in_progress", wantGoal: "R-001"},
+		{name: "archived release", routerRelease: "v1", releaseStatus: "done", wantGoal: "R-002", wantGenerated: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+			writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
+				"task-building", tc.routerRelease, "", "", `"Continue work."`))
+			writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
+				"---\nname: V1\nstatus: "+tc.releaseStatus+"\n---\n\n# V1\n")
+
+			p := mustPlan(t, root)
+			if p.GoalSelection.Generated != tc.wantGenerated {
+				t.Fatalf("GoalSelection.Generated = %t, want %t: %+v", p.GoalSelection.Generated, tc.wantGenerated, p.GoalSelection)
+			}
+			if p.GoalSelection.GoalID != tc.wantGoal {
+				t.Fatalf("GoalSelection.GoalID = %q, want %q", p.GoalSelection.GoalID, tc.wantGoal)
+			}
+			doc, ok := documentByPath(p, ".savepoint/router.md")
+			if !ok {
+				t.Fatal("no PlannedDocument for router.md")
+			}
+			content, err := ConvertRouter(root, p, doc)
+			if err != nil {
+				t.Fatalf("ConvertRouter() error = %v", err)
+			}
+			state, err := data.NewRouterReader().ReadState(content)
+			if err != nil {
+				t.Fatalf("rendered router did not parse: %v", err)
+			}
+			if state.Release != p.GoalSelection.GoalID {
+				t.Errorf("router Release = %q, want selected live Goal %q", state.Release, p.GoalSelection.GoalID)
+			}
+			if tc.wantGenerated {
+				if !strings.Contains(content, p.GoalSelection.GoalID) || !strings.Contains(content, continuationGoalTitle) {
+					t.Errorf("migration note does not explain continuation Goal selection:\n%s", content)
+				}
+			} else if strings.Contains(content, "## Migration Note") {
+				t.Errorf("router has an unnecessary migration note for an existing live Goal:\n%s", content)
+			}
+			if strings.Contains(content, "router now selects no Release") {
+				t.Errorf("router retains obsolete no-Release note:\n%s", content)
+			}
 		})
 	}
 }
@@ -176,6 +239,8 @@ func TestConvertRouter_archivedTaskSelection_recordsNoteAndNoDanglingReference(t
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
 		"task-building", "v1", "E01-x", "E01-x/T001-done", `"Handle E01-x/T001-done."`))
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
+		"---\nname: V1\nstatus: in_progress\n---\n\n# V1\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-x", "E01-Detail.md"),
 		"---\nstatus: in_progress\n---\n\n# E01\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-x", "tasks", "T001-done.md"),

@@ -114,6 +114,89 @@ func TestLoadV2Index_emptyProject(t *testing.T) {
 	}
 }
 
+func TestLoadV2Index_recordsObjectivesWithoutGoalInIDOrder(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  []string
+		want []string
+	}{
+		{name: "one Objective", ids: []string{"O-010"}, want: []string{"O-010"}},
+		{name: "several Objectives", ids: []string{"O-010", "O-002"}, want: []string{"O-002", "O-010"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, id := range tc.ids {
+				writeV2ObjectiveFixture(t, root, id+"-fixture", id, id+" objective")
+			}
+			index, err := LoadV2Index(root)
+			if err != nil {
+				t.Fatalf("LoadV2Index() error = %v, want non-fatal missing Goal facts", err)
+			}
+			if !reflect.DeepEqual(index.ObjectivesWithoutGoal, tc.want) {
+				t.Fatalf("ObjectivesWithoutGoal = %v, want sorted live Objective IDs %v", index.ObjectivesWithoutGoal, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadV2Index_validGoalReferenceHasNoMissingGoalFact(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteFile(t, filepath.Join(root, "releases", "R-001", "Release.md"),
+		"---\nid: R-001\ntitle: \"Test Goal\"\nstatus: planned\n---\n\n"+
+			"## Outcome\n\nDeliver the recorded promise.\n\n"+
+			"## Why\n\nThe delivery boundary needs a stable identity.\n\n"+
+			"## Success Conditions\n\n- All member Objectives are complete.\n\n"+
+			"## Boundaries\n\nMembership is derived from Objective records.\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-valid", "Objective.md"),
+		"---\nid: O-001\ntitle: \"Valid Objective\"\nstatus: planned\nrelease: R-001\n---\n\n# Valid Objective\n")
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	if len(index.ObjectivesWithoutGoal) != 0 {
+		t.Fatalf("ObjectivesWithoutGoal = %v, want no fact for an Objective with a valid Goal reference", index.ObjectivesWithoutGoal)
+	}
+	if got := index.ReleaseObjectives["R-001"]; len(got) != 1 || got[0] != "O-001" {
+		t.Fatalf("ReleaseObjectives[R-001] = %v, want [O-001]", got)
+	}
+}
+
+func TestLoadV2Index_invalidGoalReferencesRemainFatal(t *testing.T) {
+	tests := []struct {
+		name      string
+		reference string
+		want      error
+	}{
+		{name: "malformed", reference: "R-1", want: ErrV2InvalidReleaseReference},
+		{name: "unknown", reference: "R-999", want: ErrV2MissingRelease},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeV2ObjectiveFixture(t, root, "O-001-invalid", "O-001", "Invalid reference")
+			path := filepath.Join(root, v2ObjectivesDirName, "O-001-invalid", "Objective.md")
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile(Objective.md) error = %v", err)
+			}
+			updated := strings.Replace(string(raw), "status: planned\n", "status: planned\nrelease: "+tc.reference+"\n", 1)
+			if updated == string(raw) {
+				t.Fatalf("fixture Objective has no planned status to extend")
+			}
+			if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
+				t.Fatalf("WriteFile(Objective.md) error = %v", err)
+			}
+
+			_, err = LoadV2Index(root)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("LoadV2Index() error = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
 // TestLoadV2Index_movedTaskRetainsOwnership proves the assembled index keeps
 // explicit Objective ownership from the Task record's own field even when
 // the Task file is filed under a different Objective's tasks/ directory.
@@ -359,9 +442,13 @@ func TestLoadV2Index_checkOrderingAcrossC999C1000Boundary(t *testing.T) {
 	if decision := ResolveTaskCompletion(index, "T-001"); !decision.Allowed {
 		t.Fatalf("ResolveTaskCompletion(T-001) = %+v, want allowed from latest C-1000", decision)
 	}
+	index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001", Title: "Test Goal"}}
+	index.Objectives["O-001"].Release = "R-001"
+	index.ReleaseObjectives["R-001"] = []string{"O-001"}
+	index.ObjectivesWithoutGoal = nil
 	next := ResolveNext(NextInput{
 		Index:  index,
-		Router: &RouterStateV2{State: RouterPhaseTask, Objective: "O-001", Task: "T-001"},
+		Router: &RouterStateV2{State: RouterPhaseTask, Release: "R-001", Objective: "O-001", Task: "T-001"},
 	})
 	if next.Kind != NextExecute || next.Task == nil || next.Task.ID != "T-001" {
 		t.Fatalf("ResolveNext() = %+v, want execute T-001 from latest C-1000", next)

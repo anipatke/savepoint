@@ -134,6 +134,9 @@ func ConvertObjective(root string, plan *ConversionPlan, target PlannedTarget) (
 	if target.Kind != TargetObjective {
 		return "", fmt.Errorf("convert objective: target %s is not an objective target", target.GlobalID)
 	}
+	if target.ReleaseID == "" {
+		return "", fmt.Errorf("convert Objective %s from V1 epic %s/%s: no planned V2 Goal for its V1 release", target.GlobalID, target.Legacy.Release, target.Legacy.Epic)
+	}
 
 	raw, err := readSourceFile(root, target.Legacy.Path)
 	if err != nil {
@@ -179,7 +182,7 @@ func ConvertObjective(root string, plan *ConversionPlan, target PlannedTarget) (
 		Title:        title,
 		Status:       status,
 		DependsOn:    dependsOn,
-		Release:      firstNonEmptyString(target.ReleaseID, target.Legacy.Release),
+		Release:      target.ReleaseID,
 		LegacyFields: legacyFields,
 	}
 

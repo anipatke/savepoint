@@ -158,7 +158,7 @@ func resumeMatrixCases() []matrixCase {
 			name:       "fresh savepoint init scaffold",
 			build:      matrixBuildFreshInitScaffold,
 			wantKind:   data.NextNothingSelected,
-			wantAction: "press p on the board",
+			wantAction: "Select an Objective: press p on the board",
 		},
 	}
 }
@@ -166,6 +166,7 @@ func resumeMatrixCases() []matrixCase {
 func matrixConfig(t *testing.T, dir string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "config.yml"), "schema_version: 2\n")
+	matrixRelease(t, dir, "planned", "")
 }
 
 func matrixRelease(t *testing.T, dir, status, extra string) {
@@ -245,7 +246,7 @@ func matrixBuildMissingReleaseSelection(t *testing.T, dir string) {
 
 func matrixObjective(t *testing.T, dir, dirName, id, status string) {
 	t.Helper()
-	content := "---\nid: " + id + "\ntitle: \"Objective " + id + "\"\nstatus: " + status + "\n---\n\n# Objective " + id + "\n"
+	content := "---\nid: " + id + "\ntitle: \"Objective " + id + "\"\nstatus: " + status + "\nrelease: R-001\n---\n\n# Objective " + id + "\n"
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", dirName, "Objective.md"), content)
 }
 
@@ -368,7 +369,7 @@ func matrixBuildObjectiveReady(t *testing.T, dir string) {
 	matrixConfig(t, dir)
 	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
 	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
-	objective := "---\nid: O-001\ntitle: \"Objective O-001\"\nstatus: in_progress\n" +
+	objective := "---\nid: O-001\ntitle: \"Objective O-001\"\nstatus: in_progress\nrelease: R-001\n" +
 		"last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n---\n\n# Objective O-001\n"
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "Objective.md"), objective)
 	task := "---\nid: T-001\ntitle: \"Done Task\"\nobjective: O-001\n" +

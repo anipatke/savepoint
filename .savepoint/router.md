@@ -18,8 +18,8 @@ selection; the command does not write project files.
 ```yaml
 state: task
 release: R-006
-objective: O-019
-task: T-010
+objective: O-022
+task: none
 issue: none
 ```
 
@@ -44,12 +44,14 @@ issue: none
 - A Task Check is optional and may be skipped only with an explicit owner
   waiver recorded in the Task evidence; that waiver is not technical `CLEAR`.
 - A Full Objective Check is mandatory before Objective completion, and a
-  Goal Check is mandatory whenever a Goal exists.
+  Goal Check is mandatory for every Goal.
 - Issues are durable follow-up records, not a fourth task column or router
   state. A checker closes a proven Issue as `verified`; the owner may explicitly close one as `accepted`, and the planner may close a promoted Issue as `escalated`.
-- Goals are optional delivery contexts, stored as `R-###` Release records.
-  Their membership and completion are derived by `internal/data`; they do not
-  publish, deploy, tag, or create changelogs.
+- Every Savepoint project must select a declared live Goal in router `release:`, and
+  every live Objective must reference exactly one Goal in its `release:`.
+  Goals use `R-###` Release-compatible records; their membership and
+  completion are derived by `internal/data`. They do not publish, deploy, tag,
+  or create changelogs.
 
 ## Migration boundary
 

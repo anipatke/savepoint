@@ -166,6 +166,103 @@ func TestPlan_v1Basic_archivesCompletedTaskAndReservesNoID(t *testing.T) {
 	}
 }
 
+func TestPlan_routerSelectsLiveGoalOrPlansContinuationGoal(t *testing.T) {
+	tests := []struct {
+		name          string
+		routerRelease string
+		releaseStatus string
+		wantGenerated bool
+		wantReason    string
+	}{
+		{name: "live selection is kept", routerRelease: "v1", releaseStatus: "in_progress"},
+		{name: "missing selection", routerRelease: "", releaseStatus: "in_progress", wantReason: "only existing live Goal"},
+		{name: "unresolvable selection", routerRelease: "v9-missing", releaseStatus: "in_progress", wantReason: "only existing live Goal"},
+		{name: "archived selection", routerRelease: "v1", releaseStatus: "done", wantGenerated: true, wantReason: "historical Goal"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+			writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
+				"task-building", tc.routerRelease, "", "", `"Continue migrated work."`))
+			writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
+				"---\nname: V1\nstatus: "+tc.releaseStatus+"\n---\n\n# V1\n")
+
+			p := mustPlan(t, root)
+			selection := p.GoalSelection
+			if selection.GoalID == "" {
+				t.Fatal("GoalSelection.GoalID is empty")
+			}
+			if selection.Generated != tc.wantGenerated {
+				t.Fatalf("GoalSelection.Generated = %t, want %t: %+v", selection.Generated, tc.wantGenerated, selection)
+			}
+			if tc.wantReason != "" && !strings.Contains(selection.Reason, tc.wantReason) {
+				t.Errorf("GoalSelection.Reason = %q, want it to contain %q", selection.Reason, tc.wantReason)
+			}
+
+			generated := 0
+			for _, target := range p.Targets {
+				if target.Generated {
+					generated++
+					if target.GlobalID != selection.GoalID || target.Kind != TargetRelease || target.ReleaseStatus != string(data.ColumnInProgress) {
+						t.Errorf("generated target = %+v, want the selected live Goal", target)
+					}
+					if target.Legacy.Path != "" {
+						t.Errorf("generated Goal Legacy.Path = %q, want no V1 source", target.Legacy.Path)
+					}
+				}
+			}
+			wantGeneratedCount := 0
+			if tc.wantGenerated {
+				wantGeneratedCount = 1
+				if selection.GoalID != "R-002" {
+					t.Errorf("fallback GoalID = %q, want next free R-002", selection.GoalID)
+				}
+			} else {
+				if selection.GoalID != "R-001" {
+					t.Errorf("kept GoalID = %q, want mapped V1 Goal R-001", selection.GoalID)
+				}
+			}
+			if generated != wantGeneratedCount {
+				t.Errorf("generated Goal targets = %d, want %d", generated, wantGeneratedCount)
+			}
+
+			preview := FormatPreview(p)
+			if tc.wantReason != "" && (!strings.Contains(preview, tc.wantReason) || !strings.Contains(preview, selection.GoalID)) {
+				t.Errorf("preview does not explain Goal selection %s (%s):\n%s", selection.GoalID, tc.wantReason, preview)
+			}
+			if strings.Contains(preview, "router now selects no Release") {
+				t.Errorf("preview retains obsolete no-Release outcome:\n%s", preview)
+			}
+
+			manifest := BuildManifest(p)
+			for _, identity := range manifest.Identities {
+				if identity.GlobalID == selection.GoalID && tc.wantGenerated {
+					t.Errorf("generated Goal has a fabricated V1 identity mapping: %+v", identity)
+				}
+			}
+		})
+	}
+}
+
+func TestPlan_activeEpicWithoutResolvableReleaseFailsWithNamedError(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
+		"epic-task-breakdown", "v1", "E01-orphan", "", `"Plan the epic."`))
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-orphan", "E01-Detail.md"),
+		"---\nstatus: in_progress\n---\n\n# E01 Orphan\n")
+
+	_, err := Plan(root, nil, fixedClock(time.Now()), fixedOperationID("op"))
+	if err == nil {
+		t.Fatal("Plan() error = nil, want a named failure for the active epic's missing Goal")
+	}
+	if !strings.Contains(err.Error(), "V1 epic v1/E01-orphan") || !strings.Contains(err.Error(), "no resolvable V2 Goal") {
+		t.Fatalf("Plan() error = %q, want it to identify the V1 epic and missing Goal", err)
+	}
+}
+
 // --- v1-history: source-qualified allocation -----------------------------
 
 // TestPlan_v1History_sourceQualifiedAllocation proves the epic/short-task-ID
@@ -473,6 +570,7 @@ func TestPlan_unrecognizedTaskStatus_isBlockingAmbiguityNotHealed(t *testing.T) 
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), "# Router\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"), "---\nstatus: in_progress\n---\n\n# V1\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-x", "E01-Detail.md"),
 		"---\nstatus: in_progress\n---\n\n# E01\n")
 	taskPath := ".savepoint/releases/v1/epics/E01-x/tasks/T001-weird.md"
@@ -512,6 +610,7 @@ func TestPlan_missingDependencyTarget_isBlockingAmbiguity(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), "# Router\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"), "---\nstatus: in_progress\n---\n\n# V1\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-x", "E01-Detail.md"),
 		"---\nstatus: in_progress\n---\n\n# E01\n")
 	taskPath := ".savepoint/releases/v1/epics/E01-x/tasks/T001-orphan.md"

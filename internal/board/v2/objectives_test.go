@@ -203,14 +203,14 @@ func TestSelectionFiltersColumnsByRecordedOwnership(t *testing.T) {
 	}
 }
 
-func TestNoSelectionShowsEveryTaskInTheProject(t *testing.T) {
+func TestNoObjectiveFilterShowsEveryTaskInTheSelectedGoal(t *testing.T) {
 	model := press(t, sidebarBoard(t, writeNavigationProject(t)), "left", "esc")
 
 	if model.SelectedObjective != "" {
 		t.Fatalf("SelectedObjective = %q after clearing, want nothing selected", model.SelectedObjective)
 	}
 	if got := cardIDsInView(model); !equalIDs(got, []string{"T-001", "T-002", "T-003", "T-004"}) {
-		t.Errorf("columns show %v, want every Task in the project", got)
+		t.Errorf("columns show %v, want every Task in the selected Goal", got)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestInitialSelectionPrecedence(t *testing.T) {
 		t.Errorf("columns show %v, want the flagged Objective's Tasks", got)
 	}
 
-	writeRouter(t, root, "design", "none", "none")
+	writeRouterWithRelease(t, root, "R-001", "none", "none")
 	unselected := sidebarBoard(t, root)
 	if unselected.SelectedObjective != "" {
 		t.Errorf("SelectedObjective = %q over a router selecting nothing, want nothing", unselected.SelectedObjective)
@@ -250,7 +250,7 @@ func TestInitialSelectionPrecedence(t *testing.T) {
 // a glance at the resolved Task now, not a diagnostics surface.
 func TestRouterNamingAMissingObjectiveOpensTheBoardAnyway(t *testing.T) {
 	root := writeNavigationProject(t)
-	writeRouter(t, root, "task", "O-009", "none")
+	writeFixtureRouter(t, root, "task", "O-009", "none")
 
 	model := sidebarBoard(t, root)
 	got := xansi.Strip(model.View())
@@ -656,7 +656,7 @@ func objectiveRowStart(line string) bool {
 func writeIssueOnlyRouter(t *testing.T, root, issue string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(root, "router.md"),
-		"# Router\n\n## Current state\n\n```yaml\nstate: task\nobjective: none\ntask: none\nissue: "+issue+"\n```\n")
+		"# Router\n\n## Current state\n\n```yaml\nstate: task\nrelease: R-001\nobjective: none\ntask: none\nissue: "+issue+"\n```\n")
 }
 
 // TestIssueOnlySelectionOpensOnTheIssuesObjective covers I-045: a router that
@@ -696,7 +696,7 @@ func TestIssueOnlySelectionOpensOnTheIssuesObjective(t *testing.T) {
 			}
 			wantLine := "Selected: " + test.want
 			if test.want == "" {
-				wantLine = "Selected: all Objectives"
+				wantLine = "Selected: all Objectives in Goal R-001"
 			}
 			if !strings.Contains(plain.String(), wantLine+"\n") {
 				t.Errorf("plain output is missing %q:\n%s", wantLine, plain.String())

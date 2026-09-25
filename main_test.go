@@ -216,11 +216,11 @@ func TestMainUpgradeAssetsPrintsPartialWorkOnFailure(t *testing.T) {
 	}
 }
 
-// v1OnlyPaths are paths a V1 project can carry that must never appear on a
-// fresh V2 scaffold: releases/epics, the release PRD, the optional Concept
-// and Health-Check documents, and the audit register.
+// v1OnlyPaths are V1-specific paths that must never appear on a fresh V2
+// scaffold. The V2 Goal record also uses .savepoint/releases/.
 var v1OnlyPaths = []string{
-	filepath.Join(".savepoint", "releases"),
+	filepath.Join(".savepoint", "releases", "v2", "epics"),
+	filepath.Join(".savepoint", "releases", "v2", "v2-PRD.md"),
 	filepath.Join(".savepoint", "epics"),
 	filepath.Join(".savepoint", "PRD.md"),
 	filepath.Join(".savepoint", "Concept.md"),
@@ -236,7 +236,7 @@ var v1OnlySkills = []string{
 	"savepoint-audit-register", "savepoint-create-defect", "savepoint-create-plan",
 }
 
-func TestMainInitScaffoldsV2ProjectWithEmptyValidIndex(t *testing.T) {
+func TestMainInitScaffoldsV2ProjectWithProjectGoal(t *testing.T) {
 	dir := t.TempDir()
 
 	result := runMainForTest(t, []string{"init", dir}, "")
@@ -261,8 +261,23 @@ func TestMainInitScaffoldsV2ProjectWithEmptyValidIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() on fresh init error = %v", err)
 	}
-	if len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
-		t.Errorf("fresh init V2 index not empty: %+v", index)
+	if len(index.Releases) != 1 || len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
+		t.Errorf("fresh init V2 index has unexpected records: %+v", index)
+	}
+	goalPath := filepath.Join(dir, ".savepoint", "releases", "R-001-first-goal", "Release.md")
+	goal, err := os.ReadFile(goalPath)
+	if err != nil {
+		t.Fatalf("read fresh-init R-001 Goal: %v", err)
+	}
+	if !strings.Contains(string(goal), "title: "+filepath.Base(dir)) {
+		t.Errorf("fresh-init Goal title = %q, want project name %q", goal, filepath.Base(dir))
+	}
+	router, err := os.ReadFile(filepath.Join(dir, ".savepoint", "router.md"))
+	if err != nil {
+		t.Fatalf("read fresh-init router: %v", err)
+	}
+	if !strings.Contains(string(router), "release: R-001") {
+		t.Errorf("fresh-init router does not select R-001: %q", router)
 	}
 	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if err != nil {
@@ -468,6 +483,11 @@ func writeMigrateMinimalProject(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, ".savepoint", "router.md"), []byte("# Router\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	releaseDir := filepath.Join(root, ".savepoint", "releases", "v1")
+	mkdirAll(t, releaseDir)
+	if err := os.WriteFile(filepath.Join(releaseDir, "v1-PRD.md"), []byte("---\nname: V1\nstatus: in_progress\n---\n\n# V1\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 }

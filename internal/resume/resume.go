@@ -16,6 +16,7 @@ var nextActionCopy = struct {
 	selectTask            string
 	selectTaskNoID        string
 	nothingSelected       string
+	chooseGoal            string
 	completeObjective     string
 	completeWithException string
 	completedObjective    string
@@ -25,6 +26,7 @@ var nextActionCopy = struct {
 	selectTask:            "Select a Task under Objective %s: press p on the board, or ask the agent to \"set router to O-### T-###\".",
 	selectTaskNoID:        "Select a Task for the selected Objective.",
 	nothingSelected:       "Select an Objective: press p on the board, or ask the agent to \"set router to O-### T-###\".",
+	chooseGoal:            "press g on the board",
 	completeObjective:     "Owner: record Objective %s as done.",
 	completeWithException: "Owner: record Objective %s as done under the recorded exception.",
 	completedObjective:    "Objective %s is already done; select another Objective or clear the router selection.",
@@ -47,6 +49,9 @@ func Render(w io.Writer, next data.Next) error {
 // selection decisions of its own.
 func NextLine(next data.Next) string {
 	verb := NextVerb(next)
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose a Goal — " + nextActionCopy.chooseGoal
+	}
 	switch {
 	case next.Task != nil:
 		line := fmt.Sprintf("%s %s — %s", verb, next.Task.ID, next.Task.Title)
@@ -68,6 +73,9 @@ func NextLine(next data.Next) string {
 // record, read from the record's lifecycle and the rung data.ResolveNext
 // already chose. It is empty when nothing is selected.
 func NextVerb(next data.Next) string {
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose"
+	}
 	switch {
 	case next.Task != nil:
 		return taskVerb(next)
@@ -191,6 +199,9 @@ func renderText(next data.Next) string {
 
 	if next.SelectionDiagnostic != nil {
 		lines = append(lines, "", "Selection: "+SelectionPhrase(next.SelectionDiagnostic), "")
+	}
+	if len(next.ObjectivesWithoutGoal) > 0 {
+		lines = append(lines, "Objectives without a Goal: "+strings.Join(next.ObjectivesWithoutGoal, ", "), "")
 	}
 
 	lines = append(lines, identityLines(next)...)
@@ -427,6 +438,9 @@ func issueLines(issues []*data.IssueV2) []string {
 // states the same action, and two surfaces phrasing one answer differently
 // is the divergence the shared projection exists to prevent.
 func ActionPhrase(next data.Next) string {
+	if hasMissingGoalDiagnostic(next) {
+		return "Choose a Goal with g on the board."
+	}
 	switch next.Kind {
 	case data.NextReplan:
 		return "Resolve the recorded replan before resuming build, test, or audit."
@@ -476,6 +490,10 @@ func ActionPhrase(next data.Next) string {
 	default:
 		return fmt.Sprintf("No next action is defined for rung %q.", next.Kind)
 	}
+}
+
+func hasMissingGoalDiagnostic(next data.Next) bool {
+	return next.SelectionDiagnostic != nil && next.SelectionDiagnostic.Kind == data.SelectionReleaseMissing
 }
 
 func executeNextActionPhrase(next data.Next) string {

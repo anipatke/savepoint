@@ -153,6 +153,9 @@ func (m Model) renderBoard(w, h int) string {
 // silently push the body past the bottom of the terminal.
 func (m Model) boardChrome(w int) (above, below []string) {
 	above = []string{m.renderHeader(w), m.renderSelection(w)}
+	if notice := unassignedGoalNotice(m.State.Index); notice != "" {
+		above = append(above, lipgloss.NewStyle().Width(w).Render(notice))
+	}
 	if m.ReloadDiagnostic != "" {
 		above = append(above, m.renderReloadDiagnostic(w))
 	}
@@ -248,14 +251,14 @@ func (m Model) renderHeader(w int) string {
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
 }
 
-// renderSelection states the optional Goal context — a bold capitalized
+// renderSelection states the selected Goal context — a bold capitalized
 // "GOAL:" label with the record's own ID and title in plain white after it —
-// and, only when no Objective filter is in effect, allObjectivesLabel. Which
-// Objective the columns are filtered to is otherwise the sidebar's own
-// purple-accented selection marker (glyphSelected), not restated here. Nothing here is truncated by fitLine: a
-// styled line carries ANSI codes fitLine's rune count would miscount, so
-// overflow is left to the terminal to wrap. With no Goal and an Objective
-// filter, this line is blank.
+// and, only when no Objective filter is in effect, the Goal-scoped
+// allObjectivesLabel. The Objective the columns are filtered to is otherwise
+// the sidebar's own purple-accented selection marker (glyphSelected), not
+// restated here. Nothing here is truncated by fitLine: a styled line carries
+// ANSI codes fitLine's rune count would miscount, so overflow is left to the
+// terminal to wrap. With no valid Goal selected, this line is blank.
 func (m Model) renderSelection(w int) string {
 	var parts []string
 	if m.SelectedRelease != "" {
@@ -265,15 +268,16 @@ func (m Model) renderSelection(w int) string {
 		}
 		parts = append(parts, styles.HeaderWhiteBold.Render(strings.ToUpper(goalLabel)+":")+" "+styles.HeaderWhite.Render(releaseText))
 	}
-	if m.SelectedObjective == "" && m.State.Index != nil {
-		parts = append(parts, styles.HeaderWhiteBold.Render(allObjectivesLabel))
+	if m.SelectedRelease != "" && m.SelectedObjective == "" && m.State.Index != nil {
+		label := allObjectivesLabel + " IN GOAL " + m.SelectedRelease
+		parts = append(parts, styles.HeaderWhiteBold.Render(label))
 	}
 	return styles.RootLine.Width(w).Render(strings.Join(parts, "  ·  "))
 }
 
-// allObjectivesLabel marks the unfiltered view, where the columns hold every
-// Objective's Tasks. No sidebar row is marked selected then, so without it the
-// view reads as one Objective's Tasks with a broken filter.
+// allObjectivesLabel marks the unfiltered view within the selected Goal. No
+// sidebar row is marked selected then, so without it the view could read as
+// one Objective's Tasks with a broken filter.
 const allObjectivesLabel = "ALL OBJECTIVES"
 
 func (m Model) selectedReleaseRecord() *data.ReleaseV2 {

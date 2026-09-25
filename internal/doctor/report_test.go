@@ -162,8 +162,9 @@ func writeCompleteV2Project(t *testing.T, root string) {
 	t.Helper()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\nquality_gates:\n  lint: null\n  typecheck: null\n  build: null\n  test: null\ntheme: {}\n")
 	testutil.WriteFile(t, filepath.Join(root, "router.md"),
-		"## Current state\n\n```yaml\nstate: task\nobjective: O-001\ntask: T-001\nnext_action: \"build it\"\n```\n")
-	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
+		"## Current state\n\n```yaml\nstate: task\nrelease: R-001\nobjective: O-001\ntask: T-001\nnext_action: \"build it\"\n```\n")
+	writeV2Release(t, root, "R-001", "R-001", "planned", "")
+	writeV2ObjectiveWithRelease(t, root, "O-001-ship", "O-001", "Ship it", "R-001")
 	writeV2Task(t, root, "O-001-ship", "T-001-write.md", "T-001", "Write it", "O-001")
 }
 

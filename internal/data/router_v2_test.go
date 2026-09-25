@@ -76,6 +76,42 @@ func TestReadStateV2_noneSelectionsDecodeAsEmpty(t *testing.T) {
 	}
 }
 
+func TestReadStateV2_missingBlankAndNoneGoalSelectNothing(t *testing.T) {
+	cases := []struct {
+		name string
+		goal string
+	}{
+		{name: "missing"},
+		{name: "blank", goal: "release: \"\"\n"},
+		{name: "none", goal: "release: none\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := "## Current state\n\n```yaml\nstate: task\n" + tc.goal + "objective: O-001\ntask: none\nissue: I-001\n```\n"
+			router, err := NewRouterReader().ReadStateV2(content)
+			if err != nil {
+				t.Fatalf("ReadStateV2() error = %v", err)
+			}
+			index := &V2Index{
+				Releases: map[string]*ReleaseV2{"R-001": {ID: "R-001"}},
+				Objectives: map[string]*ObjectiveV2{
+					"O-001": {ID: "O-001", Release: "R-001"},
+				},
+				Issues: map[string]*IssueV2{
+					"I-001": {ID: "I-001", Status: IssueStatusOpen},
+				},
+			}
+			selection, diagnostic := ResolveSelection(index, router)
+			if diagnostic == nil || diagnostic.Kind != SelectionReleaseMissing {
+				t.Fatalf("ResolveSelection() diagnostic = %+v, want missing Goal", diagnostic)
+			}
+			if selection != (Selection{}) {
+				t.Errorf("ResolveSelection() = %+v, want no selection", selection)
+			}
+		})
+	}
+}
+
 func TestReadStateV2_taskAbsentObjectivePresentDecodesCleanly(t *testing.T) {
 	content := "## Current state\n\n```yaml\nstate: design\nobjective: O-002\ntask: none\nnext_action: \"Plan O-002\"\n```\n"
 

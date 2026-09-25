@@ -286,6 +286,8 @@ func SelectionPhrase(diagnostic *data.SelectionDiagnostic) string {
 		}
 	case data.SelectionNotFound:
 		return fmt.Sprintf("The router names %s %s, which does not exist among the project's live records.", diagnostic.RecordKind, diagnostic.ID)
+	case data.SelectionReleaseMissing:
+		return "The router has no Goal selected."
 	case data.SelectionMismatch:
 		return fmt.Sprintf("The router names Objective %s and Task %s, but Task %s's own record names %s as its owner — the Task record wins, so this selection is not honored.",
 			diagnostic.RouterObjective, diagnostic.Task, diagnostic.Task, diagnostic.TaskObjective)

@@ -26,7 +26,7 @@ func renderPlain(state ProjectState, selected string) string {
 
 	fmt.Fprintln(&b, plainNonTTYNotice)
 	fmt.Fprintln(&b)
-	for _, line := range nextLines(state.Next) {
+	for _, line := range boardNextLines(state) {
 		// The interactive Next panel keeps its selection-scoped Issue summary
 		// beside the answer. Plain output places the complete project summary
 		// after the columns, so a piped board has one deterministic Issues line
@@ -38,19 +38,27 @@ func renderPlain(state ProjectState, selected string) string {
 	}
 	fmt.Fprintln(&b)
 	fmt.Fprintf(&b, "Objectives: %d  Tasks: %d\n", state.objectiveCount(), state.taskCount())
-	if release := selectedRelease(state); release != "" {
+	release := selectedRelease(state)
+	if release != "" {
 		fmt.Fprintf(&b, "Selected %s: %s\n", goalLabel, release)
 	}
 	// "Selected", not "Objective": the Next area's own Objective line names
 	// what the projection chose, which the sidebar's filter never moves.
-	if selected != "" {
-		fmt.Fprintf(&b, "Selected: %s\n", selected)
-	} else {
-		fmt.Fprintln(&b, "Selected: all Objectives")
+	selection := "no Goal selected"
+	if release != "" {
+		if selected != "" {
+			selection = selected
+		} else {
+			selection = "all Objectives in Goal " + release
+		}
+	}
+	fmt.Fprintf(&b, "Selected: %s\n", selection)
+	if notice := unassignedGoalNotice(state.Index); notice != "" {
+		fmt.Fprintln(&b, notice)
 	}
 	fmt.Fprintln(&b)
 
-	cards := groupTaskCardsForRelease(state.Index, selectedRelease(state), selected)
+	cards := groupTaskCardsForRelease(state.Index, release, selected)
 	for _, column := range columnLabels {
 		fmt.Fprintf(&b, "%-12s %d\n", column.Label, len(cards[column.Status]))
 		for _, card := range cards[column.Status] {

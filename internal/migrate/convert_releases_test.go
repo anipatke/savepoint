@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opencode/savepoint/internal/data"
 )
@@ -57,6 +58,35 @@ func TestConvertRelease_activeAndHistoricalForms(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestConvertRelease_rendersGeneratedContinuationGoalWithoutV1Source(t *testing.T) {
+	target := PlannedTarget{
+		Kind:           TargetRelease,
+		GlobalID:       "R-009",
+		TargetPath:     "releases/R-009-continued-after-migration/Release.md",
+		ReleaseStatus:  string(data.ColumnInProgress),
+		Generated:      true,
+		GeneratedTitle: continuationGoalTitle,
+	}
+	content, err := ConvertRelease("", nil, target)
+	if err != nil {
+		t.Fatalf("ConvertRelease() error = %v", err)
+	}
+	if !strings.Contains(content, "title: "+continuationGoalTitle) {
+		t.Errorf("generated Goal title missing:\n%s", content)
+	}
+	for _, section := range []string{"## Outcome", "## Why", "## Success Conditions", "## Boundaries", "TODO:"} {
+		if !strings.Contains(content, section) {
+			t.Errorf("generated Goal missing stub section %q:\n%s", section, content)
+		}
+	}
+	if strings.Contains(content, "Legacy Source") || strings.Contains(content, "legacy_completion:") {
+		t.Errorf("generated Goal incorrectly claims a V1 source:\n%s", content)
+	}
+	if _, err := data.DecodeReleaseV2(target.TargetPath, content); err != nil {
+		t.Fatalf("generated Goal does not strict-load: %v", err)
 	}
 }
 
@@ -136,6 +166,38 @@ func TestPlan_ambiguousReleaseDispositionBlocksCutover(t *testing.T) {
 		t.Fatal("Apply() error = nil, want cutover refusal while Release disposition is ambiguous")
 	}
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+func TestPlan_auditedReleaseWithActiveEpicShowsDecisionInPreview(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
+		"epic-task-breakdown", "v1", "E02-active", "", `"Plan the active epic."`))
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
+		"---\nname: Ambiguous\nstatus: audited\n---\n\n# Ambiguous\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E02-active", "E02-Detail.md"),
+		"---\nstatus: in_progress\n---\n\n# Active epic\n")
+
+	plan, err := Plan(root, nil, fixedClock(time.Now()), fixedOperationID("op"))
+	if err != nil {
+		t.Fatalf("Plan() error = %v, want the lifecycle decision to appear in the preview", err)
+	}
+	if plan.Appliable || len(plan.UnresolvedBlockingIDs) == 0 {
+		t.Fatalf("Plan = %+v, want a blocked plan with an unresolved release decision", plan)
+	}
+	if !strings.Contains(strings.Join(plan.UnresolvedBlockingIDs, " "), string(AmbiguityReleaseCompletion)) {
+		t.Errorf("UnresolvedBlockingIDs = %v, want the audited release completion decision", plan.UnresolvedBlockingIDs)
+	}
+
+	preview := FormatPreview(plan)
+	for _, want := range []string{"audited without a typed completion decision", "choices: in_progress, done", "owner lifecycle decision"} {
+		if !strings.Contains(preview, want) {
+			t.Errorf("preview is missing %q:\n%s", want, preview)
+		}
+	}
+	if strings.Contains(preview, "no resolvable V2 Goal") {
+		t.Errorf("preview masks the lifecycle decision with a Goal error:\n%s", preview)
+	}
 }
 
 func TestSourceReleaseIdentity_reservesRNumbers(t *testing.T) {

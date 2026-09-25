@@ -35,6 +35,10 @@ type V2Index struct {
 	// whose records declare that Release. It is derived during load; Release
 	// records do not contain a second, mutable membership list.
 	ReleaseObjectives map[string][]string
+	// ObjectivesWithoutGoal contains the sorted IDs of live Objectives whose
+	// records omit release. These records remain loadable so callers can report
+	// and repair the missing Goal reference.
+	ObjectivesWithoutGoal []string
 	// TaskIssues maps a Task ID to the sorted IDs of the Issues that name it
 	// as carrying their repair.
 	TaskIssues map[string][]string
@@ -49,6 +53,20 @@ type V2Index struct {
 	// LatestCheck maps a Task, Objective, or Release ID to the most recently recorded
 	// Check ID for that target — the last entry of ScopeChecks[id].
 	LatestCheck map[string]string
+}
+
+// HasLiveGoal reports whether the project has a Goal that is not an archived
+// legacy completion.
+func (index *V2Index) HasLiveGoal() bool {
+	if index == nil {
+		return false
+	}
+	for _, goal := range index.Releases {
+		if goal != nil && goal.LegacyCompletion == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // LoadV2Index discovers and validates the optional Release records and the V2
@@ -153,6 +171,7 @@ func indexReleaseObjectives(index *V2Index) error {
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
 		if objective.Release == "" {
+			index.ObjectivesWithoutGoal = append(index.ObjectivesWithoutGoal, objective.ID)
 			continue
 		}
 

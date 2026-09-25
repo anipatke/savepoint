@@ -474,14 +474,14 @@ func (m *Model) applyReleaseSelection(releaseID string) {
 }
 
 func objectiveBelongsToRelease(index *data.V2Index, objectiveID, releaseID string) bool {
-	if index == nil || objectiveID == "" {
+	if index == nil || objectiveID == "" || releaseID == "" {
 		return false
 	}
 	objective, ok := index.Objectives[objectiveID]
 	if !ok {
 		return false
 	}
-	return releaseID == "" || string(objective.Release) == releaseID
+	return string(objective.Release) == releaseID
 }
 
 type reloadSnapshot struct {
@@ -679,6 +679,9 @@ func (m *Model) noteStatus(message string) {
 }
 
 func restoredObjectiveForRelease(m Model, snapshot reloadSnapshot, state ProjectState, wasLoaded bool, releaseID string) string {
+	if releaseID == "" {
+		return ""
+	}
 	if m.ObjectiveFilter != "" || !wasLoaded {
 		return selectedObjectiveForRelease(state, m.ObjectiveFilter, releaseID)
 	}

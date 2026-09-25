@@ -1,7 +1,7 @@
 package v2
 
 import (
-	"maps"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -72,10 +72,9 @@ func (r ObjectiveRow) ID() string {
 	return r.Objective.ID
 }
 
-// objectiveRowsForRelease resolves the Objectives visible in one Release
-// context. When releaseID is empty it keeps the release-free V2 behavior. A
-// non-empty context reads the derived reverse link and never guesses from a
-// title, path, or identifier prefix.
+// objectiveRowsForRelease resolves the Objectives visible in one selected
+// Goal context. An empty Goal yields no rows; membership comes only from the
+// derived reverse link, never a title, path, or identifier prefix.
 func objectiveRowsForRelease(index *data.V2Index, releaseID string) []ObjectiveRow {
 	if index == nil {
 		return nil
@@ -97,15 +96,25 @@ func objectiveRowsForRelease(index *data.V2Index, releaseID string) []ObjectiveR
 }
 
 func objectiveIDsForRelease(index *data.V2Index, releaseID string) []string {
-	if index == nil {
+	if index == nil || releaseID == "" {
 		return nil
 	}
-	if releaseID != "" {
-		ids := slices.Clone(index.ReleaseObjectives[releaseID])
-		slices.Sort(ids)
-		return ids
+	ids := slices.Clone(index.ReleaseObjectives[releaseID])
+	slices.Sort(ids)
+	return ids
+}
+
+func unassignedGoalNotice(index *data.V2Index) string {
+	if index == nil || len(index.ObjectivesWithoutGoal) == 0 {
+		return ""
 	}
-	return slices.Sorted(maps.Keys(index.Objectives))
+
+	count := len(index.ObjectivesWithoutGoal)
+	noun, verb := "Objectives", "have"
+	if count == 1 {
+		noun, verb = "Objective", "has"
+	}
+	return fmt.Sprintf("%d %s %s no Goal; run savepoint doctor.", count, noun, verb)
 }
 
 // ownedTasksComplete reports whether every Task the Objective owns is done.
@@ -138,18 +147,15 @@ func unsatisfiedObjectiveWaits(index *data.V2Index, objective *data.ObjectiveV2)
 	return waits
 }
 
-// taskIDsInReleaseView is the only release-aware Task membership filter. A
-// selected Objective narrows through ObjectiveTasks; otherwise the selected
-// Release expands through ReleaseObjectives and then ObjectiveTasks. Both
-// maps are index links built from authored ownership fields.
+// taskIDsInReleaseView is the only Goal-aware Task membership filter. Without
+// a selected Goal it yields no Tasks. A selected Objective narrows through
+// ObjectiveTasks; otherwise the Goal expands through ReleaseObjectives and
+// then ObjectiveTasks. Both maps are index links built from authored fields.
 func taskIDsInReleaseView(index *data.V2Index, releaseID, objectiveID string) []string {
-	if index == nil {
+	if index == nil || releaseID == "" {
 		return nil
 	}
 	if objectiveID == "" {
-		if releaseID == "" {
-			return slices.Sorted(maps.Keys(index.Tasks))
-		}
 		var taskIDs []string
 		for _, objectiveID := range objectiveIDsForRelease(index, releaseID) {
 			taskIDs = append(taskIDs, index.ObjectiveTasks[objectiveID]...)
@@ -157,11 +163,9 @@ func taskIDsInReleaseView(index *data.V2Index, releaseID, objectiveID string) []
 		slices.Sort(taskIDs)
 		return taskIDs
 	}
-	if releaseID != "" {
-		objective, ok := index.Objectives[objectiveID]
-		if !ok || string(objective.Release) != releaseID {
-			return nil
-		}
+	objective, ok := index.Objectives[objectiveID]
+	if !ok || string(objective.Release) != releaseID {
+		return nil
 	}
 	return index.ObjectiveTasks[objectiveID]
 }
