@@ -16,9 +16,14 @@ import (
 const (
 	taskIDHighWaterFile = "task-ids.yml"
 	taskIDLockFile      = "task-ids.lock"
-	taskIDLockWait      = 500 * time.Millisecond
 	taskIDLockRetry     = 10 * time.Millisecond
 )
+
+// taskIDLockWait is how long an allocator waits for task-ids.lock before
+// calling it leftover. A healthy hold takes a few milliseconds on Linux and
+// tens on Windows, so even a long queue of live allocators finishes well
+// inside it (I-061). It is a variable only so tests can shorten it.
+var taskIDLockWait = 10 * time.Second
 
 type taskIDHighWater struct {
 	lastIssued string
@@ -159,22 +164,12 @@ func reserveTaskIDLocked(root string, index *V2Index) (string, error) {
 	return formatTaskID(next), nil
 }
 
-// acquireTaskIDLock refuses a lock only when one holder has kept it for
-// taskIDLockWait. The deadline restarts whenever the lock file observed is a
-// different one — another allocator released it and a third took it — so a
-// caller queued behind several healthy holders keeps waiting rather than
-// reporting their live lock as leftover. A lock's identity is its
-// modification time from Lstat, which, unlike os.SameFile, opens no handle
-// that would keep a holder's removal pending on Windows. A filesystem too
-// coarse to tell two holders apart falls back to one deadline per wait.
+// acquireTaskIDLock takes the lock, waiting up to taskIDLockWait for other
+// allocators to finish. A lock still present after that is refused as
+// leftover, since no live allocator holds it that long.
 func acquireTaskIDLock(path string) (*os.File, error) {
 	deadline := time.Now().Add(taskIDLockWait)
-	var holder time.Time
-	for firstAttempt := true; ; firstAttempt = false {
-		if !firstAttempt && !time.Now().Before(deadline) {
-			return nil, fmt.Errorf("allocate Task ID: lock file %s is present; refusing after %s (a leftover lock requires owner cleanup)", path, taskIDLockWait)
-		}
-
+	for {
 		lock, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
 			return lock, nil
@@ -182,28 +177,11 @@ func acquireTaskIDLock(path string) (*os.File, error) {
 		if !errors.Is(err, os.ErrExist) {
 			return nil, fmt.Errorf("allocate Task ID: create lock %s: %w", path, err)
 		}
-
-		info, err := os.Lstat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			// Released between the create and the look: try again at once.
-			continue
-		}
-		if err == nil && !info.ModTime().Equal(holder) {
-			if !holder.IsZero() {
-				deadline = time.Now().Add(taskIDLockWait)
-			}
-			holder = info.ModTime()
-		}
-
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			return nil, fmt.Errorf("allocate Task ID: lock file %s is present; refusing after %s (a leftover lock requires owner cleanup)", path, taskIDLockWait)
 		}
-		wait := taskIDLockRetry
-		if remaining < wait {
-			wait = remaining
-		}
-		time.Sleep(wait)
+		time.Sleep(min(taskIDLockRetry, remaining))
 	}
 }
 

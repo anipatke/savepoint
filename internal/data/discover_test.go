@@ -3,7 +3,6 @@ package data
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -417,7 +416,17 @@ func TestAllocateTaskID_serializesConcurrentCallers(t *testing.T) {
 	}
 }
 
+// shortenTaskIDLockWait keeps refusal tests fast. The data package's tests do
+// not run in parallel, so swapping the package variable is safe.
+func shortenTaskIDLockWait(t *testing.T, wait time.Duration) {
+	t.Helper()
+	previous := taskIDLockWait
+	taskIDLockWait = wait
+	t.Cleanup(func() { taskIDLockWait = previous })
+}
+
 func TestAllocateTaskID_refusesHeldAndLeftoverLocks(t *testing.T) {
+	shortenTaskIDLockWait(t, 300*time.Millisecond)
 	for _, lockKind := range []string{"held", "leftover"} {
 		t.Run(lockKind, func(t *testing.T) {
 			root := newTaskIDProject(t)
@@ -455,59 +464,35 @@ func TestAllocateTaskID_refusesHeldAndLeftoverLocks(t *testing.T) {
 	}
 }
 
-// TestAllocateTaskID_waitsWhileTheLockChangesHands proves the lock deadline
-// runs per holder: a lock that stays present for several taskIDLockWait
-// periods, but passes to a new holder well inside each one, is live
-// contention, not a leftover lock (I-061). Each handoff renames a fresh file
-// over the lock, so the path is never free for the allocator to take early,
-// and each carries its own modification time, so the handoff is visible even
-// on a coarse filesystem clock.
-func TestAllocateTaskID_waitsWhileTheLockChangesHands(t *testing.T) {
+// TestAllocateTaskID_waitsForALiveHolder proves a lock held well past the old
+// 500 ms limit, then released, is waited out rather than refused as leftover
+// (I-061): on the Windows runner a queue of healthy allocators took over
+// 800 ms.
+func TestAllocateTaskID_waitsForALiveHolder(t *testing.T) {
 	root := newTaskIDProject(t)
 	lockPath := filepath.Join(root, taskIDLockFile)
-	const handoff = 100 * time.Millisecond
-	churn := 3 * taskIDLockWait
+	const hold = 1500 * time.Millisecond
 
-	if err := os.WriteFile(lockPath, []byte("holder 0"), 0o600); err != nil {
-		t.Fatalf("create first holder's lock: %v", err)
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatalf("create live holder's lock: %v", err)
 	}
-	base := time.Now().Add(-time.Hour)
-	if err := os.Chtimes(lockPath, base, base); err != nil {
-		t.Fatalf("date first holder's lock: %v", err)
-	}
-	churned := make(chan error, 1)
+	released := make(chan error, 1)
 	go func() {
-		stop := time.Now().Add(churn)
-		for holder := 1; time.Now().Before(stop); holder++ {
-			time.Sleep(handoff)
-			next := filepath.Join(root, fmt.Sprintf("next-holder-%d.lock", holder))
-			if err := os.WriteFile(next, []byte(fmt.Sprintf("holder %d", holder)), 0o600); err != nil {
-				churned <- err
-				return
-			}
-			stamp := base.Add(time.Duration(holder) * time.Minute)
-			if err := os.Chtimes(next, stamp, stamp); err != nil {
-				churned <- err
-				return
-			}
-			if err := os.Rename(next, lockPath); err != nil {
-				churned <- err
-				return
-			}
-		}
-		churned <- os.Remove(lockPath)
+		time.Sleep(hold)
+		released <- releaseTaskIDLock(lock, lockPath)
 	}()
 
 	started := time.Now()
 	id, err := AllocateTaskID(root)
-	if churnErr := <-churned; churnErr != nil {
-		t.Fatalf("hand the lock over: %v", churnErr)
+	if releaseErr := <-released; releaseErr != nil {
+		t.Fatalf("release live holder's lock: %v", releaseErr)
 	}
 	if err != nil {
-		t.Fatalf("AllocateTaskID() error = %v, want it to wait out a lock that keeps changing hands", err)
+		t.Fatalf("AllocateTaskID() error = %v, want it to wait out a live holder", err)
 	}
-	if elapsed := time.Since(started); elapsed < churn {
-		t.Errorf("AllocateTaskID() returned after %s, before the lock was released at %s", elapsed, churn)
+	if elapsed := time.Since(started); elapsed < hold {
+		t.Errorf("AllocateTaskID() returned after %s, before the holder released at %s", elapsed, hold)
 	}
 	if id != "T-001" {
 		t.Errorf("AllocateTaskID() = %s, want T-001", id)
