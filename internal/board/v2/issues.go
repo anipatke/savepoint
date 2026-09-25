@@ -207,9 +207,12 @@ func (m Model) filteredIssueRows() []IssueRow {
 // groupedIssueRows buckets the scoped, type-filtered rows by status into the
 // three columns the overlay renders, then sorts each bucket most-severe
 // first (issueSeverityRank) so a reader scans blockers before cosmetic
-// follow-ups within a column. The sort is stable, so Issues at the same
-// rank — including every Issue when none records a severity at all — keep
-// the underlying stable ID order, and a project renders the same way twice.
+// follow-ups within a column. Under the ALL filter each bucket is first
+// grouped by type in filter order (issueTypeRank), and severity orders the
+// rows within a type; renderIssueColumn heads each group. The sort is
+// stable, so Issues at the same rank — including every Issue when none
+// records a severity at all — keep the underlying stable ID order, and a
+// project renders the same way twice.
 func (m Model) groupedIssueRows() map[data.IssueStatus][]IssueRow {
 	grouped := map[data.IssueStatus][]IssueRow{
 		data.IssueStatusOpen:       {},
@@ -219,9 +222,15 @@ func (m Model) groupedIssueRows() map[data.IssueStatus][]IssueRow {
 	for _, row := range m.filteredIssueRows() {
 		grouped[row.Issue.Status] = append(grouped[row.Issue.Status], row)
 	}
+	byType := m.issuesGroupedByType()
 	for status, rows := range grouped {
 		sorted := rows
 		slices.SortStableFunc(sorted, func(a, b IssueRow) int {
+			if byType {
+				if order := issueTypeRank(a.Issue.Type) - issueTypeRank(b.Issue.Type); order != 0 {
+					return order
+				}
+			}
 			return issueSeverityRank(a.Issue.Severity) - issueSeverityRank(b.Issue.Severity)
 		})
 		grouped[status] = sorted
@@ -236,6 +245,23 @@ func (m Model) focusedIssueRows() []IssueRow {
 		return nil
 	}
 	return m.groupedIssueRows()[m.Issues.FocusedStatus]
+}
+
+// issuesGroupedByType reports whether the columns group their rows by type:
+// only under the ALL filter, since a type filter leaves one type to show.
+func (m Model) issuesGroupedByType() bool {
+	return m.Issues == nil || m.Issues.Filter == ""
+}
+
+// issueTypeRank orders types as the filter cycles through them, with a type
+// outside that vocabulary last.
+func issueTypeRank(issueType data.IssueType) int {
+	for rank, filter := range issueFilterOrder[1:] {
+		if issueType == filter {
+			return rank
+		}
+	}
+	return len(issueFilterOrder)
 }
 
 func issueFilterLabel(filter data.IssueType) string {

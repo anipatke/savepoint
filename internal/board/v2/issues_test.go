@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
@@ -291,6 +292,52 @@ func TestIssueSurfaceWearsItsOwnRedAccent(t *testing.T) {
 		if other.GetForeground() == red {
 			t.Errorf("Issue accent shares the board's %s accent", name)
 		}
+	}
+}
+
+// TestIssueColumnsGroupByTypeUnderTheAllFilter proves the ALL filter orders
+// each column by type in filter order, then severity within a type, and
+// heads each type group once with its count; a type filter leaves one type,
+// so it draws no group headings.
+func TestIssueColumnsGroupByTypeUnderTheAllFilter(t *testing.T) {
+	issue := func(id string, issueType data.IssueType, severity string) IssueRow {
+		return IssueRow{Issue: &data.IssueV2{ID: id, Title: id, Type: issueType, Severity: severity, Status: data.IssueStatusOpen}}
+	}
+	model := Model{
+		Issues: &IssueOverlay{FocusedStatus: data.IssueStatusOpen},
+		State: ProjectState{Issues: IssueCatalog{Rows: []IssueRow{
+			issue("I-001", "other", ""),
+			issue("I-002", "defect", "low"),
+			issue("I-003", "drift", ""),
+			issue("I-004", "defect", "blocker"),
+			issue("I-005", "verification", ""),
+		}}},
+	}
+
+	var got []string
+	for _, row := range model.focusedIssueRows() {
+		got = append(got, row.Issue.ID)
+	}
+	if want := []string{"I-004", "I-002", "I-003", "I-005", "I-001"}; strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("ALL filter order = %v, want %v (type in filter order, then severity)", got, want)
+	}
+
+	column := xansi.Strip(renderIssueColumn("OPEN", data.IssueStatusOpen, model.focusedIssueRows(), 40, 60,
+		columnCursor{Holds: true, Focused: true}, model.issuesGroupedByType()))
+	for _, heading := range []string{"DEFECT (2)", "DRIFT (1)", "VERIFICATION (1)", "OTHER (1)"} {
+		if strings.Count(column, heading) != 1 {
+			t.Errorf("ALL column should head the %q group exactly once:\n%s", heading, column)
+		}
+	}
+
+	model.Issues.Filter = "defect"
+	if model.issuesGroupedByType() {
+		t.Fatal("a type filter must not group by type")
+	}
+	filtered := xansi.Strip(renderIssueColumn("OPEN", data.IssueStatusOpen, model.focusedIssueRows(), 40, 60,
+		columnCursor{Holds: true, Focused: true}, model.issuesGroupedByType()))
+	if strings.Contains(filtered, "DEFECT (") {
+		t.Errorf("DEFECT filter should draw no group heading:\n%s", filtered)
 	}
 }
 

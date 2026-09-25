@@ -48,6 +48,7 @@ func renderIssues(model Model, width, height int) string {
 		body := renderIssueColumn(
 			column.Label, column.Status, grouped[column.Status], width, bodyHeight,
 			columnCursor{Card: overlay.Cursor, Holds: true, Focused: true},
+			model.issuesGroupedByType(),
 		)
 		return lipgloss.JoinVertical(lipgloss.Left, header, body)
 	}
@@ -62,6 +63,7 @@ func renderIssues(model Model, width, height int) string {
 				Holds:   overlay.FocusedStatus == column.Status,
 				Focused: true,
 			},
+			model.issuesGroupedByType(),
 		))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, lipgloss.JoinHorizontal(lipgloss.Top, rendered...))
@@ -97,7 +99,10 @@ func issueColumnWidth(termW int) int {
 // renderIssueColumn draws one status column: its label and row count, a
 // rule, and as many rows as the height budget fits — the same shape
 // renderColumn draws for a Task column, over IssueRow instead of TaskCard.
-func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, width, height int, cursor columnCursor) string {
+// renderIssueColumn draws one status column. With groupByType, the rows
+// arrive grouped by type (groupedIssueRows) and the first row of each group
+// carries that group's heading, so the heading scrolls with its rows.
+func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, width, height int, cursor columnCursor, groupByType bool) string {
 	textW := columnTextWidth(width)
 	bodyH := columnBodyHeight(height)
 
@@ -120,6 +125,9 @@ func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, w
 	heights := make([]int, len(rows))
 	for i, row := range rows {
 		items[i] = renderIssueRow(row, status, textW, cursor.highlights(i)) + "\n"
+		if groupByType && (i == 0 || rows[i-1].Issue.Type != row.Issue.Type) {
+			items[i] = issueTypeHeading(row.Issue.Type, rows[i:], textW) + "\n" + items[i]
+		}
 		heights[i] = strings.Count(items[i], "\n") + 1
 	}
 
@@ -136,6 +144,20 @@ func renderIssueColumn(label string, status data.IssueStatus, rows []IssueRow, w
 		lines = append(lines, scrollIndicator("↓", len(rows)-end, "more"))
 	}
 	return frameIssueColumn(lines, textW, bodyH, status, cursor.accented())
+}
+
+// issueTypeHeading names a type group and counts its rows, which are the
+// leading rows of rest.
+func issueTypeHeading(issueType data.IssueType, rest []IssueRow, width int) string {
+	count := 0
+	for _, row := range rest {
+		if row.Issue.Type != issueType {
+			break
+		}
+		count++
+	}
+	text := fmt.Sprintf("%s (%d)", issueTypeBadge(issueType).Text(), count)
+	return styles.ColumnTitle.Render(xansi.Truncate(text, width, "…"))
 }
 
 // issueRowIndent is how far a row's title and badge lines sit from the
