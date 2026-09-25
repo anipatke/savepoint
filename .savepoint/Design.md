@@ -266,6 +266,7 @@ All failure modes are diagnosed by `savepoint doctor`. Doctor diagnoses and prop
 - **Runtime:** Go CLI binary. Source builds with `go build`; tests run with `go test ./...`.
 - **Local build:** `make build` delegates to `internal/buildtool`, builds `savepoint` or `savepoint.exe`, and injects `main.version` from `VERSION` or the latest git tag.
 - **Cross-platform builds:** `make build-all` cross-compiles linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64, and windows-arm64 raw binaries into `dist/{platform}-{arch}/savepoint` or `savepoint.exe` for Windows. `make ci` runs the repo-local verification sequence used by CI.
+- **Windows support:** Windows is a supported runtime platform (CFG-03). CI runs `make ci` on `ubuntu-latest` and the full Go test suite natively on `windows-latest`. Project paths are compared after resolving symlinks and Windows short (8.3) names, and the board watcher ignores directory-only metadata writes that Windows reports without a content change.
 - **Artifacts:** `make dist` creates versioned `.tar.gz` archives in `dist/` for Linux, Darwin, and Windows targets using Go archive APIs, not shell `tar`, and writes SHA256 hashes to `dist/checksums.txt`.
 - **Smoke validation:** `make smoke-test` builds the local binary and runs `--version` as a headless exit-0 check.
 - **No telemetry.** Ever.

@@ -73,6 +73,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 |---|---|---|
 | CFG-01 | Required | Invalid or missing required configuration must fail with a clear, actionable message. |
 | CFG-02 | Required | Behavior must not vary silently across platforms; platform differences must be explicit and tested. |
+| CFG-03 | Blocker | Windows is a supported platform. The full Go test suite must pass natively on Windows in CI, not only cross-compile. A test may skip on Windows only when its situation cannot exist there (for example, two names differing only by case), and the skip must say why. |
 | DEP-01 | Required | New third-party dependencies require explicit justification against existing project patterns. |
 | DEP-02 | Guideline | Prefer the standard library and the existing Bubble Tea / Lip Gloss stack over new abstractions. |
 
