@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // TestInventory_matchesFixtureManifestHashesAndFiles proves, for each frozen
@@ -295,6 +297,7 @@ func newSymlinkFixture(t *testing.T) string {
 func newCaseCollisionFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
+	testutil.SkipIfCaseInsensitive(t, root)
 	writeFile(t, filepath.Join(root, ".savepoint", "Notes.md"), "# Notes\n")
 	writeFile(t, filepath.Join(root, ".savepoint", "notes.md"), "# notes\n")
 	return root

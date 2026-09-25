@@ -345,7 +345,7 @@ func TestLifecycleMatrix_guideCasingVariantPreservedAcrossSidecars(t *testing.T)
 		if _, err := os.Stat(variantPath + incomingSuffix); err != nil {
 			t.Errorf("incoming sidecar not written beside the on-disk casing: %v", err)
 		}
-		if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); !os.IsNotExist(err) {
+		if hasExactEntry(t, dir, "AGENTS.md") {
 			t.Error("a second, canonically cased guide was created")
 		}
 	})
@@ -372,7 +372,7 @@ func TestLifecycleMatrix_guideCasingVariantPreservedAcrossSidecars(t *testing.T)
 		if string(backup) != existing {
 			t.Errorf("backup = %q, want %q", backup, existing)
 		}
-		if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); !os.IsNotExist(err) {
+		if hasExactEntry(t, dir, "AGENTS.md") {
 			t.Error("a second, canonically cased guide was created")
 		}
 	})

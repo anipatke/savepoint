@@ -35,6 +35,29 @@ history:
         session: board-owner
       kind: owner_decision
       note: Moved from in_progress to open by the owner from the board.
+    - at: "2026-09-25T10:36:09Z"
+      actor:
+        role: executor
+        session: i030-windows-repair-20260925
+      kind: repair_attempted
+      note: >-
+        Owner reinstated full Windows support. A native Windows run (go1.26.2
+        windows/amd64, NTFS copy of the working tree) found 17 failing tests,
+        not two, in six causes, all now repaired. (1) Directory metadata
+        writes, including those caused by registering a watch, reloaded the
+        board: watch.go now ignores Write/Chmod events on directories, and the
+        unchanged-upgrade snapshot reads directory times with Lstat instead of
+        the parent listing. (2) Case-insensitive filesystems: guide-casing
+        tests check the exact directory entry, and case-collision fixtures skip
+        via testutil.SkipIfCaseInsensitive. (3) Path messages: tests expect
+        native separators. (4) Permissions: distribution archives set member
+        mode 0755 explicitly; the 0600 assertion is skipped on Windows. (5)
+        Lock-release failure injection holds a second handle on Windows. (6)
+        The real-Git test repo disables core.autocrlf. The Windows CI job now
+        runs the full suite. Evidence: full Windows suite passed twice (go run
+        ./internal/buildtool test -json -count=1 ./...); make build and make
+        test-full passed on Linux go1.26.2; git diff --check clean. Hosted
+        windows-latest CI evidence is pending until pushed.
 ---
 
 # I-030: Windows full suite has platform failures

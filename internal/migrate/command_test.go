@@ -337,6 +337,9 @@ func initGitRepository(t *testing.T, gitPath, root string) {
 	runGitTest(t, gitPath, root, "init", "-q")
 	runGitTest(t, gitPath, root, "config", "user.name", "Savepoint Test")
 	runGitTest(t, gitPath, root, "config", "user.email", "savepoint-test@example.invalid")
+	// Git for Windows converts line endings on checkout by default, so a
+	// restore would not reproduce the fixture's bytes.
+	runGitTest(t, gitPath, root, "config", "core.autocrlf", "false")
 	runGitTest(t, gitPath, root, "add", "-Af")
 	runGitTest(t, gitPath, root, "commit", "-qm", "fixture baseline")
 }

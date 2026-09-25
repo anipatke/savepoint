@@ -508,6 +508,7 @@ func TestDiscoverV2Records_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Records_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
+	testutil.SkipIfCaseInsensitive(t, root)
 	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
 	writeV2ObjectiveFixture(t, root, "o-001-First", "O-002", "Case-colliding objective")
 
@@ -600,6 +601,7 @@ func TestDiscoverV2Checks_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Checks_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
+	testutil.SkipIfCaseInsensitive(t, root)
 	writeV2CheckFixture(t, root, "C-001-alpha.md", "C-001", "task", "T-001")
 	writeV2CheckFixture(t, root, "c-001-Alpha.md", "C-002", "task", "T-001")
 
@@ -712,6 +714,7 @@ func TestDiscoverV2Issues_rejectsSymlinkEscape(t *testing.T) {
 
 func TestDiscoverV2Issues_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
+	testutil.SkipIfCaseInsensitive(t, root)
 	writeV2IssueFixture(t, root, "I-001-alpha.md", "I-001", "open")
 	writeV2IssueFixture(t, root, "i-001-Alpha.md", "I-002", "open")
 

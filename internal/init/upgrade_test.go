@@ -461,9 +461,26 @@ func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
 	if _, err := os.Stat(variantPath + incomingSuffix); err != nil {
 		t.Errorf("sidecar not written beside the on-disk casing: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(target, "AGENTS.md")); !os.IsNotExist(err) {
+	if hasExactEntry(t, target, "AGENTS.md") {
 		t.Errorf("upgrade created a second agent guide under canonical casing")
 	}
+}
+
+// hasExactEntry reports whether dir lists name with exactly that casing. A
+// Stat would also find a differently cased file on a case-insensitive
+// filesystem, where both spellings name the same guide.
+func hasExactEntry(t *testing.T, dir, name string) bool {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Name() == name {
+			return true
+		}
+	}
+	return false
 }
 
 func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {

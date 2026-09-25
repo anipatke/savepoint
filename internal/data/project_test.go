@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -1823,10 +1824,7 @@ func TestWithTaskIDReservationLockReleaseFailureRollsBackAndRetiresID(t *testing
 		if err := os.WriteFile(created, []byte("task"), 0o644); err != nil {
 			return nil, err
 		}
-		// Make the later lock release fail.
-		if err := os.Remove(filepath.Join(root, taskIDLockFile)); err != nil {
-			return nil, err
-		}
+		breakTaskIDLockRelease(t, filepath.Join(root, taskIDLockFile))
 		return func() error { return os.Remove(created) }, nil
 	})
 	if err == nil || id != "" {
@@ -1838,6 +1836,25 @@ func TestWithTaskIDReservationLockReleaseFailureRollsBackAndRetiresID(t *testing
 	if got, readErr := os.ReadFile(filepath.Join(root, taskIDHighWaterFile)); readErr != nil || string(got) != "last_issued: 1\n" {
 		t.Errorf("high-water mark = %q, error = %v; ID must stay retired", got, readErr)
 	}
+}
+
+// breakTaskIDLockRelease makes the later release of the held lock fail. Unix
+// allows removing the open lock early, so the release's own remove fails.
+// Windows refuses to remove a file another handle still holds open, so a
+// second handle kept open until cleanup makes the release's remove fail.
+func breakTaskIDLockRelease(t *testing.T, lockPath string) {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		if err := os.Remove(lockPath); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	holder, err := os.Open(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holder.Close() })
 }
 
 // If rollback itself fails the Task remains, so the error must say so and name the cause.

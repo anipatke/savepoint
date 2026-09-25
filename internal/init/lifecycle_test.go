@@ -156,7 +156,10 @@ func treeSnapshot(t *testing.T, dir string) map[string]string {
 		if err != nil {
 			return err
 		}
-		info, err := d.Info()
+		// Lstat reads the entry itself. d.Info can come from the parent's
+		// listing, which on Windows holds a lazily refreshed copy of a
+		// directory's times that changes later without any write.
+		info, err := os.Lstat(path)
 		if err != nil {
 			return err
 		}

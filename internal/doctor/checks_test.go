@@ -159,7 +159,7 @@ func TestCheckProject_missingReleaseNamesFileAndIDs(t *testing.T) {
 	if len(problems) != 1 {
 		t.Fatalf("RunV2Checks().Project = %v, want one missing Release problem", problems)
 	}
-	for _, want := range []string{"[v2-missing-release]", "objectives/O-001-ship/Objective.md", "O-001", "R-999"} {
+	for _, want := range []string{"[v2-missing-release]", filepath.FromSlash("objectives/O-001-ship/Objective.md"), "O-001", "R-999"} {
 		if !strings.Contains(problems[0].Message, want) {
 			t.Errorf("problem message = %q, want %q", problems[0].Message, want)
 		}

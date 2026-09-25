@@ -683,6 +683,9 @@ func writeTarGz(archivePath, sourcePath, archiveName string) error {
 		return fmt.Errorf("create archive header: %w", err)
 	}
 	header.Name = archiveName
+	// The member is always an executable. Windows reports no execute bits on
+	// the built file, so the mode is set rather than copied from the host.
+	header.Mode = 0o755
 	if err := tarWriter.WriteHeader(header); err != nil {
 		return fmt.Errorf("write archive header: %w", err)
 	}

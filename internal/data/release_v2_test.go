@@ -262,7 +262,7 @@ func TestLoadV2Index_danglingObjectiveReleaseNamesPathAndIDs(t *testing.T) {
 	if !errors.Is(err, ErrV2MissingRelease) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2MissingRelease", err)
 	}
-	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "R-999"} {
+	for _, want := range []string{filepath.FromSlash("objectives/O-001-first/Objective.md"), "O-001", "R-999"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}
@@ -278,7 +278,7 @@ func TestLoadV2Index_rejectsLegacyPackagingTextWhenReleasesExist(t *testing.T) {
 	if !errors.Is(err, ErrV2InvalidReleaseReference) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2InvalidReleaseReference", err)
 	}
-	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "v2"} {
+	for _, want := range []string{filepath.FromSlash("objectives/O-001-first/Objective.md"), "O-001", "v2"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}
@@ -293,7 +293,7 @@ func TestLoadV2Index_rejectsLegacyPackagingTextWithoutReleases(t *testing.T) {
 	if !errors.Is(err, ErrV2InvalidReleaseReference) {
 		t.Fatalf("LoadV2Index() error = %v, want ErrV2InvalidReleaseReference", err)
 	}
-	for _, want := range []string{"objectives/O-001-first/Objective.md", "O-001", "v2"} {
+	for _, want := range []string{filepath.FromSlash("objectives/O-001-first/Objective.md"), "O-001", "v2"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("LoadV2Index() error = %v, want %q named", err, want)
 		}

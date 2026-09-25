@@ -40,8 +40,5 @@ jobs:
         with:
           node-version: 24
 
-      - name: Run focused Windows migration setup tests with timing summary
-        run: go run ./internal/buildtool test -json -count=1 ./internal/migrate -run '^(TestEndToEnd_sharedMigratedResultsAreReadOnly|TestProbeDestinationHeldOpen|TestProbeInterruptionBeforeReplace)$'
-
-      - name: Run Task ID allocation and creation concurrency tests
-        run: go test -count=1 ./internal/data -run '^(TestAllocateTaskID_.*|TestDiscoverV2Records_duplicateTaskID|TestCreateTaskV2ConcurrentAcrossObjectives)$'
+      - name: Run the full test suite with timing summary
+        run: go run ./internal/buildtool test -json -count=1 ./...

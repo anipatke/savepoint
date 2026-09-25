@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -403,7 +404,9 @@ func TestWriteTempAndRenameReplacesAtomicallyAndCleansTemporaryFiles(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0600 {
+	// Windows keeps only a read-only flag, so a writable file always reports
+	// 666 there; the requested mode is checked where it can be represented.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Errorf("replacement mode = %o, want 600", info.Mode().Perm())
 	}
 	matches, err := filepath.Glob(filepath.Join(dir, ".savepoint-migrate-apply-*"))

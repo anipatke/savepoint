@@ -128,7 +128,19 @@ func debounceV2Events(watcher *fsnotify.Watcher, root string, delay time.Duratio
 
 func v2EventNeedsReload(root string, event fsnotify.Event) bool {
 	const relevant = fsnotify.Create | fsnotify.Write | fsnotify.Remove | fsnotify.Rename | fsnotify.Chmod
-	return event.Op&relevant != 0 && isV2WatchedPath(root, event.Name)
+	if event.Op&relevant == 0 || !isV2WatchedPath(root, event.Name) {
+		return false
+	}
+	// Windows reports a directory's metadata updates as writes to it, including
+	// the ones caused by registering the watch itself. A real change inside the
+	// directory also reports its own file, so a write or chmod on a directory
+	// carries no information and would reload the board for nothing.
+	if event.Op&(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
+		if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 // isV2WatchedPath maps an event to the V2 file model. It is intentionally
