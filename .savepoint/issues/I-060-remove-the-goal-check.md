@@ -2,12 +2,17 @@
 id: I-060
 title: Remove the Goal Check; only the Objective Check and optional Task Check remain
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: owner-chat-20260925}
   at: '2026-09-25T11:12:00Z'
 severity: medium
+resolution:
+  disposition: escalated
+  actor: {role: planner, session: o025-plan-20260925}
+  at: '2026-09-25T11:22:00Z'
+escalated_to: O-025
 history:
   - at: '2026-09-25T11:12:00Z'
     actor: {role: owner, session: owner-chat-20260925}
@@ -15,6 +20,14 @@ history:
     note: >-
       Owner: "No such thing as goal check. Mandatory Obj check and optional
       task check only." The Goal Check is too expensive and is descoped.
+  - at: '2026-09-25T11:22:00Z'
+    actor: {role: planner, session: o025-plan-20260925}
+    kind: escalated
+    note: >-
+      Promoted to O-025 (T-047 runtime, T-048 guidance) after the owner
+      confirmed the design: a Goal is complete when all member Objectives
+      are complete, and existing scope.kind release Checks load but are
+      ignored.
 ---
 
 # I-060: Remove the Goal Check
