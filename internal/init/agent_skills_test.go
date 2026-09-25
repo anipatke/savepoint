@@ -347,7 +347,7 @@ func TestSavepointDesignSkillObjectiveTemplate(t *testing.T) {
 	}
 }
 
-var designTaskFrontmatterFields = []string{"id", "title", "objective", "status", "depends_on", "owner_validation", "planned_by"}
+var designTaskFrontmatterFields = []string{"title", "objective", "status", "depends_on", "owner_validation", "planned_by"}
 var designTaskBodySections = []string{"Outcome", "User Check", "Done When", "Context Files", "Design References", "Guardrails", "Implementation Plan", "Boundaries", "Technical Verification", "Technical Evidence", "Drift Notes"}
 
 func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
@@ -365,6 +365,9 @@ func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
 				t.Errorf("%s: %s Task template missing frontmatter field %q", tree, path, field)
 			}
 		}
+		if strings.Contains(content, "id: T-014") || strings.Contains(content, "# T-014:") {
+			t.Errorf("%s: %s Task example assigns an ID instead of leaving it to create-task", tree, path)
+		}
 		if !strings.Contains(content, "depends_on: [{task: T-013, requires: clear}]") {
 			t.Errorf("%s: %s Task template does not show depends_on in {task: T-###, requires: clear} form", tree, path)
 		}
@@ -378,6 +381,34 @@ func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
 		}
 		if !strings.Contains(content, "no globs, no directory-only entries") {
 			t.Errorf("%s: %s Task template does not state Context Files must name exact paths", tree, path)
+		}
+	}
+}
+
+func TestSavepointDesignSkillTaskCreationWorkflow(t *testing.T) {
+	for tree, root := range v2SkillRoots() {
+		path := filepath.Join(root, "savepoint-design", "SKILL.md")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: read %s: %v", tree, path, err)
+			continue
+		}
+		content := string(data)
+		for _, phrase := range []string{
+			"The planner never chooses, reserves, or writes a Task ID or destination filename.",
+			"complete V2 Task Markdown as an ID-free draft",
+			"savepoint create-task --objective O-### --draft <path> [project-dir]",
+			"strict-loads the complete V2 index before reporting success",
+			"planners working concurrently on O-014 and O-015",
+			"neither planner predicts, copies, or reserves a number",
+			"after creating or renaming any other identity-bearing V2 record",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s: %s task creation guidance is missing %q", tree, path, phrase)
+			}
+		}
+		if strings.Contains(content, "id: T-014") || strings.Contains(content, "# T-014:") {
+			t.Errorf("%s: %s contains a manually allocated Task ID example", tree, path)
 		}
 	}
 }
@@ -886,6 +917,26 @@ func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 	}
 }
 
+func TestSavepointCheckSkillStrictLoadsNewCheck(t *testing.T) {
+	for tree, root := range v2SkillRoots() {
+		path := filepath.Join(root, "savepoint-check", "SKILL.md")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: read %s: %v", tree, path, err)
+			continue
+		}
+		content := string(data)
+		for _, phrase := range []string{
+			"After writing the record, run `savepoint resume`",
+			"strict-load the complete V2 index, including the new Check",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s: %s does not require strict index loading after Check creation: missing %q", tree, path, phrase)
+			}
+		}
+	}
+}
+
 func TestSavepointCheckSkillScopes(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		path := filepath.Join(root, "savepoint-check", "SKILL.md")
@@ -1093,6 +1144,26 @@ func TestSharedIssueCaptureArtifactTemplate(t *testing.T) {
 		for _, heading := range issueArtifactBodySections {
 			if !strings.Contains(content, "## "+heading) {
 				t.Errorf("%s: %s Issue template missing body section %q", tree, path, heading)
+			}
+		}
+	}
+}
+
+func TestSharedIssueCaptureStrictLoadsIdentityChanges(t *testing.T) {
+	for tree, root := range v2SkillRoots() {
+		path := issueCapturePath(root)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: read %s: %v", tree, path, err)
+			continue
+		}
+		content := string(data)
+		for _, phrase := range []string{
+			"After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume`",
+			"strict loading of the complete V2 index",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s: %s does not require strict index loading after identity changes: missing %q", tree, path, phrase)
 			}
 		}
 	}

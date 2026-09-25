@@ -49,6 +49,12 @@ func main() {
 				os.Exit(1)
 			}
 			os.Exit(0)
+		case "create-task":
+			if err := cmd.RunCreateTask(context.Background(), args[1:], os.Stdout, os.Stderr, createTaskRunner); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
 		case "board":
 			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
 				return board.RunWithFilters(board.Filters{
@@ -96,6 +102,7 @@ const mainUsage = `Usage: savepoint <command> [options]
 
 Commands:
   init [dir] [--force] [--install]       Create a V2 project
+  create-task --objective <O-###> --draft <path> [dir]  Create a Task with the next ID
   board [--objective <objective>]        Open the V2 board
   doctor                                Check project health
   resume [dir]                           Print the next V2 action
@@ -290,4 +297,23 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 	}
 
 	return nil
+}
+
+func createTaskRunner(_ context.Context, opts cmd.CreateTaskOptions) (string, string, error) {
+	projectRoot, err := data.ResolveTarget(opts.Dir)
+	if err != nil {
+		return "", "", fmt.Errorf("create-task: %w", err)
+	}
+	if err := data.CheckRuntimeSchema(projectRoot); err != nil {
+		return "", "", fmt.Errorf("create-task: %w", err)
+	}
+	draft, err := os.ReadFile(opts.Draft)
+	if err != nil {
+		return "", "", fmt.Errorf("create-task: read draft %s: %w", opts.Draft, err)
+	}
+	created, err := data.CreateTaskV2(filepath.Join(projectRoot, ".savepoint"), opts.Objective, string(draft))
+	if err != nil {
+		return "", "", err
+	}
+	return created.ID, filepath.ToSlash(created.Path), nil
 }

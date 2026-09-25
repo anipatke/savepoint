@@ -16,7 +16,7 @@ last_audited: v2/E51-first-class-releases
 
 ## 1. Architecture model
 
-- **File-only.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools; `savepoint resume` is the only agent CLI command and it is read-only.
+- **File-first.** No MCP server. Agents read and edit Markdown + YAML files directly using their native file tools. `savepoint resume` is read-only; `savepoint create-task` is the sole agent write command and is limited to creating a new Task from an ID-free draft.
 - **Agent routing:** `savepoint resume` prints Next from the structured router selection; AGENTS.md maps that line to a phase skill, which reads the router and scoped files. The router does not carry hand-written next-step prose. See AGENTS.md Workflow and Router Selection sections.
 - **Bundled Agent Skills:** The active V2 workflow uses `savepoint-idea`, `savepoint-design`, `savepoint-task`, and `savepoint-check`, with three non-triggerable shared references. Retired V1 workflow files are preserved only as historical evidence.
 - **Token-efficiency principle.**
@@ -55,6 +55,8 @@ last_audited: v2/E51-first-class-releases
     ├── router.md                   ← V2 state and next action
     ├── config.yml                  ← schema_version, theme, quality gates
     ├── releases/                   ← compatibility storage for optional V2 Goals (R-###)
+    ├── task-ids.yml                ← durable Task-ID high-water mark
+    ├── task-ids.lock               ← exclusive Task-ID reservation lock
     │   └── R-###-slug/Release.md
     ├── objectives/                 ← Objective records and owned Tasks
     │   └── O-###-slug/
@@ -125,13 +127,14 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 | `savepoint init`       | Scaffold `.savepoint/`, merge the managed agent guide block, print magic prompt to stdout + clipboard |
 | `savepoint board`      | Launch TUI; auto-falls-back to plain table on non-TTY                             |
 | `savepoint doctor`     | Integrity check + ad-hoc quality-gate run + Layer-2 prompt for AI semantic review |
+| `savepoint create-task --objective O-### --draft <path> [dir]` | Create a Task from an ID-free draft, assign its project-wide ID, and strict-load the full V2 index |
 | `savepoint migrate [dir]` | Preview-first V1-to-V2 conversion; apply checks planned paths in Git before writing |
 | `savepoint resume [dir]` | Print the shared V2 Next projection without writing project files |
 | `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned agent skills and the managed agent-guide block without touching project state |
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.
-- Agents may run only `savepoint resume`, which prints the read-only Next projection; every other Savepoint command is human-only.
+- Agents may run `savepoint resume` for read-only routing and `savepoint create-task` only to create a new Task from an ID-free draft. The creation command assigns the ID and path, then strict-loads the complete V2 index before success; all other Savepoint commands are human-only. After creating or renaming any other identity-bearing record, agents run `savepoint resume` to strict-load the full index.
 - Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
 
@@ -201,8 +204,10 @@ When the owner closes the selected Task on the board, that action selects the Ob
 ## 9. Concurrency
 
 - **mtime-based optimistic concurrency.** TUI status writes compare the expected task-file mtime before parsing and again immediately before a no-op or write; conflicts are reported as non-destructive messages that require manual refresh before retry.
-- Agents edit freely; the TUI defers.
-- **No lockfile.**
+- Agents edit freely; the TUI defers. There is no global record lock.
+- **Task-ID allocation is the scoped locking exception.** `savepoint create-task` opens `.savepoint/task-ids.lock` with create-exclusive semantics and holds it through Task-file creation and strict V2 index validation. Contending processes retry for a bounded time and then refuse with the lock path; a leftover lock is reported for owner removal, never recovered automatically.
+- `.savepoint/task-ids.yml` stores `last_issued: N`. Bootstrap scans every active Task and never lowers the saved high-water mark. A reserved ID stays retired after a failed write, interrupted operation, or deletion; the allocator never reuses it.
+- The command creates the Task file exclusively and strict-loads the complete index before success. If strict loading fails, it removes only the newly created Task file and keeps the ID retired. Other identity-bearing record creation or renaming must be followed by `savepoint resume` so the full index is strictly loaded.
 
 ## 10. Goal records and PRD history
 

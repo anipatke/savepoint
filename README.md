@@ -136,6 +136,7 @@ teammate pick up where the last one stopped.
 | Command | What it does |
 | --- | --- |
 | `savepoint init [dir]` | Scaffolds Savepoint's project files and agent guidance. |
+| `savepoint create-task --objective O-### --draft <path> [dir]` | Creates a Task from an ID-free draft, assigns its project-wide ID, and validates the full V2 index. |
 | `savepoint board [--objective O-###]` | Opens the keyboard-driven V2 board, optionally focused on one Objective. |
 | `savepoint resume [dir]` | Prints the current state and the next recorded action. |
 | `savepoint doctor` | Runs deterministic project diagnostics and configured quality gates. |
@@ -145,6 +146,13 @@ teammate pick up where the last one stopped.
 Run `savepoint --help` for the command list or `savepoint <command> --help` for
 command-specific options. The package is also available through `npx` for
 projects that do not need a global installation.
+
+Planners create new Tasks with `savepoint create-task`; they provide an
+Objective and a complete Task draft without an `id`, and the command assigns
+the next project-wide ID and path. It strict-loads the full V2 index before it
+reports success. Agents may use this command only for new Tasks. After
+creating or renaming another identity-bearing record, use `savepoint resume`
+to require a strict load of the full index.
 
 ## The terminal board
 

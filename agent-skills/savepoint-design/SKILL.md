@@ -17,7 +17,7 @@ Use this skill when router `state` is `design`. When an executor returns `REPLAN
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. New Task creation uses the narrow `savepoint create-task` exception in the Task Creation section below. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
 
 ## Read
 
@@ -36,13 +36,25 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 2. Update `Design.md` to describe implemented reality, and `Guardrails.md` to hold durable project constraints; keep Objective deltas as the record of planned change until reconciliation.
 3. Keep exactly one Objective active. Objectives beyond it stay named outcomes with Boundaries — no detailed Tasks.
 4. Before detailing an Objective's Tasks, inspect its stated requirements against Idea, Design, Guardrails, dependencies, and targeted evidence. Ask the owner about material product or verification choices that are missing, ambiguous, or contradictory; do not fill those gaps by assumption. Summarize the proposed outcome, success conditions, boundaries, and key technical decisions in plain language, and obtain the owner's explicit design confirmation. Record confirmed decisions in the Objective. Then apply the readiness gate below; do not detail Tasks for an unconfirmed or unready Objective.
-5. After confirmation, detail the implementation Tasks and present the plan for owner review before routing to execution. A confirmed Objective design is not approval to implement or to mark a Task done.
+5. After confirmation, detail the implementation Tasks as ID-free drafts through `savepoint create-task`, then present the plan for owner review before routing to execution. A confirmed Objective design is not approval to implement or to mark a Task done.
 6. When the implementation approach for a piece of work is unknown, write a bounded research Task with a named decision deliverable instead of a confident plan the executor will discover is fiction.
 7. Split any Task that carries multiple unrelated outcomes or an unresolved architectural decision into separate Tasks.
 8. When an executor returns `REPLAN REQUIRED`, treat it as re-entry here: reassess Design, Guardrails, or the Objective as needed, then resume from step 3.
 9. Route product choices to the owner instead of inferring them. Technical readiness — settled interfaces, scoped constraints, known dependencies, a verification approach — does not require the owner to review code, but the Objective design and material requirements still require explicit owner confirmation before Task detailing.
 10. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here.
 11. When the next Objective's Tasks are detailed and approved, select that Objective and its first unblocked planned Task in the router, set `state: task`, and hand off to `savepoint-task`. Follow AGENTS.md's Router Selection section; do not write a free-text next action.
+
+## Task Creation
+
+The planner never chooses, reserves, or writes a Task ID or destination filename. Prepare the complete V2 Task Markdown as an ID-free draft. Its `objective` field may be omitted or must match the selected Objective. Create each new Task with:
+
+```bash
+savepoint create-task --objective O-### --draft <path> [project-dir]
+```
+
+The command allocates the next project-wide `T-###`, adds the Task identity and Objective to the draft, derives the filename from the title, and strict-loads the complete V2 index before reporting success. It holds the allocator lock through creation and validation; concurrent planners for different Objectives receive distinct IDs. A failed post-reservation creation may retire an ID, so never retry by selecting that number yourself.
+
+For example, planners working concurrently on O-014 and O-015 each prepare an ID-free draft and invoke `savepoint create-task --objective O-014 --draft draft-o-014.md` or `savepoint create-task --objective O-015 --draft draft-o-015.md`. The command outputs the assigned ID and path for each; neither planner predicts, copies, or reserves a number. Use `savepoint resume` after creating or renaming any other identity-bearing V2 record to require a strict load of the complete index. No other agent-run `savepoint` command is permitted.
 
 ## Verification Contract
 
@@ -134,7 +146,6 @@ Write each Task file with this structure, filled as a worked example rather than
 
 ```markdown
 ---
-id: T-014
 title: Resume unfinished work without changing project files
 objective: O-008
 status: planned
@@ -143,7 +154,7 @@ owner_validation: {required: true}
 planned_by: {role: planner, session: planning-example}
 ---
 
-# T-014: Resume unfinished work without changing project files
+# Resume unfinished work without changing project files
 
 ## Outcome
 

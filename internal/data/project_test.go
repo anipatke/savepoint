@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -767,6 +768,197 @@ func writeV2LinkedProject(t *testing.T, root string) {
 	writeV2TaskFixture(t, root, "O-001-first", "T-001-alpha.md", "T-001", "Alpha", "O-001")
 }
 
+func TestCreateTaskV2InjectsIdentityAndPreservesDraftBytes(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	draft := "---\r\ntitle: Review the Code\r\nplanned_by: {role: planner, session: draft-source}\r\nstatus: planned\r\ndepends_on: []\r\n---\r\n\r\n# Review\r\n\r\nKeep this body byte for byte.\r\n"
+
+	created, err := CreateTaskV2(root, "O-001", draft)
+	if err != nil {
+		t.Fatalf("CreateTaskV2() error = %v", err)
+	}
+	if created.ID != "T-001" {
+		t.Errorf("created ID = %q, want T-001", created.ID)
+	}
+	wantPath := filepath.Join("objectives", "O-001-first", "tasks", "T-001-review-the-code.md")
+	if created.Path != wantPath {
+		t.Errorf("created path = %q, want %q", created.Path, wantPath)
+	}
+	content, err := os.ReadFile(filepath.Join(root, created.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPrefix := "---\r\nid: T-001\r\nobjective: O-001\r\n"
+	if !strings.HasPrefix(string(content), wantPrefix) || !strings.HasSuffix(string(content), draft[len("---\r\n"):]) {
+		t.Fatalf("created content did not preserve draft bytes around injected identity:\n%s", content)
+	}
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after creation: %v", err)
+	}
+	task := index.Tasks[created.ID]
+	if task == nil || task.Objective != "O-001" || task.Title != "Review the Code" || task.PlannedBy.Session != "draft-source" {
+		t.Fatalf("indexed Task = %+v, want decoded fields preserved with allocated owner", task)
+	}
+}
+
+func TestCreateTaskV2RejectsInvalidDraftAndMissingObjectiveWithoutReservation(t *testing.T) {
+	validDraft := "---\ntitle: Review\nplanned_by: {role: planner, session: draft-source}\nstatus: planned\n---\n\n# Review\n"
+	tests := []struct {
+		name      string
+		objective string
+		draft     string
+	}{
+		{name: "authored ID", objective: "O-001", draft: strings.Replace(validDraft, "title: Review", "id: T-777\ntitle: Review", 1)},
+		{name: "mismatched owner", objective: "O-001", draft: strings.Replace(validDraft, "title: Review", "objective: O-002\ntitle: Review", 1)},
+		{name: "malformed YAML", objective: "O-001", draft: "---\ntitle: [broken\n---\nbody\n"},
+		{name: "missing Objective", objective: "O-999", draft: validDraft},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+			if _, err := CreateTaskV2(root, tc.objective, tc.draft); err == nil {
+				t.Fatal("CreateTaskV2() error = nil, want rejection")
+			}
+			for _, name := range []string{taskIDHighWaterFile, taskIDLockFile} {
+				if _, err := os.Lstat(filepath.Join(root, name)); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("%s stat error = %v, want no allocation state", name, err)
+				}
+			}
+			index, err := LoadV2Index(root)
+			if err != nil || len(index.Tasks) != 0 {
+				t.Errorf("project after rejected draft: index=%+v error=%v, want valid and task-free", index, err)
+			}
+		})
+	}
+}
+
+func TestCreateTaskV2RefusesOccupiedDestinationAndRetiresID(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	tasksDir := filepath.Join(root, "objectives", "O-001-first", "tasks")
+	occupiedPath := filepath.Join(tasksDir, "T-001-collision-task.md")
+	markerPath := filepath.Join(occupiedPath, "keep.txt")
+	testutil.WriteFile(t, markerPath, "preserve occupied destination\n")
+	draft := "---\ntitle: Collision Task\nplanned_by: {role: planner, session: draft-source}\nstatus: planned\n---\n\n# Collision\n"
+
+	if _, err := CreateTaskV2(root, "O-001", draft); err == nil {
+		t.Fatal("CreateTaskV2() error = nil, want occupied destination rejection")
+	}
+	if got, err := os.ReadFile(markerPath); err != nil || string(got) != "preserve occupied destination\n" {
+		t.Errorf("occupied marker = %q, error = %v; existing content must remain unchanged", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(root, taskIDHighWaterFile)); err != nil || string(got) != "last_issued: 1\n" {
+		t.Errorf("high-water mark = %q, error = %v; failed ID must stay retired", got, err)
+	}
+	if _, err := LoadV2Index(root); err != nil {
+		t.Errorf("LoadV2Index() after occupied path refusal: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tasksDir, "T-001-collision-task.md")); err != nil {
+		t.Errorf("occupied destination changed after refusal: %v", err)
+	}
+}
+
+func TestCreateExclusiveTaskFileDoesNotOverwriteExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "T-001-collision.md")
+	testutil.WriteFile(t, path, "keep existing Task bytes\n")
+	if _, err := createExclusiveTaskFile(path, []byte("new Task bytes\n")); err == nil {
+		t.Fatal("createExclusiveTaskFile() error = nil, want occupied-file refusal")
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "keep existing Task bytes\n" {
+		t.Errorf("existing file = %q, error = %v; content must remain unchanged", got, err)
+	}
+}
+
+func TestCreateTaskV2InvalidProjectDoesNotChangeExistingContent(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	invalidPath := filepath.Join(root, "objectives", "O-001-first", "tasks", "broken.md")
+	invalidContent := "not a V2 Task record\n"
+	testutil.WriteFile(t, invalidPath, invalidContent)
+	draft := "---\ntitle: Review\nplanned_by: {role: planner, session: draft-source}\nstatus: planned\n---\n\n# Review\n"
+
+	if _, err := CreateTaskV2(root, "O-001", draft); err == nil {
+		t.Fatal("CreateTaskV2() error = nil, want invalid project refusal")
+	}
+	if got, err := os.ReadFile(invalidPath); err != nil || string(got) != invalidContent {
+		t.Errorf("existing invalid content = %q, error = %v; it must remain unchanged", got, err)
+	}
+	for _, name := range []string{taskIDHighWaterFile, taskIDLockFile} {
+		if _, err := os.Lstat(filepath.Join(root, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s stat error = %v, want no creation state", name, err)
+		}
+	}
+}
+
+func TestCreateTaskV2StrictValidationFailureRemovesTaskButRetiresID(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	draft := "---\ntitle: Broken Link\nplanned_by: {role: planner, session: draft-source}\nstatus: planned\ndepends_on: [{task: T-999}]\n---\n\n# Broken Link\n"
+
+	if _, err := CreateTaskV2(root, "O-001", draft); err == nil {
+		t.Fatal("CreateTaskV2() error = nil, want strict index validation failure")
+	}
+	if _, err := os.Stat(filepath.Join(root, "objectives", "O-001-first", "tasks")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("new tasks directory stat error = %v, want rollback to remove it", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(root, taskIDHighWaterFile)); err != nil || string(got) != "last_issued: 1\n" {
+		t.Errorf("high-water mark = %q, error = %v; failed ID must stay retired", got, err)
+	}
+	if _, err := os.Lstat(filepath.Join(root, taskIDLockFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("lock stat error = %v, want lock released", err)
+	}
+	index, err := LoadV2Index(root)
+	if err != nil || len(index.Tasks) != 0 {
+		t.Errorf("project after rollback: index=%+v error=%v, want valid and task-free", index, err)
+	}
+}
+
+func TestCreateTaskV2ConcurrentAcrossObjectives(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	draft := "---\ntitle: Concurrent Task\nplanned_by: {role: planner, session: concurrent-test}\nstatus: planned\n---\n\n# Concurrent\n"
+	type outcome struct {
+		objective string
+		created   TaskCreationResult
+		err       error
+	}
+	results := make(chan outcome, 2)
+	for _, objective := range []string{"O-001", "O-002"} {
+		objective := objective
+		go func() {
+			created, err := CreateTaskV2(root, objective, draft)
+			results <- outcome{objective: objective, created: created, err: err}
+		}()
+	}
+
+	ids := make(map[string]string, 2)
+	for range 2 {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("CreateTaskV2(%s) error = %v", result.objective, result.err)
+		}
+		if previous, exists := ids[result.created.ID]; exists {
+			t.Fatalf("Objectives %s and %s received duplicate ID %s", previous, result.objective, result.created.ID)
+		}
+		ids[result.created.ID] = result.objective
+	}
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after concurrent creation: %v", err)
+	}
+	if len(ids) != 2 || len(index.Tasks) != 2 {
+		t.Fatalf("created IDs=%v, indexed tasks=%v; want two distinct valid Tasks", ids, index.Tasks)
+	}
+	for id, objective := range ids {
+		if task := index.Tasks[id]; task == nil || task.Objective != objective {
+			t.Errorf("indexed Task %s = %+v, want owner %s", id, task, objective)
+		}
+	}
+}
+
 // TestLoadV2Index_issueLinksResolve proves a fully paired Check-to-Issue link,
 // and an Issue naming the Task carrying its repair, load into both link maps.
 func TestLoadV2Index_issueLinksResolve(t *testing.T) {
@@ -1381,5 +1573,46 @@ func TestCheckRuntimeSchemaRejectsDirectoryReadFailure(t *testing.T) {
 	}
 	if errors.Is(err, ErrMalformedSchemaVersion) || errors.Is(err, ErrUnsupportedSchemaVersion) || errors.Is(err, ErrSchemaMigrationRequired) {
 		t.Errorf("CheckRuntimeSchema() error = %v, want a read failure, not a schema diagnostic", err)
+	}
+}
+
+// A failure after the Task is persisted must never leave a Task behind with a
+// nonzero result: lock-release failure rolls the new file back and keeps the ID retired.
+func TestWithTaskIDReservationLockReleaseFailureRollsBackAndRetiresID(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	created := filepath.Join(root, "created.tmp")
+
+	id, err := withTaskIDReservation(root, nil, func(_ string, _ *V2Index) (func() error, error) {
+		if err := os.WriteFile(created, []byte("task"), 0o644); err != nil {
+			return nil, err
+		}
+		// Make the later lock release fail.
+		if err := os.Remove(filepath.Join(root, taskIDLockFile)); err != nil {
+			return nil, err
+		}
+		return func() error { return os.Remove(created) }, nil
+	})
+	if err == nil || id != "" {
+		t.Fatalf("withTaskIDReservation() = %q, %v; want empty ID and release-lock error", id, err)
+	}
+	if _, statErr := os.Stat(created); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("created file stat error = %v, want rolled back", statErr)
+	}
+	if got, readErr := os.ReadFile(filepath.Join(root, taskIDHighWaterFile)); readErr != nil || string(got) != "last_issued: 1\n" {
+		t.Errorf("high-water mark = %q, error = %v; ID must stay retired", got, readErr)
+	}
+}
+
+// If rollback itself fails the Task remains, so the error must say so and name the cause.
+func TestWithTaskIDReservationRollbackFailureIsReported(t *testing.T) {
+	root := t.TempDir()
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+
+	_, err := withTaskIDReservation(root, nil, func(string, *V2Index) (func() error, error) {
+		return func() error { return errors.New("stuck file") }, errors.New("strict load failed")
+	})
+	if err == nil || !strings.Contains(err.Error(), "strict load failed") || !strings.Contains(err.Error(), "rollback created Task: stuck file") {
+		t.Fatalf("error = %v, want operation error joined with rollback failure", err)
 	}
 }

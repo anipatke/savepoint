@@ -1,7 +1,7 @@
 ---
 id: O-019
 title: Allocate Task identities without planner selection
-status: in_progress
+status: done
 release: R-006
 depends_on: [O-018]
 ---

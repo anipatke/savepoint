@@ -66,6 +66,8 @@ existing Check records).
 
 Before allocating an `I-###`, look for an existing Issue matching the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed: nothing in Savepoint runs a matching pass for you, so this search is a manual step every capture takes before naming a new ID.
 
+After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume` to require strict loading of the complete V2 index before handoff.
+
 ## Resolution Dispositions
 
 A resolved Issue records exactly one disposition:

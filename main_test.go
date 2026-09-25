@@ -38,6 +38,7 @@ func TestMainHelpPrintsV2CommandContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Usage: savepoint <command> [options]",
+		"create-task --objective <O-###> --draft <path> [dir]",
 		"board [--objective <objective>]",
 		"migrate [dir] [--apply]",
 		"upgrade-assets [dir]",
@@ -45,6 +46,116 @@ func TestMainHelpPrintsV2CommandContract(t *testing.T) {
 	} {
 		if !strings.Contains(result.stdout, want) {
 			t.Errorf("stdout = %q, want %q", result.stdout, want)
+		}
+	}
+}
+
+func TestMainCreateTaskAllocatesIDAndPrintsCreatedPath(t *testing.T) {
+	dir := t.TempDir()
+	objectiveDir := filepath.Join(dir, ".savepoint", "objectives", "O-001-first")
+	if err := os.MkdirAll(objectiveDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".savepoint", "config.yml"), []byte("schema_version: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	objective := "---\nid: O-001\ntitle: First objective\nstatus: planned\n---\n\n# First objective\n"
+	if err := os.WriteFile(filepath.Join(objectiveDir, "Objective.md"), []byte(objective), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	draftPath := filepath.Join(dir, "draft.md")
+	draft := "---\ntitle: Review the command\nobjective: O-001\nplanned_by: {role: planner, session: cli-test}\nstatus: planned\n---\n\n# Review the command\n"
+	if err := os.WriteFile(draftPath, []byte(draft), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runMainForTest(t, []string{"create-task", "--objective", "O-001", "--draft", draftPath, dir}, "")
+	if result.err != nil {
+		t.Fatalf("savepoint create-task failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if want := "Created T-001 at .savepoint/objectives/O-001-first/tasks/T-001-review-the-command.md\n"; result.stdout != want {
+		t.Fatalf("stdout = %q, want %q", result.stdout, want)
+	}
+	index, err := data.LoadV2Index(filepath.Join(dir, ".savepoint"))
+	if err != nil {
+		t.Fatalf("LoadV2Index() after command: %v", err)
+	}
+	if task := index.Tasks["T-001"]; task == nil || task.Objective != "O-001" {
+		t.Fatalf("created Task = %+v, want T-001 owned by O-001", task)
+	}
+}
+
+func TestMainCreateTaskConcurrentAcrossObjectivesStrictLoadsIndex(t *testing.T) {
+	dir := t.TempDir()
+	savepointDir := filepath.Join(dir, ".savepoint")
+	if err := os.MkdirAll(savepointDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savepointDir, "config.yml"), []byte("schema_version: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	objectives := []struct {
+		id, slug, title string
+	}{
+		{id: "O-001", slug: "O-001-first", title: "First objective"},
+		{id: "O-002", slug: "O-002-second", title: "Second objective"},
+	}
+	for _, objective := range objectives {
+		objectiveDir := filepath.Join(savepointDir, "objectives", objective.slug)
+		if err := os.MkdirAll(objectiveDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := "---\nid: " + objective.id + "\ntitle: " + objective.title + "\nstatus: planned\n---\n\n# " + objective.title + "\n"
+		if err := os.WriteFile(filepath.Join(objectiveDir, "Objective.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	type result struct {
+		objective string
+		main      mainResult
+	}
+	results := make(chan result, len(objectives))
+	for _, objective := range objectives {
+		draftPath := filepath.Join(dir, "draft-"+objective.id+".md")
+		draft := "---\ntitle: Concurrent review " + objective.id + "\nplanned_by: {role: planner, session: scenario}\nstatus: planned\n---\n\n# Concurrent review\n"
+		if err := os.WriteFile(draftPath, []byte(draft), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		objective := objective
+		go func() {
+			mainResult := runMainForTest(t, []string{"create-task", "--objective", objective.id, "--draft", draftPath, dir}, "")
+			results <- result{objective: objective.id, main: mainResult}
+		}()
+	}
+
+	ids := make(map[string]string, len(objectives))
+	for range len(objectives) {
+		got := <-results
+		if got.main.err != nil {
+			t.Fatalf("savepoint create-task for %s failed: %v\nstderr: %s", got.objective, got.main.err, got.main.stderr)
+		}
+		fields := strings.Fields(got.main.stdout)
+		if len(fields) != 4 || fields[0] != "Created" || fields[2] != "at" {
+			t.Fatalf("create-task output for %s = %q, want assigned ID and path", got.objective, got.main.stdout)
+		}
+		id := fields[1]
+		if previous, exists := ids[id]; exists {
+			t.Fatalf("Objectives %s and %s received duplicate Task ID %s", previous, got.objective, id)
+		}
+		ids[id] = got.objective
+	}
+
+	index, err := data.LoadV2Index(savepointDir)
+	if err != nil {
+		t.Fatalf("strict V2 load after concurrent create-task calls: %v", err)
+	}
+	if len(index.Tasks) != len(objectives) || len(ids) != len(objectives) {
+		t.Fatalf("created IDs=%v, indexed Tasks=%v; want one distinct Task per Objective", ids, index.Tasks)
+	}
+	for id, objective := range ids {
+		if task := index.Tasks[id]; task == nil || task.Objective != objective {
+			t.Errorf("indexed Task %s = %+v, want owner %s", id, task, objective)
 		}
 	}
 }
@@ -152,6 +263,13 @@ func TestMainInitScaffoldsV2ProjectWithEmptyValidIndex(t *testing.T) {
 	}
 	if len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
 		t.Errorf("fresh init V2 index not empty: %+v", index)
+	}
+	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read fresh-init AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(agents), "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.") {
+		t.Error("fresh init AGENTS.md does not allow the narrow Task creation command")
 	}
 }
 

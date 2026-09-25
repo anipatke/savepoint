@@ -165,7 +165,9 @@ upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
 
 ## CLI Rules
 
-Agents may run exactly `savepoint resume`, a read-only command that prints `Next` without writing project files. Every other `savepoint` command is for the human.
+Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below.
+
+Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the V2 index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.
 
 In this repository the command is built from source: if `savepoint` is not on `PATH`, run `./savepoint resume` from the repository root, and if `./savepoint` is missing, run `make build` first. Report the missing tool only if both fail.
 

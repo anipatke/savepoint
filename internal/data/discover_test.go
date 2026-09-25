@@ -1,12 +1,16 @@
 package data
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/opencode/savepoint/internal/testutil"
 )
@@ -241,6 +245,243 @@ func TestDiscoverV2Records_duplicateTaskID(t *testing.T) {
 	if !errors.Is(err, ErrV2DuplicateID) {
 		t.Fatalf("DiscoverV2Records() error = %v, want ErrV2DuplicateID", err)
 	}
+	for _, path := range []string{
+		filepath.Join(v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-001-alpha.md"),
+		filepath.Join(v2ObjectivesDirName, "O-002-second", v2TasksDirName, "T-001-alpha-again.md"),
+	} {
+		if !strings.Contains(err.Error(), path) {
+			t.Errorf("DiscoverV2Records() error = %v, want both duplicate paths including %q", err, path)
+		}
+	}
+}
+
+func TestAllocateTaskID_bootstrapsAcrossObjectivesAndSurvivesDeletion(t *testing.T) {
+	root := newTaskIDProject(t)
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	writeV2TaskFixture(t, root, "O-001-first", "T-005-first.md", "T-005", "First task", "O-001")
+	writeV2TaskFixture(t, root, "O-002-second", "T-010-second.md", "T-010", "Second task", "O-002")
+
+	first, err := AllocateTaskID(root)
+	if err != nil {
+		t.Fatalf("AllocateTaskID() first call error = %v", err)
+	}
+	if first != "T-011" {
+		t.Fatalf("AllocateTaskID() first ID = %q, want T-011 from the project-wide active set", first)
+	}
+
+	deletedTask := filepath.Join(root, v2ObjectivesDirName, "O-002-second", v2TasksDirName, "T-010-second.md")
+	if err := os.Remove(deletedTask); err != nil {
+		t.Fatalf("remove highest active Task: %v", err)
+	}
+	second, err := AllocateTaskID(root)
+	if err != nil {
+		t.Fatalf("AllocateTaskID() after deletion error = %v", err)
+	}
+	if second != "T-012" {
+		t.Fatalf("AllocateTaskID() after deletion = %q, want T-012 without reusing the deleted Task number", second)
+	}
+
+	state, err := os.ReadFile(filepath.Join(root, taskIDHighWaterFile))
+	if err != nil {
+		t.Fatalf("read high-water mark: %v", err)
+	}
+	if string(state) != "last_issued: 12\n" {
+		t.Errorf("high-water mark = %q, want %q", state, "last_issued: 12\n")
+	}
+}
+
+func TestAllocateTaskID_doesNotReuseReservationAfterCallerFailure(t *testing.T) {
+	root := newTaskIDProject(t)
+
+	reserved, err := AllocateTaskID(root)
+	if err != nil {
+		t.Fatalf("AllocateTaskID() reservation error = %v", err)
+	}
+	// Simulate the caller failing to create the Task after reserving its ID.
+	failedTaskPath := filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, reserved+"-failed.md")
+	if _, err := os.Stat(failedTaskPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed creation path %s unexpectedly exists: %v", failedTaskPath, err)
+	}
+
+	next, err := AllocateTaskID(root)
+	if err != nil {
+		t.Fatalf("AllocateTaskID() after caller failure error = %v", err)
+	}
+	if reserved != "T-001" || next != "T-002" {
+		t.Fatalf("reservations = %q then %q, want T-001 then T-002", reserved, next)
+	}
+}
+
+func TestAllocateTaskID_preservesHigherExistingHighWaterMark(t *testing.T) {
+	root := newTaskIDProject(t)
+	writeV2TaskFixture(t, root, "O-001-first", "T-005-active.md", "T-005", "Active task", "O-001")
+	statePath := filepath.Join(root, taskIDHighWaterFile)
+	if err := os.WriteFile(statePath, []byte("last_issued: 20\n"), 0o644); err != nil {
+		t.Fatalf("write existing high-water mark: %v", err)
+	}
+
+	id, err := AllocateTaskID(root)
+	if err != nil {
+		t.Fatalf("AllocateTaskID() error = %v", err)
+	}
+	if id != "T-021" {
+		t.Fatalf("AllocateTaskID() = %q, want T-021 above the persisted high-water mark", id)
+	}
+	state, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("read updated high-water mark: %v", err)
+	}
+	if string(state) != "last_issued: 21\n" {
+		t.Errorf("high-water mark = %q, want %q", state, "last_issued: 21\n")
+	}
+}
+
+func TestAllocateTaskID_refusesInvalidProjectWithoutChangingRecords(t *testing.T) {
+	root := newTaskIDProject(t)
+	writeV2ObjectiveFixture(t, root, "O-002-second", "O-002", "Second objective")
+	firstTask := filepath.Join(root, v2ObjectivesDirName, "O-001-first", v2TasksDirName, "T-001-first.md")
+	secondTask := filepath.Join(root, v2ObjectivesDirName, "O-002-second", v2TasksDirName, "T-001-second.md")
+	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
+	writeV2TaskFixture(t, root, "O-002-second", "T-001-second.md", "T-001", "Second task", "O-002")
+
+	beforeFirst, err := os.ReadFile(firstTask)
+	if err != nil {
+		t.Fatalf("read first duplicate Task: %v", err)
+	}
+	beforeSecond, err := os.ReadFile(secondTask)
+	if err != nil {
+		t.Fatalf("read second duplicate Task: %v", err)
+	}
+	if _, err := AllocateTaskID(root); !errors.Is(err, ErrV2DuplicateID) {
+		t.Fatalf("AllocateTaskID() error = %v, want ErrV2DuplicateID", err)
+	}
+	afterFirst, err := os.ReadFile(firstTask)
+	if err != nil {
+		t.Fatalf("re-read first duplicate Task: %v", err)
+	}
+	afterSecond, err := os.ReadFile(secondTask)
+	if err != nil {
+		t.Fatalf("re-read second duplicate Task: %v", err)
+	}
+	if !bytes.Equal(afterFirst, beforeFirst) || !bytes.Equal(afterSecond, beforeSecond) {
+		t.Fatal("AllocateTaskID() changed a Task record in an invalid project")
+	}
+	for _, path := range []string{filepath.Join(root, taskIDHighWaterFile), filepath.Join(root, taskIDLockFile)} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("invalid project left allocation artifact %s: %v", path, err)
+		}
+	}
+}
+
+func TestAllocateTaskID_serializesConcurrentCallers(t *testing.T) {
+	root := newTaskIDProject(t)
+	const callers = 16
+	ids := make(chan string, callers)
+	errs := make(chan error, callers)
+	var group sync.WaitGroup
+	group.Add(callers)
+	for range callers {
+		go func() {
+			defer group.Done()
+			id, err := AllocateTaskID(root)
+			if err != nil {
+				errs <- err
+				return
+			}
+			ids <- id
+		}()
+	}
+	group.Wait()
+	close(ids)
+	close(errs)
+	for err := range errs {
+		t.Errorf("AllocateTaskID() concurrent call error = %v", err)
+	}
+
+	seen := make(map[string]bool, callers)
+	for id := range ids {
+		if seen[id] {
+			t.Errorf("AllocateTaskID() returned duplicate ID %s", id)
+		}
+		seen[id] = true
+	}
+	if len(seen) != callers {
+		t.Fatalf("unique reservations = %d, want %d", len(seen), callers)
+	}
+	for number := 1; number <= callers; number++ {
+		id := formatTaskID(strconv.Itoa(number))
+		if !seen[id] {
+			t.Errorf("concurrent reservations missing %s", id)
+		}
+	}
+}
+
+func TestAllocateTaskID_refusesHeldAndLeftoverLocks(t *testing.T) {
+	for _, lockKind := range []string{"held", "leftover"} {
+		t.Run(lockKind, func(t *testing.T) {
+			root := newTaskIDProject(t)
+			lockPath := filepath.Join(root, taskIDLockFile)
+			lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+			if err != nil {
+				t.Fatalf("create %s lock: %v", lockKind, err)
+			}
+			if _, err := lock.WriteString("lock sentinel"); err != nil {
+				t.Fatalf("write lock sentinel: %v", err)
+			}
+			if lockKind == "leftover" {
+				if err := lock.Close(); err != nil {
+					t.Fatalf("close leftover lock: %v", err)
+				}
+			}
+			t.Cleanup(func() {
+				_ = lock.Close()
+				_ = os.Remove(lockPath)
+			})
+
+			started := time.Now()
+			if _, err := AllocateTaskID(root); err == nil || !strings.Contains(err.Error(), lockPath) {
+				t.Fatalf("AllocateTaskID() error = %v, want a refusal naming %s", err, lockPath)
+			} else if elapsed := time.Since(started); elapsed < taskIDLockWait-25*time.Millisecond {
+				t.Errorf("AllocateTaskID() refused after %s, want bounded retry near %s", elapsed, taskIDLockWait)
+			}
+			if content, err := os.ReadFile(lockPath); err != nil || string(content) != "lock sentinel" {
+				t.Errorf("existing %s lock changed or was removed: content=%q, err=%v", lockKind, content, err)
+			}
+			if _, err := os.Lstat(filepath.Join(root, taskIDHighWaterFile)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("lock refusal wrote a high-water mark: %v", err)
+			}
+		})
+	}
+}
+
+func TestAllocateTaskID_refusesMalformedHighWaterWithoutChangingIt(t *testing.T) {
+	root := newTaskIDProject(t)
+	path := filepath.Join(root, taskIDHighWaterFile)
+	content := []byte("last_issued: -1\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write malformed high-water mark: %v", err)
+	}
+
+	if _, err := AllocateTaskID(root); err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("AllocateTaskID() error = %v, want malformed-state error naming %s", err, path)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read malformed high-water mark after refusal: %v", err)
+	}
+	if !bytes.Equal(after, content) {
+		t.Errorf("malformed high-water mark changed to %q, want original %q", after, content)
+	}
+	if _, err := os.Lstat(filepath.Join(root, taskIDLockFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("failed allocation left a lock file: %v", err)
+	}
+}
+
+func newTaskIDProject(t *testing.T) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), ".savepoint")
+	writeV2ObjectiveFixture(t, root, "O-001-first", "O-001", "First objective")
+	return root
 }
 
 func TestDiscoverV2Records_rejectsSymlinkEscape(t *testing.T) {

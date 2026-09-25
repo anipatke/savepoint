@@ -199,9 +199,28 @@ func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 
 	assertContains(t, liveAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
 	assertContains(t, templateAgents, "Task `status`: only `planned`, `in_progress`, or `done`")
+	for _, content := range []string{liveAgents, templateAgents} {
+		assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
+		assertContains(t, content, "No other `savepoint` command is for agents except the narrow Task creation operation below.")
+		assertContains(t, content, "After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.")
+	}
 
 	for _, content := range []string{liveAgents, templateAgents} {
 		assertNotContains(t, content, "phase:")
+	}
+}
+
+func TestReadmeDocumentsTaskCreationCommand(t *testing.T) {
+	readme := strings.Join(strings.Fields(readTemplate(t, filepath.Join("..", ".."), "README.md")), " ")
+	for _, phrase := range []string{
+		"`savepoint create-task --objective O-### --draft <path> [dir]`",
+		"complete Task draft without an `id`",
+		"assigns the next project-wide ID and path",
+		"strict-loads the full V2 index before it reports success",
+	} {
+		if !strings.Contains(readme, phrase) {
+			t.Errorf("README.md does not document Task creation behavior %q", phrase)
+		}
 	}
 }
 
@@ -228,6 +247,7 @@ func TestUpgradeDeliversPolicyAssetsFromRealTemplates(t *testing.T) {
 	agents := readTemplate(t, target, "AGENTS.md")
 	assertContains(t, agents, "## Code Style")
 	assertContains(t, agents, "`STYLE` rules in `.savepoint/Guardrails.md`")
+	assertContains(t, agents, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
 
 	guardrails := readTemplate(t, target, ".savepoint", "Guardrails.md")
 	assertContains(t, guardrails, "STYLE-01")

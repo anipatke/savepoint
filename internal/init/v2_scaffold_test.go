@@ -115,6 +115,21 @@ func TestV2ScaffoldDesignCarriesSixSections(t *testing.T) {
 	}
 }
 
+func TestDesignDocumentsTaskCreationAndDurableAllocation(t *testing.T) {
+	content := readTemplate(t, filepath.Join("..", ".."), ".savepoint", "Design.md")
+	for _, phrase := range []string{
+		"`savepoint create-task --objective O-### --draft <path> [dir]`",
+		"`.savepoint/task-ids.yml` stores `last_issued: N`",
+		"`.savepoint/task-ids.lock`",
+		"reserved ID stays retired",
+		"After creating or renaming any other identity-bearing record",
+	} {
+		if !strings.Contains(content, phrase) {
+			t.Errorf(".savepoint/Design.md is missing Task allocator detail %q", phrase)
+		}
+	}
+}
+
 // v2AgentsGuideForbiddenVocabulary is V1-only vocabulary the V2 scaffold's
 // AGENTS.md must never carry: V2 renamed Epic/PRD to Objective/Idea, folded
 // the audit register into Check records, and has no defect-building state or
@@ -135,6 +150,8 @@ func TestV2ScaffoldAgentsGuideIsLiveAndUsesV2Vocabulary(t *testing.T) {
 	for _, stale := range v2AgentsGuideForbiddenVocabulary {
 		assertNotContains(t, content, stale)
 	}
+	assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
+	assertContains(t, content, "After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.")
 }
 
 // v2AdoptionLoadBearingPhrases are the statements the existing-codebase

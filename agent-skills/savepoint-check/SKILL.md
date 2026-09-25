@@ -18,7 +18,7 @@ This session must be fresh: independent from the executor's conversation that bu
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This Check workflow uses `savepoint resume` only to resolve Next and validate project loading; Task creation remains planner-only under the narrow exception in AGENTS.md. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
 
 ## Read
 
@@ -38,7 +38,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 1. Confirm the session is fresh. If this session built the work under review, state that limitation; do not proceed as an independent Check unless the user explicitly asks to continue anyway.
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design; a Goal Check uses the compatibility value `scope.kind: release` to evaluate integration across all member Objectives.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check or Goal Check.
-4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`.
+4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`. After writing the record, run `savepoint resume` to strict-load the complete V2 index, including the new Check.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective or Goal Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is a direct repair under the recorded Issue by default, or new or newly selected work linked to the Objective only when the repair needs planning (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective/Goal outcome.
 7. Record advisory observations as non-blocking, and fill the record's `## Code Style Review` checklist as `check-method.md` describes; neither changes the result.

@@ -17,7 +17,13 @@ func TestV2ArtifactTemplatesDecodeThroughTypedContracts(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		designPath := filepath.Join(root, "savepoint-design", "SKILL.md")
 		design := readProvenanceContractSource(t, designPath)
-		taskContent := provenanceArtifactFence(t, design, "planned_by: {role: planner, session: planning-example}")
+		taskDraft := provenanceArtifactFence(t, design, "planned_by: {role: planner, session: planning-example}")
+		if strings.Contains(taskDraft, "id:") {
+			t.Errorf("%s: Task draft includes an ID before the allocator runs", designPath)
+		}
+		// Model create-task injecting its project-wide identity before the
+		// resulting record reaches the typed Task decoder.
+		taskContent := strings.Replace(taskDraft, "---\n", "---\nid: T-014\n", 1)
 
 		task, err := data.DecodeTaskV2(designPath+"#task-template", taskContent)
 		if err != nil {
