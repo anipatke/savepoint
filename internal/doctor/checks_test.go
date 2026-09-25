@@ -200,48 +200,18 @@ func TestCheckReleaseReadiness_ignoresEmptyActiveGoalAndKeepsCanonicalFindings(t
 	}
 }
 
-func TestCheckReleaseReadiness_reportsMissingUnknownStaleNeedsWorkAndAcceptance(t *testing.T) {
+func TestCheckReleaseReadiness_ignoresGoalChecksAndOwnerAcceptance(t *testing.T) {
 	tests := []struct {
-		name       string
-		releaseID  string
-		checkBlock string
-		releaseFM  string
-		want       string
+		name      string
+		check     string
+		releaseFM string
 	}{
-		{name: "missing", releaseID: "R-001", want: "[v2-release-clearance-missing]"},
+		{name: "no Goal Check"},
+		{name: "NEEDS WORK Goal Check", check: "NEEDS WORK"},
 		{
-			name:       "needs work",
-			releaseID:  "R-002",
-			checkBlock: "needs-work",
-			want:       "[v2-release-clearance-needs-work]",
-		},
-		{
-			name:       "unknown",
-			releaseID:  "R-003",
-			checkBlock: "unknown",
-			releaseFM:  "freshness: {state: unknown, check: C-030, assessed_by: {role: checker, session: freshness-3}, assessed_at: '2026-09-14T00:00:00Z', basis: not reassessed}\n",
-			want:       "[v2-release-clearance-unknown]",
-		},
-		{
-			name:       "stale",
-			releaseID:  "R-004",
-			checkBlock: "stale",
-			releaseFM:  "freshness: {state: stale, check: C-041, assessed_by: {role: checker, session: freshness-4}, assessed_at: '2026-09-14T00:00:00Z', basis: code changed}\n",
-			want:       "[v2-release-clearance-stale]",
-		},
-		{
-			name:       "owner acceptance",
-			releaseID:  "R-005",
-			checkBlock: "owner",
-			releaseFM:  "freshness: {state: current, check: C-050, assessed_by: {role: checker, session: freshness-5}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n",
-			want:       "[v2-release-owner-acceptance-missing]",
-		},
-		{
-			name:       "stale owner acceptance",
-			releaseID:  "R-006",
-			checkBlock: "owner-stale",
-			releaseFM:  "freshness: {state: current, check: C-061, assessed_by: {role: checker, session: freshness-6}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\nowner_validation: {required: true, accepted_check: C-060, accepted_by: {role: owner, session: owner-6}}\n",
-			want:       "[v2-release-owner-acceptance-stale]",
+			name:      "current Goal Check without owner acceptance",
+			check:     "CLEAR",
+			releaseFM: "freshness: {state: current, check: C-070, assessed_by: {role: checker, session: release-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n",
 		},
 	}
 
@@ -249,52 +219,43 @@ func TestCheckReleaseReadiness_reportsMissingUnknownStaleNeedsWorkAndAcceptance(
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-			writeV2Release(t, root, tt.releaseID+"-active", tt.releaseID, "in_progress", tt.releaseFM)
-			objectiveID := "O" + strings.TrimPrefix(tt.releaseID, "R")
-			objectiveDir := objectiveID + "-member"
-			testutil.WriteFile(t, filepath.Join(root, "objectives", objectiveDir, "Objective.md"),
-				"---\nid: "+objectiveID+"\ntitle: \"Member\"\nstatus: done\nrelease: "+tt.releaseID+"\nfreshness: {state: current, check: C"+strings.TrimPrefix(tt.releaseID, "R")+"0, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
-			objectiveCheck := "C" + strings.TrimPrefix(tt.releaseID, "R") + "0"
-			writeV2Check(t, root, objectiveCheck, "{kind: objective, id: "+objectiveID+"}", "CLEAR", "")
-
-			switch tt.checkBlock {
-			case "needs-work":
-				writeV2Check(t, root, "C-020", "{kind: release, id: R-002}", "NEEDS WORK", "")
-			case "unknown":
-				writeV2Check(t, root, "C-030", "{kind: release, id: R-003}", "CLEAR", "")
-			case "stale":
-				writeV2Check(t, root, "C-040", "{kind: release, id: R-004}", "CLEAR", "")
-				writeV2Check(t, root, "C-041", "{kind: release, id: R-004}", "CLEAR", "C-040")
-			case "owner":
-				writeV2Check(t, root, "C-050", "{kind: release, id: R-005}", "CLEAR", "")
-			case "owner-stale":
-				writeV2Check(t, root, "C-060", "{kind: release, id: R-006}", "CLEAR", "")
-				writeV2Check(t, root, "C-061", "{kind: release, id: R-006}", "CLEAR", "C-060")
+			writeV2Release(t, root, "R-070-active", "R-070", "in_progress", tt.releaseFM)
+			testutil.WriteFile(t, filepath.Join(root, "objectives", "O-070-member", "Objective.md"),
+				"---\nid: O-070\ntitle: \"Member\"\nstatus: done\nrelease: R-070\nfreshness: {state: current, check: C-0700, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+			writeV2Check(t, root, "C-0700", "{kind: objective, id: O-070}", "CLEAR", "")
+			if tt.check != "" {
+				writeV2Check(t, root, "C-070", "{kind: release, id: R-070}", tt.check, "")
 			}
 
-			problems := RunV2Checks(root).Releases
-			if len(problems) != 1 || !strings.Contains(problems[0].Message, tt.want) {
-				t.Fatalf("RunV2Checks().Releases = %v, want %s", problems, tt.want)
+			result := RunV2Checks(root)
+			if len(result.Project) != 0 {
+				t.Fatalf("RunV2Checks().Project = %v, want successful V2 loading", result.Project)
+			}
+			if len(result.Releases) != 0 {
+				t.Fatalf("RunV2Checks().Releases = %v, want no Goal Check or owner-acceptance problem", result.Releases)
 			}
 		})
 	}
 }
 
-func TestCheckReleaseReadiness_reportsMaterialUnresolvedIssueFromCanonicalGate(t *testing.T) {
+func TestCheckReleaseReadiness_ignoresIssuesLinkedToGoalCheck(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
-	writeV2Release(t, root, "R-007-active", "R-007", "in_progress",
-		"freshness: {state: current, check: C-070, assessed_by: {role: checker, session: freshness-7}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\nowner_validation: {required: true, accepted_check: C-070, accepted_by: {role: owner, session: owner-7}}\n")
-	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-007-member", "Objective.md"),
-		"---\nid: O-007\ntitle: \"Member\"\nstatus: done\nrelease: R-007\nfreshness: {state: current, check: C-0070, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
-	writeV2Check(t, root, "C-0070", "{kind: objective, id: O-007}", "CLEAR", "")
-	testutil.WriteFile(t, filepath.Join(root, "checks", "C-070.md"),
-		"---\nid: C-070\nscope: {kind: release, id: R-007}\nresult: CLEAR\nchecked_by: {role: checker, session: release-checker}\nexecuted_session: build-7\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I-001]\n---\n\n# Check\n")
-	writeV2Issue(t, root, "I-001-blocker.md", "I-001", "open", "defect", "checks: [C-070]\n")
+	writeV2Release(t, root, "R-071-active", "R-071", "in_progress",
+		"freshness: {state: current, check: C-071, assessed_by: {role: checker, session: release-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-071-member", "Objective.md"),
+		"---\nid: O-071\ntitle: \"Member\"\nstatus: done\nrelease: R-071\nfreshness: {state: current, check: C-0710, assessed_by: {role: checker, session: objective-checker}, assessed_at: '2026-09-14T00:00:00Z', basis: checked}\n---\n\n# Member\n")
+	writeV2Check(t, root, "C-0710", "{kind: objective, id: O-071}", "CLEAR", "")
+	testutil.WriteFile(t, filepath.Join(root, "checks", "C-071.md"),
+		"---\nid: C-071\nscope: {kind: release, id: R-071}\nresult: CLEAR\nchecked_by: {role: checker, session: release-checker}\nexecuted_session: build-71\nchecked_at: '2026-09-14T00:00:00Z'\nissues: [I-071]\n---\n\n# Check\n")
+	writeV2Issue(t, root, "I-071-blocker.md", "I-071", "open", "defect", "checks: [C-071]\n")
 
-	problems := RunV2Checks(root).Releases
-	if len(problems) != 1 || !strings.Contains(problems[0].Message, "[v2-release-issue-unresolved]") || !strings.Contains(problems[0].Message, "I-001") {
-		t.Fatalf("RunV2Checks().Releases = %v, want one named material Issue blocker", problems)
+	result := RunV2Checks(root)
+	if len(result.Project) != 0 {
+		t.Fatalf("RunV2Checks().Project = %v, want the release Check and Issue to load", result.Project)
+	}
+	if len(result.Releases) != 0 {
+		t.Fatalf("RunV2Checks().Releases = %v, want no Goal issue blocker", result.Releases)
 	}
 }
 

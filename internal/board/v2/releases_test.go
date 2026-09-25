@@ -189,7 +189,7 @@ func TestReleaseSelectorOpensReadOnlyReleaseDetail(t *testing.T) {
 	}
 }
 
-func TestReleaseDetailShowsEvidenceHistoryIssuesAndOwnerBoundary(t *testing.T) {
+func TestReleaseDetailShowsEvidenceHistoryIssuesAndMembershipReadiness(t *testing.T) {
 	root := savepointRoot(t)
 	writeConfig(t, root)
 	testutil.WriteFile(t, filepath.Join(root, "releases", "R-001-first", "Release.md"), `---
@@ -265,12 +265,15 @@ checks: [C-002, C-003]
 		"ISSUES",
 		"I-001 (defect, open): Documented release gap",
 		"GOAL READINESS",
-		"Allowed by exception, not by clearance",
-		"OWNER VALIDATION",
-		"Accepted: Check C-003, by owner session release-owner",
+		"Every member Objective is complete; the Goal is ready to record as done.",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("Release detail is missing %q:\n%s", want, view)
+		}
+	}
+	for _, obsolete := range []string{"CLEARANCE", "OWNER VALIDATION", "Accepted: Check C-003"} {
+		if strings.Contains(view, obsolete) {
+			t.Errorf("Release detail includes obsolete Goal Check output %q:\n%s", obsolete, view)
 		}
 	}
 	for _, width := range []int{48, 80, 120} {

@@ -181,10 +181,9 @@ func IssueLine(issue *data.IssueV2) string {
 	return fmt.Sprintf("- %s (%s, %s): %s", issue.ID, issue.Type, issue.Status, issue.Title)
 }
 
-// ReleaseBlockerPhrase turns one typed Release gate blocker into readable
-// evidence. The blocker was already resolved by internal/data; this function
-// only gives that value one shared sentence for resume, the Next area, and
-// Release detail.
+// ReleaseBlockerPhrase turns one membership blocker into readable evidence.
+// The blocker was already resolved by internal/data; this function only gives
+// that value one shared sentence for the Next area and Goal detail.
 func ReleaseBlockerPhrase(blocker data.GateBlocker) string {
 	switch blocker.Kind {
 	case data.GateBlockReleaseNoObjectives:
@@ -194,16 +193,6 @@ func ReleaseBlockerPhrase(blocker data.GateBlocker) string {
 			return fmt.Sprintf("Member Objective %s is not complete: %s", blocker.Objective, blocker.Detail)
 		}
 		return "A member Objective is not complete: " + blocker.Detail
-	case data.GateBlockReleaseIssueUnresolved:
-		if blocker.Issue != "" {
-			return fmt.Sprintf("Issue %s remains unresolved: %s", blocker.Issue, blocker.Detail)
-		}
-		return "A material Issue remains unresolved: " + blocker.Detail
-	case data.GateBlockOwnerAcceptance:
-		if blocker.Detail != "" {
-			return "Owner acceptance is required: " + blocker.Detail
-		}
-		return OwnerWaitPhrase("")
 	default:
 		if blocker.Detail != "" {
 			return "Goal completion is blocked: " + blocker.Detail
@@ -220,36 +209,6 @@ func HistoricalCompletionPhrase(releaseID string, reference *data.LegacyCompleti
 		return fmt.Sprintf("Historical completion: Goal %s is recorded done from archived legacy evidence; it is not a new V2 CLEAR Check.", releaseID)
 	}
 	return fmt.Sprintf("Historical completion: Goal %s is recorded done from archived legacy evidence at %s; it is not a new V2 CLEAR Check.", releaseID, reference.ArchivePath)
-}
-
-// ReleaseAcceptancePhrase reports the owner decision that permits a current
-// Release Check to close the Release promise. It is deliberately separate
-// from ClearancePhrase: technical currentness and product acceptance are two
-// different facts even when the gate has allowed completion.
-func ReleaseAcceptancePhrase(release *data.ReleaseV2, clearance *data.Clearance) string {
-	if release == nil {
-		return ReleaseAcceptancePhraseForEvidence("", nil, clearance)
-	}
-	return ReleaseAcceptancePhraseForEvidence(release.ID, release.Evidence, clearance)
-}
-
-// ReleaseAcceptancePhraseForEvidence is the same Release acceptance wording
-// for a resolved detail, which carries the record's evidence fields rather
-// than the full Release pointer.
-func ReleaseAcceptancePhraseForEvidence(releaseID string, evidence *data.Evidence, clearance *data.Clearance) string {
-	if clearance == nil || clearance.Check == "" {
-		if releaseID != "" {
-			return fmt.Sprintf("Goal readiness: Goal %s completion is allowed by the recorded Goal decision.", releaseID)
-		}
-		return "Goal readiness: completion is allowed by the recorded Goal decision."
-	}
-	if evidence != nil && evidence.OwnerValidation != nil {
-		accepted := evidence.OwnerValidation
-		if accepted.AcceptedCheck == clearance.Check {
-			return fmt.Sprintf("Goal readiness: Check %s is current and accepted by %s.", clearance.Check, ActorLabel(accepted.AcceptedBy))
-		}
-	}
-	return fmt.Sprintf("Goal readiness: Check %s is current and the recorded owner decision allows completion.", clearance.Check)
 }
 
 // implementationPhrase reports a Task's recorded status and stage as a

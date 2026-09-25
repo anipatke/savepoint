@@ -39,13 +39,13 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 - Every Task records per-criterion evidence and runs its configured gate before handoff.
 - Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
-- CI runs the full gate with `make ci`. A Full Objective or Goal Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- CI runs the full gate with `make ci`. A Full Objective Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
 - Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
   carry an explicit owner waiver naming the Task, reason, actor, and time.
   That waiver is not technical `CLEAR` and does not waive any acceptance
-  criterion, guardrail, Objective Check, or Goal Check.
+  criterion, guardrail, or Objective Check.
 - A recorded owner Task-check waiver does satisfy a `requires: clear` Task
   dependency: the owner's completion decision stands in for clear there. It
   never satisfies `requires: accepted`, since there is no Check to accept.
@@ -57,9 +57,6 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   the V2 equivalent of the epic-level integration gate and covers every owned
   Task, including Tasks whose optional Task Check was waived, plus cross-Task
   integration and Design reconciliation.
-- A Goal Check is mandatory for every Goal. It covers all member
-  Objectives and cross-Objective integration, followed by exact owner
-  acceptance of the current Check.
 
 The runtime gate resolvers and their tests in `internal/data` enforce this
 contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
@@ -86,12 +83,11 @@ remain errors. The board shows only the selected Goal's Objectives and Tasks;
 it never falls back to a project-wide view.
 
 Existing storage is unchanged: Goals use stable `R-###` records under
-`.savepoint/releases/` (`Release.md`), Objective `release:` references, router
-`release:` selections, and Check `scope.kind: release`. These names are a
-compatibility boundary, not the public board vocabulary. Goals group
-Objectives, do not own Tasks, and do not publish, deploy, tag, or generate
-changelogs. A Full Goal Check is mandatory for every Goal and covers
-cross-Objective integration before exact owner acceptance.
+`.savepoint/releases/` (`Release.md`), Objective `release:` references, and
+router `release:` selections. These names are a compatibility boundary, not
+the public board vocabulary. Goals group Objectives;
+a Goal is complete when every member Objective is complete. Goals do not own
+Tasks, and do not publish, deploy, tag, or generate changelogs.
 
 ## Terminology
 
@@ -123,13 +119,12 @@ Follow the active skill for execution. During `task`, the canonical flow is `sav
 Issue as `verified`. The owner may resolve an Issue as `accepted` with Space
 or reopen any resolved Issue with Backspace in the Issues panel. Board
 resolution records an owner decision without a Check; this does not claim
-technical `CLEAR` or waive a mandatory Objective or Goal Check. The owner
-closes Tasks and accepts Objective/Goal outcomes after the required evidence
-exists.
+technical `CLEAR` or waive a mandatory Objective Check. The owner closes
+Tasks and accepts Objective outcomes after the required evidence exists; Goal
+completion follows its member Objectives.
 
 - A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR` (it still satisfies a `requires: clear` dependency; see Verification Policy).
 - A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
-- A Goal Check is mandatory for every Goal and covers cross-Objective integration before exact owner acceptance.
 - The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
 - Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
 - Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
@@ -144,7 +139,7 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 
 ```bash
 make build && make test-fast   # ordinary Task handoff
-make test-full                 # migration/platform-sensitive Task or Full Objective/Goal Check
+make test-full                 # migration/platform-sensitive Task or Full Objective Check
 make ci                        # CI full gate plus distribution and package checks
 ```
 

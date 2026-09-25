@@ -39,7 +39,7 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 - `idea`: intent and boundary are being defined in `.savepoint/Idea.md`.
 - `design`: `Design.md`, `Guardrails.md`, and the current Objective's Tasks are being kept ready; see the Readiness Gate in `savepoint-design`.
 - `task`: the active Task is being built by `savepoint-task`, within the boundaries the planner already set.
-- `check`: a requested Task or the mandatory Objective/Goal scope is being independently verified by a fresh `savepoint-check` session.
+- `check`: a requested Task or the mandatory Objective scope is being independently verified by a fresh `savepoint-check` session.
 
 ## Terminology
 
@@ -56,7 +56,6 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
   the Task evidence; the waiver is not technical `CLEAR`.
 - The Full Objective Check is mandatory and includes every owned Task,
   including waived Tasks, cross-Task integration, and Design reconciliation.
-- A Goal Check is mandatory for every Goal, followed by exact owner
-  acceptance of the current Check.
+- A Goal is complete when every member Objective is complete.
 - Every Savepoint project must select a declared live Goal in router `release:`, and
   every live Objective must reference exactly one Goal in its `release:`.

@@ -115,8 +115,6 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 			next: data.Next{Kind: data.NextObjectiveReady, Objective: &data.ObjectiveV2{ID: "O-013", Title: "Finished", Status: data.ColumnDone}},
 			want: "Done O-013 — Finished",
 		},
-		{name: "goal check needed", next: data.Next{Kind: data.NextReleaseCheckNeeded, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Check R-001 — First delivery"},
-		{name: "goal awaiting owner", next: data.Next{Kind: data.NextReleaseOwnerValidationRequired, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Accept R-001 — First delivery"},
 		{name: "goal ready", next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Close R-001 — First delivery"},
 		{name: "goal with nothing selected", next: data.Next{Kind: data.NextNothingSelected, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Nothing selected"},
 	}
@@ -418,65 +416,50 @@ func TestRender_objectiveIntegrationOwnerWait(t *testing.T) {
 	}
 }
 
-func TestRender_releaseRungsKeepPromiseEvidenceAndActionDistinct(t *testing.T) {
-	release := &data.ReleaseV2{
-		ID: "R001", Title: "First delivery", Status: data.ColumnInProgress,
-		Outcome: "Ship the promised outcome.",
-		Evidence: &data.Evidence{OwnerValidation: &data.OwnerValidation{
-			AcceptedCheck: "C003", AcceptedBy: data.Actor{Role: data.ActorRoleOwner, Session: "owner-1"},
-		}},
-	}
-	current := &data.Clearance{State: data.ClearanceCurrent, Check: "C003", Freshness: &data.Freshness{
-		State: data.FreshnessCurrent, Check: "C003", AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "checker-1"},
-		AssessedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Basis: "release suite",
-	}}
-
-	cases := []struct {
-		name string
-		next data.Next
-		want []string
-	}{
-		{
-			name: "integration",
-			next: data.Next{Kind: data.NextReleaseIntegration, Release: release, GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockReleaseObjectiveIncomplete, Objective: "O001", Detail: "member objective is not complete"}}}},
-			want: []string{"Goal: R001 — First delivery", "Goal outcome: Ship the promised outcome.", "Goal readiness: Member Objective O001 is not complete", "Complete the member Objectives of Goal R001"},
+func TestRender_goalReadyUsesObjectiveCompletionWithoutGoalCheckEvidence(t *testing.T) {
+	next := data.Next{
+		Kind: data.NextReleaseReady,
+		Release: &data.ReleaseV2{
+			ID: "R001", Title: "First delivery", Status: data.ColumnInProgress,
+			Outcome: "Ship the promised outcome.",
+			Evidence: &data.Evidence{OwnerValidation: &data.OwnerValidation{
+				AcceptedCheck: "C003", AcceptedBy: data.Actor{Role: data.ActorRoleOwner, Session: "owner-1"},
+			}},
 		},
-		{
-			name: "check needed",
-			next: data.Next{Kind: data.NextReleaseCheckNeeded, Release: release, Clearance: &data.Clearance{State: data.ClearanceStale, Check: "C003", Freshness: current.Freshness}},
-			want: []string{"Technical clearance:", "clearance is stale", "Record a fresh Goal Check for R001"},
-		},
-		{
-			name: "owner wait",
-			next: data.Next{Kind: data.NextReleaseOwnerValidationRequired, Release: release, Clearance: current, GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockOwnerAcceptance}}}},
-			want: []string{"Technical clearance:", "Owner wait: Owner acceptance is required", "Ask the owner to accept the current Goal Check"},
-		},
-		{
-			name: "ready",
-			next: data.Next{Kind: data.NextReleaseReady, Release: release, Clearance: current, GateDecision: &data.GateDecision{Allowed: true}},
-			want: []string{"Goal readiness: Check C003 is current and accepted by owner session owner-1", "Record Goal R001 as done"},
-		},
-		{
-			name: "done by exception",
-			next: data.Next{Kind: data.NextReleaseReady, Release: release, GateDecision: &data.GateDecision{Allowed: true, AllowedByException: true, Exception: &data.Exception{Owner: "owner-1", Check: "C003", Reason: "accepted risk"}}},
-			want: []string{"Completion: Allowed by exception, not by clearance", "accepted risk", "Record Goal R001 as done under the recorded exception"},
-		},
-		{
-			name: "historical completion",
-			next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R001", Title: "First delivery", Status: data.ColumnDone}, GateDecision: &data.GateDecision{Allowed: true, AllowedByLegacyCompletion: true, LegacyCompletion: &data.LegacyCompletionReference{ArchivePath: ".savepoint/archive/release.md"}}},
-			want: []string{"Historical completion: Goal R001", "not a new V2 CLEAR Check", "Review the archived historical completion"},
-		},
+		Clearance:    &data.Clearance{State: data.ClearanceNeedsWork, Check: "C003"},
+		GateDecision: &data.GateDecision{Allowed: true, Actor: data.ActorRoleOwner},
 	}
 
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			text := renderText(test.next)
-			for _, want := range test.want {
-				if !strings.Contains(text, want) {
-					t.Errorf("renderText() = %q, want %q", text, want)
-				}
-			}
-		})
+	text := renderText(next)
+	for _, want := range []string{
+		"Goal: R001 — First delivery",
+		"Goal outcome: Ship the promised outcome.",
+		"Goal readiness: every member Objective is complete.",
+		"Record Goal R001 as done.",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("renderText() = %q, want %q", text, want)
+		}
+	}
+	for _, obsolete := range []string{"Goal Check", "Technical clearance:", "Owner wait:"} {
+		if strings.Contains(text, obsolete) {
+			t.Errorf("renderText() = %q, must not include %q", text, obsolete)
+		}
+	}
+}
+
+func TestRender_legacyGoalCompletionStillShowsArchiveEvidence(t *testing.T) {
+	next := data.Next{
+		Kind:    data.NextReleaseReady,
+		Release: &data.ReleaseV2{ID: "R001", Title: "First delivery", Status: data.ColumnDone},
+		GateDecision: &data.GateDecision{Allowed: true, AllowedByLegacyCompletion: true,
+			LegacyCompletion: &data.LegacyCompletionReference{ArchivePath: ".savepoint/archive/release.md"}},
+	}
+	text := renderText(next)
+	for _, want := range []string{"Historical completion: Goal R001", "not a new V2 CLEAR Check", "Review the archived historical completion"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("renderText() = %q, want %q", text, want)
+		}
 	}
 }
 

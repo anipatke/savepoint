@@ -68,7 +68,7 @@ checked_at: '2026-09-15T00:00:00Z'
 	}
 }
 
-func TestResolveReleaseCompletion_requiresMemberObjectivesAndCurrentAcceptance(t *testing.T) {
+func TestResolveReleaseCompletion_requiresMemberObjectivesOnly(t *testing.T) {
 	index := releaseGateIndex()
 	index.ReleaseObjectives["R-001"] = nil
 	got := ResolveReleaseCompletion(index, "R-001")
@@ -84,55 +84,41 @@ func TestResolveReleaseCompletion_requiresMemberObjectivesAndCurrentAcceptance(t
 	}
 
 	index = releaseGateIndex()
+	index.Checks["C-002"].Result = CheckResultNeedsWork
 	got = ResolveReleaseCompletion(index, "R-001")
-	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockOwnerAcceptance {
-		t.Fatalf("unaccepted decision = %+v, want owner blocker", got)
-	}
-
-	index.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{
-		AcceptedCheck: "C-002",
-		AcceptedBy:    Actor{Role: ActorRoleOwner, Session: "owner-1"},
-	}
-	got = ResolveReleaseCompletion(index, "R-001")
-	if !got.Allowed || got.Actor != ActorRoleChecker {
-		t.Fatalf("accepted decision = %+v, want allowed by current Release Check", got)
+	if !got.Allowed || got.Actor != ActorRoleOwner {
+		t.Fatalf("member-complete decision with a NEEDS WORK Goal Check = %+v, want owner completion allowed", got)
 	}
 }
 
-func TestResolveReleaseCompletion_refusesEveryNonCurrentReleaseState(t *testing.T) {
+func TestResolveReleaseCompletion_ignoresEveryGoalCheckClearanceState(t *testing.T) {
 	tests := []struct {
-		name       string
-		configure  func(*V2Index)
-		wantKind   GateBlockKind
-		wantDetail string
+		name      string
+		configure func(*V2Index)
 	}{
 		{
 			name: "missing",
 			configure: func(index *V2Index) {
 				index.LatestCheck["R-001"] = ""
 			},
-			wantKind: GateBlockClearanceMissing,
 		},
 		{
 			name: "unknown",
 			configure: func(index *V2Index) {
 				index.Releases["R-001"].Evidence.Freshness.State = FreshnessUnknown
 			},
-			wantKind: GateBlockClearanceUnknown,
 		},
 		{
 			name: "stale",
 			configure: func(index *V2Index) {
 				index.Releases["R-001"].Evidence.Freshness.State = FreshnessStale
 			},
-			wantKind: GateBlockClearanceStale,
 		},
 		{
 			name: "needs work",
 			configure: func(index *V2Index) {
 				index.Checks["C-002"].Result = CheckResultNeedsWork
 			},
-			wantKind: GateBlockClearanceNeedsWork,
 		},
 	}
 
@@ -141,58 +127,62 @@ func TestResolveReleaseCompletion_refusesEveryNonCurrentReleaseState(t *testing.
 			index := releaseGateIndex()
 			tt.configure(index)
 			got := ResolveReleaseCompletion(index, "R-001")
-			if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != tt.wantKind {
-				t.Fatalf("decision = %+v, want one %s blocker", got, tt.wantKind)
+			if !got.Allowed || got.Actor != ActorRoleOwner || len(got.Blockers) != 0 {
+				t.Fatalf("decision = %+v, want member-based Goal completion regardless of Goal Check state", got)
 			}
 		})
 	}
 }
 
-func TestResolveReleaseCompletion_requiresIssueResolutionOrScopedException(t *testing.T) {
+func TestResolveReleaseCompletion_ignoresGoalCheckAndItsIssues(t *testing.T) {
 	index := releaseGateIndex()
 	index.Checks["C-002"].Issues = []string{"I-001"}
 	index.Issues["I-001"] = &IssueV2{ID: "I-001", Status: IssueStatusOpen}
 	index.CheckIssues["C-002"] = []string{"I-001"}
+	index.Checks["C-002"].Result = CheckResultNeedsWork
 
 	got := ResolveReleaseCompletion(index, "R-001")
-	if got.Allowed || len(got.Blockers) != 2 {
-		t.Fatalf("unresolved issue decision = %+v, want issue and owner blockers", got)
-	}
-	if got.Blockers[0].Kind != GateBlockReleaseIssueUnresolved || got.Blockers[0].Issue != "I-001" {
-		t.Fatalf("first blocker = %+v, want unresolved I-001", got.Blockers[0])
-	}
-
 	index.Releases["R-001"].Evidence.Exception = &Exception{
 		Requirements: []string{"I-001"}, Reason: "owner accepted the known risk",
 		Owner: "owner-1", Check: "C-002",
 	}
-	index.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{
-		AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
-	}
 	got = ResolveReleaseCompletion(index, "R-001")
-	if !got.Allowed || !got.AllowedByException || got.Exception == nil {
-		t.Fatalf("exception decision = %+v, want allowed by scoped owner exception", got)
+	if !got.Allowed || got.AllowedByException || got.Exception != nil || got.Actor != ActorRoleOwner {
+		t.Fatalf("decision with a NEEDS WORK Goal Check, unresolved linked Issue, and Goal exception = %+v, want ordinary member-based completion", got)
 	}
 }
 
-// Owner acceptance of a superseded Check does not carry forward to the newer
-// run; the newer CLEAR Check is itself current, so only acceptance blocks.
-func TestResolveReleaseCompletion_supersededAcceptanceDoesNotCarryForward(t *testing.T) {
+func TestResolveReleaseCompletion_allowsCompleteMembersWithoutGoalCheck(t *testing.T) {
 	index := releaseGateIndex()
-	index.Checks["C-003"] = &CheckV2{
-		ID: "C-003", Scope: CheckScope{Kind: CheckScopeRelease, ID: "R-001"},
-		Result: CheckResultClear, CheckedBy: Actor{Role: ActorRoleChecker, Session: "checker-release-2"},
-		ExecutedSession: "build-release-2", Supersedes: "C-002",
+	delete(index.Checks, "C-002")
+	delete(index.ScopeChecks, "R-001")
+	delete(index.LatestCheck, "R-001")
+	index.Releases["R-001"].Evidence = nil
+
+	got := ResolveReleaseCompletion(index, "R-001")
+	if !got.Allowed || got.Actor != ActorRoleOwner {
+		t.Fatalf("decision without Goal Check evidence = %+v, want allowed", got)
 	}
-	index.ScopeChecks["R-001"] = []string{"C-002", "C-003"}
-	index.LatestCheck["R-001"] = "C-003"
-	index.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{
-		AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"},
+}
+
+func TestResolveReleaseCompletion_legacyCompletionWithLiveMembersIsUnchanged(t *testing.T) {
+	index := releaseGateIndex()
+	index.Releases["R-001"].Status = ColumnDone
+	index.Releases["R-001"].Evidence = nil
+	index.Releases["R-001"].LegacyCompletion = &LegacyCompletionReference{
+		SourcePath: "releases/v1/PRD.md", ArchivePath: ".savepoint/archive/v1/releases/v1/PRD.md",
+		SHA256: strings.Repeat("a", 64),
 	}
 
 	got := ResolveReleaseCompletion(index, "R-001")
-	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockOwnerAcceptance {
-		t.Fatalf("superseded decision = %+v, want owner acceptance of C-003", got)
+	if !got.Allowed || !got.AllowedByLegacyCompletion || got.LegacyCompletion == nil {
+		t.Fatalf("legacy member-complete decision = %+v, want preserved historical completion", got)
+	}
+
+	index.Objectives["O-001"].Status = ColumnPlanned
+	got = ResolveReleaseCompletion(index, "R-001")
+	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockReleaseObjectiveIncomplete {
+		t.Fatalf("legacy incomplete-member decision = %+v, want member blocker", got)
 	}
 }
 

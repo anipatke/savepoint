@@ -52,5 +52,4 @@ This contract applies to every implementation:
   equivalent of the epic-level integration gate and reviews every owned Task,
   including waived Tasks, cross-Task integration, and reconciliation against
   this Design.
-- A Goal Check is mandatory whenever a Goal exists, followed by exact owner
-  acceptance of the current Check.
+- A Goal is complete when every member Objective is complete.

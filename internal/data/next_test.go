@@ -579,42 +579,29 @@ func TestResolveNext_selectedReleaseWithoutObjectiveDoesNotChooseActiveTask(t *t
 	}
 }
 
-func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T) {
+func TestResolveNext_selectedReleaseWithCompleteMembersIsReadyRegardlessOfGoalCheck(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(*V2Index)
-		wantKind  NextKind
 	}{
 		{
-			name: "release Check needed",
-			configure: func(index *V2Index) {
-				index.Releases = map[string]*ReleaseV2{"R-001": {ID: "R-001"}}
-				index.ReleaseObjectives = map[string][]string{}
-				index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Release: "R-001", Status: ColumnDone, Evidence: &Evidence{Freshness: &Freshness{State: FreshnessCurrent, Check: "C-001", AssessedBy: Actor{Role: ActorRoleChecker, Session: "objective-checker"}, Basis: "done"}}}
-				index.Tasks["T-001"] = &TaskV2{ID: "T-001", Objective: "O-001", Status: ColumnDone}
-				index.ObjectiveTasks["O-001"] = []string{"T-001"}
-				index.ReleaseObjectives["R-001"] = []string{"O-001"}
-				mustObjectiveCheck(index, "C-001", "O-001", CheckResultClear)
-			},
-			wantKind: NextReleaseCheckNeeded,
-		},
-		{
-			name: "owner acceptance needed",
-			configure: func(index *V2Index) {
-				// releaseGateIndex has done member work and current Release clearance.
-				configured := releaseGateIndex()
-				*index = *configured
-			},
-			wantKind: NextReleaseOwnerValidationRequired,
-		},
-		{
-			name: "release ready",
+			name: "no Goal Check",
 			configure: func(index *V2Index) {
 				configured := releaseGateIndex()
-				configured.Releases["R-001"].Evidence.OwnerValidation = &OwnerValidation{AcceptedCheck: "C-002", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "owner-1"}}
+				delete(configured.Checks, "C-002")
+				delete(configured.ScopeChecks, "R-001")
+				delete(configured.LatestCheck, "R-001")
+				configured.Releases["R-001"].Evidence = nil
 				*index = *configured
 			},
-			wantKind: NextReleaseReady,
+		},
+		{
+			name: "NEEDS WORK Goal Check",
+			configure: func(index *V2Index) {
+				configured := releaseGateIndex()
+				configured.Checks["C-002"].Result = CheckResultNeedsWork
+				*index = *configured
+			},
 		},
 	}
 
@@ -623,11 +610,11 @@ func TestResolveNext_selectedReleaseProjectsCheckOwnerAndReadyRungs(t *testing.T
 			index := newV2TestIndex()
 			tt.configure(index)
 			next := resolveNextWithTestGoal(NextInput{Index: index, Router: &RouterStateV2{Release: "R-001"}})
-			if next.Kind != tt.wantKind {
-				t.Fatalf("next.Kind = %q, want %q; next = %+v", next.Kind, tt.wantKind, next)
+			if next.Kind != NextReleaseReady {
+				t.Fatalf("next.Kind = %q, want %q; next = %+v", next.Kind, NextReleaseReady, next)
 			}
-			if next.Release == nil || next.Release.ID != "R-001" || next.GateDecision == nil || next.Clearance == nil {
-				t.Fatalf("next = %+v, want typed Release, gate decision, and clearance", next)
+			if next.Release == nil || next.Release.ID != "R-001" || next.GateDecision == nil || !next.GateDecision.Allowed || next.Clearance != nil {
+				t.Fatalf("next = %+v, want ready Release decision with no Goal Check clearance", next)
 			}
 		})
 	}

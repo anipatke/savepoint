@@ -267,17 +267,8 @@ const (
 	// NextObjectiveReady means all owned Tasks are done and the Objective's
 	// existing completion resolver allows the owner to record it as done.
 	NextObjectiveReady NextKind = "objective_ready"
-	// NextReleaseIntegration means the selected Release has a material
-	// Release-level integration blocker after its member Objectives are done.
-	NextReleaseIntegration NextKind = "release_integration"
-	// NextReleaseCheckNeeded means member Objective work is complete but the
-	// selected Release lacks usable current technical clearance.
-	NextReleaseCheckNeeded NextKind = "release_check_needed"
-	// NextReleaseOwnerValidationRequired means the Release Check is current
-	// and the owner must accept that exact Check.
-	NextReleaseOwnerValidationRequired NextKind = "release_owner_validation_required"
 	// NextReleaseReady means the Release completion decision is allowed and
-	// the next action is to record the Release as done.
+	// the next action is for the owner to record the Release as done.
 	NextReleaseReady NextKind = "release_ready"
 	// NextSelectTask means the selected Objective owns unfinished Tasks but
 	// the router has not selected which one to work on.
@@ -459,8 +450,8 @@ func resolveLadder(index *V2Index, selection Selection, diagnostic *SelectionDia
 
 // resolveReleaseLadder applies existing gate resolvers to the selected
 // Release's explicitly selected Objective/Task. With no Objective selected,
-// it reports Release completion only after the resolver confirms there are no
-// unfinished member Objectives. No other member is selected by search.
+// it reports whether the member Objectives allow the owner to complete the
+// Release. No other member is selected by search.
 func resolveReleaseLadder(index *V2Index, selection Selection) Next {
 	release := selection.Release
 	if task := selection.Task; task != nil && task.Status != ColumnDone {
@@ -471,14 +462,7 @@ func resolveReleaseLadder(index *V2Index, selection Selection) Next {
 		return withRelease(resolveSelectedObjective(index, selection.Objective), release)
 	}
 
-	completion := resolveReleaseCompletionRung(index, release)
-	for _, blocker := range completion.GateDecision.Blockers {
-		if blocker.Kind == GateBlockReleaseNoObjectives || blocker.Kind == GateBlockReleaseObjectiveIncomplete {
-			return Next{Kind: NextNothingSelected, Release: release}
-		}
-	}
-
-	return completion
+	return resolveReleaseCompletionRung(index, release)
 }
 
 func withRelease(next Next, release *ReleaseV2) Next {
@@ -486,34 +470,19 @@ func withRelease(next Next, release *ReleaseV2) Next {
 	return next
 }
 
-// resolveReleaseCompletionRung maps the existing Release completion decision
-// to its Check, owner-acceptance, ready, or integration action. The caller
-// reaches it only when no Objective is selected.
+// resolveReleaseCompletionRung maps the Release completion decision to the
+// ready action or an unselected state. The caller reaches it only when no
+// Objective is selected.
 func resolveReleaseCompletionRung(index *V2Index, release *ReleaseV2) Next {
 	decision := ResolveReleaseCompletion(index, release.ID)
-	clearance := ResolveClearance(index, release.ID)
-	next := Next{Release: release, GateDecision: &decision, Clearance: &clearance}
+	next := Next{Release: release, GateDecision: &decision}
 
 	if decision.Allowed {
 		next.Kind = NextReleaseReady
 		return next
 	}
 
-	if len(decision.Blockers) == 1 && decision.Blockers[0].Kind == GateBlockOwnerAcceptance {
-		next.Kind = NextReleaseOwnerValidationRequired
-		return next
-	}
-
-	for _, blocker := range decision.Blockers {
-		switch blocker.Kind {
-		case GateBlockClearanceMissing, GateBlockClearanceNeedsWork,
-			GateBlockClearanceStale, GateBlockClearanceUnknown, GateBlockCheckerAuthority:
-			next.Kind = NextReleaseCheckNeeded
-			return next
-		}
-	}
-
-	next.Kind = NextReleaseIntegration
+	next.Kind = NextNothingSelected
 	return next
 }
 

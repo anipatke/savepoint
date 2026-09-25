@@ -2,10 +2,19 @@
 id: T-048
 title: Stop describing a Goal Check in guidance
 objective: O-025
-status: planned
+status: done
 depends_on: [{task: T-047, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: o025-plan-20260925}
+check_waiver:
+    task: T-048
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-25T20:58:09Z"
 ---
 
 # Stop describing a Goal Check in guidance
@@ -99,7 +108,66 @@ make test-fast` at handoff; the Full Objective Check requires
 
 ## Technical Evidence
 
-Pending execution.
+Started 2026-09-26 from the owner-supplied router selection `Start T-048`;
+the selection confirmed the required T-047 `clear` dependency. The owning
+Objective O-025 was already `in_progress`.
+
+Acceptance criteria:
+
+- **Design completion and verification order — proven:** Design now derives
+  Goal completion from all member Objectives, lists only Task and Objective
+  Checks, and retains one compatibility note that old `scope.kind: release`
+  records load but are not read by completion decisions.
+- **Guardrails — proven:** TEST-08, TEST-09, and the Check summary describe
+  only Task and Objective Checks.
+- **AGENTS.md, router, README — proven:** these guides describe only the
+  optional Task Check and mandatory Full Objective Check; Goal completion is
+  based on member Objectives.
+- **Skills and references — proven:** the Check, Design, and Task skills and
+  all three shared references no longer describe a Goal Check. The Design
+  skill's Goal completion rule derives completion from its Objectives.
+- **Scaffold copies — proven:** corresponding scaffold wording was updated;
+  skill and reference parity checks pass.
+- **Tests and migration goldens — proven:** `agent_skills_test.go` now expects
+  Objective-only Check guidance and a valid Task-scoped artifact example.
+  `template_freshness_test.go` needed no expectation change; migration
+  goldens needed no update.
+- **Handoff gate — proven:** final `make build && make test-fast` passed.
+
+Guidance search: no active guidance contains “Goal Check” or “Release Check”;
+the sole `scope.kind: release` mention is the Design compatibility note.
+AGENTS.md's Verification Policy and Check sections name only Task and
+Objective Checks.
+
+Commands and results:
+
+- `make build && make test-fast` — final run passed all packages. Earlier
+  iteration runs exposed stale assertions and an invalid placeholder scope in
+  the Check example; both were corrected before the passing run.
+- `go test ./internal/init -count=1` — an intermediate diagnostic run caught
+  the same invalid placeholder scope; the final fast gate passed after it was
+  replaced with a valid Task scope.
+- `git diff --check` — passed after all content edits.
+- Targeted `rg` guidance searches — passed; only the Design compatibility
+  note retains `scope.kind: release`.
+
+Files read: `.savepoint/router.md`, this Task, `.savepoint/objectives/O-025-remove-the-goal-check/Objective.md`, `.savepoint/Design.md`, `.savepoint/Guardrails.md`, `AGENTS.md`, `README.md`, the live Check/Design/Task skills, the three live shared references, all listed `templates/project-v2` copies, `internal/init/template_freshness_test.go`, and `internal/init/agent_skills_test.go`. The required `savepoint-task` workflow skill was also read. The five files under `internal/migrate/testdata/golden/` were scanned for changed guidance phrases; none matched.
+
+Files changed: `.savepoint/Design.md`, `.savepoint/Guardrails.md`,
+`.savepoint/router.md`, `AGENTS.md`, `README.md`, the live Check/Design/Task
+skills and three shared references, the corresponding scaffold files, this
+Task's evidence, and `internal/init/agent_skills_test.go`.
+
+Extra reads: `internal/migrate/testdata/golden/v1-basic.yml`,
+`v1-history.yml`, `v1-router-archived.yml`, `v1-router-missing.yml`, and
+`v1-router-unresolvable.yml` were searched for the changed guidance phrases.
+No matches were found, so their expected text did not change. This targeted
+read was needed because the implementation plan allows updating migration
+goldens when their guidance text changes and those paths are outside the
+Context Files.
+
+Limitations: no optional independent Task Check or owner waiver has been
+recorded. The Task is at `audit` for the owner's handoff decision.
 
 ## Drift Notes
 

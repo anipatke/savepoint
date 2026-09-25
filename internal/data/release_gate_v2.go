@@ -7,11 +7,8 @@ import (
 )
 
 // ResolveReleaseCompletion decides whether a Release may be recorded as done.
-// Release membership comes only from the Objective release references. The
-// decision composes the existing Objective completion decision, the shared
-// Check freshness resolver, the Check-to-Issue link map, and the shared owner
-// exception vocabulary; it does not create a second version of any of those
-// rules.
+// Release membership comes only from Objective release references, and every
+// member must pass the existing Objective completion decision.
 func ResolveReleaseCompletion(index *V2Index, releaseID string) GateDecision {
 	if index == nil {
 		return GateDecision{}
@@ -97,58 +94,7 @@ func resolveReleaseCompletionForRecord(index *V2Index, release *ReleaseV2) GateD
 		return GateDecision{Blockers: blockers}
 	}
 
-	clearance := ResolveClearance(index, release.ID)
-	switch clearance.State {
-	case ClearanceMissing:
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceMissing, Detail: "no recorded Release Check"}}}
-	case ClearanceNeedsWork:
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceNeedsWork, Detail: fmt.Sprintf("latest Release Check %s recorded NEEDS WORK", clearance.Check)}}}
-	case ClearanceStale:
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceStale, Detail: fmt.Sprintf("Release freshness assessment marks latest Check %s stale", clearance.Check)}}}
-	case ClearanceUnknown:
-		if untrustedCurrentClearance(index, release.ID, clearance.Check) {
-			return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockCheckerAuthority, Detail: fmt.Sprintf("latest Release Check %s lacks independent checker provenance", clearance.Check)}}}
-		}
-		return GateDecision{Blockers: []GateBlocker{{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("Release freshness assessment marks latest Check %s unknown", clearance.Check)}}}
-	case ClearanceCurrent:
-		// Continue with material Issue and owner-acceptance composition below.
-	}
-
-	exception := applicableException(release.Evidence, clearance.Check)
-	exceptionUsed := false
-	for _, issueID := range checkIssueIDs(index, clearance.Check) {
-		issue := index.Issues[issueID]
-		if issue == nil || issue.Status == IssueStatusResolved {
-			continue
-		}
-		if exception != nil && releaseExceptionCoversIssue(exception, issueID) {
-			exceptionUsed = true
-			continue
-		}
-		blockers = append(blockers, GateBlocker{
-			Kind:   GateBlockReleaseIssueUnresolved,
-			Issue:  issueID,
-			Detail: fmt.Sprintf("material Issue %s linked to Release Check %s remains %s", issueID, clearance.Check, issue.Status),
-		})
-	}
-
-	// Release acceptance is mandatory even when every material Issue is
-	// covered by an owner exception. A Release promise is not complete merely
-	// because a checker recorded CLEAR.
-	if !ownerAcceptedCheck(release.Evidence, clearance.Check) {
-		blockers = append(blockers, GateBlocker{
-			Kind:   GateBlockOwnerAcceptance,
-			Detail: fmt.Sprintf("owner has not accepted current Release Check %s", clearance.Check),
-		})
-	}
-
-	if len(blockers) > 0 {
-		return GateDecision{Blockers: blockers}
-	}
-	if exceptionUsed {
-		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
-	}
-	return GateDecision{Allowed: true, Actor: ActorRoleChecker}
+	return GateDecision{Allowed: true, Actor: ActorRoleOwner}
 }
 
 // checkIssueIDs reads the indexed Check-to-Issue links and falls back
@@ -176,16 +122,4 @@ func mapsKeysString(values map[string]struct{}) []string {
 		keys = append(keys, key)
 	}
 	return keys
-}
-
-func releaseExceptionCoversIssue(exception *Exception, issueID string) bool {
-	if exception == nil {
-		return false
-	}
-	for _, requirement := range exception.Requirements {
-		if requirement == issueID || requirement == "issue:"+issueID || requirement == "release.issue:"+issueID {
-			return true
-		}
-	}
-	return false
 }

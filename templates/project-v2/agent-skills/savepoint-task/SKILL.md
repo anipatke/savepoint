@@ -54,7 +54,7 @@ It must never: edit the Task's acceptance criteria to match what was actually bu
 - **Verify implementation:** `stage: build` → `test` → `audit`, recording acceptance-criterion evidence and required command results along the way. `audit` means ready for an optional Task Check or mandatory Objective Check — it is never recorded or described as passed.
 - **Replan:** keep the current `status` and `stage`; set the replan reason with handoff evidence; preserve partial work; stop for the planner.
 - **After a Task Check:** a `NEEDS WORK` Check resumes repair at `stage: build` within the same Task. A `CLEAR` Check does not close the Task by itself — completion and `status: done` are the owner's action, never something this skill sets for itself.
-- **After a mandatory Objective or Goal Check:** a `NEEDS WORK` result never retreats a Task that is already `done` — by default the executor repairs it directly under its recorded Issue, with the router selecting that Issue and the repair recorded as `repair_attempted` (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); only a repair that needs planning becomes a new or newly selected Task under that Objective.
+- **After a mandatory Objective Check:** a `NEEDS WORK` result never retreats a Task that is already `done` — by default the executor repairs it directly under its recorded Issue, with the router selecting that Issue and the repair recorded as `repair_attempted` (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); only a repair that needs planning becomes a new or newly selected Task under that Objective.
 - **After a direct Issue repair:** once `repair_attempted` is recorded, advance an Issue-only router selection as specified in `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair. Preserve `release:` and show the resulting `savepoint resume` Next line.
 - **Without a Task Check:** an explicit owner waiver is recorded in the Task evidence. It waives only the optional local Check; it does not create technical `CLEAR` or replace the mandatory Full Objective Check. It does satisfy a downstream Task dependency that requires `clear` — never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
@@ -89,7 +89,7 @@ Use the repository's gate names consistently:
 - `make test-focused TEST=...` is an iteration aid and does not satisfy handoff gates.
 - Ordinary Task handoff requires `make build && make test-fast`.
 - Migration or platform-sensitive Task handoff requires a fresh `make test-full`.
-- CI, the mandatory Full Objective Check, and a mandatory Goal Check require the full gate. In this repository, `make ci` includes `make test-full`.
+- CI and the mandatory Full Objective Check require the full gate. In this repository, `make ci` includes `make test-full`.
 - Reuse a successful full result only for a metadata-only correction. Record the original command, time, toolchain, and result, and prove that code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 
 ## Evidence And Handoff

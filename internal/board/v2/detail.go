@@ -227,7 +227,6 @@ func newReleaseDetail(index *data.V2Index, releaseID string) (RecordDetail, bool
 		Boundaries:        release.Boundaries,
 		ReleaseDecision:   &decision,
 		LegacyCompletion:  release.LegacyCompletion,
-		Clearance:         data.ResolveClearance(index, release.ID),
 		Evidence:          release.Evidence,
 		Checks:            checkHistory(index, release.ID),
 		StyleReview:       latestStyleReview(index, release.ID),

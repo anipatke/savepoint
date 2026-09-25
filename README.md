@@ -35,18 +35,18 @@ Savepoint makes those boundaries explicit:
   hidden in a prompt or a chat transcript.
 - **Check at the right level.** A Task Check is optional and may be explicitly
   waived by the owner. The mandatory Full Objective Check verifies every owned
-  Task and its integration; a Full Goal Check is mandatory for every Goal.
+  Task and its integration.
 - **Keep ownership clear.** Agents implement and prove their work; people
   decide whether the outcome is what they wanted.
 - **Every project has a Goal.** The router selects a live Goal, and every
-  Objective belongs to exactly one Goal. A mandatory Full Goal Check and owner
-  acceptance are required before marking it done. Goals do not publish,
-  deploy, tag, or generate changelogs.
+  Objective belongs to exactly one Goal. A Goal is complete when every member
+  Objective is complete. Goals do not publish, deploy, tag, or generate
+  changelogs.
 
 Existing V2 projects keep the compatibility storage names: stable `R-###`
 identities under `.savepoint/releases/` as `Release.md`, Objective `release:`
-references, router `release:` selections, and Check `scope.kind: release`. The
-V2 board presents these records as Goals. `savepoint init` creates and selects
+references, and router `release:` selections. The V2 board presents these
+records as Goals. `savepoint init` creates and selects
 R-001, titled after the project. `savepoint migrate` retains the V1 router's
 live Goal and, on an unresolved selection, reuses a uniquely identifiable
 existing live Goal for the active work when possible. If selected work belongs
@@ -63,9 +63,9 @@ those things a shared workflow.
 ## The workflow
 
 ```text
-IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK  ─────►  GOAL CHECK
-  intent       architecture    bounded      mandatory Full           mandatory Full
-  & outcome    & guardrails    execution     integration              cross-Objective
+IDEA  ─────►  DESIGN  ─────►  TASK  ─────►  OBJECTIVE CHECK
+  intent       architecture    bounded      mandatory Full
+  & outcome    & guardrails    execution     integration
                                       ╰─ optional Quick Task Check
                                          or explicit owner waiver
 ```
@@ -97,8 +97,7 @@ requests it. If the owner skips that local review, the Task evidence records an
 explicit waiver; the waiver is not technical `CLEAR` and does not waive any
 acceptance criterion or guardrail. Before an Objective closes, a mandatory
 Full Objective Check verifies every owned Task, cross-Task integration, and
-Design reconciliation. A mandatory Full Goal Check for every Goal verifies
-cross-Objective integration before the owner accepts that exact Check.
+Design reconciliation.
 
 ## Quick start
 

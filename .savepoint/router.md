@@ -19,7 +19,7 @@ selection; the command does not write project files.
 state: task
 release: R-006
 objective: O-025
-task: T-047
+task: none
 issue: none
 ```
 
@@ -30,7 +30,7 @@ issue: none
 | `idea` | `savepoint-idea` | Capture intent and boundaries in `.savepoint/Idea.md`. |
 | `design` | `savepoint-design` | Reconcile architecture, guardrails, and Objective plan. |
 | `task` | `savepoint-task` | Execute the active Task within its Context Files; choose an optional Task Check or route evidence to the mandatory Full Objective Check. |
-| `check` | `savepoint-check` | Independently verify a requested Task or the mandatory Objective/Goal scope and record immutable evidence. |
+| `check` | `savepoint-check` | Independently verify a requested Task or the mandatory Objective scope and record immutable evidence. |
 
 `REPLAN REQUIRED` is not a fifth state. It routes the current plan back to
 `design` while preserving partial work and the executor's current lifecycle.
@@ -43,8 +43,8 @@ issue: none
   close it.
 - A Task Check is optional and may be skipped only with an explicit owner
   waiver recorded in the Task evidence; that waiver is not technical `CLEAR`.
-- A Full Objective Check is mandatory before Objective completion, and a
-  Goal Check is mandatory for every Goal.
+- A Full Objective Check is mandatory before Objective completion.
+- A Goal is complete when every member Objective is complete.
 - Issues are durable follow-up records, not a fourth task column or router
   state. A checker closes a proven Issue as `verified`; the owner may explicitly close one as `accepted`, and the planner may close a promoted Issue as `escalated`.
 - Every Savepoint project must select a declared live Goal in router `release:`, and

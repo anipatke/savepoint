@@ -234,7 +234,7 @@ func TestDetailShowsOnlyLatestChecksCodeStyleReview(t *testing.T) {
 
 func TestGoalDetailShowsLatestChecksCodeStyleReview(t *testing.T) {
 	root := writeReleaseBoardProject(t)
-	writeCheck(t, root, "C-020", "release", "R-001", "CLEAR")
+	writeCheck(t, root, "C-020", "release", "R-001", "NEEDS WORK")
 	appendCheckBody(t, root, "C-020", "\n## Code Style Review\n\n- [x] STYLE-01\n")
 	model := openSizedBoard(t, root, 130, 48)
 	detail, ok := newReleaseDetail(model.State.Index, "R-001")
@@ -242,7 +242,12 @@ func TestGoalDetailShowsLatestChecksCodeStyleReview(t *testing.T) {
 		t.Fatal("Goal detail did not resolve")
 	}
 	lines := strings.Join(detailLines(detail, 120), "\n")
-	requireContains(t, lines, "CODE STYLE (C-020)", "- [x] STYLE-01")
+	requireContains(t, lines, "CODE STYLE (C-020)", "- [x] STYLE-01", "C-020  NEEDS WORK  [latest]")
+	for _, obsolete := range []string{"CLEARANCE", "OWNER VALIDATION", "Goal Check"} {
+		if strings.Contains(lines, obsolete) {
+			t.Errorf("Goal detail includes obsolete Goal Check output %q:\n%s", obsolete, lines)
+		}
+	}
 }
 
 // Each clearance state gets its own sentence, including the second one

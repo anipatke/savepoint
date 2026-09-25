@@ -43,16 +43,10 @@ func resumeMatrixCases() []matrixCase {
 			wantAction: "Start Task T-001.",
 		},
 		{
-			name:       "selected Release needs its integration Check",
-			build:      matrixBuildReleaseCheckNeeded,
-			wantKind:   data.NextReleaseCheckNeeded,
-			wantAction: "Record a fresh Goal Check for R-001.",
-		},
-		{
-			name:       "selected Release waits for owner validation",
-			build:      matrixBuildReleaseOwnerValidation,
-			wantKind:   data.NextReleaseOwnerValidationRequired,
-			wantAction: "Ask the owner to accept the current Goal Check.",
+			name:       "selected Release ignores a NEEDS WORK Goal Check",
+			build:      matrixBuildReleaseNeedsWorkGoalCheck,
+			wantKind:   data.NextReleaseReady,
+			wantAction: "Record Goal R-001 as done.",
 		},
 		{
 			name:       "selected Release is ready",
@@ -196,9 +190,9 @@ func matrixReleaseRouter(t *testing.T, dir, release, objective, task string) {
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "router.md"), content)
 }
 
-func matrixReleaseCheck(t *testing.T, dir, id, scope, target string) {
+func matrixReleaseCheck(t *testing.T, dir, id, scope, target, result string) {
 	t.Helper()
-	content := "---\nid: " + id + "\nscope: {kind: " + scope + ", id: " + target + "}\nresult: CLEAR\n" +
+	content := "---\nid: " + id + "\nscope: {kind: " + scope + ", id: " + target + "}\nresult: " + result + "\n" +
 		"checked_by: {role: checker, session: checker-" + id + "}\nexecuted_session: executor-" + id +
 		"\nchecked_at: '2026-09-14T00:00:00Z'\n---\n\n# Check\n"
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "checks", id+"-fixture.md"), content)
@@ -213,29 +207,20 @@ func matrixBuildReleaseExecute(t *testing.T, dir string) {
 	matrixReleaseRouter(t, dir, "R-001", "O-001", "T-001")
 }
 
-func matrixBuildReleaseCheckNeeded(t *testing.T, dir string) {
+func matrixBuildReleaseNeedsWorkGoalCheck(t *testing.T, dir string) {
+	t.Helper()
+	matrixBuildReleaseReady(t, dir)
+	matrixReleaseCheck(t, dir, "C-002", "release", "R-001", "NEEDS WORK")
+}
+
+func matrixBuildReleaseReady(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
 	matrixRelease(t, dir, "in_progress", "")
 	matrixReleaseObjective(t, dir, "done", "last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
 	matrixReleaseTask(t, dir, "done")
-	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
+	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001", "CLEAR")
 	matrixReleaseRouter(t, dir, "R-001", "none", "none")
-}
-
-func matrixBuildReleaseOwnerValidation(t *testing.T, dir string) {
-	t.Helper()
-	matrixBuildReleaseCheckNeeded(t, dir)
-	// Re-write the Release with its current technical evidence, but without
-	// owner acceptance, so the Release gate reaches its owner-wait rung.
-	matrixRelease(t, dir, "in_progress", "last_check: C-002\nfreshness:\n  state: current\n  check: C-002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n")
-	matrixReleaseCheck(t, dir, "C-002", "release", "R-001")
-}
-
-func matrixBuildReleaseReady(t *testing.T, dir string) {
-	t.Helper()
-	matrixBuildReleaseOwnerValidation(t, dir)
-	matrixRelease(t, dir, "in_progress", "last_check: C-002\nfreshness:\n  state: current\n  check: C-002\n  assessed_by: {role: checker, session: release-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\nowner_validation:\n  required: true\n  accepted_check: C-002\n  accepted_by: {role: owner, session: owner-1}\n")
 }
 
 func matrixBuildMissingReleaseSelection(t *testing.T, dir string) {
@@ -368,7 +353,7 @@ func matrixBuildObjectiveReady(t *testing.T, dir string) {
 	t.Helper()
 	matrixConfig(t, dir)
 	matrixObjective(t, dir, "O-001-first", "O-001", "in_progress")
-	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001")
+	matrixReleaseCheck(t, dir, "C-001", "objective", "O-001", "CLEAR")
 	objective := "---\nid: O-001\ntitle: \"Objective O-001\"\nstatus: in_progress\nrelease: R-001\n" +
 		"last_check: C-001\nfreshness:\n  state: current\n  check: C-001\n  assessed_by: {role: checker, session: objective-checker}\n  assessed_at: '2026-09-14T01:00:00Z'\n  basis: integrated\n---\n\n# Objective O-001\n"
 	testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "objectives", "O-001-first", "Objective.md"), objective)

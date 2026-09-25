@@ -70,9 +70,8 @@ Apply this contract to every implementation, not only to migration work:
 - The Full Objective Check is mandatory before Objective closure. It reviews
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.
-- A Goal Check is mandatory for every Goal, and exact owner
-  acceptance of its current Check remains required.
-- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective/Goal Checks require the full gate through `make ci` or `make test-full`.
+- A Goal is complete when every member Objective is complete.
+- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective Checks require the full gate through `make ci` or `make test-full`.
 - Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
 ## Required Goal Context
@@ -99,8 +98,7 @@ lifecycle decision stays in the preview and blocks Apply.
 
 Existing V2 storage remains Release-compatible: Goals use stable `R-###`
 identities in `.savepoint/releases/<slug>/Release.md`; Objectives and router
-selection retain the `release: R-###` field, and Goal Checks retain
-`scope.kind: release`. The V2 board uses `g` as the canonical Goal selector;
+selection retain the `release: R-###` field. The V2 board uses `g` as the canonical Goal selector;
 `r` is an undisplayed compatibility alias. A Goal does not own Tasks or
 publish, deploy, tag, or generate changelogs.
 
@@ -110,7 +108,7 @@ When adding another Goal:
 2. Author the Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes the grouped Objectives' result, not whether anything has been published or deployed.
 3. Give each member Objective the required `release: R-###` compatibility field. Derive membership from those Objective records; do not maintain a second membership list.
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
-5. Treat Goal `done` as an integration and owner decision: every member Objective is complete, current CLEAR integration evidence exists, material Issues are resolved or explicitly excepted, and the owner has accepted that exact Check. It does not mean published or deployed.
+5. Treat Goal completion as derived from its Objectives: a Goal is complete when every member Objective is complete. It does not mean published or deployed.
 
 ## Objective Artifact Template
 
@@ -229,7 +227,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective/Goal Checks.
+Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective Checks.
 
 ## Technical Evidence
 

@@ -88,12 +88,11 @@ func detailLines(detail RecordDetail, width int) []string {
 		lines = append(lines, detailSection("DEPENDENCIES", dependencyLines(detail.Dependencies), width)...)
 	}
 
-	waived := detail.Evidence != nil && detail.Evidence.CheckWaiver != nil
-	lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived, detail.ByException), width)...)
 	if detail.Kind == DetailRelease {
 		lines = append(lines, detailSection(strings.ToUpper(goalLabel)+" READINESS", releaseReadinessLines(detail), width)...)
-		lines = append(lines, detailSection("OWNER VALIDATION", releaseOwnerValidationLines(detail), width)...)
 	} else {
+		waived := detail.Evidence != nil && detail.Evidence.CheckWaiver != nil
+		lines = append(lines, detailSection("CLEARANCE", clearanceLines(detail.Kind, detail.Clearance, waived, detail.ByException), width)...)
 		lines = append(lines, detailSection("OWNER VALIDATION", ownerValidationLines(detail.Evidence), width)...)
 	}
 	lines = append(lines, detailSection("EXCEPTION", exceptionLines(detail.Evidence), width)...)
@@ -179,9 +178,8 @@ func objectiveCompletionPhrase(decision data.GateDecision) string {
 	return "completion blocked"
 }
 
-// releaseReadinessLines reports the canonical Release completion decision.
-// Historical proof and exception permission stay distinct from current V2
-// technical clearance, even when the gate allows the Release to be done.
+// releaseReadinessLines reports the member Objective completion decision and
+// any preserved historical completion evidence.
 func releaseReadinessLines(detail RecordDetail) []string {
 	decision := detail.ReleaseDecision
 	if decision == nil {
@@ -190,11 +188,8 @@ func releaseReadinessLines(detail RecordDetail) []string {
 	if decision.AllowedByLegacyCompletion {
 		return []string{resume.HistoricalCompletionPhrase(detail.ID, decision.LegacyCompletion)}
 	}
-	if decision.AllowedByException {
-		return []string{"Completion: " + resume.ExceptionPhrase(decision.Exception)}
-	}
 	if decision.Allowed {
-		return []string{resume.ReleaseAcceptancePhraseForEvidence(detail.ID, detail.Evidence, &detail.Clearance)}
+		return []string{"Every member Objective is complete; the Goal is ready to record as done."}
 	}
 
 	lines := make([]string, 0, len(decision.Blockers))
@@ -205,30 +200,6 @@ func releaseReadinessLines(detail RecordDetail) []string {
 		return []string{"Goal completion is not currently allowed."}
 	}
 	return lines
-}
-
-// releaseOwnerValidationLines makes the Release's mandatory owner boundary
-// explicit. Unlike Task and Objective records, a Release does not need an
-// owner_validation.required flag to require acceptance.
-func releaseOwnerValidationLines(detail RecordDetail) []string {
-	lines := []string{"Required: yes (Goal completion)"}
-	checkID := detail.Clearance.Check
-	if checkID == "" {
-		return append(lines, "Accepted: (not recorded; a current Goal Check is required first)")
-	}
-
-	if detail.Evidence != nil && detail.Evidence.OwnerValidation != nil {
-		accepted := detail.Evidence.OwnerValidation
-		if accepted.AcceptedCheck == checkID {
-			return append(lines, fmt.Sprintf("Accepted: Check %s, by %s", accepted.AcceptedCheck, resume.ActorLabel(accepted.AcceptedBy)))
-		}
-		if accepted.AcceptedCheck != "" {
-			lines = append(lines, fmt.Sprintf("Accepted: Check %s, by %s", accepted.AcceptedCheck, resume.ActorLabel(accepted.AcceptedBy)))
-			lines = append(lines, fmt.Sprintf("Current Check: %s (acceptance is not current)", checkID))
-			return lines
-		}
-	}
-	return append(lines, "Accepted: "+notRecorded)
 }
 
 func historicalCompletionLines(detail RecordDetail) []string {

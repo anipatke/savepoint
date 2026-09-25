@@ -763,7 +763,7 @@ func TestSavepointTaskSkillObjectiveCheckNeedsWorkDoesNotRetreatDoneTasks(t *tes
 		content := string(data)
 
 		if !strings.Contains(content, "never retreats a Task that is already `done`") {
-			t.Errorf("%s: %s does not state an Objective/Release Check's NEEDS WORK never retreats a done Task", tree, path)
+			t.Errorf("%s: %s does not state an Objective Check's NEEDS WORK never retreats a done Task", tree, path)
 		}
 	}
 }
@@ -891,7 +891,7 @@ func TestSavepointCheckSkillWriteBoundaryAndForbiddenActions(t *testing.T) {
 	}
 }
 
-var checkTemplateFields = []string{"id: C-###", "scope: {kind: task|objective|release, id:", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
+var checkTemplateFields = []string{"id: C-###", "scope: {kind: task, id: T-001}", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
 
 func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
@@ -953,8 +953,11 @@ func TestSavepointCheckSkillScopes(t *testing.T) {
 		if !strings.Contains(content, "integration across the Objective's owned Tasks and reconciliation against Design") {
 			t.Errorf("%s: %s does not scope an Objective Check to integration and Design reconciliation", tree, path)
 		}
-		if !strings.Contains(content, "a Goal Check uses the compatibility value `scope.kind: release` to evaluate integration across all member Objectives") {
-			t.Errorf("%s: %s does not scope a Goal Check to cross-Objective integration", tree, path)
+		if !strings.Contains(content, "scope: {kind: task, id: T-001}") {
+			t.Errorf("%s: %s does not provide a valid task-scoped Check record example", tree, path)
+		}
+		if strings.Contains(content, "scope.kind: release") {
+			t.Errorf("%s: %s describes writing a release-scoped Check", tree, path)
 		}
 	}
 }
@@ -973,8 +976,8 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 			"complete a technical Task",
 			"no unexcepted material blocker",
 			"owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check",
-			"Goal `done` requires at least one member Objective",
-			"The checker never supplies that acceptance",
+			"A Goal is complete when every member Objective is complete",
+			"Goal completion does not mean published or deployed",
 			"cannot support completion",
 			"A freshness assessment is optional",
 			"That blocks normal completion until a new Check runs",
@@ -1016,7 +1019,7 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 			"stable global `R-###` identity from the first unused number",
 			"Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
 			"do not maintain a second membership list",
-			"current CLEAR integration evidence exists",
+			"A Goal is complete when every member Objective is complete",
 			"not whether anything has been published or deployed",
 		} {
 			if !strings.Contains(design, phrase) {
@@ -1049,15 +1052,12 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 			"savepoint doctor",
 			"R-001",
 			"savepoint migrate",
-			"scope: {kind: task|objective|release, id: T-###, O-###, or R-###}",
-			"cross-Objective integration",
-			"Goal Check is mandatory for every Goal",
-			"creates or reuses ordinary Issues",
-			"never records owner acceptance on the owner's behalf",
-			"Goal `done` does not mean published or deployed",
+			"scope: {kind: task, id: T-001}",
+			"A Goal is complete when every member Objective is complete",
+			"Goal completion does not mean published or deployed",
 		} {
 			if !strings.Contains(check, phrase) {
-				t.Errorf("%s: savepoint-check missing Release Check phrase %q", tree, phrase)
+				t.Errorf("%s: savepoint-check missing Goal context phrase %q", tree, phrase)
 			}
 		}
 	}
@@ -1090,7 +1090,7 @@ func TestSavepointCheckSkillNeedsWorkPath(t *testing.T) {
 			t.Errorf("%s: %s does not state a Task Check's NEEDS WORK resumes the executor at stage: build inside that same Task", tree, path)
 		}
 		if !strings.Contains(content, "must not retreat a Task that is already `done`") && !strings.Contains(content, "must never retreat a Task that is already `done`") {
-			t.Errorf("%s: %s does not state an Objective/Release Check's NEEDS WORK must not retreat a done Task", tree, path)
+			t.Errorf("%s: %s does not state an Objective Check's NEEDS WORK must not retreat a done Task", tree, path)
 		}
 	}
 }

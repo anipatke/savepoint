@@ -1,7 +1,7 @@
 ---
 id: O-025
 title: Remove the Goal Check
-status: planned
+status: done
 release: R-006
 priority: critical
 rank: 1

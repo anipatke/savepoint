@@ -88,14 +88,13 @@ func releaseDiagnosticsForIndex(root string, index *data.V2Index) releaseDiagnos
 		if decision.Allowed {
 			continue
 		}
-		clearance := data.ResolveClearance(index, releaseID)
 		for _, blocker := range decision.Blockers {
 			// A Goal may be active before its first Objective is planned. The
 			// completion gate still blocks closing it without members.
 			if release.Status == data.ColumnInProgress && blocker.Kind == data.GateBlockReleaseNoObjectives {
 				continue
 			}
-			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker, clearance.Check))
+			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker))
 		}
 	}
 
@@ -140,10 +139,10 @@ func resolveLegacyArchivePath(root, reference string) (string, bool) {
 	return filepath.Join(base, clean), true
 }
 
-func releaseBlockerProblem(release *data.ReleaseV2, blocker data.GateBlocker, latestCheck string) Problem {
+func releaseBlockerProblem(release *data.ReleaseV2, blocker data.GateBlocker) Problem {
 	name := "v2-release-readiness"
 	detail := blocker.Detail
-	repair := "Review the Release's recorded readiness requirement and make the authoritative change manually; doctor never creates Release evidence"
+	repair := "Review Goal membership and the completion state of its member Objectives; doctor does not change records"
 	category := HealthMissingEvidence
 
 	switch blocker.Kind {
@@ -157,39 +156,6 @@ func releaseBlockerProblem(release *data.ReleaseV2, blocker data.GateBlocker, la
 			detail = fmt.Sprintf("member Objective %s is incomplete: %s", blocker.Objective, blocker.Detail)
 		}
 		repair = "Complete the named member Objective through its existing completion gate before treating the Release as ready; doctor does not change Objective records"
-	case data.GateBlockClearanceMissing:
-		name = "v2-release-clearance-missing"
-		detail = fmt.Sprintf("Release evidence is missing: %s", blocker.Detail)
-		repair = fmt.Sprintf("Record a Release-scoped Check for %s; doctor does not create evidence", release.ID)
-	case data.GateBlockClearanceNeedsWork:
-		name = "v2-release-clearance-needs-work"
-		detail = fmt.Sprintf("Release evidence needs work: %s", blocker.Detail)
-		repair = fmt.Sprintf("Resolve the findings from the Release Check for %s, then record a fresh CLEAR Check", release.ID)
-	case data.GateBlockClearanceStale:
-		name = "v2-release-clearance-stale"
-		detail = fmt.Sprintf("Release evidence is stale: %s", blocker.Detail)
-		repair = fmt.Sprintf("Run a new Release Check on %s; a freshness assessment marks the latest one stale", release.ID)
-	case data.GateBlockClearanceUnknown:
-		name = "v2-release-clearance-unknown"
-		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)
-		repair = fmt.Sprintf("Run a new Release Check on %s; a freshness assessment marks the latest one unknown", release.ID)
-	case data.GateBlockCheckerAuthority:
-		name = "v2-release-checker-authority"
-		detail = fmt.Sprintf("Release evidence is unknown: %s", blocker.Detail)
-		repair = fmt.Sprintf("Record the latest Release Check and freshness assessment with independent checker provenance for %s", release.ID)
-	case data.GateBlockReleaseIssueUnresolved:
-		name = "v2-release-issue-unresolved"
-		detail = fmt.Sprintf("material blocker remains unresolved: %s", blocker.Detail)
-		repair = "Resolve or explicitly except the named material Issue, then re-check the Release"
-	case data.GateBlockOwnerAcceptance:
-		if release.Evidence != nil && release.Evidence.OwnerValidation != nil && release.Evidence.OwnerValidation.AcceptedCheck != "" && release.Evidence.OwnerValidation.AcceptedCheck != latestCheck {
-			name = "v2-release-owner-acceptance-stale"
-			detail = fmt.Sprintf("owner acceptance is stale: it names %s, but the latest Release Check is %s", release.Evidence.OwnerValidation.AcceptedCheck, latestCheck)
-		} else {
-			name = "v2-release-owner-acceptance-missing"
-			detail = fmt.Sprintf("owner acceptance is missing for current Release Check %s", latestCheck)
-		}
-		repair = fmt.Sprintf("Record owner acceptance for current Release Check %s in the Release record; doctor does not create acceptance", latestCheck)
 	}
 
 	return Problem{
