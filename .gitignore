@@ -14,3 +14,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.tsbuildinfo
+
+# Windows download metadata streams copied through WSL; ":" is invalid in Windows paths
+*:Zone.Identifier
