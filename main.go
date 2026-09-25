@@ -91,10 +91,16 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 			}
 			os.Exit(code)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
+			os.Exit(2)
 		}
 	}
+	// A board refusal, such as an unmigrated project, is a routine message for
+	// the user, not a crash.
 	if err := board.Run(); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 

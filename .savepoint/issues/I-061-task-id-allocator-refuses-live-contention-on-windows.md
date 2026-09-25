@@ -2,7 +2,7 @@
 id: I-061
 title: Task ID allocator refuses live contention as a leftover lock on Windows
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: planner, session: i061-windows-allocator-20260926}
@@ -71,6 +71,18 @@ history:
       passed 5 of 5 runs on 845b1be (run 36199992156, attempts 1-5,
       23:11-23:32 UTC), including TestAllocateTaskID_serializesConcurrentCallers.
       Issue remains open for independent verification or owner acceptance.
+  - at: '2026-09-25T23:45:21Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved once 2.0.3 was
+      live. The fix shipped in savepoint 2.0.3 on npm (tag v2.0.3, merge
+      c62c366). No technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-25T23:45:21Z'
+  reason: Owner accepted the fix as deployed in savepoint 2.0.3.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows

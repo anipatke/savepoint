@@ -177,3 +177,45 @@ func TestMainDoctorV2ProjectIgnoresLegacyMigrationJournal(t *testing.T) {
 		t.Fatalf("stdout = %q, want the ordinary doctor report for a schema-2 project", result.stdout)
 	}
 }
+
+// TestMainUnknownCommandIsRejectedWithoutOpeningTheBoard proves an unknown
+// first argument names itself and prints usage instead of falling through to
+// the board (I-066).
+func TestMainUnknownCommandIsRejectedWithoutOpeningTheBoard(t *testing.T) {
+	dir := t.TempDir()
+	writeMigrateMinimalProject(t, dir)
+
+	result := runMainInDirForTest(t, dir, []string{"update"})
+
+	exitErr, ok := result.err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("savepoint update err = %v, want exit code 2", result.err)
+	}
+	if !strings.Contains(result.stderr, `unknown command "update"`) || !strings.Contains(result.stderr, "Usage: savepoint <command>") {
+		t.Fatalf("stderr = %q, want the unknown command named and usage", result.stderr)
+	}
+	if strings.Contains(result.stderr, "schema_version") || strings.Contains(result.stderr, "panic") || result.stdout != "" {
+		t.Fatalf("unknown command reached the board: stdout=%q stderr=%q", result.stdout, result.stderr)
+	}
+}
+
+// TestMainBareBoardRefusalOnV1ProjectDoesNotPanic proves bare savepoint over
+// an unmigrated project prints the migration route and exits 1, with no Go
+// panic or goroutine trace (I-066).
+func TestMainBareBoardRefusalOnV1ProjectDoesNotPanic(t *testing.T) {
+	dir := t.TempDir()
+	writeMigrateMinimalProject(t, dir)
+
+	result := runMainInDirForTest(t, dir, nil)
+
+	exitErr, ok := result.err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("bare savepoint err = %v, want exit code 1", result.err)
+	}
+	if !strings.Contains(result.stderr, "schema_version 1") || !strings.Contains(result.stderr, "migrate --dry-run") {
+		t.Fatalf("stderr = %q, want the migration route", result.stderr)
+	}
+	if strings.Contains(result.stderr, "panic") || strings.Contains(result.stderr, "goroutine") {
+		t.Fatalf("stderr = %q, want no panic trace", result.stderr)
+	}
+}
