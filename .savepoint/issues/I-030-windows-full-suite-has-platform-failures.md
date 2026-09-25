@@ -4,25 +4,37 @@ title: Windows full suite has platform failures
 type: verification
 status: open
 source:
-  kind: check
-  check: C-908
-  actor: {role: checker, session: o016-full-check-20260923}
-  at: '2026-09-23T01:42:44Z'
+    kind: check
+    check: C-908
+    actor: {role: checker, session: o016-full-check-20260923}
+    at: '2026-09-23T01:42:44Z'
 tasks: [T-016]
 checks: [C-908]
 guardrail_ids: [CFG-02, TEST-08]
 severity: high
 history:
-  - at: '2026-09-23T01:42:44Z'
-    actor: {role: checker, session: o016-full-check-20260923}
-    kind: observed
-    check: C-908
-    note: The Windows-native command configured by T-016 also reproduces board watcher filtering and init guide-casing failures, so the new CI job cannot pass even after the migration setup conflict is isolated.
-  - at: '2026-09-23T03:58:56Z'
-    actor: {role: owner, session: user}
-    kind: deferred
-    note: >-
-      Owner narrowed O-016 to focused Windows migration setup coverage and cross-builds; the full Windows runtime suite is not required. T-018 and T-019 were removed. Keep I-030 open because these failures remain uncorrected; revisit only if the full suite returns to scope.
+    - at: '2026-09-23T01:42:44Z'
+      actor: {role: checker, session: o016-full-check-20260923}
+      kind: observed
+      check: C-908
+      note: The Windows-native command configured by T-016 also reproduces board watcher filtering and init guide-casing failures, so the new CI job cannot pass even after the migration setup conflict is isolated.
+    - at: '2026-09-23T03:58:56Z'
+      actor: {role: owner, session: user}
+      kind: deferred
+      note: >-
+        Owner narrowed O-016 to focused Windows migration setup coverage and cross-builds; the full Windows runtime suite is not required. T-018 and T-019 were removed. Keep I-030 open because these failures remain uncorrected; revisit only if the full suite returns to scope.
+    - at: "2026-09-25T09:26:40Z"
+      actor:
+        role: owner
+        session: board-owner
+      kind: owner_decision
+      note: Moved from open to in_progress by the owner from the board.
+    - at: "2026-09-25T09:26:42Z"
+      actor:
+        role: owner
+        session: board-owner
+      kind: owner_decision
+      note: Moved from in_progress to open by the owner from the board.
 ---
 
 # I-030: Windows full suite has platform failures

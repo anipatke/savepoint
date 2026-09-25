@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/resume"
 )
@@ -441,9 +442,9 @@ func (m *Model) clampIssueScroll() {
 	}
 }
 
-func (m *Model) handleIssuesKey(key string) {
+func (m *Model) handleIssuesKey(key string) tea.Cmd {
 	if m.Issues == nil {
-		return
+		return nil
 	}
 	if m.Issues.Detail != nil {
 		switch key {
@@ -456,7 +457,7 @@ func (m *Model) handleIssuesKey(key string) {
 		case "enter", "d":
 			m.openDuplicateTarget()
 		}
-		return
+		return nil
 	}
 	switch key {
 	case "left", "h":
@@ -471,9 +472,33 @@ func (m *Model) handleIssuesKey(key string) {
 		m.cycleIssueFilter()
 	case "enter", "v":
 		m.openSelectedIssue()
+	case " ":
+		if id := m.selectedIssueTransitionID(); id != "" {
+			return writeIssueTransitionCmd(m.Root, id, true)
+		}
+	case "backspace":
+		if id := m.selectedIssueTransitionID(); id != "" {
+			return writeIssueTransitionCmd(m.Root, id, false)
+		}
 	case "esc":
 		m.closeIssues()
 	}
+	return nil
+}
+
+func (m *Model) selectedIssueTransitionID() string {
+	if m.Issues == nil || m.Issues.SelectedID == "" {
+		return ""
+	}
+	rows := m.focusedIssueRows()
+	if m.Issues.Cursor < 0 || m.Issues.Cursor >= len(rows) {
+		return ""
+	}
+	row := rows[m.Issues.Cursor]
+	if row.Issue == nil || row.Issue.ID != m.Issues.SelectedID {
+		return ""
+	}
+	return row.Issue.ID
 }
 
 func (m Model) issueDetail(id string) (IssueDetail, bool) {

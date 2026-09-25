@@ -202,9 +202,10 @@ type DuplicateObjectiveRankV2 struct {
 	ObjectiveIDs []string
 }
 
-// OrderedObjectiveIDsForGoal returns the Goal's Objective IDs in planning
-// order: priority, ranked before unranked, ascending rank, then Objective ID.
-// Goal membership remains derived from each Objective's release field.
+// OrderedObjectiveIDsForGoal returns open Objectives in planning order:
+// priority, ranked before unranked, ascending rank, then Objective ID.
+// Finished Objectives follow in Objective ID order. Goal membership remains
+// derived from each Objective's release field.
 func OrderedObjectiveIDsForGoal(index *V2Index, goalID string) []string {
 	if index == nil {
 		return nil
@@ -213,6 +214,17 @@ func OrderedObjectiveIDsForGoal(index *V2Index, goalID string) []string {
 	slices.SortFunc(ids, func(a, b string) int {
 		objectiveA := index.Objectives[a]
 		objectiveB := index.Objectives[b]
+		doneA := objectiveA != nil && objectiveA.Status == ColumnDone
+		doneB := objectiveB != nil && objectiveB.Status == ColumnDone
+		if doneA != doneB {
+			if doneA {
+				return 1
+			}
+			return -1
+		}
+		if doneA {
+			return strings.Compare(a, b)
+		}
 		priorityA, rankA := ObjectivePriorityMedium, 0
 		priorityB, rankB := ObjectivePriorityMedium, 0
 		if objectiveA != nil {
@@ -249,7 +261,7 @@ func duplicateObjectiveRankFacts(index *V2Index) []DuplicateObjectiveRankV2 {
 	for _, goalID := range slices.Sorted(maps.Keys(index.ReleaseObjectives)) {
 		for _, objectiveID := range index.ReleaseObjectives[goalID] {
 			objective := index.Objectives[objectiveID]
-			if objective == nil || objective.Rank <= 0 {
+			if objective == nil || objective.Status == ColumnDone || objective.Rank <= 0 {
 				continue
 			}
 			key := groupKey{goalID: goalID, priority: objective.Priority, rank: objective.Rank}

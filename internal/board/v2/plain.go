@@ -54,12 +54,12 @@ func renderPlain(state ProjectState, selected string) string {
 	}
 	fmt.Fprintf(&b, "Selected: %s\n", selection)
 	fmt.Fprintln(&b, "Objectives:")
-	lastPriority := ""
+	lastHeading := ""
 	for _, row := range objectiveRowsForRelease(state.Index, release) {
-		priority := string(row.Objective.Priority)
-		if priority != lastPriority {
-			fmt.Fprintln(&b, objectivePriorityHeading(row.Objective.Priority))
-			lastPriority = priority
+		heading := objectiveRowHeading(row)
+		if heading != lastHeading {
+			fmt.Fprintln(&b, heading)
+			lastHeading = heading
 		}
 		fmt.Fprintf(&b, "  %s — %s", row.ID(), row.Objective.Title)
 		if badges := row.badges(); len(badges) > 0 {

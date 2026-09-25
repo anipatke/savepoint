@@ -76,6 +76,18 @@ func TestFooterOmitsDeadTaskIssuesHint(t *testing.T) {
 	if strings.Contains(model.hints(), "I:task issues") {
 		t.Errorf("Issues overlay footer still advertises the unhandled I key:\n%q", model.hints())
 	}
+	for _, hint := range []string{"space:advance", "backspace:retreat"} {
+		if !strings.Contains(model.hints(), hint) {
+			t.Errorf("Issues overlay footer omits %q:\n%q", hint, model.hints())
+		}
+	}
+}
+
+func TestIssuesHelpListsSpaceAndBackspace(t *testing.T) {
+	model := press(t, issueBoard(t, writeIssuesProject(t)), "i", "?")
+	if !strings.Contains(model.View(), "space:") || !strings.Contains(model.View(), "backspace:") {
+		t.Errorf("Issues help omits a status transition key:\n%s", model.View())
+	}
 }
 
 func TestFooterCanonicalHintOnlyWhenTheIssueHasADuplicateTarget(t *testing.T) {

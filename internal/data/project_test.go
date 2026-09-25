@@ -155,18 +155,91 @@ func TestOrderedObjectiveIDsForGoalUsesPriorityRankAndID(t *testing.T) {
 			"O-007": {ID: "O-007", Priority: ObjectivePriorityMedium, Rank: 3},
 			"O-008": {ID: "O-008", Priority: ObjectivePriorityMedium, Rank: 3},
 			"O-011": {ID: "O-011", Priority: ObjectivePriorityLow, Rank: 1},
+			"O-012": {ID: "O-012", Status: ColumnDone, Priority: ObjectivePriorityCritical, Rank: 1},
+			"O-013": {ID: "O-013", Status: ColumnDone, Priority: ObjectivePriorityLow, Rank: 2},
 		},
 		ReleaseObjectives: map[string][]string{
-			"R-001": {"O-010", "O-002", "O-005", "O-006", "O-004", "O-003", "O-001", "O-009", "O-007", "O-008", "O-011"},
+			"R-001": {"O-010", "O-002", "O-005", "O-006", "O-004", "O-003", "O-001", "O-009", "O-007", "O-008", "O-011", "O-013", "O-012"},
 		},
 	}
 
-	want := []string{"O-005", "O-002", "O-010", "O-006", "O-003", "O-004", "O-009", "O-007", "O-008", "O-001", "O-011"}
+	want := []string{"O-005", "O-002", "O-010", "O-006", "O-003", "O-004", "O-009", "O-007", "O-008", "O-001", "O-011", "O-012", "O-013"}
 	if got := OrderedObjectiveIDsForGoal(index, "R-001"); !reflect.DeepEqual(got, want) {
 		t.Fatalf("OrderedObjectiveIDsForGoal() = %v, want %v", got, want)
 	}
 	if got := OrderedObjectiveIDsForGoal(index, "R-999"); len(got) != 0 {
 		t.Errorf("unknown Goal order = %v, want empty", got)
+	}
+}
+
+func TestLoadV2IndexIgnoresDuplicateRanksForDoneObjectives(t *testing.T) {
+	root := t.TempDir()
+	writeV2ReleaseFixture(t, root, "R-001-current", "R-001", "Current Goal")
+	writeRankedObjectiveForGoal(t, root, "O-001", "R-001", "critical", 2, "done")
+	writeRankedObjectiveForGoal(t, root, "O-002", "R-001", "critical", 2, "done")
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	if len(index.DuplicateObjectiveRanks) != 0 {
+		t.Fatalf("DuplicateObjectiveRanks = %+v, want done Objectives excluded", index.DuplicateObjectiveRanks)
+	}
+}
+
+func TestReopenedDoneObjectiveReturnsToRankedGroupAndHealsCollision(t *testing.T) {
+	root := t.TempDir()
+	writeV2ReleaseFixture(t, root, "R-001-current", "R-001", "Current Goal")
+	writeRankedObjectiveForGoal(t, root, "O-001", "R-001", "critical", 2, "done")
+	writeRankedObjectiveForGoal(t, root, "O-002", "R-001", "critical", 2)
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() with done Objective error = %v", err)
+	}
+	if got, want := OrderedObjectiveIDsForGoal(index, "R-001"), []string{"O-002", "O-001"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("order with done Objective = %v, want open Objective before done %v", got, want)
+	}
+
+	path := index.Objectives["O-001"].Source.Path
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(done Objective) error = %v", err)
+	}
+	reopened := strings.Replace(string(content), "status: done\n", "status: planned\n", 1)
+	if reopened == string(content) {
+		t.Fatal("done Objective status was not present to reopen")
+	}
+	if err := os.WriteFile(path, []byte(reopened), 0644); err != nil {
+		t.Fatalf("WriteFile(reopened Objective) error = %v", err)
+	}
+
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after reopen error = %v", err)
+	}
+	if got, want := OrderedObjectiveIDsForGoal(index, "R-001"), []string{"O-001", "O-002"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("reopened order = %v, want the Objective back at its recorded rank %v", got, want)
+	}
+	if len(index.DuplicateObjectiveRanks) != 1 {
+		t.Fatalf("duplicate ranks after reopen = %+v, want the recorded rank collision", index.DuplicateObjectiveRanks)
+	}
+
+	if err := WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002"}); err != nil {
+		t.Fatalf("WriteObjectiveGroupOrderV2() to heal reopened collision error = %v", err)
+	}
+	index, err = LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after healing collision error = %v", err)
+	}
+	if len(index.DuplicateObjectiveRanks) != 0 {
+		t.Fatalf("duplicate ranks after move = %+v, want collision healed", index.DuplicateObjectiveRanks)
+	}
+	if got, want := OrderedObjectiveIDsForGoal(index, "R-001"), []string{"O-001", "O-002"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order after healing collision = %v, want %v", got, want)
 	}
 }
 
@@ -195,13 +268,17 @@ func TestLoadV2IndexReportsDuplicateObjectiveRanksByGoalAndPriority(t *testing.T
 	}
 }
 
-func writeRankedObjectiveForGoal(t *testing.T, root, id, goalID, priority string, rank int) {
+func writeRankedObjectiveForGoal(t *testing.T, root, id, goalID, priority string, rank int, statuses ...string) {
 	t.Helper()
+	status := "planned"
+	if len(statuses) > 0 {
+		status = statuses[0]
+	}
 	dir := filepath.Join(root, v2ObjectivesDirName, id+"-ordering")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatalf("MkdirAll(%s) error = %v", dir, err)
 	}
-	content := "---\nid: " + id + "\ntitle: \"" + id + " ordering\"\nstatus: planned\nrelease: " + goalID + "\npriority: " + priority + "\n"
+	content := "---\nid: " + id + "\ntitle: \"" + id + " ordering\"\nstatus: " + status + "\nrelease: " + goalID + "\npriority: " + priority + "\n"
 	if rank > 0 {
 		content += "rank: " + fmt.Sprint(rank) + "\n"
 	}

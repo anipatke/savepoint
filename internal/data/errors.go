@@ -52,6 +52,11 @@ var (
 	ErrV2IssueResolutionUnusableProof = errors.New("v2 issue verified resolution's proof check is not a listed CLEAR check")
 	ErrV2IssueResolutionFieldMismatch = errors.New("v2 issue resolution field does not satisfy its disposition's obligations")
 
-	ErrV2IssueAlreadyExists        = errors.New("v2 issue record already exists at the target path")
-	ErrV2IssueHistoryNotAppendOnly = errors.New("v2 issue history write is not a pure append over the recorded entries")
+	ErrV2IssueAlreadyExists           = errors.New("v2 issue record already exists at the target path")
+	ErrV2IssueHistoryNotAppendOnly    = errors.New("v2 issue history write is not a pure append over the recorded entries")
+	ErrV2IssueNotFound                = errors.New("v2 issue was not found")
+	ErrV2IssueCannotAdvance           = errors.New("v2 resolved issue cannot be advanced")
+	ErrV2IssueCannotRetreat           = errors.New("v2 open issue cannot be retreated")
+	ErrV2IssueTransitionRequiresOwner = errors.New("v2 issue transition requires an owner actor")
+	ErrV2IssueTransitionInvalidTime   = errors.New("v2 issue transition requires a non-zero timestamp")
 )

@@ -382,7 +382,7 @@ func (m Model) hints() string {
 		}
 		return "↑↓:scroll  esc:back  q:quit"
 	case m.Issues != nil:
-		return "↑↓:issues  f:filter  enter:open  esc:close  q:quit"
+		return "↑↓:issues  space:advance  backspace:retreat  f:filter  enter:open  esc:close  q:quit"
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():

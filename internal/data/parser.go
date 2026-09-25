@@ -177,6 +177,9 @@ type V2SourceDocument struct {
 	ProjectRoot string
 	Frontmatter yaml.Node
 	Body        string
+	// frontmatterText is the exact frontmatter source Frontmatter was parsed
+	// from, so a managed write can keep untouched fields byte-for-byte.
+	frontmatterText string
 	// CRLF records whether the original source used Windows line endings, so
 	// a managed rewrite can reproduce the same line-ending form instead of
 	// silently normalizing it to LF.
@@ -204,12 +207,13 @@ func ParseV2Document(path, content string) (V2SourceDocument, error) {
 	}
 
 	return V2SourceDocument{
-		Path:           path,
-		Frontmatter:    node,
-		Body:           body,
-		CRLF:           strings.Contains(content, "\r\n"),
-		contentHash:    sha256.Sum256([]byte(content)),
-		contentHashSet: true,
+		Path:            path,
+		Frontmatter:     node,
+		Body:            body,
+		frontmatterText: fm,
+		CRLF:            strings.Contains(content, "\r\n"),
+		contentHash:     sha256.Sum256([]byte(content)),
+		contentHashSet:  true,
 	}, nil
 }
 

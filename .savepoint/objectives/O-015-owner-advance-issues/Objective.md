@@ -1,7 +1,7 @@
 ---
 id: O-015
 title: Let the owner advance Issues from the board
-status: planned
+status: done
 depends_on: [O-012]
 release: R-006
 priority: high
@@ -12,105 +12,84 @@ rank: 3
 
 ## Outcome
 
-The owner can advance a focused Issue through its lifecycle directly from the
-Issues panel: Open to In Progress when work starts, then In Progress to
-Resolved through an explicit owner decision. Resolution distinguishes accepted
-risk from a stale Issue superseded by behavior that already exists, and keeps
-both distinct from a checker-verified repair.
+In the board's Issues panel, Space moves the selected Issue one column right
+(Open → In Progress → Resolved) and Backspace moves it one column left
+(Resolved → In Progress → Open), the same keys the Task columns use.
 
 ## Why
 
-The Issues panel currently presents Open, In Progress, and Resolved as a board
-but is read-only. Owners must hand-edit frontmatter to start work or exercise
-the already-supported `accepted` resolution disposition. Migrated records such
-as I-001 can also describe behavior that the current implementation already
-supersedes, but the resolution model has no honest disposition for that case:
-`accepted` would falsely call it risk acceptance, `verified` requires repair
-proof from a Check, and `duplicate` requires another canonical Issue. A direct
-board action and an explicit superseded disposition make the visible lifecycle
-usable without falsifying why an Issue closed.
+The Issues panel shows Open, In Progress, and Resolved columns but is
+read-only. Owners must hand-edit Issue frontmatter to start, resolve, or
+reopen an Issue.
 
 ## Success Conditions
 
-- With the Issues panel focused, the displayed forward action advances the
-  selected Open Issue to In Progress and keeps focus on that Issue in its new
-  column after reload.
-- Advancing a selected In Progress Issue to Resolved is an explicit owner
-  action that requires choosing the applicable non-verification outcome:
-  accepted risk or superseded/stale behavior. It records the matching
-  disposition, an owner actor, the action time, and a non-empty reason; it
-  never records a proof Check or presents either outcome as verified repair.
-- `resolution.disposition: superseded` is a first-class, strictly validated
-  Issue resolution for a stale report whose claimed behavior no longer matches
-  the supported product. It requires an owner actor and a non-empty reason,
-  forbids a proof Check and `duplicate_of`, and renders distinctly from
-  `accepted`, `verified`, and `duplicate`.
-- I-001 remains the motivating stale-record example and records the owner's
-  accepted closure under the schema available before this Objective. O-015
-  adds the honest superseded path for future stale reports without rewriting
-  I-001's recorded owner decision.
-- Each successful transition appends an attributed, timestamped Issue history
-  entry without editing or reordering existing history.
-- A selected Resolved Issue cannot advance further, and an empty column or
-  missing selection performs no write.
-- The action is available from the Issue list and is labelled in the panel
-  footer/help so its owner authority and effect are understandable without
-  colour. Issue detail remains a reading surface.
-- Writes preserve authored Markdown and unknown frontmatter, validate the
-  resulting Issue before replacement, report conflicts or invalid records in
-  the board status area, and reload through the existing board load path.
-- Open to In Progress does not create a resolution. In Progress to Resolved
-  creates only the explicitly selected owner disposition (`accepted` or
-  `superseded`); checker-owned `verified` closure and duplicate disposition
-  behavior remain unchanged.
-- Focused data and board tests cover both transitions, append-only history,
-  attribution, preserved content, terminal states, write failures, and focus
-  restoration; `git diff --check`, `make build`, and `make test` pass before
-  handoff.
-- Active workflow guidance and the V2 scaffold are reconciled so owner-accepted
-  and owner-superseded closure from the board are explicit authority paths,
-  while executors still cannot close Issues and only a Check can claim verified
-  repair.
+- With the Issues panel focused and no detail open, Space advances the
+  selected Issue one status and Backspace retreats it one status. Focus
+  follows the Issue into its new column after reload.
+- Space on a Resolved Issue, Backspace on an Open Issue, an empty column, or
+  no selection performs no write.
+- Open → In Progress and In Progress → Open change only `status` and append
+  one history entry.
+- In Progress → Resolved sets `status: resolved` and writes
+  `resolution.disposition: accepted` with actor `{role: owner, session:
+  board-owner}`, the action time, and the fixed reason `Resolved by the owner
+  from the board.` It never names a proof Check.
+- Resolved → In Progress sets `status: in_progress`, removes the
+  `resolution` block (and `duplicate_of` / `escalated_to` when present), and
+  appends a `reopened` history entry whose note names the removed
+  disposition.
+- Every transition appends exactly one owner-attributed, timestamped history
+  entry and never edits or reorders existing entries.
+- Writes preserve the Markdown body and unknown frontmatter, validate the
+  result before replacing the file, and refuse a record changed on disk.
+  Failures show in the board status line; success reloads through the
+  existing board load path.
+- The Issues panel footer and help list Space and Backspace.
+- Focused data and board tests cover all four transitions, the no-op cases,
+  append-only history, preserved content, a stale-file conflict, and focus
+  following the Issue; `make build && make test-fast` passes at handoff.
+- AGENTS.md, the active skills/references, and their V2 scaffold copies say
+  the owner may resolve (as `accepted`) and reopen Issues from the board.
+
+## Confirmed Design Decisions
+
+Owner, 2026-09-25 (planning chat):
+
+- Only Space (forward) and Backspace (back) in the Issues panel. No prompt,
+  no typed reason, no disposition choice.
+- Board resolution always records `accepted` with the fixed reason above;
+  the owner hand-edits the file for anything more specific.
+- Backspace may reopen any resolved Issue, including a verified, duplicate,
+  or escalated one; the reopened history note keeps what it was closed as.
+- The earlier `superseded` disposition and accepted/superseded prompt are
+  dropped from this Objective.
+- History kinds reuse the existing vocabulary: `owner_decision` for start,
+  resolve, and back-to-open; `reopened` for Resolved → In Progress.
 
 ## Architectural Considerations
 
-- `internal/data` remains the sole owner of Issue lifecycle validation,
-  accepted-resolution obligations, append-only history, and safe record
-  writes. The board requests a typed transition rather than patching Issue
-  YAML itself.
-- `internal/board/v2` follows its existing command-message pattern: key
-  handling schedules filesystem work, and the update/render path remains free
-  of direct IO.
-- The action should reuse the board's established forward key and asynchronous
-  status/reload behavior where practical, while keeping Issue and Task
-  lifecycle vocabularies separate.
-- Owner acceptance and supersession are closure dispositions, not technical
-  clearance. Existing Check freshness, Task/Objective/Goal gates, and Issue
-  linkage remain unchanged.
-- The current O-012 work remains the predecessor Objective. This Objective is
-  planned under R-006 but is not activated by changing the current router.
+- `internal/data` owns the Issue transition, the resolution/history patch, and
+  the validate-before-replace write through the existing `writeV2Record`
+  boundary. The board asks for a transition by Issue ID; it does not build
+  Issue YAML.
+- `internal/board/v2` schedules the write as a `tea.Cmd` (ARCH-02), re-reads
+  the project before writing, and reuses `actionMsg` status/reload handling.
+- Owner resolution is not technical clearance: Check, Task, Objective, and
+  Goal gates are unchanged.
 
 ## Boundaries
 
 **In scope:**
 
-- A forward owner action in the V2 Issues list for Open to In Progress and In
-  Progress to Resolved by accepted-risk or superseded disposition.
-- The canonical Issue model, validation, write/read round trip, rendering, and
-  documentation for the superseded disposition.
-- Canonical transition/write behavior, owner attribution, resolution metadata,
-  append-only history, conflict handling, reload/focus behavior, footer/help
-  text, tests, and active V2 workflow/template reconciliation.
-- Regression coverage using I-001's stale-report scenario, without rewriting
-  its already-recorded owner-accepted resolution.
+- Space/Backspace Issue transitions in the V2 Issues panel, the data-layer
+  Issue writer, footer/help text, tests, and guidance/template wording.
 
 **Out of scope:**
 
-- Calling an owner-accepted or superseded Issue `verified`, fabricating a
-  Check, or weakening the proof requirements for
-  `resolution.disposition: verified`.
-- Resolving duplicates, reopening or retreating Issues, editing Issue text or
-  links, creating Issues, or adding free-form resolution editing to the board.
-- Changing Issue status/type/severity vocabularies, Task lifecycle behavior,
-  router selection, Objective/Goal gates, or the existing Issue detail layout.
-- Rewriting historical Checks, Issues, migration archives, or V1 guidance.
+- New dispositions, reason entry, or any prompt.
+- Transitions from the Issue detail overlay, or skipping a column.
+- Creating Issues, editing Issue text or links, duplicate/escalation flows.
+- Changing Issue status/type/history vocabularies, Task behavior, router
+  selection, or gates.
+- Rewriting I-001 or any other historical record.

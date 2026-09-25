@@ -264,12 +264,14 @@ Enter Issue capture as an entry from this workflow when planning surfaces
 drift, a guardrail gap, or follow-up that does not belong inside Design or the
 current Objective's Tasks. Capture it as an Issue instead of folding it into
 Design or a Task plan; see `agent-skills/references/issue-capture.md` for the
-artifact template and rules. This skill may read and reference an Issue; it
-does not close one — with one exception: when this skill promotes an Issue's
-repair into a new Objective, it retires that Issue immediately with
-disposition `escalated` naming the new Objective, per "Escalation Retires The
-Issue" in `agent-skills/references/issue-capture.md`. That is the only Issue
-closure this skill performs.
+artifact template and rules. This skill may read and reference an Issue; the
+owner may resolve it as `accepted` with Space or reopen any resolved Issue
+with Backspace from the board's Issues list. This skill does not perform those
+owner actions. When it promotes an Issue's repair into a new Objective, it
+retires that Issue immediately with disposition `escalated` naming the new
+Objective, per "Escalation Retires The Issue" in
+`agent-skills/references/issue-capture.md`. That is the only Issue closure
+this skill performs.
 
 ## Readiness Gate
 

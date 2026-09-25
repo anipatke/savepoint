@@ -346,12 +346,24 @@ func writeV2Record(source *V2SourceDocument, patches []v2FieldPatch, validate fu
 		return nil
 	}
 
-	out, err := yaml.Marshal(cloned)
-	if err != nil {
-		return fmt.Errorf("%s: marshal yaml: %w", path, err)
+	indent := v2FrontmatterIndent(&source.Frontmatter)
+	touched := make(map[string]bool, len(patches))
+	for _, patch := range patches {
+		touched[patch.Key] = true
+	}
+	frontmatter, spliced := spliceV2Frontmatter(source.frontmatterText, &source.Frontmatter, cloned, touched, indent)
+	if spliced {
+		var reparsed yaml.Node
+		spliced = yaml.Unmarshal([]byte(frontmatter), &reparsed) == nil && nodesEqualByEncoding(&reparsed, cloned)
+	}
+	if !spliced {
+		frontmatter, err = encodeV2Document(cloned, indent)
+		if err != nil {
+			return fmt.Errorf("%s: marshal yaml: %w", path, err)
+		}
 	}
 
-	newContent := "---\n" + strings.TrimSpace(string(out)) + "\n---" + source.Body
+	newContent := "---\n" + frontmatter + "\n---" + source.Body
 	if source.CRLF {
 		newContent = strings.ReplaceAll(newContent, "\n", "\r\n")
 	}
@@ -382,11 +394,51 @@ func writeV2Record(source *V2SourceDocument, patches []v2FieldPatch, validate fu
 
 	// Keep a successfully managed record usable for another write in the
 	// same process. Failed validation, freshness checks, and replacement leave
-	// the caller's retained document untouched.
-	source.Frontmatter = *cloned
+	// the caller's retained document untouched. The node is re-read from the
+	// written text so its line positions match frontmatterText for the next
+	// splice.
+	var written yaml.Node
+	if err := yaml.Unmarshal([]byte(frontmatter), &written); err == nil {
+		source.Frontmatter = written
+		source.frontmatterText = frontmatter
+	} else {
+		source.Frontmatter = *cloned
+		source.frontmatterText = ""
+	}
 	source.contentHash = sha256.Sum256([]byte(newContent))
 	source.contentHashSet = true
 	return nil
+}
+
+// v2FrontmatterIndent returns the indentation width of the top-level block
+// values in the retained source node, used when a managed write encodes a new
+// or replaced field. Only top-level fields are counted: mappings nested in
+// sequence items sit at the encoder's item offset, not the file's indent.
+// Four spaces remains the fallback for documents without top-level blocks.
+func v2FrontmatterIndent(node *yaml.Node) int {
+	counts := make(map[int]int)
+	if isV2MappingDocument(node) {
+		root := node.Content[0]
+		for i := 0; i+1 < len(root.Content); i += 2 {
+			key, value := root.Content[i], root.Content[i+1]
+			if key.Line > 0 && value.Line > key.Line && value.Column > key.Column {
+				if width := value.Column - key.Column; width <= 8 {
+					counts[width]++
+				}
+			}
+		}
+	}
+
+	indent, frequency := 0, 0
+	for width, count := range counts {
+		if count > frequency || count == frequency && (indent == 0 || width < indent) {
+			indent, frequency = width, count
+		}
+	}
+	if indent == 0 {
+		return 4
+	}
+	return indent
 }
 
 // WriteObjectiveV2 patches only the status field of a V2 Objective record's
@@ -474,6 +526,191 @@ func WriteObjectiveGroupOrderV2(index *V2Index, goalID string, priority Objectiv
 		objective.Rank = rank
 	}
 	return nil
+}
+
+const issueBoardResolutionReason = "Resolved by the owner from the board."
+
+// AdvanceIssueV2 moves an Issue one step toward resolved. Each move is an
+// owner decision and is persisted through writeV2Record so source freshness,
+// frontmatter preservation, and decode-before-replace validation apply.
+func AdvanceIssueV2(index *V2Index, id string, actor Actor, at time.Time) error {
+	return transitionIssueV2(index, id, true, actor, at)
+}
+
+// RetreatIssueV2 moves an Issue one step toward open. Reopening a resolved
+// Issue removes its resolution and disposition-specific target fields while
+// preserving the removed disposition in the appended history note.
+func RetreatIssueV2(index *V2Index, id string, actor Actor, at time.Time) error {
+	return transitionIssueV2(index, id, false, actor, at)
+}
+
+func transitionIssueV2(index *V2Index, id string, advance bool, actor Actor, at time.Time) error {
+	if index == nil {
+		return fmt.Errorf("%w: %s", ErrV2IssueNotFound, id)
+	}
+	issue, ok := index.Issues[id]
+	if !ok || issue == nil {
+		return fmt.Errorf("%w: %s", ErrV2IssueNotFound, id)
+	}
+	if actor.Role != ActorRoleOwner || strings.TrimSpace(actor.Session) == "" {
+		return ErrV2IssueTransitionRequiresOwner
+	}
+	if at.IsZero() {
+		return ErrV2IssueTransitionInvalidTime
+	}
+
+	var (
+		status       IssueStatus
+		kind         IssueHistoryKind
+		note         string
+		resolution   *IssueResolution
+		clearClosure bool
+	)
+	if advance {
+		switch issue.Status {
+		case IssueStatusOpen:
+			status = IssueStatusInProgress
+			kind = IssueHistoryOwnerDecision
+			note = "Moved from open to in_progress by the owner from the board."
+		case IssueStatusInProgress:
+			status = IssueStatusResolved
+			kind = IssueHistoryOwnerDecision
+			note = issueBoardResolutionReason
+			resolution = &IssueResolution{
+				Disposition: IssueDispositionAccepted,
+				Actor:       actor,
+				At:          at,
+				Reason:      issueBoardResolutionReason,
+			}
+		case IssueStatusResolved:
+			return fmt.Errorf("%w: %s", ErrV2IssueCannotAdvance, id)
+		default:
+			return fmt.Errorf("%w: issue %s has unsupported status %q", ErrV2InvalidLifecycle, id, issue.Status)
+		}
+	} else {
+		switch issue.Status {
+		case IssueStatusResolved:
+			if issue.Resolution == nil {
+				return fmt.Errorf("%w: issue %s has no disposition to record while reopening", ErrV2IssueResolutionRequired, id)
+			}
+			status = IssueStatusInProgress
+			kind = IssueHistoryReopened
+			note = fmt.Sprintf("Reopened by the owner from the board after a %s resolution.", issue.Resolution.Disposition)
+			clearClosure = true
+		case IssueStatusInProgress:
+			status = IssueStatusOpen
+			kind = IssueHistoryOwnerDecision
+			note = "Moved from in_progress to open by the owner from the board."
+		case IssueStatusOpen:
+			return fmt.Errorf("%w: %s", ErrV2IssueCannotRetreat, id)
+		default:
+			return fmt.Errorf("%w: issue %s has unsupported status %q", ErrV2InvalidLifecycle, id, issue.Status)
+		}
+	}
+
+	entry := IssueHistoryEntry{At: at, Actor: actor, Kind: kind, Note: note}
+	return writeIssueTransitionV2(issue, status, resolution, clearClosure, entry)
+}
+
+func writeIssueTransitionV2(issue *IssueV2, status IssueStatus, resolution *IssueResolution, clearClosure bool, entry IssueHistoryEntry) error {
+	historyNode, err := appendIssueHistoryNode(issue, entry)
+	if err != nil {
+		return err
+	}
+	patches := []v2FieldPatch{
+		{Key: "status", Value: string(status)},
+		{Key: "history", Node: historyNode},
+	}
+	if resolution != nil {
+		resolutionNode, err := encodeV2Node(issueResolutionFrontmatter{
+			Disposition: string(resolution.Disposition),
+			Actor:       evidenceActorFrontmatter{Role: string(resolution.Actor.Role), Session: resolution.Actor.Session},
+			At:          resolution.At.Format(time.RFC3339),
+			Reason:      resolution.Reason,
+		})
+		if err != nil {
+			return fmt.Errorf("encode Issue %s resolution: %w", issue.ID, err)
+		}
+		if resolutionNode.Kind != yaml.MappingNode {
+			return fmt.Errorf("encode Issue %s resolution: unexpected YAML structure", issue.ID)
+		}
+		patches = append(patches, v2FieldPatch{Key: "resolution", Node: resolutionNode})
+	} else if clearClosure {
+		patches = append(patches,
+			v2FieldPatch{Key: "resolution", Remove: true},
+			v2FieldPatch{Key: "duplicate_of", Remove: true},
+			v2FieldPatch{Key: "escalated_to", Remove: true},
+		)
+	}
+
+	if err := writeV2Record(&issue.Source, patches, func(content string) error {
+		updated, err := DecodeIssueV2(issue.Source.Path, content)
+		if err != nil {
+			return err
+		}
+		if updated.Status == IssueStatusResolved {
+			if updated.Resolution == nil {
+				return fmt.Errorf("%w: issue %s status resolved has no resolution", ErrV2IssueResolutionRequired, updated.ID)
+			}
+			if updated.Resolution.Disposition != IssueDispositionAccepted {
+				return fmt.Errorf("%w: Issue transition must resolve as accepted", ErrV2IssueResolutionFieldMismatch)
+			}
+			return validateAcceptedResolution(updated)
+		}
+		if updated.Resolution != nil {
+			return fmt.Errorf("%w: issue %s status %s carries a resolution", ErrV2IssueResolutionNotAllowed, updated.ID, updated.Status)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	issue.Status = status
+	issue.History = append(issue.History, entry)
+	if resolution != nil {
+		issue.Resolution = resolution
+	} else if clearClosure {
+		issue.Resolution = nil
+		issue.DuplicateOf = ""
+		issue.EscalatedTo = ""
+	}
+	return nil
+}
+
+func appendIssueHistoryNode(issue *IssueV2, entry IssueHistoryEntry) (*yaml.Node, error) {
+	frontmatter := &issue.Source.Frontmatter
+	if frontmatter.Kind != yaml.DocumentNode || len(frontmatter.Content) != 1 || frontmatter.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("append Issue %s history: unexpected YAML structure", issue.ID)
+	}
+
+	var history *yaml.Node
+	if existing, ok := mappingFieldNode(frontmatter.Content[0], "history"); ok {
+		if existing.Kind == yaml.AliasNode {
+			existing = existing.Alias
+		}
+		if existing == nil || existing.Kind != yaml.SequenceNode {
+			return nil, fmt.Errorf("append Issue %s history: history is not a sequence", issue.ID)
+		}
+		history = cloneYAMLNode(existing)
+	} else {
+		history = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	}
+
+	encoded, err := encodeV2Node(issueHistoryFrontmatter{
+		At:    entry.At.Format(time.RFC3339),
+		Actor: evidenceActorFrontmatter{Role: string(entry.Actor.Role), Session: entry.Actor.Session},
+		Kind:  string(entry.Kind),
+		Note:  entry.Note,
+		Check: entry.Check,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode Issue %s history: %w", issue.ID, err)
+	}
+	if encoded.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("encode Issue %s history: unexpected YAML structure", issue.ID)
+	}
+	history.Content = append(history.Content, encoded)
+	return history, nil
 }
 
 // WriteTaskV2 patches only the status and stage fields of a V2 Task record's
@@ -925,8 +1162,8 @@ type NewCheckV2 struct {
 // itself — the ID from next-unused allocation over index, and Source from
 // the file it writes. A newly created Issue always starts status: open,
 // matching the design's "Open -> in_progress when repair starts" flow:
-// resolution and history are recorded later through WriteIssueV2 and
-// WriteIssueHistoryV2. Body is the exact Markdown appended after the
+// resolution and history are recorded later through AdvanceIssueV2 and
+// RetreatIssueV2. Body is the exact Markdown appended after the
 // frontmatter delimiter, in the same form V2SourceDocument.Body holds it
 // (including its leading newline).
 type NewIssueV2 struct {

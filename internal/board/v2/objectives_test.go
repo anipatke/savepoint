@@ -94,8 +94,8 @@ func sidebarText(t *testing.T, model Model) string {
 }
 
 // TestSidebarListsEveryObjectiveInOrder covers the default list: legacy
-// Objectives without rank metadata stay in stable ID order, with the status
-// line omitted from each row.
+// open Objectives without rank metadata stay in stable ID order before the
+// ID-ordered done group, with the status line omitted from each row.
 func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 	got := sidebarText(t, sidebarBoard(t, writeNavigationProject(t)))
 
@@ -104,7 +104,7 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 	}
 
 	previous := -1
-	for _, id := range []string{"O-001", "O-002", "O-003", "O-004", "O-005", "O-006"} {
+	for _, id := range []string{"O-002", "O-003", "O-004", "O-005", "O-006", "O-001"} {
 		at := strings.Index(got, id)
 		if at < 0 {
 			t.Fatalf("sidebar is missing Objective %s:\n%s", id, got)
@@ -115,7 +115,7 @@ func TestSidebarListsEveryObjectiveInOrder(t *testing.T) {
 		previous = at
 	}
 
-	for _, want := range []string{"Finished and", "MEDIUM", "[✓] Check", "[ ] Check"} {
+	for _, want := range []string{"Finished and", "MEDIUM", "DONE", "[✓] Check", "[ ] Check"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("sidebar is missing %q:\n%s", want, got)
 		}
@@ -148,8 +148,8 @@ func prioritizeNavigationFixture(t *testing.T, model *Model) []string {
 		objective.Priority = data.ObjectivePriority(assignment.priority)
 		objective.Rank = assignment.rank
 	}
-	// A completed row remains at its authored rank, and O-003's unsatisfied
-	// dependency remains visible while it stays in the Medium group.
+	// The completed row is rendered after open work, and O-003's unsatisfied
+	// dependency remains visible in the Medium group.
 	model.State.Index.Objectives["O-001"].Status = data.ColumnDone
 	model.Objectives = objectiveRowsForRelease(model.State.Index, model.SelectedRelease)
 	for i, row := range model.Objectives {
@@ -160,9 +160,10 @@ func prioritizeNavigationFixture(t *testing.T, model *Model) []string {
 	}
 	return []string{
 		"CRITICAL", "O-006", "O-004",
-		"HIGH", "O-002", "O-001",
+		"HIGH", "O-002",
 		"MEDIUM", "O-003",
 		"LOW", "O-005",
+		"DONE", "O-001",
 	}
 }
 
@@ -228,11 +229,73 @@ func TestSidebarHidesEmptyPriorityGroups(t *testing.T) {
 			t.Errorf("sidebar omitted populated group %s:\n%s", want, got)
 		}
 	}
-	for _, absent := range []string{"HIGH", "MEDIUM"} {
+	for _, absent := range []string{"HIGH", "MEDIUM", "DONE"} {
 		if strings.Contains(got, absent) {
 			t.Errorf("sidebar drew empty group %s:\n%s", absent, got)
 		}
 	}
+}
+
+func TestDoneHeadingAppearsOnlyForNonEmptyDoneGroup(t *testing.T) {
+	model := sidebarBoard(t, writeNavigationProject(t))
+	model.State.Index.Objectives["O-001"].Status = data.ColumnPlanned
+	model.Objectives = objectiveRowsForRelease(model.State.Index, model.SelectedRelease)
+	sidebar := sidebarText(t, model)
+	if strings.Contains(sidebar, "DONE") {
+		t.Fatalf("sidebar rendered an empty DONE group:\n%s", sidebar)
+	}
+
+	plain := renderPlain(model.State, model.SelectedObjective)
+	listStart := strings.Index(plain, "Objectives:\n")
+	if listStart < 0 {
+		t.Fatalf("plain output has no Objective list:\n%s", plain)
+	}
+	plainList := plain[listStart+len("Objectives:\n"):]
+	if listEnd := strings.Index(plainList, "\nPLANNED"); listEnd >= 0 {
+		plainList = plainList[:listEnd]
+	}
+	if strings.Contains(plainList, "DONE") {
+		t.Errorf("plain output rendered an empty DONE group:\n%s", plainList)
+	}
+}
+
+func TestOnlyDoneObjectivesUseOneIDOrderedHeading(t *testing.T) {
+	model := sidebarBoard(t, writeNavigationProject(t))
+	for _, objective := range model.State.Index.Objectives {
+		objective.Status = data.ColumnDone
+	}
+	model.Objectives = objectiveRowsForRelease(model.State.Index, model.SelectedRelease)
+	wantIDs := []string{"O-001", "O-002", "O-003", "O-004", "O-005", "O-006"}
+
+	sidebar := sidebarText(t, model)
+	if got := strings.Count(sidebar, "DONE"); got != 1 {
+		t.Fatalf("sidebar DONE heading count = %d, want one:\n%s", got, sidebar)
+	}
+	for _, absent := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"} {
+		if strings.Contains(sidebar, absent) {
+			t.Errorf("all-done sidebar rendered priority heading %s:\n%s", absent, sidebar)
+		}
+	}
+	assertOrderedMarkers(t, "all-done sidebar", sidebar, append([]string{"DONE"}, wantIDs...))
+
+	plain := renderPlain(model.State, model.SelectedObjective)
+	listStart := strings.Index(plain, "Objectives:\n")
+	if listStart < 0 {
+		t.Fatalf("plain output has no Objective list:\n%s", plain)
+	}
+	plainList := plain[listStart+len("Objectives:\n"):]
+	if listEnd := strings.Index(plainList, "\nPLANNED"); listEnd >= 0 {
+		plainList = plainList[:listEnd]
+	}
+	if got := strings.Count(plainList, "DONE"); got != 1 {
+		t.Fatalf("plain DONE heading count = %d, want one:\n%s", got, plainList)
+	}
+	for _, absent := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"} {
+		if strings.Contains(plainList, absent) {
+			t.Errorf("all-done plain list rendered priority heading %s:\n%s", absent, plainList)
+		}
+	}
+	assertOrderedMarkers(t, "all-done plain output", plainList, append([]string{"DONE"}, wantIDs...))
 }
 
 func TestSidebarCursorSkipsPriorityHeadingsAndWindowKeepsCurrentGroup(t *testing.T) {
@@ -253,7 +316,7 @@ func TestSidebarCursorSkipsPriorityHeadingsAndWindowKeepsCurrentGroup(t *testing
 	narrow.SidebarFocused = true
 	lines := sidebarLines(t, narrow)
 	visible := strings.Join(lines, "\n")
-	if !strings.Contains(visible, "LOW") || !strings.Contains(visible, narrow.SelectedObjective) || !strings.Contains(visible, glyphCursor) {
+	if !strings.Contains(visible, "DONE") || !strings.Contains(visible, narrow.SelectedObjective) || !strings.Contains(visible, glyphCursor) {
 		t.Errorf("scrolled sidebar must keep the cursor row and its group heading visible:\n%s", visible)
 	}
 	for _, line := range lines {
@@ -268,7 +331,7 @@ func TestSidebarPriorityHeadingsRemainLegibleWithoutColor(t *testing.T) {
 	model := sidebarBoard(t, writeNavigationProject(t))
 	prioritizeNavigationFixture(t, &model)
 	got := xansi.Strip(renderSidebar(model.Objectives, model.SelectedObjective, 0, true, 28, 60))
-	for _, want := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW", glyphCursor, glyphSelected, "[✓] Check"} {
+	for _, want := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW", "DONE", glyphCursor, glyphSelected, "[✓] Check"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("no-colour sidebar is missing %q:\n%s", want, got)
 		}
@@ -293,7 +356,7 @@ func TestSidebarPriorityKeysAppendAndKeepSelection(t *testing.T) {
 			if tt.key == "2" {
 				// Give High two existing rows so the keyboard change proves it
 				// appends after that row rather than replacing its order.
-				if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "high", []string{"O-001", "O-002"}); err != nil {
+				if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "high", []string{"O-002", "O-004"}); err != nil {
 					t.Fatalf("seed High group: %v", err)
 				}
 				model = sidebarBoard(t, root)
@@ -356,12 +419,12 @@ func TestSidebarPriorityKeysAppendAndKeepSelection(t *testing.T) {
 			if tt.key == "2" {
 				var highIDs []string
 				for _, row := range after.Objectives {
-					if sidebarRowPriority(row) == "high" {
+					if row.Objective.Status != data.ColumnDone && sidebarRowPriority(row) == "high" {
 						highIDs = append(highIDs, row.ID())
 					}
 				}
-				if !slices.Equal(highIDs, []string{"O-001", "O-002", targetID}) {
-					t.Errorf("High group order = %v, want O-001, O-002, then %s", highIDs, targetID)
+				if !slices.Equal(highIDs, []string{"O-002", "O-004", targetID}) {
+					t.Errorf("High group order = %v, want O-002, O-004, then %s", highIDs, targetID)
 				}
 				if got := after.State.Index.Objectives[targetID].Rank; got != 3 {
 					t.Errorf("appended Objective rank = %d, want 3", got)
@@ -378,14 +441,14 @@ func TestSidebarPriorityKeysAppendAndKeepSelection(t *testing.T) {
 						t.Errorf("after %s, cursor/selection = %s/%s, want %s/%s", check.label, check.model.Objectives[check.model.ObjectiveCursor].ID(), check.model.SelectedObjective, targetID, targetID)
 					}
 				}
-				if got := objectiveRowIDs(firstUp.Objectives); !slices.Equal(got[:3], []string{"O-001", targetID, "O-002"}) {
-					t.Errorf("first K High order = %v, want O-001, %s, O-002", got[:3], targetID)
+				if got := objectiveRowIDs(firstUp.Objectives); !slices.Equal(got[:3], []string{"O-002", targetID, "O-004"}) {
+					t.Errorf("first K High order = %v, want O-002, %s, O-004", got[:3], targetID)
 				}
-				if got := objectiveRowIDs(secondUp.Objectives); !slices.Equal(got[:3], []string{targetID, "O-001", "O-002"}) {
-					t.Errorf("second K High order = %v, want %s, O-001, O-002", got[:3], targetID)
+				if got := objectiveRowIDs(secondUp.Objectives); !slices.Equal(got[:3], []string{targetID, "O-002", "O-004"}) {
+					t.Errorf("second K High order = %v, want %s, O-002, O-004", got[:3], targetID)
 				}
-				if got := objectiveRowIDs(down.Objectives); !slices.Equal(got[:3], []string{"O-001", targetID, "O-002"}) {
-					t.Errorf("J High order = %v, want O-001, %s, O-002", got[:3], targetID)
+				if got := objectiveRowIDs(down.Objectives); !slices.Equal(got[:3], []string{"O-002", targetID, "O-004"}) {
+					t.Errorf("J High order = %v, want O-002, %s, O-004", got[:3], targetID)
 				}
 			}
 		})
@@ -423,17 +486,23 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 
 	up := runSidebarRuneKey(t, model, "K")
 	wantUp := slices.Clone(beforeOrder)
-	wantUp[1], wantUp[2] = wantUp[2], wantUp[1]
+	targetPosition := slices.Index(wantUp, targetID)
+	wantUp[targetPosition], wantUp[targetPosition-1] = wantUp[targetPosition-1], wantUp[targetPosition]
 	if got := objectiveRowIDs(up.Objectives); !slices.Equal(got, wantUp) {
 		t.Errorf("K order = %v, want %v", got, wantUp)
 	}
 	if got := up.Objectives[up.ObjectiveCursor].ID(); got != targetID || up.SelectedObjective != targetID {
 		t.Errorf("after K, cursor/selection = %s/%s, want both %s", got, up.SelectedObjective, targetID)
 	}
-	for i, id := range wantUp {
+	openRank := 0
+	for _, id := range wantUp {
 		objective := up.State.Index.Objectives[id]
-		if objective.Rank != i+1 || objective.Priority != "medium" {
-			t.Errorf("legacy Objective %s = priority %s rank %d, want medium rank %d", id, objective.Priority, objective.Rank, i+1)
+		if objective.Status == data.ColumnDone {
+			continue
+		}
+		openRank++
+		if objective.Rank != openRank || objective.Priority != "medium" {
+			t.Errorf("legacy Objective %s = priority %s rank %d, want medium rank %d", id, objective.Priority, objective.Rank, openRank)
 		}
 	}
 	if reopened := sidebarBoard(t, root); !slices.Equal(objectiveRowIDs(reopened.Objectives), wantUp) {
@@ -477,9 +546,15 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 		delta int
 	}{{key: "shift+up", delta: -1}, {key: "shift+down", delta: 1}} {
 		change, ok := sidebarObjectiveOrderChange(down.Objectives, down.ObjectiveCursor, tt.key)
-		want := slices.Clone(beforeOrder)
-		neighbor := down.ObjectiveCursor + tt.delta
-		want[down.ObjectiveCursor], want[neighbor] = want[neighbor], want[down.ObjectiveCursor]
+		want := make([]string, 0, len(beforeOrder)-1)
+		for _, row := range down.Objectives {
+			if row.Objective.Status != data.ColumnDone {
+				want = append(want, row.ID())
+			}
+		}
+		position := slices.Index(want, targetID)
+		neighbor := position + tt.delta
+		want[position], want[neighbor] = want[neighbor], want[position]
 		if !ok || !slices.Equal(change.ObjectiveIDs, want) {
 			t.Errorf("%s order = %v, want in-group swap %v (ok=%t)", tt.key, change.ObjectiveIDs, want, ok)
 		}
@@ -493,7 +568,7 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 		t.Error("K at the top of a priority group changed the board")
 	}
 	last := down
-	last.ObjectiveCursor = len(last.Objectives) - 1
+	last.ObjectiveCursor = len(last.Objectives) - 2
 	last.SelectedObjective = last.Objectives[last.ObjectiveCursor].ID()
 	lastView := last.View()
 	if edge := runSidebarRuneKey(t, last, "J"); edge.View() != lastView {
@@ -518,7 +593,7 @@ func TestSidebarHelpListsOrderKeysOnlyWhenFocused(t *testing.T) {
 func TestSidebarGroupMovementDoesNotCrossPriorityGroups(t *testing.T) {
 	root := writeNavigationProject(t)
 	model := sidebarBoard(t, root)
-	if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "critical", []string{"O-001"}); err != nil {
+	if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "critical", []string{"O-006"}); err != nil {
 		t.Fatalf("seed Critical group: %v", err)
 	}
 	if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "high", []string{"O-002"}); err != nil {
@@ -527,9 +602,9 @@ func TestSidebarGroupMovementDoesNotCrossPriorityGroups(t *testing.T) {
 	model = sidebarBoard(t, root)
 	model.SidebarFocused = true
 	order := objectiveRowIDs(model.Objectives)
-	criticalIndex := slices.Index(order, "O-001")
+	criticalIndex := slices.Index(order, "O-006")
 	model.ObjectiveCursor = criticalIndex
-	model.SelectedObjective = "O-001"
+	model.SelectedObjective = "O-006"
 	if after := runSidebarRuneKey(t, model, "J"); !slices.Equal(objectiveRowIDs(after.Objectives), order) {
 		t.Errorf("J at the Critical group edge crossed into High: %v", objectiveRowIDs(after.Objectives))
 	}
@@ -538,6 +613,82 @@ func TestSidebarGroupMovementDoesNotCrossPriorityGroups(t *testing.T) {
 	model.SelectedObjective = "O-002"
 	if after := runSidebarRuneKey(t, model, "K"); !slices.Equal(objectiveRowIDs(after.Objectives), order) {
 		t.Errorf("K at the High group edge crossed into Critical: %v", objectiveRowIDs(after.Objectives))
+	}
+}
+
+func TestSidebarReorderGroupsExcludeDoneObjectives(t *testing.T) {
+	rows := []ObjectiveRow{
+		{Objective: &data.ObjectiveV2{ID: "O-001", Priority: "high"}},
+		{Objective: &data.ObjectiveV2{ID: "O-002", Status: data.ColumnDone, Priority: "high"}},
+		{Objective: &data.ObjectiveV2{ID: "O-003", Priority: "high"}},
+		{Objective: &data.ObjectiveV2{ID: "O-004", Status: data.ColumnDone, Priority: "critical"}},
+		{Objective: &data.ObjectiveV2{ID: "O-005", Priority: "critical"}},
+	}
+
+	if got, want := sidebarObjectiveIDsInPriority(rows, "high", ""), []string{"O-001", "O-003"}; !slices.Equal(got, want) {
+		t.Fatalf("High reorder IDs = %v, want open rows only %v", got, want)
+	}
+	if got, want := sidebarObjectiveIDsInPriority(rows, "critical", ""), []string{"O-005"}; !slices.Equal(got, want) {
+		t.Fatalf("Critical reorder IDs = %v, want open rows only %v", got, want)
+	}
+	if change, ok := sidebarObjectiveOrderChange(rows, 0, "J"); !ok || !slices.Equal(change.ObjectiveIDs, []string{"O-003", "O-001"}) {
+		t.Errorf("J change = %+v, ok %t; want open High rows swapped", change, ok)
+	}
+	if change, ok := sidebarObjectiveOrderChange(rows, 0, "1"); !ok || !slices.Equal(change.ObjectiveIDs, []string{"O-005", "O-001"}) {
+		t.Errorf("priority change = %+v, ok %t; want open Critical rows plus the moved Objective", change, ok)
+	}
+
+	for _, key := range []string{"1", "2", "3", "4", "K", "J", "shift+up", "shift+down"} {
+		if change, ok := sidebarObjectiveOrderChange(rows, 1, key); ok || len(change.ObjectiveIDs) != 0 {
+			t.Errorf("done-row %s change = %+v, ok %t; want no change", key, change, ok)
+		}
+	}
+}
+
+func TestSidebarDoneObjectiveOrderKeysDoNotWriteProjectFiles(t *testing.T) {
+	root := writeNavigationProject(t)
+	model := sidebarBoard(t, root)
+	model.SidebarFocused = true
+	doneCursor := slices.IndexFunc(model.Objectives, func(row ObjectiveRow) bool {
+		return row.Objective.Status == data.ColumnDone
+	})
+	if doneCursor < 0 {
+		t.Fatal("navigation fixture has no done Objective")
+	}
+	model.ObjectiveCursor = doneCursor
+	model.SelectedObjective = model.Objectives[doneCursor].ID()
+	before := snapshotProject(t, root)
+
+	for _, key := range []string{"1", "2", "3", "4", "K", "J"} {
+		model = runSidebarRuneKey(t, model, key)
+		if model.Objectives[model.ObjectiveCursor].Objective.Status != data.ColumnDone || model.SelectedObjective != "O-001" {
+			t.Errorf("key %s changed done-row focus or selection to %s/%s", key, model.Objectives[model.ObjectiveCursor].ID(), model.SelectedObjective)
+		}
+		if after := snapshotProject(t, root); !reflect.DeepEqual(before, after) {
+			t.Errorf("key %s wrote project files while focused on a done Objective", key)
+		}
+	}
+}
+
+func TestSidebarOpenReorderDoesNotWriteDoneObjectiveFile(t *testing.T) {
+	root := writeNavigationProject(t)
+	model := sidebarBoard(t, root)
+	model.SidebarFocused = true
+	donePath := model.State.Index.Objectives["O-001"].Source.Path
+	if !filepath.IsAbs(donePath) {
+		donePath = filepath.Join(root, donePath)
+	}
+	beforeDone := snapshotProject(t, root)[donePath]
+
+	if model.Objectives[model.ObjectiveCursor].ID() != "O-003" {
+		t.Fatalf("focused Objective = %s, want router-selected open O-003", model.Objectives[model.ObjectiveCursor].ID())
+	}
+	after := runSidebarRuneKey(t, model, "K")
+	if after.State.Index.Objectives["O-001"].Status != data.ColumnDone {
+		t.Fatal("open-row reorder changed the done Objective's status")
+	}
+	if got := snapshotProject(t, root)[donePath]; got != beforeDone {
+		t.Errorf("open-row reorder rewrote the done Objective file:\n before %s\n  after %s", beforeDone, got)
 	}
 }
 
@@ -698,9 +849,9 @@ func TestSelectionFiltersColumnsByRecordedOwnership(t *testing.T) {
 
 	// Selecting O-001 from the sidebar filters to its Tasks — and T-004, whose
 	// file sits in O-001's directory, is not one of them.
-	model = press(t, model, "left", "up", "up")
+	model = press(t, model, "left", "down", "down", "down", "down")
 	if model.SelectedObjective != "O-001" {
-		t.Fatalf("SelectedObjective = %q after selecting the first row, want O-001", model.SelectedObjective)
+		t.Fatalf("SelectedObjective = %q after navigating to the done row, want O-001", model.SelectedObjective)
 	}
 	if got := cardIDsInView(model); !equalIDs(got, []string{"T-001"}) {
 		t.Errorf("columns show %v, want only the Task O-001's own records claim", got)
@@ -789,7 +940,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	if !model.SidebarFocused {
 		t.Fatal("left did not move focus to the sidebar")
 	}
-	if model.ObjectiveCursor != 2 {
+	if model.ObjectiveCursor != 1 {
 		t.Fatalf("ObjectiveCursor = %d, want the row holding the selected O-003", model.ObjectiveCursor)
 	}
 
@@ -800,7 +951,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	if press(t, atTop, "up").View() != atTop.View() {
 		t.Error("pressing up at the first Objective changed the board")
 	}
-	if atTop.SelectedObjective != "O-001" {
+	if atTop.SelectedObjective != "O-002" {
 		t.Errorf("SelectedObjective = %q at the top row, want up to have applied it immediately", atTop.SelectedObjective)
 	}
 
@@ -813,7 +964,7 @@ func TestSidebarNavigationClampsAndIsIdempotent(t *testing.T) {
 	}
 
 	// Moving the cursor applies the row it lands on, immediately.
-	if atBottom.SelectedObjective != "O-006" {
+	if atBottom.SelectedObjective != "O-001" {
 		t.Errorf("SelectedObjective = %q after moving the cursor, want it to follow the cursor to the last row", atBottom.SelectedObjective)
 	}
 }
@@ -827,7 +978,7 @@ func TestLeftArrowAtPlannedColumnEntersSidebar(t *testing.T) {
 	if !viaLeft.SidebarFocused {
 		t.Fatal("left at the Planned column did not move focus to the sidebar")
 	}
-	if viaLeft.ObjectiveCursor != 2 {
+	if viaLeft.ObjectiveCursor != 1 {
 		t.Errorf("ObjectiveCursor = %d via left, want the row holding the router's selected O-003", viaLeft.ObjectiveCursor)
 	}
 
@@ -882,7 +1033,7 @@ func TestNarrowTerminalLeftArrowStaysOnColumns(t *testing.T) {
 // a reloaded list lands somewhere that renders.
 func TestSidebarSurvivesAReloadThatShortensTheList(t *testing.T) {
 	root := writeNavigationProject(t)
-	model := press(t, sidebarBoard(t, root), "left", "down", "down", "down")
+	model := press(t, sidebarBoard(t, root), "left", "down", "down", "down", "down")
 	if model.ObjectiveCursor != 5 {
 		t.Fatalf("ObjectiveCursor = %d, want the last row", model.ObjectiveCursor)
 	}
@@ -1136,11 +1287,11 @@ func rowsFor(lines []string, id string) string {
 	var block []string
 	collecting := false
 	for _, line := range lines {
-		switch {
-		case strings.Contains(line, id):
-			collecting = true
-		case collecting && objectiveRowStart(line):
-			return strings.Join(block, "\n")
+		if objectiveRowStart(line) {
+			if collecting {
+				return strings.Join(block, "\n")
+			}
+			collecting = strings.Contains(line, id)
 		}
 		if collecting {
 			block = append(block, line)
@@ -1153,7 +1304,7 @@ func rowsFor(lines []string, id string) string {
 // which is the only line carrying an O-### identity.
 func objectiveRowStart(line string) bool {
 	trimmed := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(line), "│"), " "+glyphCursor+glyphSelected)
-	return strings.HasPrefix(trimmed, "O") && len(trimmed) > 4 && trimmed[1] >= '0' && trimmed[1] <= '9'
+	return strings.HasPrefix(trimmed, "O-") && len(trimmed) > 4 && trimmed[2] >= '0' && trimmed[2] <= '9'
 }
 
 // writeIssueOnlyRouter selects issue alone, the way an Issue repair is routed.

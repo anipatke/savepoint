@@ -46,7 +46,7 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 
 This skill may write: scoped implementation for the active Task, recorded evidence (extra reads, per-criterion outcomes, command results, limitations), lifecycle progress (`status` and `stage`), and a replan handoff when one is needed.
 
-It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue on its own, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. It may record an explicit owner instruction to close an Issue as `accepted`; that is the owner's decision, not executor clearance.
+It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue on its own, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. The owner may resolve an Issue as `accepted` with Space or reopen any resolved Issue with Backspace in the board's Issues list; those remain owner actions. The executor may record an explicit owner instruction to resolve an Issue as `accepted`, not infer it or claim executor clearance.
 
 ## Lifecycle
 
@@ -107,7 +107,7 @@ This evidence is what a fresh `savepoint-check` session will treat as claims to 
 
 - Stay within the active Task's scope; do not widen it and call the extra work necessary without a replan.
 - Do not edit acceptance criteria to match what was built.
-- Do not write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work. Record an `accepted` Issue closure only on explicit owner instruction.
+- Do not write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work. Record an `accepted` Issue resolution only on explicit owner instruction. Space and Backspace in the board's Issues list are owner actions to resolve or reopen Issues.
 - A blocked start (unsatisfied Task dependency, an owning Objective that is not ready) is reported, never worked around.
 - Every read beyond the Task's Context Files is logged with what was read and why.
 - A materially invalid plan returns `REPLAN REQUIRED` with preserved partial work and unchanged `status`/`stage`; it is never silently redesigned.

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/termenv"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
@@ -328,6 +329,189 @@ func TestIssuesNavigationAndFilteringAreReadOnly(t *testing.T) {
 	if after := issueFilesSnapshot(t, root); after != before {
 		t.Error("opening, filtering, navigating, and closing Issues changed project files")
 	}
+}
+
+func TestIssuesSpaceAndBackspaceMoveSelectedIssueAndRetainFocus(t *testing.T) {
+	root := writeIssuesProject(t)
+	model := press(t, issueBoard(t, root), "i")
+	const issueID = "I-001"
+	wantStatuses := []data.IssueStatus{
+		data.IssueStatusInProgress,
+		data.IssueStatusResolved,
+		data.IssueStatusInProgress,
+		data.IssueStatusOpen,
+	}
+	keys := []string{" ", " ", "backspace", "backspace"}
+	for i, key := range keys {
+		var action actionMsg
+		model, action = runIssueTransition(t, model, key)
+		if action.err != nil {
+			t.Fatalf("transition %d (%q) failed: %v", i+1, key, action.err)
+		}
+		if !action.reload || action.issueSelectedID != issueID {
+			t.Fatalf("transition %d action = %#v, want reload and selected Issue %s", i+1, action, issueID)
+		}
+		if model.Issues == nil || model.Issues.SelectedID != issueID || model.Issues.FocusedStatus != wantStatuses[i] {
+			t.Fatalf("transition %d focus = %#v, want %s selected in %s", i+1, model.Issues, issueID, wantStatuses[i])
+		}
+		rows := model.focusedIssueRows()
+		if model.Issues.Cursor < 0 || model.Issues.Cursor >= len(rows) || rows[model.Issues.Cursor].Issue.ID != issueID {
+			t.Fatalf("transition %d cursor %d does not select %s in %s", i+1, model.Issues.Cursor, issueID, wantStatuses[i])
+		}
+	}
+
+	index, err := data.LoadV2Index(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issue := index.Issues[issueID]
+	if issue.Status != data.IssueStatusOpen || issue.Resolution != nil {
+		t.Fatalf("Issue after four moves = status %s, resolution %#v; want open with no resolution", issue.Status, issue.Resolution)
+	}
+	wantKinds := []string{"owner_decision", "owner_decision", "reopened", "owner_decision"}
+	if len(issue.History) < len(wantKinds) {
+		t.Fatalf("Issue history has %d entries, want at least %d", len(issue.History), len(wantKinds))
+	}
+	for i, want := range wantKinds {
+		entry := issue.History[len(issue.History)-len(wantKinds)+i]
+		if string(entry.Kind) != want || entry.Actor.Role != data.ActorRoleOwner || entry.Actor.Session != ownerBoardSession || entry.At.IsZero() {
+			t.Errorf("history entry %d = %#v, want %s by board owner at a timestamp", i+1, entry, want)
+		}
+	}
+	if !strings.Contains(issue.History[len(issue.History)-3].Note, "Resolved by the owner from the board.") {
+		t.Errorf("resolution history note = %q, want the board reason", issue.History[len(issue.History)-3].Note)
+	}
+}
+
+func TestIssuesTransitionRefusalsShowInStatusWithoutWriting(t *testing.T) {
+	tests := []struct {
+		name string
+		keys []string
+		key  string
+		want string
+	}{
+		{name: "Backspace on Open", keys: []string{"i"}, key: "backspace", want: "cannot retreat Issue I-001"},
+		{name: "Space on Resolved", keys: []string{"i", "right", "right"}, key: " ", want: "cannot advance Issue I-003"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := writeIssuesProject(t)
+			model := press(t, issueBoard(t, root), tt.keys...)
+			before := issueFilesSnapshot(t, root)
+			model, action := runIssueTransition(t, model, tt.key)
+			if action.err == nil {
+				t.Fatal("transition unexpectedly succeeded")
+			}
+			if !strings.Contains(model.StatusMessage, tt.want) {
+				t.Errorf("status line = %q, want %q", model.StatusMessage, tt.want)
+			}
+			if after := issueFilesSnapshot(t, root); after != before {
+				t.Error("refused Issue transition changed project files")
+			}
+		})
+	}
+}
+
+func TestIssuesTransitionDoesNothingWithoutASelectionOrInDetail(t *testing.T) {
+	root := writeIssuesProject(t)
+	empty := press(t, issueBoard(t, root), "i")
+	empty.Issues.Filter = "guardrail"
+	empty.clampIssueCursorToStatus()
+	for _, key := range []string{" ", "backspace"} {
+		_, cmd := empty.Update(issueTransitionKeyMsg(key))
+		if cmd != nil {
+			t.Errorf("empty filtered column scheduled a command for %q", key)
+		}
+	}
+
+	unselected := press(t, issueBoard(t, root), "i")
+	unselected.Issues.SelectedID = ""
+	_, cmd := unselected.Update(issueTransitionKeyMsg(" "))
+	if cmd != nil {
+		t.Error("missing selection scheduled an Issue transition")
+	}
+
+	detail := press(t, issueBoard(t, root), "i", "enter")
+	for _, key := range []string{" ", "backspace"} {
+		_, cmd := detail.Update(issueTransitionKeyMsg(key))
+		if cmd != nil {
+			t.Errorf("Issue detail scheduled a transition for %q", key)
+		}
+	}
+}
+
+func TestIssuesWriteFailureAppearsInStatusLine(t *testing.T) {
+	root := writeIssuesProject(t)
+	model := press(t, issueBoard(t, root), "i")
+	issuesDir := filepath.Join(root, "issues")
+	issuePath := filepath.Join(issuesDir, "I-001-fixture.md")
+	dirInfo, err := os.Stat(issuesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileInfo, err := os.Stat(issuePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(issuesDir, dirInfo.Mode().Perm())
+		_ = os.Chmod(issuePath, fileInfo.Mode().Perm())
+	})
+	if err := os.Chmod(issuePath, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(issuesDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+
+	model, action := runIssueTransition(t, model, " ")
+	if action.err == nil {
+		t.Fatal("transition succeeded while the Issue directory was read-only")
+	}
+	if !strings.Contains(strings.ToLower(model.StatusMessage), "permission denied") {
+		t.Errorf("status line = %q, want the write permission failure", model.StatusMessage)
+	}
+}
+
+func issueTransitionKeyMsg(key string) tea.KeyMsg {
+	if key == "backspace" {
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	}
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+}
+
+func runIssueTransition(t *testing.T, model Model, key string) (Model, actionMsg) {
+	t.Helper()
+	updated, cmd := model.Update(issueTransitionKeyMsg(key))
+	current, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("Update() returned %T, want Model", updated)
+	}
+	if cmd == nil {
+		t.Fatalf("Issue transition key %q returned no command", key)
+	}
+	message := cmd()
+	action, ok := message.(actionMsg)
+	if !ok {
+		t.Fatalf("transition command returned %T, want actionMsg", message)
+	}
+	updated, reloadCmd := current.Update(action)
+	current, ok = updated.(Model)
+	if !ok {
+		t.Fatalf("Update(actionMsg) returned %T, want Model", updated)
+	}
+	if action.err != nil {
+		return current, action
+	}
+	if !action.reload || reloadCmd == nil {
+		t.Fatalf("successful transition action = %#v, reload command %v", action, reloadCmd != nil)
+	}
+	updated, _ = current.Update(reloadCmd())
+	current, ok = updated.(Model)
+	if !ok {
+		t.Fatalf("Update(projectLoadedMsg) returned %T, want Model", updated)
+	}
+	return current, action
 }
 
 func issueFilesSnapshot(t *testing.T, root string) string {

@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // issueFixture builds a minimal valid Issue record so each test can override
@@ -717,4 +719,400 @@ func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 	if got[0].Issue != "I-001" || got[1].Issue != "I-002" {
 		t.Fatalf("InspectIssueConsistency() order = [%s, %s], want sorted [I-001, I-002]", got[0].Issue, got[1].Issue)
 	}
+}
+
+func TestAdvanceAndRetreatIssueV2_transitions(t *testing.T) {
+	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
+	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
+	tests := []struct {
+		name                   string
+		status                 string
+		fields                 string
+		advance                bool
+		wantStatus             IssueStatus
+		wantKind               IssueHistoryKind
+		wantDispositionInNote  string
+		wantResolved           bool
+		wantClearClosureFields bool
+	}{
+		{
+			name:       "open to in progress",
+			status:     "open",
+			advance:    true,
+			wantStatus: IssueStatusInProgress,
+			wantKind:   IssueHistoryOwnerDecision,
+		},
+		{
+			name:       "in progress to open",
+			status:     "in_progress",
+			wantStatus: IssueStatusOpen,
+			wantKind:   IssueHistoryOwnerDecision,
+		},
+		{
+			name:         "in progress to resolved",
+			status:       "in_progress",
+			advance:      true,
+			wantStatus:   IssueStatusResolved,
+			wantKind:     IssueHistoryOwnerDecision,
+			wantResolved: true,
+		},
+		{
+			name:   "verified issue reopens",
+			status: "resolved",
+			fields: `resolution:
+  disposition: verified
+  check: C-003
+  actor: {role: checker, session: checker-session}
+  at: '2026-09-24T10:00:00Z'
+  reason: repaired`,
+			wantStatus:             IssueStatusInProgress,
+			wantKind:               IssueHistoryReopened,
+			wantDispositionInNote:  "verified",
+			wantClearClosureFields: true,
+		},
+		{
+			name:   "duplicate issue reopens and clears duplicate target",
+			status: "resolved",
+			fields: `resolution:
+  disposition: duplicate
+  actor: {role: planner, session: planner-session}
+  at: '2026-09-24T10:00:00Z'
+  reason: duplicate report
+duplicate_of: I-002`,
+			wantStatus:             IssueStatusInProgress,
+			wantKind:               IssueHistoryReopened,
+			wantDispositionInNote:  "duplicate",
+			wantClearClosureFields: true,
+		},
+		{
+			name:   "escalated issue reopens and clears escalation target",
+			status: "resolved",
+			fields: `resolution:
+  disposition: escalated
+  actor: {role: planner, session: planner-session}
+  at: '2026-09-24T10:00:00Z'
+  reason: promoted
+escalated_to: O-002`,
+			wantStatus:             IssueStatusInProgress,
+			wantKind:               IssueHistoryReopened,
+			wantDispositionInNote:  "escalated",
+			wantClearClosureFields: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			issue, index, path := newIssueTransitionFixture(t, tt.status, tt.fields)
+			beforeBody := issue.Source.Body
+			beforeHistory := append([]IssueHistoryEntry(nil), issue.History...)
+			if tt.advance {
+				if err := AdvanceIssueV2(index, issue.ID, actor, at); err != nil {
+					t.Fatalf("AdvanceIssueV2() error = %v", err)
+				}
+			} else if err := RetreatIssueV2(index, issue.ID, actor, at); err != nil {
+				t.Fatalf("RetreatIssueV2() error = %v", err)
+			}
+
+			if issue.Status != tt.wantStatus {
+				t.Errorf("status = %q, want %q", issue.Status, tt.wantStatus)
+			}
+			if len(issue.History) != len(beforeHistory)+1 {
+				t.Fatalf("history length = %d, want %d", len(issue.History), len(beforeHistory)+1)
+			}
+			if !reflect.DeepEqual(issue.History[:len(beforeHistory)], beforeHistory) {
+				t.Errorf("existing history changed: got %+v, want original entries %+v", issue.History[:len(beforeHistory)], beforeHistory)
+			}
+			entry := issue.History[len(issue.History)-1]
+			if entry.Kind != tt.wantKind || entry.Actor != actor || !entry.At.Equal(at) {
+				t.Errorf("appended history entry = %+v, want kind %q, actor %+v, time %s", entry, tt.wantKind, actor, at.Format(time.RFC3339))
+			}
+			if tt.wantDispositionInNote != "" && !strings.Contains(entry.Note, tt.wantDispositionInNote) {
+				t.Errorf("reopened note = %q, want removed disposition %q named", entry.Note, tt.wantDispositionInNote)
+			}
+			if tt.wantResolved {
+				if issue.Resolution == nil {
+					t.Fatal("resolution = nil, want accepted owner resolution")
+				}
+				if issue.Resolution.Disposition != IssueDispositionAccepted || issue.Resolution.Actor != actor || !issue.Resolution.At.Equal(at) || issue.Resolution.Reason != issueBoardResolutionReason || issue.Resolution.Check != "" {
+					t.Errorf("resolution = %+v, want accepted owner resolution without a proof Check", issue.Resolution)
+				}
+			} else if tt.wantClearClosureFields {
+				if issue.Resolution != nil || issue.DuplicateOf != "" || issue.EscalatedTo != "" {
+					t.Errorf("reopened closure fields = resolution:%+v duplicate_of:%q escalated_to:%q, want all cleared", issue.Resolution, issue.DuplicateOf, issue.EscalatedTo)
+				}
+			}
+
+			written, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			updated, err := DecodeIssueV2(path, string(written))
+			if err != nil {
+				t.Fatalf("DecodeIssueV2(written) error = %v", err)
+			}
+			if updated.Source.Body != beforeBody {
+				t.Errorf("Markdown body changed: got %q, want %q", updated.Source.Body, beforeBody)
+			}
+			if !strings.Contains(string(written), "project_extension") || !strings.Contains(string(written), "preserve-this-value") {
+				t.Errorf("unknown frontmatter field was not preserved:\n%s", written)
+			}
+			if !strings.Contains(string(written), "history_extension") {
+				t.Errorf("unknown existing history field was not preserved:\n%s", written)
+			}
+			if !reflect.DeepEqual(updated.History[:len(beforeHistory)], beforeHistory) {
+				t.Errorf("written history changed existing entries: got %+v, want %+v", updated.History[:len(beforeHistory)], beforeHistory)
+			}
+			if len(updated.History) != len(beforeHistory)+1 || updated.History[len(updated.History)-1].Kind != tt.wantKind {
+				t.Errorf("written history = %+v, want one appended %q entry", updated.History, tt.wantKind)
+			}
+			if tt.wantClearClosureFields && (strings.Contains(string(written), "duplicate_of:") || strings.Contains(string(written), "escalated_to:")) {
+				t.Errorf("reopened file retained disposition targets:\n%s", written)
+			}
+		})
+	}
+}
+
+func TestAdvanceAndRetreatIssueV2_refusalsAndUnknownIDDoNotWrite(t *testing.T) {
+	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
+	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
+	tests := []struct {
+		name   string
+		status string
+		fields string
+		call   func(*V2Index, string) error
+		want   error
+	}{
+		{
+			name:   "advance resolved",
+			status: "resolved",
+			fields: `resolution:
+  disposition: accepted
+  actor: {role: owner, session: prior-owner}
+  at: '2026-09-24T10:00:00Z'
+  reason: previously accepted`,
+			call: func(index *V2Index, id string) error { return AdvanceIssueV2(index, id, actor, at) },
+			want: ErrV2IssueCannotAdvance,
+		},
+		{
+			name:   "retreat open",
+			status: "open",
+			call:   func(index *V2Index, id string) error { return RetreatIssueV2(index, id, actor, at) },
+			want:   ErrV2IssueCannotRetreat,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			issue, index, path := newIssueTransitionFixture(t, tt.status, tt.fields)
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.call(index, issue.ID); !errors.Is(err, tt.want) {
+				t.Fatalf("transition error = %v, want %v", err, tt.want)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(after, before) {
+				t.Errorf("refused transition changed file:\n%s", after)
+			}
+		})
+	}
+
+	if err := AdvanceIssueV2(&V2Index{Issues: map[string]*IssueV2{}}, "I-999", actor, at); !errors.Is(err, ErrV2IssueNotFound) {
+		t.Errorf("unknown Issue error = %v, want %v", err, ErrV2IssueNotFound)
+	}
+}
+
+func TestAdvanceIssueV2_refusesStaleIssueFile(t *testing.T) {
+	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
+	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
+	issue, index, path := newIssueTransitionFixture(t, "open", "")
+	external := []byte("external edit that must survive")
+	if err := os.WriteFile(path, external, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := AdvanceIssueV2(index, issue.ID, actor, at)
+	if !errors.Is(err, ErrV2SourceConflict) {
+		t.Fatalf("AdvanceIssueV2() error = %v, want ErrV2SourceConflict", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(after, external) {
+		t.Errorf("stale write replaced external file content: %q", after)
+	}
+}
+
+func TestAdvanceIssueV2_preservesExistingHistoryBytes(t *testing.T) {
+	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
+	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
+	issue, index, path := newIssueTransitionFixture(t, "open", "")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const existingHistory = `history:
+  - at: '2026-09-21T00:00:00Z'
+    actor: {role: checker, session: existing-checker}
+    kind: observed
+    note: original history entry
+    history_extension: preserve-this-value`
+	if !strings.Contains(string(before), existingHistory) {
+		t.Fatalf("fixture history does not contain the expected 2-space source block:\n%s", before)
+	}
+
+	if err := AdvanceIssueV2(index, issue.ID, actor, at); err != nil {
+		t.Fatalf("AdvanceIssueV2() error = %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), existingHistory) {
+		t.Errorf("existing history bytes changed during Issue transition:\n%s", after)
+	}
+	if !strings.Contains(string(after), "note: Moved from open to in_progress by the owner from the board.") {
+		t.Errorf("new history entry is missing:\n%s", after)
+	}
+}
+
+// TestIssueTransitionsKeepEarlierFrontmatterBytes runs a full move sequence
+// on a 4-space Issue that already holds a board-written block-style entry and
+// a wrapped plain note. Every move must keep all earlier frontmatter lines
+// byte-for-byte, apart from the status line and a removed resolution block.
+func TestIssueTransitionsKeepEarlierFrontmatterBytes(t *testing.T) {
+	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
+	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
+	path := filepath.Join(t.TempDir(), "I-001-bytes.md")
+	const body = "\n\n# Body\n\nKeep this body.\n"
+	content := `---
+id: I-001
+title: Issue byte preservation
+type: defect
+status: open
+source:
+    kind: check
+    check: C-001
+    actor: {role: checker, session: checker-1}
+    at: '2026-09-23T01:42:44Z'
+checks: [C-001]
+history:
+    - at: '2026-09-23T01:42:44Z'
+      actor: {role: checker, session: checker-1}
+      kind: observed
+      check: C-001
+      note: Owner reported a RELOAD error decoding router.md because of a YAML
+        mapping-values parse error on line 5. Exact diagnostic is recorded in the
+        Evidence section.
+    - at: "2026-09-25T09:26:40Z"
+      actor:
+        role: owner
+        session: board-owner
+      kind: owner_decision
+      note: Moved from open to in_progress by the owner from the board.
+---` + body
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	index := &V2Index{Issues: map[string]*IssueV2{issue.ID: issue}}
+
+	moves := []struct {
+		name    string
+		advance bool
+		status  string
+	}{
+		{"open to in_progress", true, "in_progress"},
+		{"in_progress to resolved", true, "resolved"},
+		{"reopen", false, "in_progress"},
+		{"in_progress to open", false, "open"},
+	}
+	for i, move := range moves {
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 2 {
+			// Reload from disk so the move also runs on a freshly parsed record.
+			issue, err = DecodeIssueV2(path, string(before))
+			if err != nil {
+				t.Fatalf("reload: %v", err)
+			}
+			index.Issues[issue.ID] = issue
+		}
+		moveAt := at.Add(time.Duration(i) * time.Minute)
+		if move.advance {
+			err = AdvanceIssueV2(index, issue.ID, actor, moveAt)
+		} else {
+			err = RetreatIssueV2(index, issue.ID, actor, moveAt)
+		}
+		if err != nil {
+			t.Fatalf("%s: %v", move.name, err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		kept := string(before)
+		kept = kept[:strings.Index(kept, "\n---\n")+1]
+		if cut := strings.Index(kept, "\nresolution:\n"); cut >= 0 {
+			kept = kept[:cut+1]
+		}
+		kept = regexp.MustCompile(`(?m)^status: .*$`).ReplaceAllString(kept, "status: "+move.status)
+		if !strings.HasPrefix(string(after), kept) {
+			t.Fatalf("%s changed earlier frontmatter bytes.\nwant prefix:\n%s\ngot:\n%s", move.name, kept, after)
+		}
+		if !strings.HasSuffix(string(after), "\n---"+body) {
+			t.Fatalf("%s changed the body:\n%s", move.name, after)
+		}
+		if _, err := DecodeIssueV2(path, string(after)); err != nil {
+			t.Fatalf("%s wrote an undecodable record: %v", move.name, err)
+		}
+	}
+}
+
+func newIssueTransitionFixture(t *testing.T, status, extraFields string) (*IssueV2, *V2Index, string) {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "I-001-transition.md")
+	content := `---
+id: I-001
+title: "Issue transition test"
+type: defect
+status: ` + status + `
+source: {kind: report, actor: {role: owner, session: reporter}, at: '2026-09-20T00:00:00Z'}
+project_extension: {source: test, value: preserve-this-value}
+`
+	if extraFields != "" {
+		content += extraFields + "\n"
+	}
+	content += `history:
+  - at: '2026-09-21T00:00:00Z'
+    actor: {role: checker, session: existing-checker}
+    kind: observed
+    note: original history entry
+    history_extension: preserve-this-value
+---
+
+# Owner-authored Issue body
+
+Keep this exact body when writing.
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	issue, err := DecodeIssueV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeIssueV2() error = %v", err)
+	}
+	return issue, &V2Index{Issues: map[string]*IssueV2{issue.ID: issue}}, path
 }

@@ -1,7 +1,7 @@
 ---
 id: O-024
 title: Move finished Objectives below open work
-status: planned
+status: done
 depends_on: [O-020]
 release: R-006
 priority: critical
@@ -83,7 +83,12 @@ Confirmed by the owner on 2026-09-25 in chat after reviewing the proposal.
 - **Placement:** this is a follow-up Objective. O-020 closed unchanged. This
   Objective supersedes O-020's rule that a completed Objective keeps its ranked
   position.
-- **Planner choice, flagged for owner review:** done Objectives are left out of
-  reorder writes and duplicate-rank detection. This replaces the earlier
-  proposal to keep them at the end of the write list. Both approaches avoid
-  false duplicate warnings. This one never rewrites a finished record.
+- **Planner choice (originally flagged for owner review):** done Objectives
+  are left out of reorder writes and duplicate-rank detection. This replaces
+  the earlier proposal to keep them at the end of the write list. Both
+  approaches avoid false duplicate warnings. This one never rewrites a
+  finished record.
+- **Owner decision — 2026-09-25T08:44:06Z:** the owner approved the current
+  behavior, excluding finished Objectives from reorder writes and
+  duplicate-rank checks. Actor: owner, via chat reply. Reason: approval of the
+  current behavior.

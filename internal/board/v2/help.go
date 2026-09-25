@@ -35,6 +35,12 @@ func renderHelp(model Model, width, height int) string {
 		helpRow("i / I", "open Issues"),
 		helpRow("?", "close this help"),
 	)
+	if model.Issues != nil && model.Issues.Detail == nil {
+		lines = append(lines,
+			helpRow("space", "advance the selected Issue"),
+			helpRow("backspace", "retreat the selected Issue"),
+		)
+	}
 
 	if target, ok := model.focusedActionTarget(); ok {
 		gateActions := actionsForRecord(model.State.Index, target)

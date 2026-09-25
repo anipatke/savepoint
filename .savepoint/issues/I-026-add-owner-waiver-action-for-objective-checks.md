@@ -40,14 +40,22 @@ history:
       accepted) rather than leaving it open in parallel with O-017, which
       already owns the design and repair. Not a technical closure — O-017's
       own Full Objective Check still proves the repair.
+  - at: '2026-09-25T00:00:00Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner dropped O-017 before planning: the existing board flow (x closes
+      by a recorded exception, a accepts a current Check) is good enough for
+      now. O-017 was deleted; no Accept action will be built. This Issue stays
+      resolved as accepted.
 ---
 
 # I-026: Add an owner waiver action for Objective Checks
 
-**Resolved — superseded by O-017** (owner override, disposition `accepted`).
-The design decision and scope below are now owned by
-`.savepoint/objectives/O-017-owner-accept-objective-check-gap/Objective.md`;
-this Issue record is kept for history only.
+**Resolved — accepted as is** (owner override, disposition `accepted`).
+It was first carried into O-017. On 2026-09-25 the owner dropped O-017 and
+kept the existing board flow, so no Accept action will be built. This Issue
+record is kept for history only.
 
 ## Summary
 

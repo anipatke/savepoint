@@ -73,7 +73,7 @@ After creating or renaming an Issue or another identity-bearing record outside `
 A resolved Issue records exactly one disposition:
 
 - **verified** — the Issue was repaired, and the repair is proven by a Check that recorded `CLEAR`.
-- **accepted** — an explicit owner decision to close the Issue, including after visual inspection. Record the reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective or Goal Check. An agent may record the owner's exact decision but may not infer acceptance.
+- **accepted** — an explicit owner decision to resolve the Issue, including after visual inspection. The owner may use Space in the board's Issues list to resolve an In Progress Issue; the board records its fixed reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective or Goal Check. The owner may reopen any resolved Issue with Backspace in the Issues list. An agent may record the owner's exact decision but may not infer acceptance.
 - **duplicate** — the same problem as another, canonical Issue. It names that Issue and proves nothing itself.
 - **escalated** — the Issue's repair was promoted into a tracked Objective. It names that Objective in `escalated_to` and proves nothing itself; the Objective's own mandatory Check and owner acceptance carry the proof from here, not a later re-verification of this Issue.
 
@@ -93,7 +93,7 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 - The **executor** reports repair evidence without independently closing the Issue; it may record an explicit owner-directed `accepted` closure.
 - The **checker** verifies Check proof and closes the Issue as `verified`; it may also resolve a confirmed duplicate.
-- The **owner** may close the Issue as `accepted` through an explicit decision with reason, actor, and time. An agent records that decision only when directly instructed, without claiming technical `CLEAR`.
+- The **owner** may resolve the Issue as `accepted` with Space or reopen any resolved Issue with Backspace from the board's Issues list. The board records the fixed resolution reason, owner actor, time, and append-only history; this does not claim technical `CLEAR`. An agent records an owner decision only when directly instructed.
 - The **planner** (`savepoint-design`) closes an Issue as `escalated` at the moment it promotes the repair into a new Objective — see Escalation Retires The Issue above.
 
 ## Out-Of-Scope Repair

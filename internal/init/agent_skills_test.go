@@ -1272,7 +1272,7 @@ func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
 		for _, phrase := range []string{
 			"executor** reports repair evidence without independently closing the Issue",
 			"checker** verifies Check proof and closes the Issue as `verified`",
-			"owner** may close the Issue as `accepted`",
+			"owner** may resolve the Issue as `accepted` with Space or reopen any resolved Issue with Backspace",
 			"planner** (`savepoint-design`) closes an Issue as `escalated`",
 			"becomes a new, bounded Task",
 			"within an existing Objective is not an escalation",
@@ -1319,9 +1319,9 @@ func TestSharedIssueCaptureLiveAndTemplateMatch(t *testing.T) {
 // entry describes that skill's own write boundary rather than the shared
 // reference's identical role-boundary prose.
 var issueCaptureEntrySkills = map[string]string{
-	"savepoint-design": "may read and reference an Issue; it\ndoes not close one",
+	"savepoint-design": "owner may resolve it as `accepted` with Space or reopen any resolved Issue",
 	"savepoint-task":   "may add evidence to an Issue; it may record an explicit owner\n`accepted` closure",
-	"savepoint-check":  "may close an Issue as `verified` after\nverifying Check proof",
+	"savepoint-check":  "may close an Issue as\n`verified` after verifying Check proof",
 }
 
 func TestWorkingSkillsNameIssueCaptureEntry(t *testing.T) {
@@ -1601,7 +1601,7 @@ var v2SkillAuthorities = []v2SkillAuthority{
 		ownerPhrase: "may close an Issue",
 		disclaims: map[string]string{
 			"savepoint-task":   "close an Issue",
-			"savepoint-design": "does not close one",
+			"savepoint-design": "does not perform those\nowner actions",
 		},
 		absentFrom: []string{"savepoint-idea"},
 	},

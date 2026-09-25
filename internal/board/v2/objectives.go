@@ -235,8 +235,8 @@ func renderSidebar(rows []ObjectiveRow, selected string, cursor int, focused boo
 		lines = append(lines, scrollIndicator("↑", start, "above"))
 	}
 	for i := start; i < end; i++ {
-		if i == start || rows[i].Objective.Priority != rows[i-1].Objective.Priority {
-			lines = append(lines, styles.HeaderWhiteBold.Render(objectivePriorityHeading(rows[i].Objective.Priority)))
+		if i == start || objectiveRowHeading(rows[i]) != objectiveRowHeading(rows[i-1]) {
+			lines = append(lines, styles.HeaderWhiteBold.Render(objectiveRowHeading(rows[i])))
 		}
 		lines = append(lines, rendered[i])
 	}
@@ -262,7 +262,7 @@ func visibleObjectiveWindow(rows []ObjectiveRow, heights []int, budget, mustShow
 		end := start
 		for end < len(rows) {
 			heading := 0
-			if end == start || rows[end].Objective.Priority != rows[end-1].Objective.Priority {
+			if end == start || objectiveRowHeading(rows[end]) != objectiveRowHeading(rows[end-1]) {
 				heading = 1
 			}
 			below := 0
@@ -287,6 +287,17 @@ func visibleObjectiveWindow(rows []ObjectiveRow, heights []int, budget, mustShow
 
 func objectivePriorityHeading(priority data.ObjectivePriority) string {
 	return strings.ToUpper(string(priority))
+}
+
+func objectiveRowHeading(row ObjectiveRow) string {
+	if row.Objective != nil && row.Objective.Status == data.ColumnDone {
+		return "DONE"
+	}
+	priority := data.ObjectivePriorityMedium
+	if row.Objective != nil && row.Objective.Priority != "" {
+		priority = row.Objective.Priority
+	}
+	return objectivePriorityHeading(priority)
 }
 
 // frameSidebar draws the sidebar's own frame, mirroring frameColumn's shape

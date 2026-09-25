@@ -20,6 +20,7 @@ type actionMsg struct {
 	err             error
 	reload          bool
 	releaseRollback bool
+	issueSelectedID string
 }
 
 func actionFailure(err error, subject string) tea.Msg {
@@ -385,6 +386,38 @@ func writeTaskRetreatCmd(root, taskID string) tea.Cmd {
 			return actionFailure(err, "task retreat")
 		}
 		return actionMsg{message: taskLifecycleMessage(taskID, task.Status, task.Stage), reload: true}
+	}
+}
+
+// writeIssueTransitionCmd reloads the Issue index immediately before asking
+// the data layer to move the selected Issue by one status. The data writer
+// owns validation, append-only history, and stale-file refusal.
+func writeIssueTransitionCmd(root, issueID string, advance bool) tea.Cmd {
+	return func() tea.Msg {
+		index, err := freshV2Index(root)
+		if err != nil {
+			return actionFailure(err, "issue transition")
+		}
+
+		verb := "retreat"
+		transition := data.RetreatIssueV2
+		if advance {
+			verb = "advance"
+			transition = data.AdvanceIssueV2
+		}
+		actor := data.Actor{Role: data.ActorRoleOwner, Session: ownerBoardSession}
+		if err := transition(index, issueID, actor, time.Now().UTC()); err != nil {
+			return actionFailure(fmt.Errorf("cannot %s Issue %s: %w", verb, issueID, err), "issue "+verb)
+		}
+		issue, ok := index.Issues[issueID]
+		if !ok || issue == nil {
+			return actionMsg{err: fmt.Errorf("Issue %s is no longer present", issueID)}
+		}
+		return actionMsg{
+			message:         fmt.Sprintf("%s moved to %s.", issueID, issue.Status),
+			reload:          true,
+			issueSelectedID: issueID,
+		}
 	}
 }
 

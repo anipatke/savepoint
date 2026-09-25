@@ -252,6 +252,21 @@ func TestRunV2ChecksWarnsAboutDuplicateObjectiveRanks(t *testing.T) {
 	}
 }
 
+func TestRunV2ChecksIgnoresDuplicateRanksOnDoneObjectives(t *testing.T) {
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-001-ship", "Objective.md"),
+		"---\nid: O-001\ntitle: Ship\nstatus: done\nrelease: R-001\npriority: critical\nrank: 1\n---\n\n# Ship\n")
+	testutil.WriteFile(t, filepath.Join(root, "objectives", "O-002-follow-up", "Objective.md"),
+		"---\nid: O-002\ntitle: Follow-up\nstatus: done\nrelease: R-001\npriority: critical\nrank: 1\n---\n\n# Follow-up\n")
+
+	for _, finding := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(finding.Message, "[v2-objective-rank-duplicate]") {
+			t.Fatalf("HealthFindings() reports a duplicate-rank warning for done Objectives: %+v", finding)
+		}
+	}
+}
+
 func TestPartialObjectiveOrderWriteRemainsLoadableAndDoctorWarns(t *testing.T) {
 	root := t.TempDir()
 	writeCompleteV2Project(t, root)

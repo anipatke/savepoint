@@ -58,6 +58,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.StatusMessage = msg.message
 		m.releaseRollback = nil
 		m.preserveReloadStatus = false
+		if msg.issueSelectedID != "" && m.Issues != nil {
+			m.Issues.SelectedID = msg.issueSelectedID
+		}
 		if msg.reload {
 			return m, loadCmd(m.Root)
 		}
@@ -107,8 +110,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.Issues != nil {
-		m.handleIssuesKey(key)
-		return m, nil
+		return m, m.handleIssuesKey(key)
 	}
 	if action, ok := m.actionForKey(key); ok {
 		return m, m.runAction(action)
@@ -438,6 +440,9 @@ func sidebarObjectiveOrderChange(rows []ObjectiveRow, cursor int, key string) (o
 		return objectiveGroupOrderChange{}, false
 	}
 	focused := rows[cursor]
+	if focused.Objective.Status == data.ColumnDone {
+		return objectiveGroupOrderChange{}, false
+	}
 	objectiveID := focused.ID()
 	currentPriority := sidebarRowPriority(focused)
 
@@ -506,7 +511,7 @@ func sidebarRowPriority(row ObjectiveRow) data.ObjectivePriority {
 func sidebarObjectiveIDsInPriority(rows []ObjectiveRow, priority data.ObjectivePriority, exceptID string) []string {
 	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if row.Objective != nil && row.ID() != exceptID && sidebarRowPriority(row) == priority {
+		if row.Objective != nil && row.Objective.Status != data.ColumnDone && row.ID() != exceptID && sidebarRowPriority(row) == priority {
 			ids = append(ids, row.ID())
 		}
 	}

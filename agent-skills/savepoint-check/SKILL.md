@@ -7,7 +7,7 @@ description: Runs an independent, fresh-session Check on an explicitly requested
 
 ## Purpose
 
-Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate, and a Goal Check is mandatory for every Goal. This is the only role that can write those verdicts or close Issues as `verified`; the owner may explicitly close an Issue as `accepted`. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective or Goal completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
+Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate, and a Goal Check is mandatory for every Goal. This is the only role that can write those verdicts or close Issues as `verified`; the owner may resolve an Issue as `accepted` with Space or reopen any resolved Issue with Backspace in the board's Issues list. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective or Goal completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
 
 ## Goal Context
 
@@ -117,8 +117,10 @@ Enter Issue capture as an entry from this workflow when a Check finds
 something that blocks the verdict. A `NEEDS WORK` Check records the Issues it
 finds; see `agent-skills/references/issue-capture.md` for the artifact
 template and rules. A failed Goal Check creates or reuses ordinary Issues;
-it does not create Goal-only findings. This skill may close an Issue as `verified` after
-verifying Check proof. The owner may close an Issue as `accepted` by an explicit decision recorded with reason, actor, and time; that does not create a `CLEAR` Check.
+it does not create Goal-only findings. This skill may close an Issue as
+`verified` after verifying Check proof. The owner may resolve an Issue as
+`accepted` with Space or reopen any resolved Issue with Backspace in the
+board's Issues list; these owner actions do not create a `CLEAR` Check.
 
 ## Rules
 
