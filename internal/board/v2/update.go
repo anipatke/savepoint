@@ -178,6 +178,11 @@ func (m Model) handleReleaseKey(key string) (tea.Model, tea.Cmd) {
 		}
 		m.releaseRollback = &before
 		return m, writeReleaseSelectionCmd(m.Root, release, m.State.RouterMtime)
+	case goalToggleKey:
+		if len(m.Releases) == 0 || m.Root == "" {
+			return m, nil
+		}
+		return m, writeGoalStatusCmd(m.Root, m.Releases[m.ReleaseCursor])
 	case "v", "d":
 		if len(m.Releases) == 0 || m.State.Index == nil {
 			return m, nil

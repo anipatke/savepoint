@@ -162,6 +162,41 @@ func writeObjectiveCompletionCmd(root, objectiveID string) tea.Cmd {
 	}
 }
 
+// writeGoalStatusCmd toggles a Goal between done and in_progress. Closing
+// re-resolves the Goal completion gate from a fresh index, so a stale board
+// can never close a Goal whose Objectives have since reopened. A migrated
+// Goal's legacy completion is archived history and is never toggled.
+func writeGoalStatusCmd(root, releaseID string) tea.Cmd {
+	return func() tea.Msg {
+		index, err := freshV2Index(root)
+		if err != nil {
+			return actionFailure(err, "Goal status")
+		}
+		release, ok := index.Releases[releaseID]
+		if !ok {
+			return actionMsg{err: fmt.Errorf("Goal %s is no longer present", releaseID)}
+		}
+		if release.LegacyCompletion != nil {
+			return actionMsg{err: fmt.Errorf("%s is an archived historical Goal; its completion cannot be changed", releaseID)}
+		}
+		message := fmt.Sprintf("%s reopened.", releaseID)
+		if release.Status == data.ColumnDone {
+			release.Status = data.ColumnInProgress
+		} else {
+			decision := data.ResolveReleaseCompletion(index, releaseID)
+			if !decision.Allowed {
+				return actionMsg{err: fmt.Errorf("cannot close %s: %s", releaseID, decisionRefusal(decision))}
+			}
+			release.Status = data.ColumnDone
+			message = fmt.Sprintf("%s closed.", releaseID)
+		}
+		if err := data.WriteReleaseV2(release); err != nil {
+			return actionFailure(err, "Goal status")
+		}
+		return actionMsg{message: message, reload: true}
+	}
+}
+
 type routerStateWriter func(string, data.RouterSelectionV2, time.Time) error
 
 // completedRecordAction updates the router only after the completion write

@@ -402,3 +402,14 @@ func issueSeverityRank(severity string) int {
 		return 5
 	}
 }
+
+// releaseStatusMarker is a Goal row's done checkbox: the same green ticked and
+// grey empty glyphs the Check badges use, so done reads without colour too.
+func releaseStatusMarker(index *data.V2Index, id string) string {
+	if index != nil {
+		if release, ok := index.Releases[id]; ok && release.Status == data.ColumnDone {
+			return styles.BadgeClear.Render(glyphCheckClear)
+		}
+	}
+	return styles.BadgeNeutral.Render(glyphCheckPending)
+}

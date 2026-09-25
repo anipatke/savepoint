@@ -456,6 +456,19 @@ func WriteObjectiveV2(objective *ObjectiveV2) error {
 	})
 }
 
+// WriteReleaseV2 patches only the status field of a V2 Release (Goal)
+// record's frontmatter to match release.Status, preserving every other YAML
+// key/value and the authored Markdown body unchanged. The patched content is
+// validated as a decodable ReleaseV2 before any file is replaced.
+func WriteReleaseV2(release *ReleaseV2) error {
+	return writeV2Record(&release.Source, []v2FieldPatch{
+		{Key: "status", Value: string(release.Status)},
+	}, func(content string) error {
+		_, err := DecodeReleaseV2(release.Source.Path, content)
+		return err
+	})
+}
+
 // WriteObjectiveGroupOrderV2 assigns priority and one-based rank values to
 // the supplied ordered Objective IDs in a Goal. It validates membership and
 // freshness for every source before writing any file. Replacements are

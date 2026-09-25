@@ -16,6 +16,7 @@ const (
 	goalsLabel          = "Goals"
 	goalSelectorKey     = "g"
 	goalSelectorAlias   = "r"
+	goalToggleKey       = "C"
 	releaseActiveMarker = "►"
 )
 
@@ -96,11 +97,12 @@ func renderReleaseSelector(index *data.V2Index, releases []string, cursor, width
 			lines = append(lines, styles.CardMeta.Render("↑ more"))
 		}
 		for i := start; i < end; i++ {
-			label := xansi.Truncate(releaseLabel(index, releases[i]), inner-2, "…")
+			marker := releaseStatusMarker(index, releases[i])
+			label := xansi.Truncate(releaseLabel(index, releases[i]), inner-2-lipgloss.Width(glyphCheckPending)-1, "…")
 			if i == cursor {
-				lines = append(lines, styles.TaskItemFocused.Render(releaseActiveMarker+" "+label))
+				lines = append(lines, styles.TaskItemFocused.Render(releaseActiveMarker+" ")+marker+" "+styles.TaskItemFocused.Render(label))
 			} else {
-				lines = append(lines, styles.TaskItem.Render("  "+label))
+				lines = append(lines, styles.TaskItem.Render("  ")+marker+" "+styles.TaskItem.Render(label))
 			}
 		}
 		if end < len(releases) {
@@ -109,7 +111,7 @@ func renderReleaseSelector(index *data.V2Index, releases []string, cursor, width
 	}
 
 	lines = append(lines, "",
-		styles.CardMeta.Render("↑↓ / j k:nav  enter:select  v:detail  esc:cancel  q:cancel"))
+		styles.CardMeta.Render("enter:select  "+goalToggleKey+":close/reopen  v:detail  esc:cancel"))
 	return styles.DetailOverlay.Width(width).Render(strings.Join(lines, "\n"))
 }
 

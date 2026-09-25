@@ -22,6 +22,7 @@ func renderHelp(model Model, width, height int) string {
 		helpRow("↑↓ / j k", "move within the focused surface"),
 		helpRow("←→ / h l", "move between columns, and into/out of Objectives at the edge"),
 		helpRow(goalSelectorKey, "open the Goal selector"),
+		helpRow(goalToggleKey, "in the Goal selector: close a ready Goal, or reopen a done one"),
 	}
 	if model.SidebarFocused {
 		lines = append(lines,
