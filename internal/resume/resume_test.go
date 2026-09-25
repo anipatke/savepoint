@@ -116,6 +116,7 @@ func TestNextLineFormatsEverySelectionShape(t *testing.T) {
 			want: "Done O-013 — Finished",
 		},
 		{name: "goal ready", next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Close R-001 — First delivery"},
+		{name: "goal already done", next: data.Next{Kind: data.NextReleaseReady, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery", Status: data.ColumnDone}}, want: "Done R-001 — First delivery"},
 		{name: "goal with nothing selected", next: data.Next{Kind: data.NextNothingSelected, Release: &data.ReleaseV2{ID: "R-001", Title: "First delivery"}}, want: "Nothing selected"},
 	}
 
