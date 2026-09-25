@@ -58,6 +58,22 @@ history:
         ./internal/buildtool test -json -count=1 ./...); make build and make
         test-full passed on Linux go1.26.2; git diff --check clean. Hosted
         windows-latest CI evidence is pending until pushed.
+    - at: "2026-09-25T10:42:38Z"
+      actor:
+        role: executor
+        session: i030-windows-repair-20260925
+      kind: repair_attempted
+      note: >-
+        Hosted windows-latest CI run 36125057404 failed: its temp root is the
+        short 8.3 path C:\Users\RUNNER~1, and V2 discovery compared each
+        record's resolved path with the unresolved root, so every project
+        under a short name or symlinked directory was refused as "resolves
+        outside the project root". The local NTFS copy had no short name, so
+        it did not show this. Discovery now resolves the root the same way
+        (newV2PathConfiner), with a symlinked-root regression test that fails
+        without the fix. Evidence: full Windows suite passed with TMP set to
+        a short 8.3 path (reproducing 343 failures before the fix) and from
+        the normal temp path; make build and make test-full passed on Linux.
 ---
 
 # I-030: Windows full suite has platform failures

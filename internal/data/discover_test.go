@@ -506,6 +506,30 @@ func TestDiscoverV2Records_rejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
+// A project reached through a symlinked directory (or, on Windows, a short
+// 8.3 name such as RUNNER~1) resolves to a different spelling than the root
+// it was opened by; its records are still inside the project.
+func TestDiscoverV2Records_acceptsRootReachedThroughSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on windows")
+	}
+
+	real := t.TempDir()
+	writeV2ObjectiveFixture(t, real, "O-001-first", "O-001", "First objective")
+	link := filepath.Join(t.TempDir(), "linked-project")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("os.Symlink() error = %v", err)
+	}
+
+	objectives, _, err := DiscoverV2Records(link)
+	if err != nil {
+		t.Fatalf("DiscoverV2Records() error = %v, want the linked project to load", err)
+	}
+	if _, ok := objectives["O-001"]; !ok {
+		t.Fatalf("DiscoverV2Records() objectives = %v, want O-001", objectives)
+	}
+}
+
 func TestDiscoverV2Records_rejectsCaseCollision(t *testing.T) {
 	root := t.TempDir()
 	testutil.SkipIfCaseInsensitive(t, root)

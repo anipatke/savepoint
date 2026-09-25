@@ -166,7 +166,10 @@ func DiscoverV2Releases(root string) (map[string]*ReleaseV2, error) {
 	if err != nil {
 		return nil, err
 	}
-	confined := &v2PathConfiner{rootAbs: rootAbs, seen: map[string]string{}}
+	confined, err := newV2PathConfiner(rootAbs)
+	if err != nil {
+		return nil, err
+	}
 
 	releasesInfo, err := confined.stat(releasesPath, v2ReleasesDirName)
 	if err != nil {
@@ -259,7 +262,10 @@ func DiscoverV2Records(root string) (objectives map[string]*ObjectiveV2, tasks m
 		return nil, nil, err
 	}
 
-	confined := &v2PathConfiner{rootAbs: rootAbs, seen: map[string]string{}}
+	confined, err := newV2PathConfiner(rootAbs)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	objectivesInfo, err := confined.stat(objectivesPath, v2ObjectivesDirName)
 	if err != nil {
@@ -458,7 +464,10 @@ func discoverV2FlatDir[T v2FlatRecord](root, dirName, recordKind string, decode 
 		return nil, err
 	}
 
-	confined := &v2PathConfiner{rootAbs: rootAbs, seen: map[string]string{}}
+	confined, err := newV2PathConfiner(rootAbs)
+	if err != nil {
+		return nil, err
+	}
 
 	dirInfo, err := confined.stat(dirPath, dirName)
 	if err != nil {
@@ -521,8 +530,24 @@ func discoverV2FlatDir[T v2FlatRecord](root, dirName, recordKind string, decode 
 // filesystem. stat is the only way discovery inspects a path, so neither
 // check can be bypassed by an entry that is itself a symlink.
 type v2PathConfiner struct {
-	rootAbs string
-	seen    map[string]string // lowercased relative path -> original relative path
+	rootAbs  string            // the root as given, kept for record write context
+	rootReal string            // the root with symlinks and short names resolved
+	seen     map[string]string // lowercased relative path -> original relative path
+}
+
+// newV2PathConfiner resolves the root the same way stat resolves each path,
+// so a root reached through a symlink or a Windows short (8.3) name such as
+// RUNNER~1 still contains its own records.
+func newV2PathConfiner(rootAbs string) (*v2PathConfiner, error) {
+	real, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve project root %s: %w", rootAbs, err)
+	}
+	rootReal, err := filepath.Abs(real)
+	if err != nil {
+		return nil, err
+	}
+	return &v2PathConfiner{rootAbs: rootAbs, rootReal: rootReal, seen: map[string]string{}}, nil
 }
 
 // stat confines absPath (identified for diagnostics by project-relative
@@ -542,7 +567,7 @@ func (c *v2PathConfiner) stat(absPath, relPath string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if realAbs != c.rootAbs && !strings.HasPrefix(realAbs, c.rootAbs+string(filepath.Separator)) {
+	if realAbs != c.rootReal && !strings.HasPrefix(realAbs, c.rootReal+string(filepath.Separator)) {
 		return nil, fmt.Errorf("%w: %s: resolves outside the project root", ErrV2UnsafePath, relPath)
 	}
 
