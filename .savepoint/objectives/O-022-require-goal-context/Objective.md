@@ -1,7 +1,7 @@
 ---
 id: O-022
 title: Require every router and Objective to name a Goal
-status: in_progress
+status: done
 depends_on: [O-014]
 release: R-006
 ---
