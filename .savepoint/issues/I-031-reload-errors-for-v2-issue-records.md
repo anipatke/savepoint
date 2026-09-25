@@ -2,7 +2,7 @@
 id: I-031
 title: Frequent V2 board load errors for project records
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user-report}
@@ -80,6 +80,25 @@ history:
       TestOlderLoadResultDoesNotOverwriteNewer fail without the fix. make build
       && make test-fast passed. Issue remains open for independent
       verification.
+  - at: "2026-09-25T21:28:26Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:28:26Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-25T21:28:26Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-031: Frequent V2 board load errors for project records
