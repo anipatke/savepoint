@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -751,5 +752,80 @@ func TestTaskRetreatLeavesObjectiveStatusAlone(t *testing.T) {
 	}
 	if got := loaded.State.Index.Objectives["O-001"].Status; got != data.ColumnInProgress {
 		t.Errorf("O-001 status = %q, want in_progress kept after the Task retreated", got)
+	}
+}
+
+func TestSidebarOrderHealsAfterInjectedMidWriteFailure(t *testing.T) {
+	root := writeNavigationProject(t)
+	model := sidebarBoard(t, root)
+	model.SidebarFocused = true
+	ids := sidebarObjectiveIDsInPriority(model.Objectives, "medium", "")
+	if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "medium", ids); err != nil {
+		t.Fatalf("seed Medium ranks: %v", err)
+	}
+	model = sidebarBoard(t, root)
+	model.SidebarFocused = true
+	for i, row := range model.Objectives {
+		if row.ID() == "O-002" {
+			model.ObjectiveCursor = i
+			model.SelectedObjective = row.ID()
+			break
+		}
+	}
+	beforeOrder := objectiveRowIDs(model.Objectives)
+	change, ok := sidebarObjectiveOrderChange(model.Objectives, model.ObjectiveCursor, "K")
+	if !ok || len(change.ObjectiveIDs) < 2 || change.ObjectiveIDs[0] != "O-002" {
+		t.Fatalf("focused move = %+v, want O-002 moving to the top", change)
+	}
+
+	injected := false
+	writer := func(index *data.V2Index, goalID string, priority data.ObjectivePriority, objectiveIDs []string) error {
+		if !injected {
+			injected = true
+			if err := data.WriteObjectiveGroupOrderV2(index, goalID, priority, objectiveIDs[:1]); err != nil {
+				return err
+			}
+			return errors.New("injected mid-write failure")
+		}
+		return data.WriteObjectiveGroupOrderV2(index, goalID, priority, objectiveIDs)
+	}
+	msg, ok := writeObjectiveGroupOrderCmdWithWriter(model.State.Index, model.SelectedRelease, change, writer)().(actionMsg)
+	if !ok || msg.err == nil || !msg.reload {
+		t.Fatalf("injected write result = %#v, want a named error and reload", msg)
+	}
+	if !strings.Contains(msg.err.Error(), "Objective O-002") {
+		t.Errorf("injected error %q does not name Objective O-002", msg.err)
+	}
+	updated, reload := model.Update(msg)
+	failed := finishBoardCommands(t, updated, reload)
+	if !injected {
+		t.Fatal("injected writer was not called")
+	}
+	if !strings.Contains(failed.StatusMessage, "Objective O-002") {
+		t.Errorf("failure status %q does not name Objective O-002", failed.StatusMessage)
+	}
+	if got := objectiveRowIDs(failed.Objectives); !slices.Equal(got, beforeOrder) {
+		t.Errorf("partial write displayed order %v, want deterministic prior order %v", got, beforeOrder)
+	}
+	if got := failed.State.Index.Objectives["O-002"].Rank; got != 1 {
+		t.Errorf("partial O-002 rank = %d, want the injected rank 1", got)
+	}
+	if got := failed.State.Index.Objectives["O-001"].Rank; got != 1 {
+		t.Errorf("unwritten O-001 rank = %d, want duplicate 1 for the interrupted state", got)
+	}
+	if got := failed.Objectives[failed.ObjectiveCursor].ID(); got != "O-002" || failed.SelectedObjective != "O-002" {
+		t.Errorf("after interrupted write cursor/selection = %s/%s, want O-002/O-002", got, failed.SelectedObjective)
+	}
+
+	healed := runSidebarRuneKey(t, failed, "K")
+	wantOrder := slices.Clone(beforeOrder)
+	wantOrder[0], wantOrder[1] = wantOrder[1], wantOrder[0]
+	if got := objectiveRowIDs(healed.Objectives); !slices.Equal(got, wantOrder) {
+		t.Errorf("healing move order = %v, want %v", got, wantOrder)
+	}
+	for i, id := range wantOrder {
+		if got := healed.State.Index.Objectives[id].Rank; got != i+1 {
+			t.Errorf("healed Objective %s rank = %d, want %d", id, got, i+1)
+		}
 	}
 }

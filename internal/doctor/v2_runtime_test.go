@@ -1,11 +1,14 @@
 package doctor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/testutil"
 )
 
@@ -206,6 +209,98 @@ func TestRunV2ChecksWarnsWhenPlannedObjectiveHasStartedTask(t *testing.T) {
 			t.Errorf("warning %q remains after the Objective was set to in_progress", finding.Message)
 		}
 	}
+}
+
+func TestRunV2ChecksWarnsAboutDuplicateObjectiveRanks(t *testing.T) {
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	firstPath := filepath.Join(root, "objectives", "O-001-ship", "Objective.md")
+	firstRaw, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatalf("ReadFile(first Objective) error = %v", err)
+	}
+	firstRanked := strings.Replace(string(firstRaw), "release: R-001\n", "release: R-001\npriority: critical\nrank: 1\n", 1)
+	if firstRanked == string(firstRaw) {
+		t.Fatal("first Objective has no Goal reference to extend")
+	}
+	if err := os.WriteFile(firstPath, []byte(firstRanked), 0644); err != nil {
+		t.Fatalf("WriteFile(first Objective) error = %v", err)
+	}
+	secondPath := filepath.Join(root, "objectives", "O-002-follow-up", "Objective.md")
+	testutil.WriteFile(t, secondPath, "---\nid: O-002\ntitle: Follow-up\nstatus: planned\nrelease: R-001\npriority: critical\nrank: 1\n---\n\n# Follow-up\n")
+
+	var warning *HealthFinding
+	for _, finding := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(finding.Message, "[v2-objective-rank-duplicate]") {
+			warning = &finding
+			break
+		}
+	}
+	if warning == nil {
+		t.Fatal("HealthFindings() has no duplicate Objective rank warning")
+	}
+	if warning.Category != HealthPendingReview || !strings.Contains(warning.File, filepath.Join("releases", "R-001")) || filepath.Base(warning.File) != "Release.md" {
+		t.Errorf("warning = %+v, want a pending-review warning on the Goal record", warning)
+	}
+	for _, want := range []string{"Goal R-001", "rank 1", "critical priority", "O-001", "O-002"} {
+		if !strings.Contains(warning.Message, want) {
+			t.Errorf("warning message %q does not contain %q", warning.Message, want)
+		}
+	}
+	if !strings.Contains(warning.Repair, "distinct positive rank") {
+		t.Errorf("warning repair = %q, want a direct rank repair", warning.Repair)
+	}
+}
+
+func TestPartialObjectiveOrderWriteRemainsLoadableAndDoctorWarns(t *testing.T) {
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	firstPath := filepath.Join(root, "objectives", "O-001-ship", "Objective.md")
+	firstRaw, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatalf("ReadFile(first Objective) error = %v", err)
+	}
+	firstRanked := strings.Replace(string(firstRaw), "release: R-001\n", "release: R-001\npriority: critical\nrank: 3\n", 1)
+	if firstRanked == string(firstRaw) {
+		t.Fatal("first Objective has no Goal reference to extend")
+	}
+	if err := os.WriteFile(firstPath, []byte(firstRanked), 0644); err != nil {
+		t.Fatalf("WriteFile(first Objective) error = %v", err)
+	}
+	secondPath := filepath.Join(root, "objectives", "O-002-follow-up", "Objective.md")
+	testutil.WriteFile(t, secondPath, "---\nid: O-002\ntitle: Follow-up\nstatus: planned\nrelease: R-001\npriority: critical\nrank: 1\n---\n\n# Follow-up\n")
+	index, err := data.LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() before reorder error = %v", err)
+	}
+	if err := os.Chmod(secondPath, 0444); err != nil {
+		t.Fatalf("Chmod(second Objective) error = %v", err)
+	}
+	writeErr := data.WriteObjectiveGroupOrderV2(index, "R-001", data.ObjectivePriorityCritical, []string{"O-001", "O-002"})
+	if err := os.Chmod(secondPath, 0644); err != nil {
+		t.Fatalf("restore second Objective permissions: %v", err)
+	}
+	if !errors.Is(writeErr, os.ErrPermission) {
+		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v, want a failure after the first replacement", writeErr)
+	}
+
+	reloaded, err := data.LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after partial write error = %v, want a loadable project", err)
+	}
+	if got, want := data.OrderedObjectiveIDsForGoal(reloaded, "R-001"), []string{"O-001", "O-002"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order after partial write = %v, want deterministic order %v", got, want)
+	}
+	if len(reloaded.DuplicateObjectiveRanks) != 1 {
+		t.Fatalf("duplicate ranks after partial write = %+v, want one fact", reloaded.DuplicateObjectiveRanks)
+	}
+	for _, finding := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(finding.Message, "[v2-objective-rank-duplicate]") &&
+			strings.Contains(finding.Message, "O-001") && strings.Contains(finding.Message, "O-002") {
+			return
+		}
+	}
+	t.Fatal("doctor did not warn about the duplicate produced by the partial Objective order write")
 }
 
 func TestRunV2ChecksReportsMissingGoalsAndConcreteRepairs(t *testing.T) {

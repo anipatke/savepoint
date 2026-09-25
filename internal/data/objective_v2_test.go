@@ -3,6 +3,7 @@ package data
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -11,6 +12,8 @@ func TestDecodeObjectiveV2_valid(t *testing.T) {
 id: O-002
 title: "Load V2 work with stable identity"
 status: in_progress
+priority: high
+rank: 2
 depends_on: [O-001]
 release: R-001
 ---
@@ -29,6 +32,9 @@ release: R-001
 	}
 	if objective.Status != ColumnInProgress {
 		t.Errorf("Status = %q, want in_progress", objective.Status)
+	}
+	if objective.Priority != ObjectivePriorityHigh || objective.Rank != 2 {
+		t.Errorf("ordering = (%q, %d), want (high, 2)", objective.Priority, objective.Rank)
 	}
 	if len(objective.DependsOn) != 1 || objective.DependsOn[0] != "O-001" {
 		t.Errorf("DependsOn = %v, want [O-001]", objective.DependsOn)
@@ -56,6 +62,40 @@ status: planned
 	}
 	if objective.Release != "" {
 		t.Errorf("Release = %q, want empty", objective.Release)
+	}
+	if objective.Priority != ObjectivePriorityMedium || objective.Rank != 0 {
+		t.Errorf("ordering defaults = (%q, %d), want (medium, 0/unranked)", objective.Priority, objective.Rank)
+	}
+}
+
+func TestDecodeObjectiveV2_rejectsInvalidPriorityAndRankWithNamedDiagnostics(t *testing.T) {
+	tests := []struct {
+		name      string
+		field     string
+		value     string
+		wantField string
+		wantHint  string
+	}{
+		{name: "unknown priority", field: "priority", value: "urgent", wantField: "priority", wantHint: "critical, high, medium, or low"},
+		{name: "non-string priority", field: "priority", value: "1", wantField: "priority", wantHint: "critical, high, medium, or low"},
+		{name: "zero rank", field: "rank", value: "0", wantField: "rank", wantHint: "positive integer"},
+		{name: "negative rank", field: "rank", value: "-1", wantField: "rank", wantHint: "positive integer"},
+		{name: "fractional rank", field: "rank", value: "1.5", wantField: "rank", wantHint: "positive integer"},
+		{name: "string rank", field: "rank", value: `"1"`, wantField: "rank", wantHint: "positive integer"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			content := fmt.Sprintf("---\nid: O-009\ntitle: Ordering\nstatus: planned\n%s: %s\n---\n\n# Ordering\n", tc.field, tc.value)
+			_, err := DecodeObjectiveV2("objectives/O-009-ordering/Objective.md", content)
+			if !errors.Is(err, ErrV2Malformed) {
+				t.Fatalf("DecodeObjectiveV2() error = %v, want ErrV2Malformed", err)
+			}
+			for _, want := range []string{"objectives/O-009-ordering/Objective.md", "objective O-009", tc.wantField, tc.wantHint} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not name %q", err, want)
+				}
+			}
+		})
 	}
 }
 

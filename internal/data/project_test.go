@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -137,6 +138,77 @@ func TestLoadV2Index_recordsObjectivesWithoutGoalInIDOrder(t *testing.T) {
 				t.Fatalf("ObjectivesWithoutGoal = %v, want sorted live Objective IDs %v", index.ObjectivesWithoutGoal, tc.want)
 			}
 		})
+	}
+}
+
+func TestOrderedObjectiveIDsForGoalUsesPriorityRankAndID(t *testing.T) {
+	index := &V2Index{
+		Objectives: map[string]*ObjectiveV2{
+			"O-010": {ID: "O-010", Priority: ObjectivePriorityCritical, Rank: 2},
+			"O-002": {ID: "O-002", Priority: ObjectivePriorityCritical, Rank: 2},
+			"O-005": {ID: "O-005", Priority: ObjectivePriorityCritical, Rank: 1},
+			"O-006": {ID: "O-006", Priority: ObjectivePriorityCritical},
+			"O-004": {ID: "O-004", Priority: ObjectivePriorityHigh},
+			"O-003": {ID: "O-003", Priority: ObjectivePriorityHigh, Rank: 1},
+			"O-001": {ID: "O-001", Priority: ObjectivePriorityMedium},
+			"O-009": {ID: "O-009", Priority: ObjectivePriorityMedium, Rank: 1},
+			"O-007": {ID: "O-007", Priority: ObjectivePriorityMedium, Rank: 3},
+			"O-008": {ID: "O-008", Priority: ObjectivePriorityMedium, Rank: 3},
+			"O-011": {ID: "O-011", Priority: ObjectivePriorityLow, Rank: 1},
+		},
+		ReleaseObjectives: map[string][]string{
+			"R-001": {"O-010", "O-002", "O-005", "O-006", "O-004", "O-003", "O-001", "O-009", "O-007", "O-008", "O-011"},
+		},
+	}
+
+	want := []string{"O-005", "O-002", "O-010", "O-006", "O-003", "O-004", "O-009", "O-007", "O-008", "O-001", "O-011"}
+	if got := OrderedObjectiveIDsForGoal(index, "R-001"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("OrderedObjectiveIDsForGoal() = %v, want %v", got, want)
+	}
+	if got := OrderedObjectiveIDsForGoal(index, "R-999"); len(got) != 0 {
+		t.Errorf("unknown Goal order = %v, want empty", got)
+	}
+}
+
+func TestLoadV2IndexReportsDuplicateObjectiveRanksByGoalAndPriority(t *testing.T) {
+	root := t.TempDir()
+	writeV2ReleaseFixture(t, root, "R-001-current", "R-001", "Current Goal")
+	writeV2ReleaseFixture(t, root, "R-002-other", "R-002", "Other Goal")
+	writeRankedObjectiveForGoal(t, root, "O-001", "R-001", "critical", 2)
+	writeRankedObjectiveForGoal(t, root, "O-002", "R-001", "critical", 2)
+	writeRankedObjectiveForGoal(t, root, "O-003", "R-001", "high", 2)
+	writeRankedObjectiveForGoal(t, root, "O-004", "R-002", "critical", 2)
+	writeRankedObjectiveForGoal(t, root, "O-005", "R-001", "medium", 0)
+
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v, want duplicate ranks to remain non-fatal", err)
+	}
+	want := []DuplicateObjectiveRankV2{{
+		GoalID:       "R-001",
+		Priority:     ObjectivePriorityCritical,
+		Rank:         2,
+		ObjectiveIDs: []string{"O-001", "O-002"},
+	}}
+	if !reflect.DeepEqual(index.DuplicateObjectiveRanks, want) {
+		t.Fatalf("DuplicateObjectiveRanks = %+v, want %+v", index.DuplicateObjectiveRanks, want)
+	}
+}
+
+func writeRankedObjectiveForGoal(t *testing.T, root, id, goalID, priority string, rank int) {
+	t.Helper()
+	dir := filepath.Join(root, v2ObjectivesDirName, id+"-ordering")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", dir, err)
+	}
+	content := "---\nid: " + id + "\ntitle: \"" + id + " ordering\"\nstatus: planned\nrelease: " + goalID + "\npriority: " + priority + "\n"
+	if rank > 0 {
+		content += "rank: " + fmt.Sprint(rank) + "\n"
+	}
+	content += "---\n\n# " + id + "\n"
+	path := filepath.Join(dir, v2ObjectiveFileName)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", path, err)
 	}
 }
 

@@ -8,9 +8,8 @@ import (
 	"github.com/opencode/savepoint/internal/styles"
 )
 
-// renderHelp is deliberately derived from the same action set as key
-// dispatch. A capability absent from the focused gate decision cannot appear
-// here as a tempting key that only refuses when pressed.
+// renderHelp describes the focused surface's keys and derives gated owner
+// actions from the same decision used by dispatch.
 func renderHelp(model Model, width, height int) string {
 	textWidth := width - 4
 	if textWidth < 1 {
@@ -23,10 +22,19 @@ func renderHelp(model Model, width, height int) string {
 		helpRow("↑↓ / j k", "move within the focused surface"),
 		helpRow("←→ / h l", "move between columns, and into/out of Objectives at the edge"),
 		helpRow(goalSelectorKey, "open the Goal selector"),
+	}
+	if model.SidebarFocused {
+		lines = append(lines,
+			helpRow("1–4", "set priority: Critical, High, Medium, Low"),
+			helpRow("K / shift+↑", "move the Objective up within its priority group"),
+			helpRow("J / shift+↓", "move the Objective down within its priority group"),
+		)
+	}
+	lines = append(lines,
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
 		helpRow("?", "close this help"),
-	}
+	)
 
 	if target, ok := model.focusedActionTarget(); ok {
 		gateActions := actionsForRecord(model.State.Index, target)

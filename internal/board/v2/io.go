@@ -312,6 +312,33 @@ func writeTaskAdvanceCmd(root, taskID string) tea.Cmd {
 
 type objectiveWriter func(*data.ObjectiveV2) error
 
+type objectiveGroupOrderWriter func(*data.V2Index, string, data.ObjectivePriority, []string) error
+
+func writeObjectiveGroupOrderCmd(index *data.V2Index, goalID string, change objectiveGroupOrderChange) tea.Cmd {
+	return writeObjectiveGroupOrderCmdWithWriter(index, goalID, change, data.WriteObjectiveGroupOrderV2)
+}
+
+func writeObjectiveGroupOrderCmdWithWriter(index *data.V2Index, goalID string, change objectiveGroupOrderChange, writer objectiveGroupOrderWriter) tea.Cmd {
+	return func() tea.Msg {
+		if writer == nil {
+			writer = data.WriteObjectiveGroupOrderV2
+		}
+		if err := writer(index, goalID, change.Priority, change.ObjectiveIDs); err != nil {
+			subject := fmt.Sprintf("Objective %s order", change.ObjectiveID)
+			result := actionFailure(err, subject).(actionMsg)
+			if !errors.Is(err, data.ErrV2SourceConflict) && !errors.Is(err, data.ErrMtimeConflict) {
+				result.err = fmt.Errorf("%s failed: %w", subject, err)
+			}
+			// The data writer may have completed earlier per-record replacements
+			// before a later replacement failed. Reloading exposes the deterministic
+			// partial order so the next move can heal it.
+			result.reload = true
+			return result
+		}
+		return actionMsg{message: change.Message, reload: true}
+	}
+}
+
 // startedTaskAction moves the started Task's owning Objective from planned to
 // in_progress, so every surface that shows the Objective's recorded status
 // agrees that its work has begun (I-044). It runs only after the Task write

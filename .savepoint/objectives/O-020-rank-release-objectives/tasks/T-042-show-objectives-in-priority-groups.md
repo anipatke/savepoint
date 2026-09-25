@@ -2,12 +2,21 @@
 id: T-042
 title: Show Objectives in priority groups
 objective: O-020
-status: planned
+status: done
 complexity_tier: medium
 complexity_reason: Reworks sidebar row layout and windowing around group headings, removes the status line, and adds a matching Objective list to plain output.
 depends_on: [{task: T-041, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: o020-rank-objectives-20260925}
+check_waiver:
+    task: T-042
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-25T06:28:13Z"
 ---
 
 # Show Objectives in priority groups
@@ -86,7 +95,17 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+- Started from the supplied `Next: Start T-042` selection; router already selects O-020/T-042 and O-020 is in progress.
+- Additional read: `internal/board/v2/column.go`, `visibleWindow` and `fitFrom`, to preserve cursor and height-budget behavior when inserting non-cursor group headings.
+- Criterion: `objectiveRowsForRelease` now uses `data.OrderedObjectiveIDsForGoal`; `TestSidebarAndPlainOutputUsePriorityAndRankOrder` covers all four groups, rank order, and the completed and blocked rows retaining their positions.
+- Criterion: only populated groups render. `visibleObjectiveWindow` counts group headings, reserves indicator lines, keeps the Objective cursor visible, and repeats the active heading when a window begins mid-group. `TestSidebarHidesEmptyPriorityGroups` and `TestSidebarCursorSkipsPriorityHeadingsAndWindowKeepsCurrentGroup` cover these behaviors.
+- Criterion: the sidebar row status line and `objectiveStatusLabel` are removed. `TestSidebarListsEveryObjectiveInOrder` verifies the redundant labels are absent; Objective detail and Next rendering paths were not changed.
+- Criterion: plain output adds the selected Goal's grouped Objectives after `Selected:`, using the same order, headings, and badge text. `TestSidebarAndPlainOutputUsePriorityAndRankOrder` checks TUI/plain order and wait badges; `TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext` exercises the non-TTY `Run` path and repeat-byte determinism.
+- Criterion: `TestSidebarPriorityHeadingsRemainLegibleWithoutColor` covers the no-colour sidebar at 28 cells; the scroll test checks the visible row and heading stay within the sidebar width. Existing width coverage also passed in the handoff gate.
+- Commands passed: `gofmt -w internal/board/v2/objectives.go internal/board/v2/plain.go internal/board/v2/objectives_test.go`, `gofmt -w internal/board/v2/objectives.go`, `gofmt -w internal/board/v2/releases_test.go`, `go test ./internal/board/v2 -run 'TestSidebar|TestSidebarAndPlainOutput|TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext' -count=1`, `make build && make test-fast`, and `git diff --check` after the final evidence update.
+- Files read: `agent-skills/savepoint-task/SKILL.md`, `.savepoint/router.md`, `.savepoint/Guardrails.md` (ARCH-02, DATA-02, TEST-01..04, TEST-08, STYLE-07, STYLE-09), `.savepoint/objectives/O-020-rank-release-objectives/Objective.md`, this Task, `internal/board/v2/objectives.go`, `internal/board/v2/objectives_test.go`, `internal/board/v2/plain.go`, `internal/board/v2/releases_test.go`, `internal/board/v2/view.go`, `internal/board/v2/view_test.go`, `internal/board/v2/width_test.go`, `internal/data/project.go`, `.savepoint/visual-identity.md`, and the logged extra read `internal/board/v2/column.go`.
+- Files changed: this Task, `internal/board/v2/objectives.go`, `internal/board/v2/objectives_test.go`, `internal/board/v2/plain.go`, and `internal/board/v2/releases_test.go`.
+- Limitation: the required owner visual check in the User Check section remains pending. No optional Task Check or owner waiver has been requested or recorded.
 
 ## Drift Notes
 

@@ -2,12 +2,21 @@
 id: T-041
 title: Give each Objective a priority and a place in line
 objective: O-020
-status: planned
+status: done
 complexity_tier: medium
 complexity_reason: Adds two optional validated Objective fields, one ordered projection, one duplicate-rank index fact with a doctor warning, and a multi-record order writer.
 depends_on: []
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: o020-rank-objectives-20260925}
+check_waiver:
+    task: T-041
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-25T05:57:52Z"
 ---
 
 # Give each Objective a priority and a place in line
@@ -102,7 +111,43 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Execution started from the owner-supplied `Next: Start T-041` line. Task
+dependencies are empty. At start, Task T-041 was set to `in_progress` / `build`
+and Objective O-020 was set to `in_progress`. The router already selected
+O-020/T-041; `release: R-006` is unchanged.
+
+Extra reads beyond Context Files:
+- `.savepoint/Design.md`, sections 1, 9, and 11, to check data ownership,
+  atomic write expectations, and failure behavior for the planned ordering
+  metadata and writer.
+- `internal/doctor/checks.go`, to locate the canonical V2 release-warning
+  aggregation path before adding the duplicate-rank warning.
+- `internal/data/parser.go`, to verify the retained source document stores an
+  exact-content freshness token used for all-record preflight.
+- `internal/data/release_v2_test.go`, searched for the existing Release fixture
+  helper while planning isolated order-writer fixtures.
+
+Implementation evidence:
+- Decode defaults and named invalid-value diagnostics: focused
+  `internal/data` tests passed.
+- Priority, rank, unranked, and Objective-ID tie ordering:
+  `TestOrderedObjectiveIDsForGoalUsesPriorityRankAndID` passed.
+- Duplicate-rank facts remain loadable and doctor reports a pending-review
+  warning naming Goal, priority, rank, and Objectives.
+- Writer tests passed for no-op bytes/mtime, a successful partial renumber,
+  stale all-record preflight, authored-content preservation, and a failure
+  after the first replacement followed by a successful index reload and
+  doctor warning.
+- `cmp agent-skills/savepoint-design/SKILL.md
+  templates/project-v2/agent-skills/savepoint-design/SKILL.md` passed.
+- `git diff --check` passed.
+
+Handoff gate passed on 2026-09-25 at 05:56 UTC with `go1.26.2 linux/amd64`:
+`make build && make test-fast` (exit 0). After that pass, only this Task's
+stage/evidence metadata changed; code, tests, fixtures, dependencies, and gate
+definitions did not. T-041 is `in_progress` / `audit`; O-020 remains
+`in_progress`; router selection and `release: R-006` are unchanged. No Check
+was written and no commit was made.
 
 ## Drift Notes
 

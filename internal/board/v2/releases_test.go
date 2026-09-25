@@ -404,8 +404,18 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if !strings.Contains(plain.String(), "Selected: all Objectives in Goal R-002\n") {
 		t.Errorf("plain output does not scope the unfiltered view to R-002:\n%s", plain.String())
 	}
+	if !strings.Contains(plain.String(), "Objectives:\nMEDIUM\n  O-002 —") {
+		t.Errorf("piped board output is missing the selected Goal's grouped Objective list:\n%s", plain.String())
+	}
 	if strings.Contains(plain.String(), "Selected: all Objectives\n") {
 		t.Errorf("plain output retains the unscoped selection label:\n%s", plain.String())
+	}
+	var plainAgain bytes.Buffer
+	if err := Run(Options{Root: root, Stdout: &plainAgain, TTY: false}); err != nil {
+		t.Fatalf("second Run() error = %v", err)
+	}
+	if plainAgain.String() != plain.String() {
+		t.Error("two piped board runs over the same project produced different bytes")
 	}
 }
 

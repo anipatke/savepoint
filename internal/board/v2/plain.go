@@ -53,6 +53,24 @@ func renderPlain(state ProjectState, selected string) string {
 		}
 	}
 	fmt.Fprintf(&b, "Selected: %s\n", selection)
+	fmt.Fprintln(&b, "Objectives:")
+	lastPriority := ""
+	for _, row := range objectiveRowsForRelease(state.Index, release) {
+		priority := string(row.Objective.Priority)
+		if priority != lastPriority {
+			fmt.Fprintln(&b, objectivePriorityHeading(row.Objective.Priority))
+			lastPriority = priority
+		}
+		fmt.Fprintf(&b, "  %s — %s", row.ID(), row.Objective.Title)
+		if badges := row.badges(); len(badges) > 0 {
+			labels := make([]string, 0, len(badges))
+			for _, badge := range badges {
+				labels = append(labels, badge.Text())
+			}
+			fmt.Fprintf(&b, "  %s", strings.Join(labels, "  "))
+		}
+		b.WriteByte('\n')
+	}
 	if notice := unassignedGoalNotice(state.Index); notice != "" {
 		fmt.Fprintln(&b, notice)
 	}

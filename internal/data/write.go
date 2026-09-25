@@ -404,6 +404,78 @@ func WriteObjectiveV2(objective *ObjectiveV2) error {
 	})
 }
 
+// WriteObjectiveGroupOrderV2 assigns priority and one-based rank values to
+// the supplied ordered Objective IDs in a Goal. It validates membership and
+// freshness for every source before writing any file. Replacements are
+// atomic per Objective; if a later replacement fails, earlier successful
+// writes remain loadable and duplicate ranks are reported by the index.
+func WriteObjectiveGroupOrderV2(index *V2Index, goalID string, priority ObjectivePriority, objectiveIDs []string) error {
+	if index == nil {
+		return fmt.Errorf("write Objective order: nil V2 index")
+	}
+	if _, ok := index.Releases[goalID]; !ok {
+		return fmt.Errorf("%w: Goal %s was not found", ErrV2MissingRelease, goalID)
+	}
+	if !isCanonicalObjectivePriority(priority) {
+		return fmt.Errorf("%w: Objective priority %q; use critical, high, medium, or low", ErrV2Malformed, priority)
+	}
+
+	objectives := make([]*ObjectiveV2, len(objectiveIDs))
+	seen := make(map[string]struct{}, len(objectiveIDs))
+	for i, objectiveID := range objectiveIDs {
+		if _, duplicate := seen[objectiveID]; duplicate {
+			return fmt.Errorf("write Objective order: Objective %s appears more than once", objectiveID)
+		}
+		seen[objectiveID] = struct{}{}
+		objective, ok := index.Objectives[objectiveID]
+		if !ok || objective == nil {
+			return fmt.Errorf("%w: Objective %s was not found", ErrV2InvalidID, objectiveID)
+		}
+		if string(objective.Release) != goalID {
+			return fmt.Errorf("%w: Objective %s belongs to Goal %s, not Goal %s", ErrV2InvalidReleaseReference, objectiveID, objective.Release, goalID)
+		}
+		objectives[i] = objective
+	}
+
+	// Preflight every member before the first replacement. This prevents a
+	// known stale source later in the order from leaving earlier ranks changed.
+	for _, objective := range objectives {
+		path, err := resolveV2SourcePath(objective.Source)
+		if err != nil {
+			return err
+		}
+		if _, err := checkV2SourceFresh(objective.Source, path); err != nil {
+			return err
+		}
+	}
+
+	for i, objective := range objectives {
+		rank := i + 1
+		if objective.Priority == priority && objective.Rank == rank {
+			continue
+		}
+		patches := []v2FieldPatch{
+			{Key: "priority", Node: &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: string(priority)}},
+			{Key: "rank", Node: &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprint(rank)}},
+		}
+		if err := writeV2Record(&objective.Source, patches, func(content string) error {
+			updated, err := DecodeObjectiveV2(objective.Source.Path, content)
+			if err != nil {
+				return err
+			}
+			if string(updated.Release) != goalID {
+				return fmt.Errorf("%w: Objective %s does not belong to Goal %s", ErrV2InvalidReleaseReference, objective.ID, goalID)
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("write Objective %s order: %w", objective.ID, err)
+		}
+		objective.Priority = priority
+		objective.Rank = rank
+	}
+	return nil
+}
+
 // WriteTaskV2 patches only the status and stage fields of a V2 Task record's
 // frontmatter to match task.Status and task.Stage, preserving every other
 // YAML key/value (including depends_on and unknown fields) and the authored

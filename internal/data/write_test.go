@@ -2,8 +2,10 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1654,4 +1656,210 @@ func TestWriteRouterStateV2_preservesCRLFLineEndings(t *testing.T) {
 	if got != want {
 		t.Errorf("CRLF router changed beyond the selection key:\n%q", got)
 	}
+}
+
+func TestWriteObjectiveGroupOrderV2_preservesContentAndNoOpFiles(t *testing.T) {
+	root := writeObjectiveOrderProjectFixture(t)
+	firstPath := writeObjectiveOrderRecordFixture(t, root, "O-001", ObjectivePriorityCritical, 2,
+		"owner:\n  team: platform\n", "# O-001\n\nKeep this authored note.\n")
+	secondPath := writeObjectiveOrderRecordFixture(t, root, "O-002", ObjectivePriorityCritical, 1, "", "# O-002\n")
+	thirdPath := writeObjectiveOrderRecordFixture(t, root, "O-003", ObjectivePriorityCritical, 3, "", "# O-003\n")
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	thirdBeforeInfo, err := os.Stat(thirdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thirdBeforeBytes, err := os.ReadFile(thirdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002", "O-003"}); err != nil {
+		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v", err)
+	}
+	updated, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after reorder error = %v", err)
+	}
+	if updated.Objectives["O-001"].Rank != 1 || updated.Objectives["O-002"].Rank != 2 || updated.Objectives["O-003"].Rank != 3 {
+		t.Errorf("updated ranks = (%d, %d, %d), want (1, 2, 3)", updated.Objectives["O-001"].Rank, updated.Objectives["O-002"].Rank, updated.Objectives["O-003"].Rank)
+	}
+	firstAfter, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"team: platform", "Keep this authored note."} {
+		if !strings.Contains(string(firstAfter), want) {
+			t.Errorf("Objective rewrite lost %q:\n%s", want, firstAfter)
+		}
+	}
+	thirdAfterInfo, err := os.Stat(thirdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thirdAfterBytes, err := os.ReadFile(thirdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(thirdAfterBytes) != string(thirdBeforeBytes) || !thirdAfterInfo.ModTime().Equal(thirdBeforeInfo.ModTime()) {
+		t.Error("renumber changed a record whose priority and rank already matched")
+	}
+
+	firstInfo, err := os.Stat(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondInfo, err := os.Stat(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBytes := string(firstAfter)
+	secondBytes, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := WriteObjectiveGroupOrderV2(updated, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002", "O-003"}); err != nil {
+		t.Fatalf("repeating WriteObjectiveGroupOrderV2() error = %v", err)
+	}
+	firstInfoAfter, err := os.Stat(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondInfoAfter, err := os.Stat(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBytesAfter, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondBytesAfter, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstBytesAfter) != firstBytes || string(secondBytesAfter) != string(secondBytes) ||
+		!firstInfo.ModTime().Equal(firstInfoAfter.ModTime()) || !secondInfo.ModTime().Equal(secondInfoAfter.ModTime()) {
+		t.Error("repeating the same Objective order changed file bytes or modification times")
+	}
+}
+
+func TestWriteObjectiveGroupOrderV2_staleMemberWritesNothing(t *testing.T) {
+	root := writeObjectiveOrderProjectFixture(t)
+	firstPath := writeObjectiveOrderRecordFixture(t, root, "O-001", ObjectivePriorityCritical, 2, "", "# O-001\n")
+	secondPath := writeObjectiveOrderRecordFixture(t, root, "O-002", ObjectivePriorityCritical, 1, "", "# O-002\n")
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	firstBefore, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRaw, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := strings.Replace(string(secondRaw), "rank: 1\n", "rank: 1\nexternal_note: edited after load\n", 1)
+	if stale == string(secondRaw) {
+		t.Fatal("second Objective has no rank to extend")
+	}
+	if err := os.WriteFile(secondPath, []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err = WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002"})
+	if !errors.Is(err, ErrV2SourceConflict) {
+		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v, want ErrV2SourceConflict", err)
+	}
+	firstAfter, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstAfter) != string(firstBefore) {
+		t.Error("stale later member caused an earlier Objective to be written")
+	}
+}
+
+func TestWriteObjectiveGroupOrderV2_partialFailureRemainsLoadableAndDiagnosed(t *testing.T) {
+	root := writeObjectiveOrderProjectFixture(t)
+	firstPath := writeObjectiveOrderRecordFixture(t, root, "O-001", ObjectivePriorityCritical, 3, "", "# O-001\n")
+	secondPath := writeObjectiveOrderRecordFixture(t, root, "O-002", ObjectivePriorityCritical, 1, "", "# O-002\n")
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	secondBefore, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(secondPath, 0444); err != nil {
+		t.Fatal(err)
+	}
+
+	err = WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002"})
+	if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v, want permission failure on the second file", err)
+	}
+	firstAfter, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAfter, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(firstAfter), "rank: 1") {
+		t.Errorf("first file rank = %q, want successful first replacement", firstAfter)
+	}
+	if string(secondAfter) != string(secondBefore) {
+		t.Error("second file changed despite its replacement failure")
+	}
+
+	reloaded, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() after partial write error = %v, want loadable state", err)
+	}
+	if got, want := OrderedObjectiveIDsForGoal(reloaded, "R-001"), []string{"O-001", "O-002"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("partial order = %v, want deterministic order %v", got, want)
+	}
+	if len(reloaded.DuplicateObjectiveRanks) != 1 || !reflect.DeepEqual(reloaded.DuplicateObjectiveRanks[0].ObjectiveIDs, []string{"O-001", "O-002"}) {
+		t.Errorf("partial duplicate-rank facts = %+v, want a diagnostic for O-001 and O-002", reloaded.DuplicateObjectiveRanks)
+	}
+}
+
+func writeObjectiveOrderProjectFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	releaseDir := filepath.Join(root, "releases", "R-001-goal")
+	if err := os.MkdirAll(releaseDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", releaseDir, err)
+	}
+	release := "---\nid: R-001\ntitle: \"Ordering Goal\"\nstatus: planned\n---\n\n" +
+		"## Outcome\n\nOrder the Goal's Objectives.\n\n" +
+		"## Why\n\nPlanning order is useful.\n\n" +
+		"## Success Conditions\n\n- Objectives have a deterministic order.\n\n" +
+		"## Boundaries\n\nMembership remains derived from Objective records.\n"
+	if err := os.WriteFile(filepath.Join(releaseDir, "Release.md"), []byte(release), 0644); err != nil {
+		t.Fatalf("WriteFile(Release.md) error = %v", err)
+	}
+	return root
+}
+
+func writeObjectiveOrderRecordFixture(t *testing.T, root, id string, priority ObjectivePriority, rank int, extraFrontmatter, body string) string {
+	t.Helper()
+	dir := filepath.Join(root, "objectives", id+"-ordering")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", dir, err)
+	}
+	content := fmt.Sprintf("---\nid: %s\ntitle: \"%s ordering\"\nstatus: planned\nrelease: R-001\npriority: %s\nrank: %d\n", id, id, priority, rank)
+	content += extraFrontmatter + "---\n\n" + body
+	path := filepath.Join(dir, "Objective.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", path, err)
+	}
+	return path
 }

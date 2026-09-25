@@ -35,6 +35,9 @@ type V2Index struct {
 	// whose records declare that Release. It is derived during load; Release
 	// records do not contain a second, mutable membership list.
 	ReleaseObjectives map[string][]string
+	// DuplicateObjectiveRanks records non-fatal duplicate ranks within a
+	// Goal and priority group. Members are sorted by Objective ID.
+	DuplicateObjectiveRanks []DuplicateObjectiveRankV2
 	// ObjectivesWithoutGoal contains the sorted IDs of live Objectives whose
 	// records omit release. These records remain loadable so callers can report
 	// and repair the missing Goal reference.
@@ -118,6 +121,7 @@ func LoadV2Index(root string) (*V2Index, error) {
 	if err := indexReleaseObjectives(index); err != nil {
 		return nil, err
 	}
+	index.DuplicateObjectiveRanks = duplicateObjectiveRankFacts(index)
 
 	for _, id := range slices.Sorted(maps.Keys(tasks)) {
 		task := tasks[id]
@@ -187,6 +191,95 @@ func indexReleaseObjectives(index *V2Index) error {
 		index.ReleaseObjectives[releaseID] = append(index.ReleaseObjectives[releaseID], objective.ID)
 	}
 	return nil
+}
+
+// DuplicateObjectiveRankV2 is the deterministic diagnostic fact for two or
+// more Objectives sharing a rank within one Goal and priority group.
+type DuplicateObjectiveRankV2 struct {
+	GoalID       string
+	Priority     ObjectivePriority
+	Rank         int
+	ObjectiveIDs []string
+}
+
+// OrderedObjectiveIDsForGoal returns the Goal's Objective IDs in planning
+// order: priority, ranked before unranked, ascending rank, then Objective ID.
+// Goal membership remains derived from each Objective's release field.
+func OrderedObjectiveIDsForGoal(index *V2Index, goalID string) []string {
+	if index == nil {
+		return nil
+	}
+	ids := append([]string(nil), index.ReleaseObjectives[goalID]...)
+	slices.SortFunc(ids, func(a, b string) int {
+		objectiveA := index.Objectives[a]
+		objectiveB := index.Objectives[b]
+		priorityA, rankA := ObjectivePriorityMedium, 0
+		priorityB, rankB := ObjectivePriorityMedium, 0
+		if objectiveA != nil {
+			priorityA, rankA = objectiveA.Priority, objectiveA.Rank
+		}
+		if objectiveB != nil {
+			priorityB, rankB = objectiveB.Priority, objectiveB.Rank
+		}
+		if orderA, orderB := objectivePriorityOrder(priorityA), objectivePriorityOrder(priorityB); orderA != orderB {
+			return orderA - orderB
+		}
+		rankedA, rankedB := rankA > 0, rankB > 0
+		if rankedA != rankedB {
+			if rankedA {
+				return -1
+			}
+			return 1
+		}
+		if rankedA && rankA != rankB {
+			return rankA - rankB
+		}
+		return strings.Compare(a, b)
+	})
+	return ids
+}
+
+func duplicateObjectiveRankFacts(index *V2Index) []DuplicateObjectiveRankV2 {
+	type groupKey struct {
+		goalID   string
+		priority ObjectivePriority
+		rank     int
+	}
+	groups := make(map[groupKey][]string)
+	for _, goalID := range slices.Sorted(maps.Keys(index.ReleaseObjectives)) {
+		for _, objectiveID := range index.ReleaseObjectives[goalID] {
+			objective := index.Objectives[objectiveID]
+			if objective == nil || objective.Rank <= 0 {
+				continue
+			}
+			key := groupKey{goalID: goalID, priority: objective.Priority, rank: objective.Rank}
+			groups[key] = append(groups[key], objectiveID)
+		}
+	}
+
+	facts := make([]DuplicateObjectiveRankV2, 0)
+	for key, objectiveIDs := range groups {
+		if len(objectiveIDs) < 2 {
+			continue
+		}
+		slices.Sort(objectiveIDs)
+		facts = append(facts, DuplicateObjectiveRankV2{
+			GoalID:       key.goalID,
+			Priority:     key.priority,
+			Rank:         key.rank,
+			ObjectiveIDs: objectiveIDs,
+		})
+	}
+	slices.SortFunc(facts, func(a, b DuplicateObjectiveRankV2) int {
+		if goalOrder := strings.Compare(a.GoalID, b.GoalID); goalOrder != 0 {
+			return goalOrder
+		}
+		if priorityOrder := objectivePriorityOrder(a.Priority) - objectivePriorityOrder(b.Priority); priorityOrder != 0 {
+			return priorityOrder
+		}
+		return a.Rank - b.Rank
+	})
+	return facts
 }
 
 // validateIssueLinkTargets resolves every Issue reference that crosses record

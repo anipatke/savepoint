@@ -1,7 +1,7 @@
 ---
 id: O-020
 title: Prioritize and rank Objectives within a Release
-status: planned
+status: done
 depends_on: [O-022]
 release: R-006
 ---

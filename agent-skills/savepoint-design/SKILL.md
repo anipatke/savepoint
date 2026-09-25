@@ -123,6 +123,9 @@ title: Objective Title
 status: planned|in_progress|done
 depends_on: [O-###]
 release: R-###
+# Optional ordering metadata: priority defaults to medium; omit rank to leave unranked.
+# priority: critical|high|medium|low
+# rank: 1
 last_check: optional-check-id
 freshness:  # optional; only to mark the latest Check stale or unknown
   state: current|stale|unknown

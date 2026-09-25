@@ -3,6 +3,8 @@ id: O-017
 title: Give the owner an explicit Accept action for an Objective's Check gap
 status: planned
 release: R-006
+priority: high
+rank: 1
 ---
 
 # O-017: Give the owner an explicit Accept action for an Objective's Check gap

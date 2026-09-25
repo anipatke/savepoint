@@ -4,6 +4,8 @@ title: Let the owner advance Issues from the board
 status: planned
 depends_on: [O-012]
 release: R-006
+priority: high
+rank: 3
 ---
 
 # O-015: Let the owner advance Issues from the board

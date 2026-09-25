@@ -2,12 +2,21 @@
 id: T-043
 title: Reorder Objectives from the keyboard
 objective: O-020
-status: planned
+status: done
 complexity_tier: medium
 complexity_reason: Adds two sidebar key families that compute a new group order and call the data writer through a command, with cursor stability and conflict messages.
 depends_on: [{task: T-042, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: o020-rank-objectives-20260925}
+check_waiver:
+    task: T-043
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-25T06:49:19Z"
 ---
 
 # Reorder Objectives from the keyboard
@@ -89,7 +98,26 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Acceptance evidence:
+- `1`–`4` route to Critical, High, Medium, and Low. The tests verify appending after existing destination rows, persisted order after opening a fresh board, and no file change when setting the current priority: `TestSidebarPriorityKeysAppendAndKeepSelection`.
+- `K`/`J` and the shift-arrow aliases swap only within their current group; group edges do not cross priorities. The High-group test exercises `K`, `K`, then `J`; a first move ranks legacy rows: `TestSidebarPriorityKeysAppendAndKeepSelection`, `TestSidebarGroupMovementRenumbersLegacyRowsAndClamps`, `TestSidebarGroupMovementDoesNotCrossPriorityGroups`.
+- Order writes run through Bubble Tea commands. Reloads keep the focused and selected Objective by ID: `TestSidebarPriorityKeysAppendAndKeepSelection`, `TestSidebarGroupMovementRenumbersLegacyRowsAndClamps`.
+- The stale-source test checks the Objective-naming conflict, unchanged external file bytes, and unchanged visible order: `TestSidebarReorderConflictKeepsOrderAndExternalEdit`. The injected partial-write test checks the retained visible order and a subsequent healing move: `TestSidebarOrderHealsAfterInjectedMidWriteFailure`.
+- Focused help lists the priority and move keys. Tests compare router bytes, the canonical `resume.NextLine`, Objective status, and Task cards across reorder actions: `TestSidebarHelpListsOrderKeysOnlyWhenFocused`, `TestSidebarPriorityKeysAppendAndKeepSelection`, `TestSidebarGroupMovementRenumbersLegacyRowsAndClamps`.
+
+Verification:
+- `gofmt -w internal/board/v2/update.go internal/board/v2/io.go internal/board/v2/help.go internal/board/v2/actions_test.go internal/board/v2/objectives_test.go` — completed.
+- `git diff --check` — passed.
+- `go test ./internal/board/v2` — passed after correcting a missing test import; the initial sandbox attempt could not access the external Go build cache, so the passing focused run used approved elevated access.
+- `make build` — passed.
+- `make test-fast` — passed, including the latest board tests.
+- `./savepoint resume` — `Check T-043 — Reorder Objectives from the keyboard (O-020)`; owner decision is required for an optional Task Check or explicit waiver.
+
+Context read: `.savepoint/router.md`, this Task, O-020, all files in the Task's Context Files list, and the applicable guardrail rules.
+Extra reads logged before access: `.savepoint/Guardrails.md` (named policy rules); `.savepoint/Design.md` sections 8 and 9 (cited keybindings, persistence, and concurrency); `internal/resume/resume.go` lines 35–70 (canonical Next-line formatter for an exact display assertion).
+T-043 implementation changes: `internal/board/v2/update.go`, `internal/board/v2/io.go`, `internal/board/v2/help.go`, `internal/board/v2/actions_test.go`, and `internal/board/v2/objectives_test.go`, plus this evidence record. The router was not edited; tests confirm its bytes are unchanged by reorder actions.
+
+Limitations: the scratch-project keyboard scenario was verified through temporary-project tests rather than a manual interactive terminal session. No Task Check or waiver is recorded; this Task is ready for the owner-selected handoff.
 
 ## Drift Notes
 

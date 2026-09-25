@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,9 +15,8 @@ import (
 var columnOrder = []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, data.ColumnDone}
 
 // Update is a reducer over typed messages only: it reads no file, starts no
-// subprocess, and performs no IO (ARCH-02). Every key it handles is
-// idempotent — a repeated press at either end of a column or row changes
-// nothing — and no key here writes to the project.
+// subprocess, and performs no IO (ARCH-02). Filesystem actions are returned as
+// explicit Bubble Tea commands. Navigation clamps at each surface's edges.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -132,8 +132,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, writeObjectiveCompletionCmd(m.Root, target.ID)
 			}
 		}
-		m.handleSidebarKey(key)
-		return m, nil
+		return m, m.handleSidebarKey(key)
 	}
 	m.handleColumnKey(key)
 	return m, nil
@@ -389,13 +388,18 @@ func (m *Model) refreshDetail() {
 	m.clampDetailScroll()
 }
 
-// handleSidebarKey moves the Objective cursor, applying the new selection
-// immediately — there is no separate select step — and escape clears the
-// selection; both are idempotent, and neither writes anything — a selection
-// recorded in router.md is a different key, in a later task. Right crosses
+// handleSidebarKey moves the Objective cursor, applies the new selection
+// immediately, and starts explicit order writes as commands. Right crosses
 // back into the columns, the mirror of the left key that crossed in from the
 // Planned column.
-func (m *Model) handleSidebarKey(key string) {
+func (m *Model) handleSidebarKey(key string) tea.Cmd {
+	if change, ok := sidebarObjectiveOrderChange(m.Objectives, m.ObjectiveCursor, key); ok {
+		if m.State.Index == nil || m.SelectedRelease == "" {
+			return nil
+		}
+		return writeObjectiveGroupOrderCmd(m.State.Index, m.SelectedRelease, change)
+	}
+
 	switch key {
 	case "right", "l":
 		m.SidebarFocused = false
@@ -411,6 +415,109 @@ func (m *Model) handleSidebarKey(key string) {
 		m.openIssues("")
 	case "esc":
 		m.selectObjective("")
+	}
+	return nil
+}
+
+type objectiveGroupOrderChange struct {
+	ObjectiveID  string
+	Priority     data.ObjectivePriority
+	ObjectiveIDs []string
+	Message      string
+}
+
+// sidebarObjectiveOrderChange resolves a focused row's keyboard request using
+// only the already ordered sidebar rows. It does not write or mutate them.
+func sidebarObjectiveOrderChange(rows []ObjectiveRow, cursor int, key string) (objectiveGroupOrderChange, bool) {
+	if cursor < 0 || cursor >= len(rows) || rows[cursor].Objective == nil {
+		return objectiveGroupOrderChange{}, false
+	}
+	focused := rows[cursor]
+	objectiveID := focused.ID()
+	currentPriority := sidebarRowPriority(focused)
+
+	if destination, ok := sidebarPriorityKey(key); ok {
+		if destination == currentPriority {
+			return objectiveGroupOrderChange{}, false
+		}
+		ids := sidebarObjectiveIDsInPriority(rows, destination, objectiveID)
+		ids = append(ids, objectiveID)
+		return objectiveGroupOrderChange{
+			ObjectiveID:  objectiveID,
+			Priority:     destination,
+			ObjectiveIDs: ids,
+			Message:      fmt.Sprintf("Objective %s moved to %s priority.", objectiveID, objectivePriorityLabel(destination)),
+		}, true
+	}
+
+	var delta int
+	var direction string
+	switch key {
+	case "K", "shift+up":
+		delta, direction = -1, "up"
+	case "J", "shift+down":
+		delta, direction = 1, "down"
+	default:
+		return objectiveGroupOrderChange{}, false
+	}
+
+	ids := sidebarObjectiveIDsInPriority(rows, currentPriority, "")
+	position := slices.Index(ids, objectiveID)
+	neighbor := position + delta
+	if position < 0 || neighbor < 0 || neighbor >= len(ids) {
+		return objectiveGroupOrderChange{}, false
+	}
+	ids[position], ids[neighbor] = ids[neighbor], ids[position]
+	return objectiveGroupOrderChange{
+		ObjectiveID:  objectiveID,
+		Priority:     currentPriority,
+		ObjectiveIDs: ids,
+		Message:      fmt.Sprintf("Objective %s moved %s within %s priority.", objectiveID, direction, objectivePriorityLabel(currentPriority)),
+	}, true
+}
+
+func sidebarPriorityKey(key string) (data.ObjectivePriority, bool) {
+	switch key {
+	case "1":
+		return data.ObjectivePriority("critical"), true
+	case "2":
+		return data.ObjectivePriority("high"), true
+	case "3":
+		return data.ObjectivePriority("medium"), true
+	case "4":
+		return data.ObjectivePriority("low"), true
+	default:
+		return "", false
+	}
+}
+
+func sidebarRowPriority(row ObjectiveRow) data.ObjectivePriority {
+	if row.Objective == nil || row.Objective.Priority == "" {
+		return data.ObjectivePriority("medium")
+	}
+	return row.Objective.Priority
+}
+
+func sidebarObjectiveIDsInPriority(rows []ObjectiveRow, priority data.ObjectivePriority, exceptID string) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Objective != nil && row.ID() != exceptID && sidebarRowPriority(row) == priority {
+			ids = append(ids, row.ID())
+		}
+	}
+	return ids
+}
+
+func objectivePriorityLabel(priority data.ObjectivePriority) string {
+	switch priority {
+	case "critical":
+		return "Critical"
+	case "high":
+		return "High"
+	case "low":
+		return "Low"
+	default:
+		return "Medium"
 	}
 }
 

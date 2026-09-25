@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/resume"
@@ -59,6 +60,19 @@ func RunV2Checks(root string) *DiagnosticReport {
 	}
 
 	report.Project = append(report.Project, v2ConsistencyProblems(index)...)
+	for _, duplicate := range index.DuplicateObjectiveRanks {
+		file := root
+		if goal := index.Releases[duplicate.GoalID]; goal != nil {
+			file = filepath.Join(root, goal.Source.Path)
+		}
+		report.Project = append(report.Project, Problem{
+			File: file,
+			Message: fmt.Sprintf("[v2-objective-rank-duplicate] Goal %s has duplicate rank %d at %s priority for Objectives %s",
+				duplicate.GoalID, duplicate.Rank, duplicate.Priority, strings.Join(duplicate.ObjectiveIDs, ", ")),
+			Repair:   fmt.Sprintf("Assign these Objectives distinct positive rank values within Goal %s at %s priority.", duplicate.GoalID, duplicate.Priority),
+			Category: HealthPendingReview,
+		})
+	}
 	if _, diagnostic := data.ResolveSelection(index, router); diagnostic != nil {
 		switch diagnostic.Kind {
 		case data.SelectionReleaseMissing, data.SelectionReleaseNotFound, data.SelectionReleaseArchived:

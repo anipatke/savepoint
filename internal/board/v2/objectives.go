@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
 )
@@ -80,7 +79,7 @@ func objectiveRowsForRelease(index *data.V2Index, releaseID string) []ObjectiveR
 		return nil
 	}
 
-	ids := objectiveIDsForRelease(index, releaseID)
+	ids := data.OrderedObjectiveIDsForGoal(index, releaseID)
 	rows := make([]ObjectiveRow, 0, len(ids))
 	for _, id := range ids {
 		objective := index.Objectives[id]
@@ -230,17 +229,64 @@ func renderSidebar(rows []ObjectiveRow, selected string, cursor int, focused boo
 	}
 	// The sidebar always keeps its own cursor row in view, focused or not, so
 	// the selected Objective stays on screen while the keys are in the columns.
-	start, end := visibleWindow(heights, budget, focusedIndex(true, cursor, len(rows)))
+	start, end := visibleObjectiveWindow(rows, heights, budget, focusedIndex(true, cursor, len(rows)))
 
 	if start > 0 {
 		lines = append(lines, scrollIndicator("↑", start, "above"))
 	}
-	lines = append(lines, rendered[start:end]...)
+	for i := start; i < end; i++ {
+		if i == start || rows[i].Objective.Priority != rows[i-1].Objective.Priority {
+			lines = append(lines, styles.HeaderWhiteBold.Render(objectivePriorityHeading(rows[i].Objective.Priority)))
+		}
+		lines = append(lines, rendered[i])
+	}
 	if end < len(rows) {
 		lines = append(lines, scrollIndicator("↓", len(rows)-end, "more"))
 	}
 
 	return frameSidebar(lines, textW, bodyH, focused)
+}
+
+// visibleObjectiveWindow keeps the Objective cursor visible while accounting
+// for priority headings. A scrolled window starts with its group's heading,
+// even when it begins in the middle of a group.
+func visibleObjectiveWindow(rows []ObjectiveRow, heights []int, budget, mustShow int) (int, int) {
+	if len(rows) == 0 {
+		return 0, 0
+	}
+	for start := 0; start < len(rows); start++ {
+		used := 0
+		if start > 0 {
+			used++ // "n above"
+		}
+		end := start
+		for end < len(rows) {
+			heading := 0
+			if end == start || rows[end].Objective.Priority != rows[end-1].Objective.Priority {
+				heading = 1
+			}
+			below := 0
+			if end+1 < len(rows) {
+				below = 1 // "n more"
+			}
+			if used+heading+heights[end]+below > budget {
+				break
+			}
+			used += heading + heights[end]
+			end++
+		}
+		if end == start {
+			end = start + 1
+		}
+		if end > mustShow || end == len(rows) {
+			return start, end
+		}
+	}
+	return 0, len(rows)
+}
+
+func objectivePriorityHeading(priority data.ObjectivePriority) string {
+	return strings.ToUpper(string(priority))
 }
 
 // frameSidebar draws the sidebar's own frame, mirroring frameColumn's shape
@@ -266,9 +312,9 @@ func sidebarStyle(focused bool) lipgloss.Style {
 }
 
 // renderObjectiveRow draws one row: its markers and O-### identity, the human
-// title its author wrote, the status its record records, and its badges. The
-// title wraps across up to two lines before truncating so the whole title can
-// be read, while subsequent lines are indented past the marker column.
+// title its author wrote, and its badges. The title wraps across up to two
+// lines before truncating so the whole title can be read, while subsequent
+// lines are indented past the marker column.
 func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) string {
 	textW := width - rowMarkerCells
 	if textW < 4 {
@@ -294,29 +340,10 @@ func renderObjectiveRow(row ObjectiveRow, width int, selected, cursor bool) stri
 		lines = append(lines, style.Render(rowMarkers(selected, cursor)))
 	}
 
-	lines = append(lines, styles.CardMeta.Render(indent(xansi.Truncate(objectiveStatusLabel(row.Objective.Status), textW, "…"))))
 	for _, line := range renderBadgeLines(row.badges(), textW) {
 		lines = append(lines, indent(line))
 	}
 	return strings.Join(lines, "\n")
-}
-
-// objectiveStatusLabel is the one place an Objective's recorded Status
-// becomes owner-facing text (I-013): the row shows "Planned", "In Progress",
-// and "Done" rather than the raw frontmatter values, which stay
-// `planned`/`in_progress`/`done` in every record and resolver untouched. A
-// status outside those three reports itself rather than a guess.
-func objectiveStatusLabel(status data.ColumnType) string {
-	switch status {
-	case data.ColumnPlanned:
-		return "Planned"
-	case data.ColumnInProgress:
-		return "In Progress"
-	case data.ColumnDone:
-		return "Done"
-	default:
-		return string(status)
-	}
 }
 
 // rowMarkers is the fixed-width cursor and selection column. Both glyphs keep
