@@ -86,6 +86,9 @@ func NextVerb(next data.Next) string {
 	case next.Release != nil:
 		switch next.Kind {
 		case data.NextReleaseReady:
+			if next.Release.Status == data.ColumnDone {
+				return "Done"
+			}
 			return "Close"
 		}
 	}

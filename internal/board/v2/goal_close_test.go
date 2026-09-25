@@ -104,3 +104,26 @@ func TestGoalSelectorAdvertisesTheToggleKey(t *testing.T) {
 		t.Fatalf("help omits the Goal toggle key:\n%s", got)
 	}
 }
+
+// TestNextReadsDoneForAClosedGoal proves a Goal closed from the selector reads
+// Done, not Close, in the board's Next area and the non-TTY output.
+func TestNextReadsDoneForAClosedGoal(t *testing.T) {
+	root, _, _ := closeableObjectiveProject(t)
+	writeRouterWithRelease(t, root, "R-006", "none", "none")
+
+	ready := openSizedBoard(t, root, 120, 40)
+	if got := xansi.Strip(ready.View()); !strings.Contains(got, "Close R-006") {
+		t.Fatalf("ready Goal does not read Close:\n%s", got)
+	}
+
+	if message := writeGoalStatusCmd(root, "R-006")().(actionMsg); message.err != nil {
+		t.Fatalf("closing the Goal = %+v", message)
+	}
+	closed := openSizedBoard(t, root, 120, 40)
+	if got := xansi.Strip(closed.View()); !strings.Contains(got, "Done R-006") || strings.Contains(got, "Close R-006") {
+		t.Fatalf("closed Goal Next area does not read Done:\n%s", got)
+	}
+	if got := renderPlain(closed.State, closed.SelectedObjective); !strings.Contains(got, "Done R-006") || strings.Contains(got, "Close R-006") {
+		t.Fatalf("closed Goal plain output does not read Done:\n%s", got)
+	}
+}
