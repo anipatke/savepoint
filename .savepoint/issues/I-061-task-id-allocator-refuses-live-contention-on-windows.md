@@ -50,6 +50,27 @@ history:
       TestAllocateTaskID_serializesConcurrentCallers failed in windows-tests
       on PR #11 (run 36198435217) with 4 of 16 reservations, and again on
       rerun with 1 of 16. The owner-accepted resolution is withdrawn.
+  - at: '2026-09-25T23:33:01Z'
+    actor: {role: executor, session: i061-repair-20260926}
+    kind: repair_attempted
+    note: >-
+      Windows diagnostic (draft PR #12, run 36199665922, closed unmerged):
+      successive lock holders get distinct modification times once they are
+      2 ms or more apart; one uncontended allocation takes a median 47 ms
+      (22-72 ms) against about 2 ms on Linux; 16 concurrent callers finished
+      at up to 828 ms and 2 were refused at about 828 ms. The 500 ms
+      per-holder staleness guess is too tight for Windows filesystem
+      latency. Commit 845b1be removes the modification-time heuristic:
+      acquireTaskIDLock now waits up to taskIDLockWait, raised to 10 s, and
+      still refuses a lock present after that as leftover.
+      TestAllocateTaskID_waitsForALiveHolder holds a live lock for 1.5 s and
+      requires the allocator to wait it out; it fails on the previous logic
+      with the I-061 refusal. The refusal test uses a 300 ms wait; the old
+      modification-time handoff test was removed with the mechanism. make
+      build, make test-fast, and make test-full passed on Linux. windows-tests
+      passed 5 of 5 runs on 845b1be (run 36199992156, attempts 1-5,
+      23:11-23:32 UTC), including TestAllocateTaskID_serializesConcurrentCallers.
+      Issue remains open for independent verification or owner acceptance.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
