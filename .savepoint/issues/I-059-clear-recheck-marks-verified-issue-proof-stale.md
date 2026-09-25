@@ -2,7 +2,7 @@
 id: I-059
 title: A CLEAR recheck marks every Issue verified by the prior Check as stale
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: executor, session: doctor-rca-20260925}
@@ -25,6 +25,25 @@ history:
       regression test (fails unfixed) and moved two older tests to a NEEDS
       WORK superseder. make build && make test-fast passed. Issue remains
       open for independent verification.
+  - at: "2026-09-25T21:15:59Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:16:00Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-25T21:16:00Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-059: A CLEAR recheck marks every Issue verified by the prior Check as stale

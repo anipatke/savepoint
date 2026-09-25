@@ -2,7 +2,7 @@
 id: I-058
 title: Doctor flags Tasks and Objectives the owner completed by waiver or exception
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: executor, session: doctor-rca-20260925}
@@ -26,6 +26,37 @@ history:
       regression tests fail without the fix. make build && make test-fast
       passed. Live doctor now reports only the I-050..I-053 proof and R-006
       Goal Check items. Issue remains open for independent verification.
+  - at: "2026-09-25T21:14:52Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:14:53Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from in_progress to open by the owner from the board.
+  - at: "2026-09-25T21:18:12Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:18:13Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-25T21:18:13Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-058: Doctor flags Tasks and Objectives the owner completed by waiver or exception

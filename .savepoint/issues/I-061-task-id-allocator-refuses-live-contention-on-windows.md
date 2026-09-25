@@ -2,7 +2,7 @@
 id: I-061
 title: Task ID allocator refuses live contention as a leftover lock on Windows
 type: defect
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: planner, session: i061-windows-allocator-20260926}
@@ -35,6 +35,19 @@ history:
       session: board-owner
     kind: owner_decision
     note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:14:14Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-25T21:14:14Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
