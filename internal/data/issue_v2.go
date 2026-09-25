@@ -621,7 +621,7 @@ type IssueConsistencyDiagnostic struct {
 }
 
 // InspectIssueConsistency reports every verified Issue whose proof Check has
-// been superseded by a later Check recorded against the same scope target,
+// been superseded by a later, not-CLEAR Check recorded against the same scope target,
 // without rewriting any record. Decoding and validateVerifiedResolution
 // already guarantee a verified resolution's proof Check exists, appears in
 // the Issue's checks, and recorded CLEAR at load time; what a load cannot
@@ -642,7 +642,10 @@ func InspectIssueConsistency(index *V2Index) []IssueConsistencyDiagnostic {
 		if !ok {
 			continue
 		}
-		if latest := index.LatestCheck[proof.Scope.ID]; latest != "" && latest != proof.ID {
+		// A later CLEAR Check re-confirms the proof rather than undermining it;
+		// only a later Check that did not record CLEAR leaves the proof stale.
+		latest := index.LatestCheck[proof.Scope.ID]
+		if latestCheck, ok := index.Checks[latest]; ok && latest != proof.ID && latestCheck.Result != CheckResultClear {
 			diagnostics = append(diagnostics, IssueConsistencyDiagnostic{
 				Issue:  id,
 				Kind:   IssueConsistencyProofSuperseded,

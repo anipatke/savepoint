@@ -432,6 +432,16 @@ func applicableException(evidence *Evidence, latestCheckID string) *Exception {
 	return exception
 }
 
+// taskDoneByOwnerDecision reports whether a done Task whose clearance is not
+// current was completed by an owner decision ResolveTaskCompletion accepts: a
+// Check waiver while no Check exists, or an exception naming the latest Check.
+func taskDoneByOwnerDecision(index *V2Index, task *TaskV2, clearance Clearance) bool {
+	if clearance.State == ClearanceMissing && applicableCheckWaiver(task.Evidence, task.ID) != nil {
+		return true
+	}
+	return applicableException(task.Evidence, index.LatestCheck[task.ID]) != nil
+}
+
 // ConsistencyDiagnosticKind names one way a Task's recorded status can
 // contradict its recorded evidence after a hand edit.
 type ConsistencyDiagnosticKind string
@@ -458,8 +468,9 @@ type ConsistencyDiagnostic struct {
 
 // InspectTaskConsistency reports every inconsistency between a Task's
 // recorded status and its recorded evidence without rewriting any record: a
-// done Task without current clearance, an owner acceptance naming a Check a
-// later Check has superseded, and evidence that would clear completion while
+// done Task without current clearance that no owner waiver or exception
+// accounts for, an owner acceptance naming a Check a later Task Check has
+// superseded, and evidence that would clear completion while
 // status was never advanced to done. It walks Task IDs in sorted order and
 // returns every problem found across every Task, not only the first. It
 // does not authenticate who wrote the evidence or prevent further external
@@ -471,7 +482,7 @@ func InspectTaskConsistency(index *V2Index) []ConsistencyDiagnostic {
 		task := index.Tasks[id]
 		clearance := ResolveClearance(index, id)
 
-		if task.Status == ColumnDone && clearance.State != ClearanceCurrent {
+		if task.Status == ColumnDone && clearance.State != ClearanceCurrent && !taskDoneByOwnerDecision(index, task, clearance) {
 			diagnostics = append(diagnostics, ConsistencyDiagnostic{
 				Task:   id,
 				Kind:   ConsistencyDoneWithoutClearance,
@@ -482,7 +493,10 @@ func InspectTaskConsistency(index *V2Index) []ConsistencyDiagnostic {
 		if task.Evidence != nil && task.Evidence.OwnerValidation != nil {
 			accepted := task.Evidence.OwnerValidation.AcceptedCheck
 			latest := index.LatestCheck[id]
-			if accepted != "" && accepted != latest {
+			// With no Task Check at all, nothing has superseded the
+			// acceptance: a waived Task may record acceptance of the
+			// Objective Check it was delivered under.
+			if accepted != "" && latest != "" && accepted != latest {
 				diagnostics = append(diagnostics, ConsistencyDiagnostic{
 					Task:   id,
 					Kind:   ConsistencyAcceptanceSuperseded,

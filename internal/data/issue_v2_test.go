@@ -685,7 +685,7 @@ func TestInspectIssueConsistency_verifiedProofSuperseded(t *testing.T) {
 		Issues: map[string]*IssueV2{"I-001": mustVerifiedIssue("I-001", "C-001")},
 		Checks: map[string]*CheckV2{
 			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear},
-			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear, Supersedes: "C-001"},
+			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultNeedsWork, Supersedes: "C-001"},
 		},
 		LatestCheck: map[string]string{"T-001": "C-002"},
 	}
@@ -699,6 +699,24 @@ func TestInspectIssueConsistency_verifiedProofSuperseded(t *testing.T) {
 	}
 }
 
+// TestInspectIssueConsistency_clearRecheckKeepsProof covers I-059: a later
+// CLEAR Check on the same scope re-confirms a verified Issue's proof, so the
+// Issue is not reported as stale.
+func TestInspectIssueConsistency_clearRecheckKeepsProof(t *testing.T) {
+	index := &V2Index{
+		Issues: map[string]*IssueV2{"I-001": mustVerifiedIssue("I-001", "C-001")},
+		Checks: map[string]*CheckV2{
+			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeObjective, ID: "O-001"}, Result: CheckResultClear},
+			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeObjective, ID: "O-001"}, Result: CheckResultClear, Supersedes: "C-001"},
+		},
+		LatestCheck: map[string]string{"O-001": "C-002"},
+	}
+
+	if got := InspectIssueConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want none after a CLEAR recheck", got)
+	}
+}
+
 func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 	index := &V2Index{
 		Issues: map[string]*IssueV2{
@@ -707,7 +725,7 @@ func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 		},
 		Checks: map[string]*CheckV2{
 			"C-001": {ID: "C-001", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear},
-			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultClear, Supersedes: "C-001"},
+			"C-002": {ID: "C-002", Scope: CheckScope{Kind: CheckScopeTask, ID: "T-001"}, Result: CheckResultNeedsWork, Supersedes: "C-001"},
 		},
 		LatestCheck: map[string]string{"T-001": "C-002"},
 	}

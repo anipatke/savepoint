@@ -3,6 +3,7 @@ package data
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func mustObjectiveCheck(index *V2Index, id, objectiveID string, result CheckResult) *CheckV2 {
@@ -499,6 +500,42 @@ func TestInspectObjectiveConsistency_doneWithoutCurrentClearance(t *testing.T) {
 	got := InspectObjectiveConsistency(index)
 	if len(got) != 1 || got[0].Kind != ObjectiveConsistencyDoneWithoutClearance || got[0].Objective != "O-001" {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want one ObjectiveConsistencyDoneWithoutClearance naming O-001", got)
+	}
+}
+
+// TestInspectObjectiveConsistency_exceptionCompletionIsNotReported covers
+// I-058: an Objective the owner completed by an exception naming its latest
+// NEEDS WORK Check is what ResolveObjectiveCompletion allows. An exception
+// naming a superseded Check still leaves the Objective flagged.
+func TestInspectObjectiveConsistency_exceptionCompletionIsNotReported(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		exception string
+		want      int
+	}{
+		{name: "names latest check", exception: "C-002", want: 0},
+		{name: "names superseded check", exception: "C-001", want: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			mustObjectiveCheck(index, "C-001", "O-001", CheckResultNeedsWork)
+			mustObjectiveCheck(index, "C-002", "O-001", CheckResultNeedsWork)
+			index.Objectives["O-001"] = &ObjectiveV2{
+				ID: "O-001", Status: ColumnDone, Source: V2SourceDocument{Path: "objectives/O-001-a/Objective.md"},
+				Evidence: &Evidence{Exception: &Exception{
+					Requirements: []string{"I-001"},
+					Reason:       "owner accepted the repairs",
+					Owner:        "ani",
+					RecordedAt:   time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC),
+					Check:        tc.exception,
+				}},
+			}
+
+			got := InspectObjectiveConsistency(index)
+			if len(got) != tc.want {
+				t.Fatalf("InspectObjectiveConsistency() = %+v, want %d diagnostics", got, tc.want)
+			}
+		})
 	}
 }
 

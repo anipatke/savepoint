@@ -186,7 +186,7 @@ type ObjectiveConsistencyDiagnostic struct {
 // InspectObjectiveConsistency reports every inconsistency between an
 // Objective's recorded status and its recorded integration evidence or owned
 // Tasks, without rewriting any record: an Objective done without current
-// integration clearance, an Objective done while an owned Task is not done,
+// integration clearance or an applicable owner exception, an Objective done while an owned Task is not done,
 // and an Objective still planned after one of its Tasks started. It walks Objective IDs in sorted order and returns every problem
 // found across every Objective, not only the first, mirroring
 // InspectTaskConsistency's read-only, sorted, return-everything shape.
@@ -205,7 +205,10 @@ func InspectObjectiveConsistency(index *V2Index) []ObjectiveConsistencyDiagnosti
 			continue
 		}
 
-		if clearance := ResolveClearance(index, id); clearance.State != ClearanceCurrent {
+		// An owner exception naming the latest Check completes the Objective
+		// as ResolveObjectiveCompletion allows; it is not a contradiction.
+		clearance := ResolveClearance(index, id)
+		if clearance.State != ClearanceCurrent && applicableException(objective.Evidence, index.LatestCheck[id]) == nil {
 			diagnostics = append(diagnostics, ObjectiveConsistencyDiagnostic{
 				Objective: id,
 				Kind:      ObjectiveConsistencyDoneWithoutClearance,

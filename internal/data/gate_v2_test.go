@@ -793,6 +793,63 @@ func TestInspectTaskConsistency_waiverAllowedCompletionIsNotAContradiction(t *te
 	}
 }
 
+// TestInspectTaskConsistency_ownerDecisionCompletionsAreNotReported covers
+// I-058: a done Task the owner completed by waiver (no Check recorded) or by
+// an exception naming its latest Check is what ResolveTaskCompletion allows,
+// so doctor must not flag it. A waived Task may also record acceptance of
+// the Objective Check it was delivered under; with no Task Check, nothing
+// has superseded that acceptance.
+func TestInspectTaskConsistency_ownerDecisionCompletionsAreNotReported(t *testing.T) {
+	index := newV2TestIndex()
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T-001")},
+	}
+	mustCheck(index, "C-002", "T-002", CheckResultNeedsWork)
+	index.Tasks["T-002"] = &TaskV2{
+		ID: "T-002", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{Exception: &Exception{
+			Requirements: []string{"AC-1"},
+			Reason:       "owner accepted the risk for C-002",
+			Owner:        "ani",
+			RecordedAt:   mustParseTime(t, "2026-09-01T00:00:00Z"),
+			Check:        "C-002",
+		}},
+	}
+	index.Tasks["T-003"] = &TaskV2{
+		ID: "T-003", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{
+			CheckWaiver: validTaskCheckWaiver("T-003"),
+			OwnerValidation: &OwnerValidation{
+				Required:      true,
+				AcceptedCheck: "C-900",
+				AcceptedBy:    Actor{Role: ActorRoleOwner, Session: "owner-1"},
+			},
+		},
+	}
+
+	if got := InspectTaskConsistency(index); len(got) != 0 {
+		t.Fatalf("InspectTaskConsistency() = %+v, want none for owner-completed tasks", got)
+	}
+}
+
+// TestInspectTaskConsistency_waiverDoesNotExcuseARecordedCheck proves the
+// doctor still flags a done Task whose waiver cannot apply because a Check
+// was recorded, matching ResolveTaskCompletion.
+func TestInspectTaskConsistency_waiverDoesNotExcuseARecordedCheck(t *testing.T) {
+	index := newV2TestIndex()
+	mustCheck(index, "C-001", "T-001", CheckResultNeedsWork)
+	index.Tasks["T-001"] = &TaskV2{
+		ID: "T-001", Objective: "O-001", Status: ColumnDone,
+		Evidence: &Evidence{CheckWaiver: validTaskCheckWaiver("T-001")},
+	}
+
+	got := InspectTaskConsistency(index)
+	if len(got) != 1 || got[0].Kind != ConsistencyDoneWithoutClearance {
+		t.Fatalf("InspectTaskConsistency() = %+v, want one ConsistencyDoneWithoutClearance", got)
+	}
+}
+
 func TestInspectTaskConsistency_reportsEveryProblemNotOnlyTheFirst(t *testing.T) {
 	index := newV2TestIndex()
 

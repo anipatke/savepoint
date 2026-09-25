@@ -279,7 +279,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	}
 
 	// --- a later CLEAR Objective-scoped Check keeps O-001 cleared on its
-	//     own but leaves the Issue's verified proof superseded, without
+	//     own and re-confirms the Issue's verified proof (I-059), without
 	//     rewriting any record ---
 	writeScenarioCheck(t, root, "C-003", CheckScopeObjective, "O-001", "sess-2", checkedAt.Add(24*time.Hour), co1.ID)
 
@@ -290,9 +290,8 @@ func TestE44_EpicScenario(t *testing.T) {
 	if objectiveProblems := InspectObjectiveConsistency(index); len(objectiveProblems) != 0 {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want none (the later CLEAR Check is current on its own)", objectiveProblems)
 	}
-	issueProblems := InspectIssueConsistency(index)
-	if len(issueProblems) != 1 || issueProblems[0].Kind != IssueConsistencyProofSuperseded || issueProblems[0].Issue != issueID {
-		t.Fatalf("InspectIssueConsistency() = %+v, want one IssueConsistencyProofSuperseded naming %s", issueProblems, issueID)
+	if issueProblems := InspectIssueConsistency(index); len(issueProblems) != 0 {
+		t.Fatalf("InspectIssueConsistency() = %+v, want none (a CLEAR recheck re-confirms %s's proof)", issueProblems, issueID)
 	}
 }
 

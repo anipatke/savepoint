@@ -756,8 +756,8 @@ func TestCheckProject_ObjectiveConsistencyDiagnostics(t *testing.T) {
 }
 
 // TestCheckProject_IssueVerifiedProofSuperseded proves doctor reports a
-// verified Issue whose proof Check has been superseded by a later Check
-// recorded against the same scope — an inconsistency a successful load
+// verified Issue whose proof Check has been superseded by a later NEEDS WORK
+// Check recorded against the same scope — an inconsistency a successful load
 // cannot refuse by itself.
 func TestCheckProject_IssueVerifiedProofSuperseded(t *testing.T) {
 	root := t.TempDir()
@@ -765,7 +765,7 @@ func TestCheckProject_IssueVerifiedProofSuperseded(t *testing.T) {
 	writeV2Objective(t, root, "O-001-ship", "O-001", "Ship it")
 	writeV2Task(t, root, "O-001-ship", "T-001-write.md", "T-001", "Write it", "O-001")
 	writeV2Check(t, root, "C-001", "{kind: task, id: T-001}", "CLEAR", "")
-	writeV2Check(t, root, "C-002", "{kind: task, id: T-001}", "CLEAR", "C-001")
+	writeV2Check(t, root, "C-002", "{kind: task, id: T-001}", "NEEDS WORK", "C-001")
 	writeV2Issue(t, root, "I-001-flaky.md", "I-001", "resolved", "defect",
 		"checks: [C-001]\nresolution: {disposition: verified, check: C-001, actor: {role: checker, session: sess-1}, at: '2026-09-14T00:00:00Z'}\n")
 
