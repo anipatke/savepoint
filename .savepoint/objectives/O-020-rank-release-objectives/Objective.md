@@ -2,7 +2,7 @@
 id: O-020
 title: Prioritize and rank Objectives within a Release
 status: planned
-depends_on: [O-013, O-022]
+depends_on: [O-022]
 release: R-006
 ---
 
@@ -49,6 +49,8 @@ Objective IDs identify records; their numbers should not imply execution sequenc
 ## Confirmed Design Decisions
 
 Confirmed by the owner on 2026-09-25 during planning (O-013, O-018, and O-022 are done).
+
+- **Dependencies:** the owner dropped O-013 from `depends_on` on 2026-09-25. O-013 closed by owner exception (C-911 NEEDS WORK), which the dependency gate does not count as clearance. The Goal vocabulary O-020 needs has already shipped, so O-022 is the only dependency.
 
 - **Storage:** two optional Objective frontmatter fields, `priority: critical|high|medium|low` (missing reads as `medium`) and `rank: <positive integer>` (missing sorts after ranked rows in its group). An invalid value is a strict decode error, like every other malformed V2 field. Display order is priority group, then rank ascending, then ID.
 - **Writes are self-healing, not transactional:** one data writer sets `priority` and `rank` on a list of Objectives in their intended group order (1..n), writing only records whose values change, after checking every record in the set is fresh. A move swaps two neighbours and renumbers the group; a priority change appends the row to the destination group and renumbers that group. The old group may keep a gap, which is harmless. Duplicate ranks in one Goal and group are a doctor warning, not a load error.
