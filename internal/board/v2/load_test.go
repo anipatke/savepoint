@@ -171,3 +171,35 @@ func TestLoadCmdReturnsTheSameSingleMessage(t *testing.T) {
 		t.Error("loadCmd() and loadProject() disagree about the same project")
 	}
 }
+
+// TestHeaderCountsFinishedOutOfTotal proves each header count's first number
+// is the finished records only: done Objectives and Tasks, resolved Issues.
+func TestHeaderCountsFinishedOutOfTotal(t *testing.T) {
+	state := ProjectState{Index: &data.V2Index{
+		Objectives: map[string]*data.ObjectiveV2{
+			"O-001": {Status: data.ColumnDone},
+			"O-002": {Status: data.ColumnInProgress},
+		},
+		Tasks: map[string]*data.TaskV2{
+			"T-001": {Status: data.ColumnDone},
+			"T-002": {Status: data.ColumnDone},
+			"T-003": {Status: data.ColumnPlanned},
+		},
+		Issues: map[string]*data.IssueV2{
+			"I-001": {Status: data.IssueStatusResolved},
+			"I-002": {Status: data.IssueStatusInProgress},
+			"I-003": {Status: data.IssueStatusOpen},
+			"I-004": {Status: data.IssueStatusOpen},
+		},
+	}}
+
+	if finished, total := state.objectiveCounts(); finished != 1 || total != 2 {
+		t.Errorf("objectiveCounts() = %d/%d, want 1/2", finished, total)
+	}
+	if finished, total := state.taskCounts(); finished != 2 || total != 3 {
+		t.Errorf("taskCounts() = %d/%d, want 2/3", finished, total)
+	}
+	if finished, total := state.issueCounts(); finished != 1 || total != 4 {
+		t.Errorf("issueCounts() = %d/%d, want 1/4", finished, total)
+	}
+}

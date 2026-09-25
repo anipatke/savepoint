@@ -235,10 +235,18 @@ func renderedLines(sections []string) int {
 }
 
 // renderHeader carries the proof that the index reached the model: the counts
-// of the Objectives and Tasks this load actually indexed.
+// of the Objectives, Tasks, and Issues this load actually indexed, each as
+// finished out of total.
 func (m Model) renderHeader(w int) string {
 	left := styles.HeaderIcon.Render("▣") + "  " + styles.HeaderText.Render("S A V E P O I N T")
-	right := styles.HeaderRight.Render(fmt.Sprintf("%d objectives · %d tasks", m.State.objectiveCount(), m.State.taskCount()))
+	objectivesDone, objectives := m.State.objectiveCounts()
+	tasksDone, tasks := m.State.taskCounts()
+	issuesResolved, issues := m.State.issueCounts()
+	right := strings.Join([]string{
+		headerCount(styles.HeaderObjectiveIcon, glyphAudit, objectivesDone, objectives, "Objectives"),
+		headerCount(styles.HeaderTaskIcon, glyphBuild, tasksDone, tasks, "Tasks"),
+		headerCount(styles.HeaderIssueIcon, glyphIssueCross, issuesResolved, issues, "Issues"),
+	}, "  ")
 
 	inner := w - 2 // HeaderFrame padding(1,1)
 	if inner < 1 {
@@ -249,6 +257,12 @@ func (m Model) renderHeader(w int) string {
 		return styles.HeaderFrame.Width(w).Render(truncateCells(left, inner))
 	}
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
+}
+
+// headerCount renders one header count: its icon in the record's accent,
+// then finished/total and the record name in the header's dim text.
+func headerCount(icon lipgloss.Style, glyph string, finished, total int, name string) string {
+	return icon.Render(glyph) + " " + styles.HeaderRight.Render(fmt.Sprintf("%d/%d %s", finished, total, name))
 }
 
 // renderSelection states the selected Goal context — a bold capitalized

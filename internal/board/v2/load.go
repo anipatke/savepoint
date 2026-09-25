@@ -27,17 +27,52 @@ type ProjectState struct {
 // project held back by a pending migration both count as nothing loaded, and
 // both are states the board opens in normally.
 func (s ProjectState) objectiveCount() int {
-	if s.Index == nil {
-		return 0
-	}
-	return len(s.Index.Objectives)
+	_, total := s.objectiveCounts()
+	return total
 }
 
 func (s ProjectState) taskCount() int {
+	_, total := s.taskCounts()
+	return total
+}
+
+// objectiveCounts, taskCounts, and issueCounts report how many of each record
+// the load indexed and how many of those are finished: done Objectives and
+// Tasks, resolved Issues.
+func (s ProjectState) objectiveCounts() (finished, total int) {
 	if s.Index == nil {
-		return 0
+		return 0, 0
 	}
-	return len(s.Index.Tasks)
+	for _, objective := range s.Index.Objectives {
+		if objective.Status == data.ColumnDone {
+			finished++
+		}
+	}
+	return finished, len(s.Index.Objectives)
+}
+
+func (s ProjectState) taskCounts() (finished, total int) {
+	if s.Index == nil {
+		return 0, 0
+	}
+	for _, task := range s.Index.Tasks {
+		if task.Status == data.ColumnDone {
+			finished++
+		}
+	}
+	return finished, len(s.Index.Tasks)
+}
+
+func (s ProjectState) issueCounts() (finished, total int) {
+	if s.Index == nil {
+		return 0, 0
+	}
+	for _, issue := range s.Index.Issues {
+		if issue.Status == data.IssueStatusResolved {
+			finished++
+		}
+	}
+	return finished, len(s.Index.Issues)
 }
 
 // projectLoadedMsg is the single message the load command returns, for both

@@ -216,6 +216,13 @@ var (
 	HeaderRight = lipgloss.NewStyle().
 			Foreground(clrDim)
 
+	// The header's record counts lead with an icon in each surface's own
+	// accent: purple Objectives (the sidebar), orange Tasks (the board's
+	// focus), and red Issues (the Issues surface).
+	HeaderObjectiveIcon = lipgloss.NewStyle().Foreground(clrPurple)
+	HeaderTaskIcon      = lipgloss.NewStyle().Foreground(clrOrange)
+	HeaderIssueIcon     = lipgloss.NewStyle().Foreground(clrRed)
+
 	HeaderRelease = lipgloss.NewStyle().
 			Foreground(clrText)
 

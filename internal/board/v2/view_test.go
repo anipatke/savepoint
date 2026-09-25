@@ -49,8 +49,10 @@ func TestViewReportsTheCountsItLoaded(t *testing.T) {
 	model := openBoard(t, root, "")
 	got := model.View()
 
-	if !strings.Contains(got, "1 objectives · 2 tasks") {
-		t.Errorf("view does not report the loaded counts:\n%s", got)
+	for _, want := range []string{"◆ 0/1 Objectives", "▣ 1/2 Tasks", "✗ 0/0 Issues"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("view does not report the loaded counts as %q:\n%s", want, got)
+		}
 	}
 	if !strings.Contains(got, "PLANNED (1)") || !strings.Contains(got, "DONE (1)") {
 		t.Errorf("view does not report Tasks in the columns their status names:\n%s", got)
