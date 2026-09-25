@@ -159,8 +159,17 @@ func reserveTaskIDLocked(root string, index *V2Index) (string, error) {
 	return formatTaskID(next), nil
 }
 
+// acquireTaskIDLock refuses a lock only when one holder has kept it for
+// taskIDLockWait. The deadline restarts whenever the lock file observed is a
+// different one — another allocator released it and a third took it — so a
+// caller queued behind several healthy holders keeps waiting rather than
+// reporting their live lock as leftover. A lock's identity is its
+// modification time from Lstat, which, unlike os.SameFile, opens no handle
+// that would keep a holder's removal pending on Windows. A filesystem too
+// coarse to tell two holders apart falls back to one deadline per wait.
 func acquireTaskIDLock(path string) (*os.File, error) {
 	deadline := time.Now().Add(taskIDLockWait)
+	var holder time.Time
 	for firstAttempt := true; ; firstAttempt = false {
 		if !firstAttempt && !time.Now().Before(deadline) {
 			return nil, fmt.Errorf("allocate Task ID: lock file %s is present; refusing after %s (a leftover lock requires owner cleanup)", path, taskIDLockWait)
@@ -172,6 +181,18 @@ func acquireTaskIDLock(path string) (*os.File, error) {
 		}
 		if !errors.Is(err, os.ErrExist) {
 			return nil, fmt.Errorf("allocate Task ID: create lock %s: %w", path, err)
+		}
+
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			// Released between the create and the look: try again at once.
+			continue
+		}
+		if err == nil && !info.ModTime().Equal(holder) {
+			if !holder.IsZero() {
+				deadline = time.Now().Add(taskIDLockWait)
+			}
+			holder = info.ModTime()
 		}
 
 		remaining := time.Until(deadline)

@@ -3,6 +3,7 @@ package data
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -451,6 +452,65 @@ func TestAllocateTaskID_refusesHeldAndLeftoverLocks(t *testing.T) {
 				t.Errorf("lock refusal wrote a high-water mark: %v", err)
 			}
 		})
+	}
+}
+
+// TestAllocateTaskID_waitsWhileTheLockChangesHands proves the lock deadline
+// runs per holder: a lock that stays present for several taskIDLockWait
+// periods, but passes to a new holder well inside each one, is live
+// contention, not a leftover lock (I-061). Each handoff renames a fresh file
+// over the lock, so the path is never free for the allocator to take early,
+// and each carries its own modification time, so the handoff is visible even
+// on a coarse filesystem clock.
+func TestAllocateTaskID_waitsWhileTheLockChangesHands(t *testing.T) {
+	root := newTaskIDProject(t)
+	lockPath := filepath.Join(root, taskIDLockFile)
+	const handoff = 100 * time.Millisecond
+	churn := 3 * taskIDLockWait
+
+	if err := os.WriteFile(lockPath, []byte("holder 0"), 0o600); err != nil {
+		t.Fatalf("create first holder's lock: %v", err)
+	}
+	base := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(lockPath, base, base); err != nil {
+		t.Fatalf("date first holder's lock: %v", err)
+	}
+	churned := make(chan error, 1)
+	go func() {
+		stop := time.Now().Add(churn)
+		for holder := 1; time.Now().Before(stop); holder++ {
+			time.Sleep(handoff)
+			next := filepath.Join(root, fmt.Sprintf("next-holder-%d.lock", holder))
+			if err := os.WriteFile(next, []byte(fmt.Sprintf("holder %d", holder)), 0o600); err != nil {
+				churned <- err
+				return
+			}
+			stamp := base.Add(time.Duration(holder) * time.Minute)
+			if err := os.Chtimes(next, stamp, stamp); err != nil {
+				churned <- err
+				return
+			}
+			if err := os.Rename(next, lockPath); err != nil {
+				churned <- err
+				return
+			}
+		}
+		churned <- os.Remove(lockPath)
+	}()
+
+	started := time.Now()
+	id, err := AllocateTaskID(root)
+	if churnErr := <-churned; churnErr != nil {
+		t.Fatalf("hand the lock over: %v", churnErr)
+	}
+	if err != nil {
+		t.Fatalf("AllocateTaskID() error = %v, want it to wait out a lock that keeps changing hands", err)
+	}
+	if elapsed := time.Since(started); elapsed < churn {
+		t.Errorf("AllocateTaskID() returned after %s, before the lock was released at %s", elapsed, churn)
+	}
+	if id != "T-001" {
+		t.Errorf("AllocateTaskID() = %s, want T-001", id)
 	}
 }
 

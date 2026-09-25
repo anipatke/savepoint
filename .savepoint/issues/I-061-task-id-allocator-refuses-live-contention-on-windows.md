@@ -2,7 +2,7 @@
 id: I-061
 title: Task ID allocator refuses live contention as a leftover lock on Windows
 type: defect
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: planner, session: i061-windows-allocator-20260926}
@@ -18,6 +18,23 @@ history:
       v2 into master. TestAllocateTaskID_serializesConcurrentCallers fails in
       the windows-tests job in 3 of the 6 runs since that job settled; the
       cause and fix options are recorded in the Analysis section.
+  - at: '2026-09-25T21:06:25Z'
+    actor: {role: executor, session: i061-windows-allocator-20260926}
+    kind: repair_attempted
+    note: >-
+      Applied fix 1: acquireTaskIDLock restarts its taskIDLockWait deadline
+      whenever the lock observed has a different modification time, and retries
+      at once when the lock vanishes. New regression test
+      TestAllocateTaskID_waitsWhileTheLockChangesHands fails on the previous
+      allocator and passes with the fix; the existing held and leftover lock
+      refusals still pass. make build and make test-full pass on Linux.
+      Windows CI proof is still needed.
+  - at: "2026-09-25T21:06:40Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
