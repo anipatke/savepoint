@@ -16,6 +16,23 @@ history:
       The Objectives sidebar still feels cramped after I-021. Owner chose to
       let the sidebar take a share of the terminal width on wide terminals
       instead of staying fixed at 34 cells.
+  - at: '2026-09-25T21:38:22Z'
+    actor: {role: executor, session: i062-repair-20260926}
+    kind: repair_attempted
+    note: >-
+      internal/board/v2/view.go replaces the fixed sidebarWidth constant with
+      sidebarWidth(termW): 30% of the content width, capped so the Task
+      columns keep their 30-cell breakpoint width, clamped to 34..52 cells.
+      renderColumns and columnWidth share it. Widths: 124 -> 34, 126 -> 36,
+      160 -> 48, 200+ -> 52; below 124 the sidebar collapses as before.
+      TestSidebarGrowsWithTerminalWidth covers breakpoint, column-room limit,
+      intermediate, cap, and past-cap widths, each asserting columns >= 30
+      and the rendered board fits. Sidebar tests now measure against the
+      model's derived width. Design.md states no sidebar geometry, so it is
+      unchanged. go test ./internal/board/..., gofmt, git diff --check, and
+      make build && make test-fast passed. Not verified by eye in a live
+      terminal or with NO_COLOR at the new widths. Issue remains open for
+      independent verification.
 ---
 
 # I-062: Let the Objective sidebar grow with terminal width

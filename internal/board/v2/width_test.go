@@ -197,3 +197,36 @@ func TestWrapTitleLines(t *testing.T) {
 		t.Errorf("line 2 = %q, want suffix '…'", got[1])
 	}
 }
+
+// TestSidebarGrowsWithTerminalWidth proves the sidebar takes a share of a wide
+// terminal instead of staying at its breakpoint width, never at the cost of the
+// Task columns' breakpoint width, and stops growing at its cap.
+func TestSidebarGrowsWithTerminalWidth(t *testing.T) {
+	root := writeBadgeProject(t)
+	for _, tc := range []struct {
+		name  string
+		width int
+		want  int
+	}{
+		{"breakpoint", sidebarBreakpoint, sidebarMinWidth},
+		{"limited by column room", sidebarBreakpoint + 2, sidebarMinWidth + 2},
+		{"intermediate", 160, 48},
+		{"cap", 200, sidebarMaxWidth},
+		{"past cap", 300, sidebarMaxWidth},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sidebarWidth(tc.width); got != tc.want {
+				t.Errorf("sidebarWidth(%d) = %d, want %d", tc.width, got, tc.want)
+			}
+			if got := columnWidth(tc.width); got < 30 {
+				t.Errorf("Task column width at %d = %d, below its 30-cell breakpoint width", tc.width, got)
+			}
+			outer := tc.width + boardMarginX*2
+			model := openSizedBoard(t, root, outer, 32)
+			if !strings.Contains(xansi.Strip(model.View()), sidebarTitle) {
+				t.Fatalf("sidebar is hidden at content width %d", tc.width)
+			}
+			assertSurfaceFits(t, tc.name, model.View(), outer)
+		})
+	}
+}

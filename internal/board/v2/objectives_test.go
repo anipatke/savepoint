@@ -74,12 +74,13 @@ func objectiveStatusSnapshot(index *data.V2Index) map[string]data.ColumnType {
 // header, or by the selection line above it.
 func sidebarLines(t *testing.T, model Model) []string {
 	t.Helper()
+	width := sidebarWidth(model.terminalWidth())
 	var lines []string
 	for _, line := range strings.Split(xansi.Strip(model.View()), "\n") {
-		if lipgloss.Width(line) < sidebarWidth {
+		if lipgloss.Width(line) < width {
 			continue
 		}
-		cut := xansi.Cut(line, 0, sidebarWidth)
+		cut := xansi.Cut(line, 0, width)
 		if len(lines) == 0 && !strings.Contains(cut, sidebarTitle) {
 			continue
 		}
@@ -223,7 +224,7 @@ func TestSidebarHidesEmptyPriorityGroups(t *testing.T) {
 		{Objective: &data.ObjectiveV2{ID: "O-101", Title: "Critical", Priority: data.ObjectivePriority("critical")}},
 		{Objective: &data.ObjectiveV2{ID: "O-102", Title: "Low", Priority: data.ObjectivePriority("low")}},
 	}
-	got := xansi.Strip(renderSidebar(rows, "O-101", 0, false, sidebarWidth, 20))
+	got := xansi.Strip(renderSidebar(rows, "O-101", 0, false, sidebarMinWidth, 20))
 	for _, want := range []string{"CRITICAL", "LOW"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("sidebar omitted populated group %s:\n%s", want, got)
@@ -320,8 +321,8 @@ func TestSidebarCursorSkipsPriorityHeadingsAndWindowKeepsCurrentGroup(t *testing
 		t.Errorf("scrolled sidebar must keep the cursor row and its group heading visible:\n%s", visible)
 	}
 	for _, line := range lines {
-		if width := lipgloss.Width(line); width > sidebarWidth {
-			t.Errorf("priority heading or row wraps past sidebar width (%d > %d): %q", width, sidebarWidth, line)
+		if width := lipgloss.Width(line); width > sidebarWidth(narrow.terminalWidth()) {
+			t.Errorf("priority heading or row wraps past sidebar width (%d > %d): %q", width, sidebarWidth(narrow.terminalWidth()), line)
 		}
 	}
 }
@@ -1069,8 +1070,8 @@ func TestSidebarScrollsRatherThanWrapping(t *testing.T) {
 		t.Errorf("a sidebar taller than its viewport reports nothing out of view:\n%s", got)
 	}
 	for _, line := range lines {
-		if lipgloss.Width(line) > sidebarWidth {
-			t.Errorf("sidebar line is %d cells wide, past the %d it has: %q", lipgloss.Width(line), sidebarWidth, line)
+		if lipgloss.Width(line) > sidebarWidth(model.terminalWidth()) {
+			t.Errorf("sidebar line is %d cells wide, past the %d it has: %q", lipgloss.Width(line), sidebarWidth(model.terminalWidth()), line)
 		}
 	}
 	// A title wider than the sidebar wraps across up to two lines so the whole title can be read.
@@ -1088,7 +1089,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 		Objective: &data.ObjectiveV2{ID: "O-001", Title: "Short", Status: "planned"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
-	shortText := xansi.Strip(renderObjectiveRow(shortRow, sidebarWidth, false, false))
+	shortText := xansi.Strip(renderObjectiveRow(shortRow, sidebarMinWidth, false, false))
 	if strings.Contains(shortText, "…") {
 		t.Errorf("short objective title should not be truncated:\n%s", shortText)
 	}
@@ -1097,7 +1098,7 @@ func TestRenderObjectiveRow_WrapsUpToTwoLinesAndTruncates(t *testing.T) {
 		Objective: &data.ObjectiveV2{ID: "O-002", Title: "Implement user authentication subsystem", Status: "in_progress"},
 		Clearance: data.Clearance{State: data.ClearanceMissing},
 	}
-	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, sidebarWidth, false, false))
+	twoLineText := xansi.Strip(renderObjectiveRow(twoLineRow, sidebarMinWidth, false, false))
 	if !strings.Contains(twoLineText, "Implement user") {
 		t.Errorf("two-line objective title missing line 1:\n%s", twoLineText)
 	}

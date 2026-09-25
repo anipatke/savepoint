@@ -16,9 +16,9 @@ selection; the command does not write project files.
 ## Current state
 
 ```yaml
-state: check
+state: task
 release: R-006
-objective: O-021
+objective: none
 task: none
 issue: none
 ```

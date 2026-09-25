@@ -15,11 +15,13 @@ const (
 	defaultTermW = 80
 	defaultTermH = 24
 
-	// sidebarWidth is the outer width the Objective sidebar occupies once it
-	// exists. Reserving it here — and only at a width where three columns still
-	// fit beside it — keeps column geometry from moving when the sidebar
-	// arrives.
-	sidebarWidth = 34
+	// sidebarMinWidth and sidebarMaxWidth bound the outer width the Objective
+	// sidebar occupies once it exists. Between them it takes sidebarSharePercent
+	// of the terminal, so a wide terminal gives Objective titles room instead of
+	// handing every spare cell to the Task columns.
+	sidebarMinWidth     = 34
+	sidebarMaxWidth     = 52
+	sidebarSharePercent = 30
 	// sidebarBreakpoint is the narrowest terminal that carries the sidebar
 	// alongside three columns at their existing 30-cell width.
 	sidebarBreakpoint = 124
@@ -322,7 +324,7 @@ func (m Model) renderColumns(w, height int) string {
 			m.SelectedObjective,
 			m.ObjectiveCursor,
 			m.SidebarFocused,
-			sidebarWidth,
+			sidebarWidth(w),
 			height,
 		))
 	}
@@ -342,6 +344,17 @@ func (m Model) renderColumns(w, height int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
 
+// sidebarWidth is the sidebar's outer width on a terminal wide enough to carry
+// it. It never takes a cell the Task columns had at the breakpoint, so the
+// columns are no narrower than 30 cells wherever the sidebar is drawn.
+func sidebarWidth(termW int) int {
+	width := termW * sidebarSharePercent / 100
+	if room := termW - (sidebarBreakpoint - sidebarMinWidth); width > room {
+		width = room
+	}
+	return min(max(width, sidebarMinWidth), sidebarMaxWidth)
+}
+
 // columnWidth splits the terminal three ways, after setting aside the width the
 // Objective sidebar occupies on a terminal wide enough to carry it.
 func columnWidth(termW int) int {
@@ -351,7 +364,7 @@ func columnWidth(termW int) int {
 	}
 	available := termW
 	if termW >= sidebarBreakpoint {
-		available -= sidebarWidth
+		available -= sidebarWidth(termW)
 	}
 	width := available / len(columnLabels)
 	if width < minColumnContent+columnChrome {
