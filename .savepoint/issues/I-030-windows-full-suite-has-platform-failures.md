@@ -2,7 +2,7 @@
 id: I-030
 title: Windows full suite has platform failures
 type: verification
-status: open
+status: resolved
 source:
     kind: check
     check: C-908
@@ -12,6 +12,14 @@ tasks: [T-016]
 checks: [C-908]
 guardrail_ids: [CFG-02, TEST-08]
 severity: high
+resolution:
+    disposition: accepted
+    actor: {role: owner, session: owner-chat-20260925}
+    at: '2026-09-25T10:51:45Z'
+    reason: >-
+        Owner directed resolution after the full test suite passed natively on
+        hosted windows-latest CI (run 36125466183), waiving an independent
+        Check; this is not a technical CLEAR verdict.
 history:
     - at: '2026-09-23T01:42:44Z'
       actor: {role: checker, session: o016-full-check-20260923}
@@ -74,6 +82,14 @@ history:
         without the fix. Evidence: full Windows suite passed with TMP set to
         a short 8.3 path (reproducing 343 failures before the fix) and from
         the normal temp path; make build and make test-full passed on Linux.
+    - at: "2026-09-25T10:51:45Z"
+      actor:
+        role: owner
+        session: owner-chat-20260925
+      kind: owner_decision
+      note: >-
+        Owner directed "Accept i30": I-030 closed as accepted without an
+        independent Check.
 ---
 
 # I-030: Windows full suite has platform failures
