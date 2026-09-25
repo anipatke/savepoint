@@ -650,10 +650,20 @@ func (m Model) snapshotReload() reloadSnapshot {
 	return snapshot
 }
 
-// applyLoad folds one load result into the model. A failed reload keeps the
-// last completed state visible and names the temporary data problem alongside
-// it; only an initial failure has no board to preserve.
+// applyLoad folds one load result into the model. A failed load is re-read
+// once before it is reported. A failed reload keeps the last completed state
+// visible and names the temporary data problem alongside it; only an initial
+// failure has no board to preserve.
 func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.Seq != 0 {
+		if msg.Seq < m.lastLoadSeq {
+			return m, nil
+		}
+		m.lastLoadSeq = msg.Seq
+	}
+	if msg.Failed() && !msg.Retry {
+		return m, retryLoadCmd(m.Root)
+	}
 	wasLoaded := m.Loaded
 	snapshot := m.snapshotReload()
 	statusBeforeReload := m.StatusMessage

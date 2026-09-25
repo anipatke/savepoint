@@ -33,6 +33,8 @@ type Model struct {
 	// edit is temporarily malformed. It is cleared by the next successful
 	// load; Diagnostic is reserved for the initial no-board screen.
 	ReloadDiagnostic string
+	// lastLoadSeq is the Seq of the newest load result applied.
+	lastLoadSeq uint64
 
 	// FatalErr is set when the board cannot honor the invocation it was given
 	// — today, an --objective naming no Objective in the loaded project. Run

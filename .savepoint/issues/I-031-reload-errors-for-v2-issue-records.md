@@ -65,6 +65,21 @@ history:
       stale dist/npm binary behind npx, and a retired free-text router field.
       Every reported record loads cleanly at its committed state. Causes and
       recommended fixes are recorded in the Analysis section.
+  - at: '2026-09-26T07:25:00Z'
+    actor: {role: executor, session: i031-i037-repair-20260926}
+    kind: repair_attempted
+    note: >-
+      Applied recommended fixes 1 and 2 from the Analysis. Board: a failed
+      load is re-read once after 400 ms before RELOAD or the no-board screen
+      appears, and load results carry a start sequence so an older result
+      cannot overwrite a newer one; the non-TTY board retries once too. Build:
+      make build also rebuilds the host dist/npm launcher binary, so npx
+      savepoint cannot lag the source. Cause C was already retired. A record
+      that is still invalid after the retry is still reported, by design. New
+      tests TestFailedReloadRetriesBeforeReporting and
+      TestOlderLoadResultDoesNotOverwriteNewer fail without the fix. make build
+      && make test-fast passed. Issue remains open for independent
+      verification.
 ---
 
 # I-031: Frequent V2 board load errors for project records

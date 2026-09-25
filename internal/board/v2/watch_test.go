@@ -179,6 +179,10 @@ func TestFailedReloadKeepsLastGoodBoardAndRecovers(t *testing.T) {
 	testutil.WriteFile(t, taskPath(root, "O-001", "T-001"),
 		"---\nid: T-001\nobjective: O-001\nstatus: planned\n---\n")
 	updated, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
+	if updated.(Model).ReloadDiagnostic != "" {
+		t.Fatal("first failed reload shows RELOAD; want one quiet retry first")
+	}
+	updated, _ = updated.Update(retriedLoad(root))
 	after := updated.(Model)
 	if after.State.Index.Tasks["T-001"].Title != goodTitle {
 		t.Errorf("last good title = %q, want %q", after.State.Index.Tasks["T-001"].Title, goodTitle)
@@ -199,6 +203,45 @@ func TestFailedReloadKeepsLastGoodBoardAndRecovers(t *testing.T) {
 	final := recovered.(Model)
 	if final.ReloadDiagnostic != "" || final.State.Index.Tasks["T-001"].Title != "Recovered title" {
 		t.Errorf("recovery state = diagnostic %q, title %q; want a clean successful reload", final.ReloadDiagnostic, final.State.Index.Tasks["T-001"].Title)
+	}
+}
+
+func TestFailedReloadRetriesBeforeReporting(t *testing.T) {
+	root := writeValidProject(t)
+	model := openBoard(t, root, "")
+
+	// An agent's multi-step edit is read half-finished, then completed
+	// before the retry.
+	testutil.WriteFile(t, taskPath(root, "O-001", "T-001"),
+		"---\nid: T-001\nobjective: O-001\nstatus: planned\n---\n")
+	updated, cmd := model.Update(loadCmd(root)().(projectLoadedMsg))
+	if cmd == nil || updated.(Model).ReloadDiagnostic != "" {
+		t.Fatalf("failed reload = diagnostic %q, cmd %v; want no RELOAD and a retry", updated.(Model).ReloadDiagnostic, cmd)
+	}
+	writeTask(t, root, "O-001", "T-001", "Finished edit", "status: planned\n")
+	retried, ok := cmd().(projectLoadedMsg)
+	if !ok || !retried.Retry {
+		t.Fatalf("retry cmd returned %#v, want a Retry projectLoadedMsg", retried)
+	}
+	updated, _ = updated.Update(retried)
+	after := updated.(Model)
+	if after.ReloadDiagnostic != "" || after.State.Index.Tasks["T-001"].Title != "Finished edit" {
+		t.Errorf("after retry = diagnostic %q, title %q; want the finished edit and no RELOAD", after.ReloadDiagnostic, after.State.Index.Tasks["T-001"].Title)
+	}
+}
+
+func TestOlderLoadResultDoesNotOverwriteNewer(t *testing.T) {
+	root := writeValidProject(t)
+	model := openBoard(t, root, "")
+
+	older := loadCmd(root)().(projectLoadedMsg)
+	writeTask(t, root, "O-001", "T-001", "Newer title", "status: planned\n")
+	newer := loadCmd(root)().(projectLoadedMsg)
+
+	updated, _ := model.Update(newer)
+	updated, _ = updated.Update(older)
+	if got := updated.(Model).State.Index.Tasks["T-001"].Title; got != "Newer title" {
+		t.Errorf("title = %q after a stale load arrived last; want %q", got, "Newer title")
 	}
 }
 

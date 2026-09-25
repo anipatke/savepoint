@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -82,6 +83,11 @@ func (s ProjectState) issueCounts() (finished, total int) {
 type projectLoadedMsg struct {
 	State      ProjectState
 	Diagnostic string
+	// Seq orders results by when their load started, so a slow older load
+	// cannot overwrite a newer one. Zero is unordered and always applied.
+	Seq uint64
+	// Retry marks the one delayed re-read that follows a failed load.
+	Retry bool
 }
 
 // Failed reports whether the load produced a diagnostic instead of a project.
@@ -94,7 +100,28 @@ func (m projectLoadedMsg) Failed() bool {
 // disagree, and no filesystem access happens in Update (ARCH-02).
 func loadCmd(root string) tea.Cmd {
 	return func() tea.Msg {
-		return loadProject(root)
+		seq := loadSeq.Add(1)
+		msg := loadProject(root)
+		msg.Seq = seq
+		return msg
+	}
+}
+
+// loadSeq numbers loads in the order they start reading the project.
+var loadSeq atomic.Uint64
+
+// reloadRetryDelay gives an agent or editor that is part-way through a
+// multi-step edit time to finish before a failed load is reported (I-031).
+const reloadRetryDelay = 400 * time.Millisecond
+
+// retryLoadCmd re-reads the project once after reloadRetryDelay. Its result
+// is final: a second failure is shown rather than retried again.
+func retryLoadCmd(root string) tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(reloadRetryDelay)
+		msg := loadCmd(root)().(projectLoadedMsg)
+		msg.Retry = true
+		return msg
 	}
 }
 

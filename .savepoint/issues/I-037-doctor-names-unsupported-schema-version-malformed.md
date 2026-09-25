@@ -17,6 +17,17 @@ history:
       Found while redirecting doctor tests from the deleted CheckProject to
       RunV2Checks during T-022. Left unrepaired because T-022 forbids
       behavior change.
+  - at: '2026-09-26T07:25:00Z'
+    actor: {role: executor, session: i031-i037-repair-20260926}
+    kind: repair_attempted
+    note: >-
+      RunV2Checks now names ErrUnsupportedSchemaVersion
+      [schema-version-unsupported] with its repair; other ReadSchemaVersion
+      errors stay [schema-version-malformed].
+      TestRunV2Checks_SchemaVersionNamesUnsupportedAndMalformed covers 99 and
+      1 (unsupported) and nope (malformed), and fails without the fix. make
+      build && make test-fast passed. Issue remains open for independent
+      verification.
 ---
 
 # I-037: Live doctor names an unsupported schema_version "malformed"

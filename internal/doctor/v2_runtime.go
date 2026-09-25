@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,10 +25,14 @@ func RunV2Checks(root string) *DiagnosticReport {
 
 	version, err := data.ReadSchemaVersion(filepath.Join(root, "config.yml"))
 	if err != nil {
+		name := "schema-version-malformed"
+		if errors.Is(err, data.ErrUnsupportedSchemaVersion) {
+			name = "schema-version-unsupported"
+		}
 		report.Project = []Problem{{
 			File:    filepath.Join(root, "config.yml"),
-			Message: fmt.Sprintf("[schema-version-malformed] %v", err),
-			Repair:  V2ProblemRepair("schema-version-malformed"),
+			Message: fmt.Sprintf("[%s] %v", name, err),
+			Repair:  V2ProblemRepair(name),
 		}}
 		return report
 	}

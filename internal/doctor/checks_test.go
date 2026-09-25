@@ -1007,6 +1007,31 @@ func TestCheckProject_ObjectiveAndIssueConsistencyReadOnly(t *testing.T) {
 	}
 }
 
+func TestRunV2Checks_SchemaVersionNamesUnsupportedAndMalformed(t *testing.T) {
+	cases := []struct {
+		value string
+		name  string
+	}{
+		{"99", "schema-version-unsupported"},
+		{"1", "schema-version-unsupported"},
+		{"nope", "schema-version-malformed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.value, func(t *testing.T) {
+			root := t.TempDir()
+			testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: "+tc.value+"\n")
+
+			problems := RunV2Checks(root).Project
+			if len(problems) != 1 || !strings.Contains(problems[0].Message, "["+tc.name+"]") {
+				t.Fatalf("RunV2Checks().Project = %v, want 1 problem naming %s", problems, tc.name)
+			}
+			if got, want := problems[0].Repair, V2ProblemRepair(tc.name); got != want {
+				t.Fatalf("Repair = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestCheckProject_SchemaVersionUnsupported(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "quality_gates: {}\n")

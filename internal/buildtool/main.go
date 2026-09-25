@@ -238,8 +238,19 @@ func run(args []string) error {
 	}
 }
 
+// buildLocal also refreshes the host's npm launcher binary, so `npx savepoint`
+// inside this repository cannot run an older build than ./savepoint (I-031).
 func buildLocal() error {
-	return runGoBuild(localExecutable(), runtime.GOOS, runtime.GOARCH)
+	if err := runGoBuild(localExecutable(), runtime.GOOS, runtime.GOARCH); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		if target.os == runtime.GOOS && target.arch == runtime.GOARCH {
+			output := filepath.Join(npmDistDir, target.os+"-"+target.arch, executableName(target.os))
+			return runGoBuild(output, target.os, target.arch)
+		}
+	}
+	return nil
 }
 
 func buildNPM() error {

@@ -16,11 +16,22 @@ func openBoard(t *testing.T, root, objectiveFilter string) Model {
 	model.Height = 30
 
 	updated, _ := model.Update(loadCmd(root)().(projectLoadedMsg))
+	if !updated.(Model).Loaded {
+		updated, _ = updated.Update(retriedLoad(root))
+	}
 	next, ok := updated.(Model)
 	if !ok {
 		t.Fatalf("Update() returned %T, want Model", updated)
 	}
 	return next
+}
+
+// retriedLoad is the board's one re-read after a failed load, without the
+// retry delay.
+func retriedLoad(root string) projectLoadedMsg {
+	msg := loadCmd(root)().(projectLoadedMsg)
+	msg.Retry = true
+	return msg
 }
 
 func TestViewEmptyTemplateProjectOpensWithThreeEmptyColumns(t *testing.T) {

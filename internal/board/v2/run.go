@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -60,6 +61,10 @@ func runTUI(opts Options) error {
 // that could be read as the project's real state.
 func runPlain(opts Options) error {
 	loaded := loadProject(opts.Root)
+	if loaded.Failed() {
+		time.Sleep(reloadRetryDelay)
+		loaded = loadProject(opts.Root)
+	}
 	if loaded.Failed() {
 		return fmt.Errorf("invalid project data: %s", loaded.Diagnostic)
 	}
