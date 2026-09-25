@@ -2,7 +2,7 @@
 id: I-061
 title: Task ID allocator refuses live contention as a leftover lock on Windows
 type: defect
-status: resolved
+status: open
 source:
   kind: report
   actor: {role: planner, session: i061-windows-allocator-20260926}
@@ -41,13 +41,15 @@ history:
       session: board-owner
     kind: owner_decision
     note: Resolved by the owner from the board.
-resolution:
-  disposition: accepted
-  actor:
-    role: owner
-    session: board-owner
-  at: "2026-09-25T21:14:14Z"
-  reason: Resolved by the owner from the board.
+  - at: '2026-09-25T23:05:42Z'
+    actor: {role: owner, session: user}
+    kind: reopened
+    note: >-
+      Reopened on the owner's instruction to fix I-061 properly for 2.0.3.
+      The per-holder deadline repair does not hold on Windows:
+      TestAllocateTaskID_serializesConcurrentCallers failed in windows-tests
+      on PR #11 (run 36198435217) with 4 of 16 reservations, and again on
+      rerun with 1 of 16. The owner-accepted resolution is withdrawn.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
