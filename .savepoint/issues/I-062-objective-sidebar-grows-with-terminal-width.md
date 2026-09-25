@@ -2,7 +2,7 @@
 id: I-062
 title: Let the Objective sidebar grow with terminal width
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -33,6 +33,25 @@ history:
       make build && make test-fast passed. Not verified by eye in a live
       terminal or with NO_COLOR at the new widths. Issue remains open for
       independent verification.
+  - at: "2026-09-25T21:49:50Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-25T21:49:51Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-25T21:49:51Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-062: Let the Objective sidebar grow with terminal width
