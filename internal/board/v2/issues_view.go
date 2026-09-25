@@ -75,7 +75,7 @@ func issuesHeaderLine(overlay IssueOverlay) string {
 	if overlay.ScopedTask != "" {
 		title += " · " + overlay.ScopedTask
 	}
-	return styles.ColumnTitleFocused.Render(title) + "   " + styles.CardMeta.Render("Filter: "+issueFilterLabel(overlay.Filter))
+	return styles.IssueAccent.Render(title) + "   " + styles.CardMeta.Render("Filter: "+issueFilterLabel(overlay.Filter))
 }
 
 // issueColumnWidth splits the terminal three ways, the same rule
@@ -153,7 +153,7 @@ const issueRowIndent = "  "
 func renderIssueRow(row IssueRow, status data.IssueStatus, width int, selected bool) string {
 	issue := row.Issue
 	marker := "  "
-	idStyle := styles.CardMeta
+	idStyle := styles.IssueAccent
 	titleStyle := issueRowTitleStyle(status, selected)
 	if selected {
 		marker = "▸ "
@@ -197,17 +197,14 @@ func frameIssueColumn(lines []string, textW, bodyH int, status data.IssueStatus,
 // selected Planned title stays plain white only because the card still gets
 // its own bordered box, which is what actually carries the selection there.
 // An Issue row has no per-row box, so Open's selected title instead takes
-// the same purple the Objective sidebar's cursor already uses for exactly
-// this situation — a plain, unboxed list row that needs its own selection
-// accent distinct from every status color. The two surfaces are never shown
-// at once, so reusing it here does not collide with its sidebar meaning.
+// the Issues surface's own red, the accent no Task board surface wears.
 func issueRowTitleStyle(status data.IssueStatus, selected bool) lipgloss.Style {
 	if !selected {
 		return styles.TaskItem
 	}
 	switch status {
 	case data.IssueStatusOpen:
-		return styles.ObjectiveItemFocused
+		return styles.IssueItemFocused
 	case data.IssueStatusResolved:
 		return styles.TaskItemFocusedDone
 	default:
@@ -219,16 +216,16 @@ func issueRowTitleStyle(status data.IssueStatus, selected bool) lipgloss.Style {
 // accent that its border, its heading, and its own selected row's title
 // (issueRowTitleStyle) all agree on: Resolved wears Done's green, In
 // Progress wears the plain focused orange every other column wears, and
-// Open wears the same purple the Objective sidebar's panel and cursor wear
-// — not the Planned column's grey a first pass gave it, which left the
-// heading and border out of step with Open's own purple-selected row.
+// Open wears the Issues surface's red, so the column that holds the
+// unaddressed Issues is the one that most sets this surface apart from the
+// Task board.
 func issueColumnStyle(status data.IssueStatus, focused bool) lipgloss.Style {
 	if !focused {
 		return styles.ColumnUnfocused
 	}
 	switch status {
 	case data.IssueStatusOpen:
-		return styles.SidebarPanelFocused
+		return styles.IssueColumnFocused
 	case data.IssueStatusResolved:
 		return styles.ColumnFocusedDone
 	default:
@@ -242,7 +239,7 @@ func issueColumnTitleStyle(status data.IssueStatus, focused bool) lipgloss.Style
 	}
 	switch status {
 	case data.IssueStatusOpen:
-		return styles.SidebarTitleFocused
+		return styles.IssueAccent
 	case data.IssueStatusResolved:
 		return styles.ColumnTitleFocusedDone
 	default:
@@ -254,7 +251,7 @@ func renderIssueDetail(detail IssueDetail, width, height, offset int) string {
 	textW := columnTextWidth(width)
 	bodyH := columnBodyHeight(height)
 	lines := []string{
-		styles.ColumnTitleFocused.Render("ISSUE DETAIL"),
+		styles.IssueAccent.Render("ISSUE DETAIL"),
 		styles.Divider.Render(strings.Repeat("─", textW)),
 	}
 	content := issueDetailLines(detail, textW)
@@ -265,7 +262,7 @@ func renderIssueDetail(detail IssueDetail, width, height, offset int) string {
 func issueDetailLines(detail IssueDetail, width int) []string {
 	issue := detail.Issue
 	lines := []string{
-		issueField(width, "ID", issue.ID),
+		issueLine(width, "ID: "+styles.IssueAccent.Render(issue.ID)),
 		issueField(width, "Title", issue.Title),
 		issueField(width, "Type", string(issue.Type)),
 		issueField(width, "Status", string(issue.Status)),

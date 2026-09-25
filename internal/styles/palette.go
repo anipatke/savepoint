@@ -14,6 +14,7 @@ const (
 	AtariOrange             = "#FC6323"
 	NPPGreen                = "#A4C639"
 	VibePurple              = "#B1A1DF"
+	IssueRed                = "#F2404F"
 	White                   = "#FFFFFF"
 )
 
@@ -29,6 +30,7 @@ const (
 	AtariOrange256          = "208"
 	NPPGreen256             = "148"
 	VibePurple256           = "147"
+	IssueRed256             = "203"
 	White256                = "231"
 )
 
@@ -44,6 +46,7 @@ const (
 	AtariOrange16          = "9"  // bright red (closest to orange)
 	NPPGreen16             = "2"  // green
 	VibePurple16           = "5"  // magenta
+	IssueRed16             = "1"  // red (orange already takes bright red)
 	White16                = "15" // bright white
 	Dim16                  = "8"  // dark gray
 )

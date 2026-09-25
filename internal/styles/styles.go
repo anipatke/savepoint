@@ -15,6 +15,7 @@ var (
 	clrSurfaceDark    = color(Surface, Surface256, Surface16)    // intentionally black
 	clrGreen          = color(NPPGreen, NPPGreen256, NPPGreen16)
 	clrPurple         = color(VibePurple, VibePurple256, VibePurple16)
+	clrRed            = color(IssueRed, IssueRed256, IssueRed16)
 	clrWhite          = color(White, White256, White16)
 	clrDim            = color(Dim, Dim256, Dim16)
 )
@@ -261,4 +262,22 @@ var (
 	BadgeAttention = lipgloss.NewStyle().Foreground(clrOrange)
 	BadgeWaiting   = lipgloss.NewStyle().Foreground(clrPurple)
 	BadgeNeutral   = lipgloss.NewStyle().Foreground(clrDim)
+
+	// IssueAccent is the Issues surface's own accent: Issue IDs and the
+	// Issues headings wear it so the panel reads as a different place from
+	// the Task board it replaces on screen. Status columns keep their own
+	// status colors.
+	IssueAccent = lipgloss.NewStyle().
+			Foreground(clrRed).
+			Bold(true)
+
+	// IssueItemFocused and IssueColumnFocused carry the same red to the Open
+	// column's selected row title and border.
+	IssueItemFocused = lipgloss.NewStyle().
+				Foreground(clrRed)
+
+	IssueColumnFocused = lipgloss.NewStyle().
+				BorderStyle(boxBorder).
+				BorderForeground(clrRed).
+				Padding(0, 1)
 )

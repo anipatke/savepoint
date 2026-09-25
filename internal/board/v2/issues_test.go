@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
@@ -198,8 +199,8 @@ severity: blocker
 
 // TestIssueRowTitleStyleGivesEveryColumnItsOwnDistinctSelectionAccent proves
 // a selected row's title always changes color from the plain unselected
-// style — In Progress orange, Resolved green, and Open the sidebar cursor's
-// purple, since Open cannot reuse a Task card's plain-selected-Planned
+// style — In Progress orange, Resolved green, and Open the Issues
+// red, since Open cannot reuse a Task card's plain-selected-Planned
 // choice: that one stays legible because the card still gets its own
 // bordered box, which an Issue row does not have.
 func TestIssueRowTitleStyleGivesEveryColumnItsOwnDistinctSelectionAccent(t *testing.T) {
@@ -233,7 +234,7 @@ func TestIssueRowTitleStyleGivesEveryColumnItsOwnDistinctSelectionAccent(t *test
 // TestIssueColumnAccentMatchesItsOwnSelectedRow proves a focused column's
 // heading always uses the same color its own selected row's title does —
 // Open's heading must not stay the Planned column's grey while its selected
-// row wears the sidebar's purple; every column wears exactly one accent
+// row wears the Issues red; every column wears exactly one accent
 // color, head to row. The heading is bold and the row title is not, so this
 // compares foreground color alone rather than the full rendered style.
 func TestIssueColumnAccentMatchesItsOwnSelectedRow(t *testing.T) {
@@ -251,6 +252,45 @@ func TestIssueColumnAccentMatchesItsOwnSelectedRow(t *testing.T) {
 	// column holding board focus does.
 	if got := issueColumnTitleStyle(data.IssueStatusOpen, false); got.Render("x") != styles.ColumnTitle.Render("x") {
 		t.Errorf("unfocused Open heading = %q, want the plain unaccented column title style", got.Render("x"))
+	}
+}
+
+// TestIssueSurfaceWearsItsOwnRedAccent proves the Issues surface does not
+// read as the Task board: every Issue ID, in a row and in the detail, both
+// Issues headings, and the focused Open column's border wear the red accent, and that red is none of the
+// board's own orange, green, or purple accents.
+func TestIssueSurfaceWearsItsOwnRedAccent(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+
+	issue := &data.IssueV2{ID: "I-031", Title: "Reload errors", Type: "defect", Status: data.IssueStatusOpen}
+	redID := styles.IssueAccent.Render("I-031")
+
+	// The row's selection marker sits inside the ID's styled span.
+	if row := renderIssueRow(IssueRow{Issue: issue}, data.IssueStatusOpen, 40, false); !strings.Contains(row, styles.IssueAccent.Render("  I-031")) {
+		t.Errorf("Issue row ID is not red:\n%q", row)
+	}
+	if lines := issueDetailLines(IssueDetail{Issue: issue}, 40); !strings.Contains(strings.Join(lines, "\n"), redID) {
+		t.Errorf("Issue detail ID is not red:\n%q", strings.Join(lines, "\n"))
+	}
+	if header := issuesHeaderLine(IssueOverlay{}); !strings.Contains(header, styles.IssueAccent.Render("ISSUES")) {
+		t.Errorf("Issues heading is not red: %q", header)
+	}
+	if detail := renderIssueDetail(IssueDetail{Issue: issue}, 60, 20, 0); !strings.Contains(detail, styles.IssueAccent.Render("ISSUE DETAIL")) {
+		t.Errorf("Issue detail heading is not red:\n%q", detail)
+	}
+	if got, want := issueColumnStyle(data.IssueStatusOpen, true).GetBorderTopForeground(), styles.IssueAccent.GetForeground(); got != want {
+		t.Errorf("focused Open column border = %v, want the Issues red %v", got, want)
+	}
+
+	red := styles.IssueAccent.GetForeground()
+	for name, other := range map[string]lipgloss.Style{
+		"orange": styles.ColumnTitleFocused,
+		"green":  styles.ColumnTitleFocusedDone,
+		"purple": styles.SidebarTitleFocused,
+	} {
+		if other.GetForeground() == red {
+			t.Errorf("Issue accent shares the board's %s accent", name)
+		}
 	}
 }
 
