@@ -103,7 +103,9 @@ func TestApply_v1BasicEndToEnd(t *testing.T) {
 
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "E01-Detail.md"))
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-original.md"))
-	mustExist(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T002-follow-up.md"))
+	activeTaskSource := filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T002-follow-up.md")
+	mustNotExist(t, activeTaskSource)
+	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T002-follow-up.md"))
 	mustNotExist(t, filepath.Join(root, ".savepoint", "PRD.md"))
 	mustNotExist(t, filepath.Join(root, ".savepoint", ".migration"))
 
@@ -150,7 +152,8 @@ func TestApply_v1HistoryKeepsReleaseScopedIDs(t *testing.T) {
 	}
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-shared.md"))
 	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1.1", "epics", "E01-example", "E01-Detail.md"))
-	mustExist(t, filepath.Join(root, ".savepoint", "releases", "v1.1", "epics", "E01-example", "tasks", "T001-shared.md"))
+	mustNotExist(t, filepath.Join(root, ".savepoint", "releases", "v1.1", "epics", "E01-example", "tasks", "T001-shared.md"))
+	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E01-example", "tasks", "T001-shared.md"))
 	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1", "epics", "E01-example", "tasks", "T001-shared.md"))
 	mustExist(t, filepath.Join(root, ".savepoint", "archive", "v1", ".savepoint", "releases", "v1.1", "epics", "E01-example", "E01-Detail.md"))
 }

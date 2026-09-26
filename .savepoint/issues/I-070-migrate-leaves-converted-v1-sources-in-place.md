@@ -17,6 +17,18 @@ history:
       defects, 7 tasks) that had been converted to V2 Issues and Tasks were
       still at their V1 paths and had no copy under .savepoint/archive/v1/.
       The executor moved them into the archive by hand with git mv.
+  - at: '2026-09-26T04:23:06Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Added archive mappings for converted Tasks, defects, and findings. Apply
+      now copies their original bytes to .savepoint/archive/v1/ and removes the
+      V1 source through the existing archive batch; preview and manifest
+      include the mappings. Fixture tests verify source removal, byte
+      preservation, and manifest resolution. Regenerated the five migration
+      goldens after reviewing the intended archive additions. make build
+      passed. The first make test-full found one stale archived-router golden;
+      after regenerating the fallback goldens, make test-full passed.
 ---
 
 # I-070: Migrate leaves the V1 sources of converted Tasks, defects, and findings in place

@@ -76,6 +76,12 @@ files:
               release: v1
               epic: E01-example
               original_id: E01-example/T001-original
+            - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              role: task
+              release: v1
+              epic: E01-example
+              original_id: E01-example/T002-follow-up
             - source_path: .savepoint/releases/v1/v1-PRD.md
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
               sha256: 4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc

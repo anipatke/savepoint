@@ -804,6 +804,62 @@ func TestEndToEnd_everyFixtureFileHasAnAccountableDestination(t *testing.T) {
 	}
 }
 
+func TestEndToEnd_convertedSourcesAreArchivedAndRemoved(t *testing.T) {
+	t.Parallel()
+	for _, fixture := range e2eFixtures {
+		t.Run(fixture, func(t *testing.T) {
+			root := readOnlyMigratedFixture(t, fixture)
+			plan := planFor(t, filepath.Join(fixtureRoot, fixture, "project"))
+			manifest := readWrittenManifest(t, root)
+
+			plannedArchives := map[string]migrate.ArchiveEntry{}
+			for _, archive := range plan.Archives {
+				plannedArchives[archive.SourcePath] = archive
+			}
+			manifestArchives := map[string]migrate.ManifestArchive{}
+			for _, archive := range manifest.Archives {
+				manifestArchives[archive.SourcePath] = archive
+			}
+
+			for _, target := range plan.Targets {
+				if target.Generated {
+					continue
+				}
+				source := target.Legacy.Path
+				archive, ok := plannedArchives[source]
+				if !ok {
+					t.Errorf("converted source %s has no planned archive", source)
+					continue
+				}
+				if recorded, ok := manifestArchives[source]; !ok || recorded.ArchivePath != archive.ArchivePath {
+					t.Errorf("converted source %s maps to archive %s in plan, manifest entry = %+v", source, archive.ArchivePath, recorded)
+				}
+				if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(source))); !os.IsNotExist(err) {
+					t.Errorf("converted V1 source %s still exists after apply (Lstat error: %v)", source, err)
+				}
+
+				original, err := os.ReadFile(filepath.Join(fixtureRoot, fixture, "project", filepath.FromSlash(source)))
+				if err != nil {
+					t.Fatalf("read original V1 source %s: %v", source, err)
+				}
+				archived, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
+				if err != nil {
+					t.Errorf("read archive for converted source %s at %s: %v", source, archive.ArchivePath, err)
+					continue
+				}
+				if string(archived) != string(original) {
+					t.Errorf("archive for converted source %s does not preserve the original bytes", source)
+				}
+			}
+
+			wantCount := fmt.Sprintf("Will archive  %d V1 file(s)", len(plan.Archives))
+			if preview := migrate.FormatSummaryPreview(plan); !strings.Contains(preview, wantCount) {
+				t.Errorf("preview does not count converted sources among archives; want %q:\n%s", wantCount, preview)
+			}
+		})
+	}
+}
+
 // fateOf resolves one source path's destination against the plan and the
 // migrated tree.
 func fateOf(t *testing.T, plan *migrate.ConversionPlan, root, fixture, path string) destination {
@@ -887,37 +943,43 @@ const sharedTaskID = "E01-example/T001-shared"
 
 // TestEndToEnd_recurringSharedTaskIsRecordedPerRelease covers the half of AC7
 // the frozen fixture can prove directly. v1-history declares
-// E01-example/T001-shared in both release v1 and release v1.1. v1's copy is
-// done under a done epic, so per the migration contract's "completed work is archived, not
-// converted" rule it receives no V2 identity — the two recurrences therefore
-// appear as one converted identity and one archive entry, each recording the
-// release it came from, and never collapse onto a single record.
+// E01-example/T001-shared in both release v1 and release v1.1. The v1 copy is
+// done under a done epic and is archive-only; the v1.1 copy converts to a Task
+// and also receives its own byte-preserved archive. Both mappings retain the
+// release-qualified source identity.
 func TestEndToEnd_recurringSharedTaskIsRecordedPerRelease(t *testing.T) {
 	t.Parallel()
 	root := readOnlyMigratedFixture(t, "v1-history")
 	manifest := readWrittenManifest(t, root)
 
-	releases := map[string]string{}
+	converted := map[string]string{}
 	for _, identity := range manifest.Identities {
 		if identity.OriginalID == sharedTaskID {
-			releases[identity.Release] = "converted as " + identity.GlobalID
+			converted[identity.Release] = identity.GlobalID
 		}
 	}
+	archived := map[string]string{}
 	for _, archive := range manifest.Archives {
 		if archive.OriginalID == sharedTaskID {
-			releases[archive.Release] = "archived at " + archive.ArchivePath
+			archived[archive.Release] = archive.ArchivePath
 		}
 	}
 
-	for _, release := range []string{"v1", "v1.1"} {
-		if _, ok := releases[release]; !ok {
-			t.Errorf("v1-to-v2.yml records no destination for %s from release %s; recorded: %+v",
-				sharedTaskID, release, releases)
-		}
+	if _, ok := converted["v1"]; ok {
+		t.Errorf("done %s from release v1 unexpectedly converted: %+v", sharedTaskID, converted)
 	}
-	if len(releases) != 2 {
-		t.Fatalf("the two recurrences of %s resolved to %d recorded destination(s), want 2: %+v",
-			sharedTaskID, len(releases), releases)
+	if _, ok := archived["v1"]; !ok {
+		t.Errorf("v1-to-v2.yml records no archive for settled %s from release v1: %+v", sharedTaskID, archived)
+	}
+	if _, ok := converted["v1.1"]; !ok {
+		t.Errorf("v1-to-v2.yml records no converted identity for %s from release v1.1: %+v", sharedTaskID, converted)
+	}
+	if _, ok := archived["v1.1"]; !ok {
+		t.Errorf("v1-to-v2.yml records no archive for converted %s from release v1.1: %+v", sharedTaskID, archived)
+	}
+	if len(archived) != 2 {
+		t.Fatalf("the two recurrences of %s resolved to %d archive mapping(s), want 2: %+v",
+			sharedTaskID, len(archived), archived)
 	}
 }
 

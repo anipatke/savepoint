@@ -1,5 +1,5 @@
 fixture: v1-basic
-note: Converted output under the fixed clock in end_to_end_test.go. The manifest omits apply-recovery generated_at and operation_id fields; this is the intentional golden diff for T-025. Regenerate only through the documented procedure at regenerateGoldenEnv; other mismatches are behavior changes to review.
+note: Converted output of this fixture under the fixed clock and operation id in end_to_end_test.go. Regenerate only through the documented procedure at regenerateGoldenEnv; a mismatch is a behavior change to review, not a file to refresh.
 files:
     - path: .savepoint/Idea.md
       content: |
@@ -76,6 +76,12 @@ files:
               release: v1
               epic: E01-example
               original_id: E01-example/T001-original
+            - source_path: .savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md
+              role: task
+              release: v1
+              epic: E01-example
+              original_id: E01-example/T002-follow-up
             - source_path: .savepoint/releases/v1/v1-PRD.md
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1/v1-PRD.md
               sha256: 4cbaf0e4114be4955fc2868aa58c28d40aed074a58ad38811158d4fad19835bc
