@@ -10,7 +10,8 @@ full by `savepoint-check`, which owns the Check trigger, scope, evidence mode,
 and output contract. `savepoint-task` and `savepoint-design` reference it but
 do not run it themselves.
 
-Read and apply this method completely whenever a Check is run. A Task Check is
+Read this method completely and apply it at the Check's evidence mode:
+Quick follows the Quick Check Procedure, Full applies every section. A Task Check is
 optional and runs only when requested or selected by the owner; the Full
 Objective Check is mandatory at Objective closure.
 
@@ -36,14 +37,13 @@ waived. A Task-only clearance never substitutes for the Objective's own Check.
 
 ## Quick And Full Evidence Modes
 
-Both modes apply the method below at different reach:
-
 - **Quick** — run only when the optional Task Check is requested. Scope is the
   one Task: its acceptance criteria, its scoped files, and directly relevant
   `.savepoint/Guardrails.md` rules. Quick evidence is never an automatic gate
-  at every Task handoff.
+  at every Task handoff. It follows the Quick Check Procedure below.
 - **Full** — run for the mandatory Objective Check. Scope adds every member
   Task's outcome, cross-Task integration, and reconciliation against Design.
+  It applies every section of this method.
 
 Both modes apply `.savepoint/Guardrails.md` when the project has it and skip
 that step when it is absent. Both modes may run an optional project
@@ -53,6 +53,24 @@ it does not exist. Neither absence is an Issue; it is a skipped step.
 Skipping an optional Task Check is not itself an Issue when the owner waiver is
 present. The mandatory Objective Check still evaluates the Task's evidence and
 any material guardrail or integration risk.
+
+### Quick Check Procedure
+
+1. Establish Scope, below.
+2. Write a short scope lock: the acceptance criteria and guardrails being
+   tested, the changed files, and what is out of scope. It is frozen for any
+   re-check the same way as a Full lock.
+3. Turn Acceptance Into Invariants, below, for each acceptance criterion.
+4. Probe the changed code paths directly: boundary values, malformed or
+   missing input, failure behavior, and one bypass path where one exists.
+5. Verify File Reality and Verify Evidence And Gates, below.
+6. Complete The Issues Pass, Summarize Materiality, and Review Code Style,
+   below.
+
+Quick mode does not build the coverage matrix, the external-boundary matrix,
+the workflow and side-effect lock, or the adversarial pass. If a probe shows
+risk that reaches past the one Task, record it as an observation for the
+mandatory Objective Check rather than widening the Quick Check.
 
 ## Establish Scope
 
@@ -104,6 +122,8 @@ invariant.
 
 ## Build The Mandatory Coverage Matrix
 
+Full mode only. A Quick Task Check uses the Quick Check Procedure instead.
+
 Before running focused probes, create a concrete matrix for the scoped public
 behavior. List every row and applicable axis; mark a cell not-applicable only
 with a reason tied to scope or an acceptance rule. A prose checklist is not a
@@ -154,6 +174,8 @@ credible-blocker exception below.
 
 ## Workflow And Side-Effect Check Lock
 
+Full mode only. A Quick Task Check uses the Quick Check Procedure instead.
+
 Apply this lock to any command or workflow with multiple operations,
 external calls, persistence, transactions, generated artifacts, cleanup, or
 structured progress. Derive the inventory from the actual code path and
@@ -198,6 +220,8 @@ shrink the matrix.
 
 ## Perform The Adversarial Pass
 
+Full mode only. A Quick Task Check uses the Quick Check Procedure instead.
+
 Ask every applicable question: can validation be bypassed through another
 constructor, factory, direct public API, serialization form, or environment
 path? Can state move backward, skip forward, overlap, revive after
@@ -220,7 +244,7 @@ checks.
 ## Re-check After Remediation
 
 Use the immutable scope lock from the initial Check. Re-check every original
-matrix cell, every original reproduction, the remediation's changed code
+matrix cell (for a Quick Check, every original scope-lock item), every original reproduction, the remediation's changed code
 paths, and only the adjacent cases already named in the original Issue or
 scope lock, against the same focused and full gates.
 
@@ -265,8 +289,9 @@ Issue.
 
 Run focused tests for changed behavior and relevant failure paths. Run
 direct type or lint checks when the default gate excludes scoped files. Run
-`git diff --check`, `make build`, and `make test` unless the invoking skill
-names a narrower approved gate. Apply the evidence mode the invoking skill
+`git diff --check` and the project's configured build and test gates
+(`quality_gates` in `.savepoint/config.yml`) unless the invoking skill names
+a narrower approved gate. Apply the evidence mode the invoking skill
 requires: Quick only for a requested Task Check, Full for the mandatory
 Objective Check. Treat passing
 tests and gates as supporting evidence, never as a substitute for acceptance

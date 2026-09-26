@@ -13,8 +13,7 @@ without restating the mapping here.
 
 `config.yml`'s `quality_gates` key is the single place project commands
 live: `lint`, `typecheck`, `build`, `test`, `block_on_failure`, and
-`gate_timeout` — the field names `internal/data/config.go`'s `QualityGates`
-struct already decodes. No parallel `checks.technical` surface is introduced
+`gate_timeout` — the field names Savepoint already reads. No parallel `checks.technical` surface is introduced
 alongside it; a project's lint, typecheck, build, and test commands live in
 exactly one place.
 

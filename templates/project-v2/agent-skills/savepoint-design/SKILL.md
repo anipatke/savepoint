@@ -17,7 +17,7 @@ Use this skill when router `state` is `design`. When an executor returns `REPLAN
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. New Task creation uses the narrow `savepoint create-task` exception in the Task Creation section below. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router. New Task creation uses the narrow `savepoint create-task` exception in the Task Creation section below.
 
 ## Read
 
@@ -71,7 +71,7 @@ Apply this contract to every implementation, not only to migration work:
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.
 - A Goal is complete when every member Objective is complete.
-- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective Checks require the full gate through `make ci` or `make test-full`.
+- Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml`, plus any fuller gate the project's `AGENTS.md` names. Focused runs are for iteration; ordinary Task handoff runs the configured build and test gates; migration/platform-sensitive Task handoff and Full Objective Checks require the project's full gate.
 - Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
 ## Required Goal Context
@@ -89,19 +89,13 @@ Objective references remain errors.
 
 `savepoint init` creates and selects G-001, titled after the project, with
 stub sections for Outcome, Why, Success Conditions, and Boundaries. Idea fills
-those sections with the owner. `savepoint migrate` retains the V1 router's live
-Goal. When that selection is missing or unresolvable, it reuses a uniquely
-identifiable existing live Goal for the converted active work when possible.
-If selected work belongs only to a historical Goal, migration creates a live
-continuation with a G-### identity and moves that active Objective into it.
-Converted V1 Releases keep their R-### identities. An unresolved release
-lifecycle decision stays in the preview and blocks Apply.
+those sections with the owner. Projects converted by `savepoint migrate` keep
+their R-### Goal identities.
 
 Existing V2 storage remains Release-compatible: existing Goals keep their
 stable `R-###` identities, paths, and references; new Goals use stable `G-###`
 identities in `.savepoint/releases/<slug>/Release.md`. Objectives and router
-selection retain the `release:` field for compatibility. The V2 board uses `g`
-as the canonical Goal selector; `r` is an undisplayed compatibility alias. A
+selection retain the `release:` field for compatibility. A
 Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 When adding another Goal:
@@ -130,7 +124,7 @@ last_check: optional-check-id
 freshness:  # optional; only to mark the latest Check stale or unknown
   state: current|stale|unknown
   check: C-###
-  assessed_by: role/session
+  assessed_by: {role: checker, session: <session>}
   assessed_at: '2026-09-19T00:00:00Z'
   basis: what was compared to reach this state
 ---
@@ -204,7 +198,7 @@ validation is recorded after the mandatory integration evidence.
 
 ## Context Files
 
-Name exact paths only — no globs, no directory-only entries: `cmd/board.go`, `cmd/board_test.go` (command pattern); `internal/data/project.go`, `internal/data/next.go` (shared index/projection); `main.go`, `main_test.go`; `internal/resume/resume.go`, `internal/resume/resume_test.go`, `cmd/resume.go`, `cmd/resume_test.go`.
+Name exact paths only — no globs, no directory-only entries: `src/commands/status.ts`, `src/commands/status.test.ts` (command pattern); `src/project/index.ts` (shared index/projection); `src/cli.ts`; `src/resume/render.ts`, `src/resume/render.test.ts`.
 
 ## Design References
 
@@ -229,7 +223,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective Checks.
+Focused tests during iteration; the configured build and test gates for ordinary Task handoff; the project's full gate for migration/platform-sensitive work and Full Objective Checks.
 
 ## Technical Evidence
 

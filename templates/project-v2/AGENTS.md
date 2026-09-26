@@ -38,8 +38,9 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 ## Verification Policy
 
 - Every Task records per-criterion evidence and runs its configured gate before handoff.
-- Focused `make test-focused TEST=...` runs are for iteration. Ordinary Task handoff uses `make build && make test-fast`; migration or platform-sensitive Task handoff uses a fresh `make test-full`.
-- CI runs the full gate with `make ci`. A Full Objective Check requires current successful `make test-full` evidence; the optional Task Check does not replace it.
+- Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml` (build, lint, typecheck, test), plus any fuller gate listed under Build below. When no gate is configured, record that none ran; never invent one.
+- Focused test runs are for iteration. Ordinary Task handoff runs the configured build and test gates; migration or platform-sensitive Task handoff runs the project's full gate fresh when it defines one separately.
+- A Full Objective Check requires current successful full-gate evidence; the optional Task Check does not replace it.
 - Reuse a successful full result only for metadata-only corrections. Record the original command, time, toolchain, and result, then prove code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 - A Task Check is optional, not an automatic implementation gate. If the
   owner skips the optional independent Task Check, the Task evidence must
@@ -50,7 +51,7 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   dependency: the owner's completion decision stands in for clear there. It
   never satisfies `requires: accepted`, since there is no Check to accept.
 - Do not decide whether a dependency blocks by reading this prose. The
-  runtime gate (`ResolveTaskDependencyV2` in `internal/data`) decides, and
+  Savepoint runtime's dependency gate decides, and
   `savepoint resume` and the board's transition gate report its result as
   `Blocked:` lines. If neither reports a block, the dependency is met.
 - The Full Objective Check is mandatory before an Objective can close. It is
@@ -168,13 +169,9 @@ Code style is project-owned policy: the `STYLE` rules in `.savepoint/Guardrails.
 
 ## Build
 
-```bash
-make build && make test-fast   # ordinary Task handoff
-make test-full                 # migration/platform-sensitive Task or Full Objective Check
-make ci                        # CI full gate plus distribution and package checks
-```
+List the project's gate commands here when they differ from, or add to, `quality_gates` in `.savepoint/config.yml` — for example a slower full gate for migration, platform-sensitive work, and Full Objective Checks.
 
-`make test-focused TEST=...` is an iteration aid. Reuse a prior full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged.
+Focused test runs are an iteration aid. Reuse a prior full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged.
 
 ## Codebase Map
 

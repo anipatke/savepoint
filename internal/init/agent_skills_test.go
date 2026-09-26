@@ -722,7 +722,7 @@ func TestSavepointTaskSkillEvidenceRequirement(t *testing.T) {
 
 		for _, phrase := range []string{
 			"per-criterion outcome",
-			"make build && make test",
+			"configured build and test gates",
 			"files read and the files changed",
 			"stated limitations",
 		} {

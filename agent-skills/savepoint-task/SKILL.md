@@ -11,7 +11,7 @@ Build exactly one Task within the boundaries the planner already set, and leave 
 
 ## Goal Context
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive G-001 from `savepoint init`; existing R-### Goals remain unchanged. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities, and unresolved release lifecycle decisions remain in the preview.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. Goals come from `savepoint init` (G-001), `savepoint migrate`, and the planner, never from this skill. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal or `release:`, report it to the owner; do not pick or create a Goal yourself.
 
 ## Trigger
 
@@ -19,7 +19,7 @@ Use this skill when router `state` is `task`.
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router.
 
 ## Read
 
@@ -54,11 +54,11 @@ It must never: edit the Task's acceptance criteria to match what was actually bu
 
 - **Start:** `planned` → `in_progress` with `stage: build`. Requires satisfied Task dependencies and a ready owning Objective.
 - **Verify implementation:** `stage: build` → `test` → `audit`, recording acceptance-criterion evidence and required command results along the way. `audit` means ready for an optional Task Check or mandatory Objective Check — it is never recorded or described as passed.
-- **Replan:** keep the current `status` and `stage`; set the replan reason with handoff evidence; preserve partial work; stop for the planner.
+- **Replan:** keep the current `status` and `stage`; record the `replan:` block below with handoff evidence; preserve partial work; stop for the planner.
 - **After a Task Check:** a `NEEDS WORK` Check resumes repair at `stage: build` within the same Task. A `CLEAR` Check does not close the Task by itself — completion and `status: done` are the owner's action, never something this skill sets for itself.
 - **After a mandatory Objective Check:** a `NEEDS WORK` result never retreats a Task that is already `done` — by default the executor repairs it directly under its recorded Issue, with the router selecting that Issue and the repair recorded as `repair_attempted` (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); only a repair that needs planning becomes a new or newly selected Task under that Objective.
 - **After a direct Issue repair:** once `repair_attempted` is recorded, advance an Issue-only router selection as specified in `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair. Preserve `release:` and show the resulting `savepoint resume` Next line.
-- **Without a Task Check:** an explicit owner waiver is recorded in the Task evidence. It waives only the optional local Check; it does not create technical `CLEAR` or replace the mandatory Full Objective Check. It does satisfy a downstream Task dependency that requires `clear` — never one that requires `accepted`, since there is no Check for the owner to have accepted.
+- **Without a Task Check:** an explicit owner waiver is recorded in the Task's `check_waiver:` frontmatter (shape below). It waives only the optional local Check; it does not create technical `CLEAR` or replace the mandatory Full Objective Check. It does satisfy a downstream Task dependency that requires `clear` — never one that requires `accepted`, since there is no Check for the owner to have accepted.
 
 ## Extra Reads
 
@@ -68,10 +68,19 @@ The Task's Context Files are the budget, not a suggestion. When a targeted verif
 
 When the plan is materially invalid, this skill never redesigns around the problem and never quietly ships a different approach than the one the owner and planner agreed to. Instead it:
 
-- sets the replan reason with the handoff evidence the planner needs to understand what broke;
+- records a `replan:` block in the Task frontmatter, with handoff evidence in the body that the planner needs to understand what broke;
 - keeps the Task's current `status` and `stage` unchanged;
 - preserves whatever partial work already exists;
 - stops, and hands control to the planner (`savepoint-design`) rather than continuing.
+
+`savepoint resume` routes to `Replan` only from this frontmatter block; a REPLAN REQUIRED written only in the body leaves the router on the Task:
+
+```yaml
+replan:
+  reason: Context File internal/store/lock.go does not exist
+  recorded_by: {role: executor, session: <session>}
+  recorded_at: '2026-09-19T00:00:00Z'
+```
 
 A material gap is not a routine surprise to route around — a Context File that doesn't exist, a dependency whose actual interface contradicts the plan, an acceptance criterion that turns out to be technically impossible as written. Stopping honestly here is the success case, not a failure to route around.
 
@@ -86,12 +95,12 @@ rules. This skill may add evidence to an Issue; it may record an explicit owner
 
 ## Verification Gates
 
-Use the repository's gate names consistently:
+Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml` (build, lint, typecheck, test), plus any fuller gate the project's `AGENTS.md` names. When no gate is configured, record that none ran; never invent one.
 
-- `make test-focused TEST=...` is an iteration aid and does not satisfy handoff gates.
-- Ordinary Task handoff requires `make build && make test-fast`.
-- Migration or platform-sensitive Task handoff requires a fresh `make test-full`.
-- CI and the mandatory Full Objective Check require the full gate. In this repository, `make ci` includes `make test-full`.
+- Focused test runs are an iteration aid and do not satisfy handoff gates.
+- Ordinary Task handoff requires the configured build and test gates.
+- Migration or platform-sensitive Task handoff requires a fresh run of the project's full gate when it defines one separately.
+- The mandatory Full Objective Check requires the full gate.
 - Reuse a successful full result only for a metadata-only correction. Record the original command, time, toolchain, and result, and prove that code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 
 ## Evidence And Handoff
@@ -102,6 +111,16 @@ At handoff, the Task's recorded evidence must include:
 - the named commands actually run, including the applicable build plus fast gate or the full gate;
 - the files read and the files changed, including every logged extra read;
 - stated limitations — anything not verified, or verified only partially.
+
+Record an owner's Task-check waiver only on the owner's explicit instruction, in this shape (`task` is this Task's own ID); prose in the body does not satisfy the gates:
+
+```yaml
+check_waiver:
+  task: T-###
+  reason: Owner closed this Task without requesting a Task Check.
+  actor: {role: owner, session: <session>}
+  recorded_at: '2026-09-19T00:00:00Z'
+```
 
 This evidence is what a fresh `savepoint-check` session will treat as claims to verify, not as proof by itself; see `agent-skills/references/check-method.md` for what that session does with it. When an optional Task Check is requested, handoff goes to that fresh session — this skill's own session, having built the Task, can never be that Check. When the owner waives the Task Check, the same evidence is consumed by the mandatory Full Objective Check instead.
 

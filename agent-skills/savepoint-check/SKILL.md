@@ -11,7 +11,7 @@ Turn recorded evidence into an independent, immutable verdict. A Task Check is a
 
 ## Goal Context
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive G-001 from `savepoint init`; existing R-### Goals remain unchanged. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities, and unresolved release lifecycle decisions remain in the preview.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. Goals come from `savepoint init` (G-001), `savepoint migrate`, and the planner, never from this skill. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal or `release:`, report it to the owner; do not pick or create a Goal yourself.
 
 ## Trigger
 
@@ -22,7 +22,7 @@ This session must be fresh: independent from the executor's conversation that bu
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This Check workflow uses `savepoint resume` only to resolve Next and validate project loading; Task creation remains planner-only under the narrow exception in AGENTS.md. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router. This Check workflow uses `savepoint resume` only to resolve Next and validate project loading.
 
 ## Read
 
@@ -49,7 +49,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 
 ## Verification Gates
 
-A requested Task Check uses Quick evidence and remains optional; it does not replace handoff gates or mandatory integration evidence. Full Objective Checks use Full evidence and require current successful `make test-full` evidence. In this repository, CI runs `make ci`, which includes the full gate. A recorded full result is reusable only for a metadata-only correction with the original run documented and code, tests, fixtures, dependencies, and gate definitions proven unchanged since that run; otherwise require a fresh full run.
+A requested Task Check uses Quick evidence and remains optional; it does not replace handoff gates or mandatory integration evidence. Full Objective Checks use Full evidence and require current successful evidence from the project's full gate — `quality_gates` in `.savepoint/config.yml`, or the fuller gate the project's `AGENTS.md` names. A recorded full result is reusable only for a metadata-only correction with the original run documented and code, tests, fixtures, dependencies, and gate definitions proven unchanged since that run; otherwise require a fresh full run.
 
 ## Write Boundary
 
@@ -101,7 +101,8 @@ Each run writes a new record with a new `C-###`. A recheck never edits the super
 
 - A checker may complete a technical Task's optional Check — one with no `owner_validation.required` — once its clearance is current and no unexcepted material blocker remains; only the owner may set the Task's `status: done`.
 - A Task with no requested Task Check may be owner-closed only when its implementation evidence is complete and an explicit Task-check waiver names the Task, reason, actor, and time. The waiver skips only the optional local Check: it is not technical `CLEAR`, and it does not waive any acceptance criterion, guardrail, or Objective Check. It satisfies a downstream Task dependency that requires `clear` — the owner's own completion decision stands in there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
-- A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count.
+- A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count. Acceptance is recorded as `owner_validation: {required: true, accepted_check: C-###, accepted_by: {role: owner, session: <session>}}`.
+- An owner exception is recorded only on the owner's explicit instruction, as `exception: {requirements: [<criterion or rule IDs>], reason: ..., owner: <owner>, recorded_at: '2026-09-19T00:00:00Z', check: C-###}`.
 - An Objective closes only after every Task it owns is done, the mandatory Objective integration Check is current, and every material Issue linked to that current Check is resolved (including explicit owner acceptance recorded as an Issue resolution), with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
 - A Goal is complete when every member Objective is complete; no Goal-level clearance or acceptance is required. Goal completion does not mean published or deployed.
 - A record lacking sufficient scope or evidence cannot support completion. A freshness assessment is optional: record one only to mark the latest Check `stale` or `unknown` (for example, when code changed after it). That blocks normal completion until a new Check runs.
