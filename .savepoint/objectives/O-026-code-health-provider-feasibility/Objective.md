@@ -40,3 +40,5 @@ Code Health is compiled into Savepoint but owns its domain. Project-owned tools 
 ## Confirmed Design Decisions
 
 The owner confirmed the project-owned-tool model, one official path per capability, a supported catalogue, no automatic installation, no AI assessment, and no compromise to Savepoint's single-binary distribution on 2026-09-26.
+
+The owner confirmed Go, JavaScript, TypeScript, and Python as the initial stacks for provider feasibility on 2026-09-26. A supported path may be unavailable for a stack when the evidence does not justify one; the catalogue must state that limitation explicitly.
