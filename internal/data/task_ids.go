@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -174,15 +175,30 @@ func acquireTaskIDLock(path string) (*os.File, error) {
 		if err == nil {
 			return lock, nil
 		}
-		if !errors.Is(err, os.ErrExist) {
+		if !taskIDLockBusy(err, runtime.GOOS) {
 			return nil, fmt.Errorf("allocate Task ID: create lock %s: %w", path, err)
 		}
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
+			if !errors.Is(err, os.ErrExist) {
+				return nil, fmt.Errorf("allocate Task ID: create lock %s: still failing after %s: %w", path, taskIDLockWait, err)
+			}
 			return nil, fmt.Errorf("allocate Task ID: lock file %s is present; refusing after %s (a leftover lock requires owner cleanup)", path, taskIDLockWait)
 		}
 		time.Sleep(min(taskIDLockRetry, remaining))
 	}
+}
+
+// taskIDLockBusy reports whether an exclusive-create failure means another
+// allocator holds or is releasing the lock. On Windows a lock another
+// allocator has just removed stays "delete pending" until every handle to it
+// closes, and creating it meanwhile fails with access denied rather than
+// "exists" (I-061), so that error is retried within the same wait.
+func taskIDLockBusy(err error, goos string) bool {
+	if errors.Is(err, os.ErrExist) {
+		return true
+	}
+	return goos == "windows" && errors.Is(err, os.ErrPermission)
 }
 
 func releaseTaskIDLock(lock *os.File, path string) error {

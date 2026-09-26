@@ -69,6 +69,12 @@ func addV2DirsRecursive(watcher *fsnotify.Watcher, root string) error {
 // editor's temporary-file/write/rename sequence produces one load after the
 // filesystem has been quiet for the debounce interval.
 func watchV2Files(watcher *fsnotify.Watcher, root string) tea.Cmd {
+	return watchV2FilesAfter(watcher, root, v2WatchDebounce)
+}
+
+// watchV2FilesAfter is watchV2Files with an explicit quiet interval, so tests
+// can assert one reload per burst without racing the production interval.
+func watchV2FilesAfter(watcher *fsnotify.Watcher, root string, delay time.Duration) tea.Cmd {
 	return func() tea.Msg {
 		for {
 			select {
@@ -80,7 +86,7 @@ func watchV2Files(watcher *fsnotify.Watcher, root string) tea.Cmd {
 					continue
 				}
 				watchV2CreatedDir(watcher, root, event)
-				if debounceV2Events(watcher, root, v2WatchDebounce) {
+				if debounceV2Events(watcher, root, delay) {
 					return v2FileChangeMsg{}
 				}
 				return nil

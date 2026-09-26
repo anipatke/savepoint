@@ -2,7 +2,7 @@
 id: I-075
 title: The board watcher debounce test fails when CI stalls
 type: verification
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -18,6 +18,28 @@ history:
       second reload message"; the next push (7adeff8), carrying the same
       code, passed. The owner asked to log and investigate it before merging
       v2 into master.
+  - at: '2026-09-26T04:49:37Z'
+    actor: {role: executor, session: v2-main-flaky}
+    kind: repair_attempted
+    note: >-
+      Added watchV2FilesAfter so the test sets its own quiet interval;
+      watchV2Files keeps the 100 ms production debounce. The test uses a
+      500 ms quiet interval against 10 ms write spacing and waits 1 s for a
+      second reload. It passed 10 of 10 runs, and with the debounce
+      temporarily removed it failed with "rapid write burst produced a second
+      reload message". make build and make test-full passed.
+  - at: '2026-09-26T04:49:37Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark fixed Issues resolved before
+      pushing. No independent Check was run and no technical CLEAR is
+      implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:49:37Z'
+  reason: Owner accepted the test repair committed to v2.
 ---
 
 # I-075: The board watcher debounce test fails when CI stalls
@@ -65,3 +87,18 @@ correctly. The flaw is the test's timing margin.
 - The test passes repeatedly, for example `go test -count=50 -run
   TestV2WatcherDebouncesRapidWrites ./internal/board/v2` under load, and
   `make build && make test-fast` pass.
+
+## Repair Attempt Evidence
+
+- `internal/board/v2/watch.go`: `watchV2Files` delegates to the new
+  `watchV2FilesAfter(watcher, root, delay)`; production behavior and the
+  100 ms `v2WatchDebounce` are unchanged.
+- `internal/board/v2/watch_test.go` `TestV2WatcherDebouncesRapidWrites` uses a
+  500 ms quiet interval, 50 times the 10 ms write spacing, and waits 1 s
+  for a second reload.
+- `go test -count=10 -run TestV2Watcher ./internal/board/v2` passed. With
+  `debounceV2Events` temporarily returning at once, the test failed with
+  "rapid write burst produced a second reload message" (then restored).
+- `go test -count=50 -run TestV2WatcherDebouncesRapidWrites
+  ./internal/board/v2` passed 50 of 50 with every CPU saturated.
+- `make build` and `make test-full` passed (2026-09-26T04:49:37Z).

@@ -89,6 +89,18 @@ history:
       "create lock ...task-ids.lock: Access is denied" and 15 of 16
       reservations. The rerun passed. The owner-accepted resolution is
       withdrawn.
+  - at: '2026-09-26T04:49:37Z'
+    actor: {role: executor, session: v2-main-flaky}
+    kind: repair_attempted
+    note: >-
+      acquireTaskIDLock now asks taskIDLockBusy whether a failed exclusive
+      create means the lock is busy: "exists" on every platform, and on
+      Windows also access denied, the delete-pending state. Busy failures
+      retry within the existing taskIDLockWait; a Windows permission error
+      that lasts the whole wait reports the real error. Added
+      TestTaskIDLockBusy_retriesWindowsDeletePendingOnly. GOOS=windows go vet,
+      make build, and make test-full passed on Linux, and the concurrency test
+      passed 30 of 30 there. Windows proof awaits the windows-tests CI job.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
@@ -206,3 +218,17 @@ Proof Needed for the recurrence:
   job passing `TestAllocateTaskID_serializesConcurrentCallers` on repeated
   runs (for example `-count=20` in a diagnostic run).
 
+### Repair Attempt Evidence (2026-09-26)
+
+- `internal/data/task_ids.go`: new `taskIDLockBusy(err, goos)`;
+  `acquireTaskIDLock` retries while it returns true and, after the wait,
+  reports a lasting non-exists error as
+  `create lock ...: still failing after 10s: <error>`.
+- `internal/data/discover_test.go`
+  `TestTaskIDLockBusy_retriesWindowsDeletePendingOnly` covers "exists" on
+  Linux and Windows, access denied on Windows (retried), access denied on
+  Linux (not retried), and other Windows errors (not retried).
+- Linux: `make build`, `make test-full`, and
+  `go test -count=30 -run TestAllocateTaskID_serializesConcurrentCallers
+  ./internal/data` passed. `GOOS=windows go vet ./internal/data` passed.
+- Not yet proven on Windows; the next windows-tests CI run is the evidence.
