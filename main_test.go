@@ -264,10 +264,10 @@ func TestMainInitScaffoldsV2ProjectWithProjectGoal(t *testing.T) {
 	if len(index.Releases) != 1 || len(index.Objectives) != 0 || len(index.Tasks) != 0 || len(index.Checks) != 0 || len(index.Issues) != 0 {
 		t.Errorf("fresh init V2 index has unexpected records: %+v", index)
 	}
-	goalPath := filepath.Join(dir, ".savepoint", "releases", "R-001-first-goal", "Release.md")
+	goalPath := filepath.Join(dir, ".savepoint", "releases", "G-001-first-goal", "Release.md")
 	goal, err := os.ReadFile(goalPath)
 	if err != nil {
-		t.Fatalf("read fresh-init R-001 Goal: %v", err)
+		t.Fatalf("read fresh-init G-001 Goal: %v", err)
 	}
 	if !strings.Contains(string(goal), "title: "+filepath.Base(dir)) {
 		t.Errorf("fresh-init Goal title = %q, want project name %q", goal, filepath.Base(dir))
@@ -276,8 +276,8 @@ func TestMainInitScaffoldsV2ProjectWithProjectGoal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fresh-init router: %v", err)
 	}
-	if !strings.Contains(string(router), "release: R-001") {
-		t.Errorf("fresh-init router does not select R-001: %q", router)
+	if !strings.Contains(string(router), "release: G-001") {
+		t.Errorf("fresh-init router does not select G-001: %q", router)
 	}
 	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if err != nil {
@@ -551,6 +551,7 @@ func TestMainMigrateRejectsUnknownFlag(t *testing.T) {
 
 func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir}, "")
@@ -569,6 +570,7 @@ func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
 
 func TestMainMigrateVerboseListsEveryPlannedRecord(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--verbose"}, "")
@@ -586,6 +588,7 @@ func TestMainMigrateVerboseListsEveryPlannedRecord(t *testing.T) {
 
 func TestMainMigrateDryRunIsSynonymOfDefault(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--dry-run"}, "")
@@ -598,6 +601,7 @@ func TestMainMigrateDryRunIsSynonymOfDefault(t *testing.T) {
 
 func TestMainMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--apply", "--dry-run"}, "")
@@ -610,6 +614,7 @@ func TestMainMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
 
 func TestMainMigratePreviewIsDeterministic(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 
 	first := runMainForTest(t, []string{"migrate", dir}, "")
 	if first.err != nil {
@@ -688,6 +693,7 @@ func TestMainMigrateDecisionsFileResolvesAmbiguity(t *testing.T) {
 	if err := os.WriteFile(decisionsPath, []byte(decisionsContent), 0644); err != nil {
 		t.Fatal(err)
 	}
+	initMigrateGitRepo(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--decisions", decisionsPath}, "")
 
@@ -767,6 +773,10 @@ func initMigrateGitRepo(t *testing.T, dir string) {
 	run("init", "-q")
 	run("config", "user.name", "Savepoint Test")
 	run("config", "user.email", "savepoint-test@example.invalid")
+	// A commit can start detached auto-maintenance that creates and removes
+	// .git lock files while a test snapshots the directory.
+	run("config", "maintenance.auto", "false")
+	run("config", "gc.auto", "0")
 	run("add", "-A")
 	run("commit", "-qm", "fixture baseline")
 }

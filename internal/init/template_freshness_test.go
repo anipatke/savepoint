@@ -37,7 +37,7 @@ func TestIdeaGuidanceFillsTheFreshProjectsGoal(t *testing.T) {
 		content := readTemplate(t, path)
 		for _, phrase := range []string{
 			"Every Savepoint project has at least one live Goal selected by the router",
-			"R-001, titled after the project",
+			"G-001, titled after the project",
 			"Outcome, Why, Success Conditions, and Boundaries",
 			"do not create another Goal for the same initial outcome",
 			"only fill the fresh scaffold placeholder from owner-provided answers",
@@ -120,7 +120,7 @@ func TestProjectGuidanceRequiresGoalContext(t *testing.T) {
 		for _, phrase := range []string{"Choose a Goal", "savepoint doctor", "savepoint init", "savepoint migrate"} {
 			assertContains(t, content, phrase)
 		}
-		assertContains(t, content, "R-001")
+		assertContains(t, content, "G-001")
 	}
 	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
 		content := readTemplate(t, root, parts...)
@@ -450,5 +450,37 @@ func assertNotContains(t *testing.T, content, stale string) {
 
 	if strings.Contains(content, stale) {
 		t.Fatalf("template contains stale text %q", stale)
+	}
+}
+
+// TestGuidancePlansAndBoundsWorktreeLanes locks I-074: the planner shapes and
+// names parallel lanes, and a lane never writes the router or new identities.
+func TestGuidancePlansAndBoundsWorktreeLanes(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		content := readTemplate(t, root, parts...)
+		for _, phrase := range []string{
+			"## Worktree Lanes",
+			"git rev-parse --git-common-dir",
+			"Do not edit `.savepoint/router.md`",
+			"Do not create Tasks, Checks, or Issues",
+			"Full Objective Check run on the main branch after the lane merges",
+		} {
+			assertContains(t, content, phrase)
+		}
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-design", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
+	} {
+		content := readTemplate(t, root, parts...)
+		assertContains(t, content, "no `depends_on` path between them and no overlapping Context Files")
+		assertContains(t, content, "name the parallel lanes in plain words")
+	}
+	for _, parts := range [][]string{
+		{"agent-skills", "savepoint-task", "SKILL.md"},
+		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
+	} {
+		assertContains(t, readTemplate(t, root, parts...), "follow AGENTS.md's Worktree Lanes section")
 	}
 }

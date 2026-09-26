@@ -110,7 +110,7 @@ type checkV2Frontmatter struct {
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
-// a valid global C-### ID, a scope naming a T-###, O-###, or R-### target
+// a valid global C-### ID, a scope naming a T-###, O-###, or R-###/G-### Goal target
 // consistent with its kind, a CLEAR or NEEDS WORK result, checked_by actor provenance,
 // and a parseable checked_at timestamp. A CLEAR Check must be recorded by a
 // checker; other roles may record NEEDS WORK evidence, but cannot author a
@@ -228,7 +228,11 @@ func decodeCheckScope(path, checkID string, raw checkScopeFrontmatter) (CheckSco
 	case CheckScopeRelease:
 		kindPrefix = 'R'
 	}
-	if !matchesV2Identity(raw.ID, kindPrefix) {
+	validID := matchesV2Identity(raw.ID, kindPrefix)
+	if kind == CheckScopeRelease {
+		validID = matchesGoalIdentityV2(raw.ID)
+	}
+	if !validID {
 		return CheckScope{}, fmt.Errorf("%w: %s: check %s scope.id %q does not match scope.kind %s", ErrV2InvalidID, path, checkID, raw.ID, kind)
 	}
 

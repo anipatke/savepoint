@@ -88,8 +88,11 @@ func TestV2WatcherDebouncesRapidWrites(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = watcher.Close() })
 
+	// The burst is spaced 10 ms apart; a quiet interval well above that keeps
+	// a stalled CI runner from splitting it into two reloads (I-075).
+	const quiet = 500 * time.Millisecond
 	result := make(chan tea.Msg, 1)
-	go func() { result <- watchV2Files(watcher, root)() }()
+	go func() { result <- watchV2FilesAfter(watcher, root, quiet)() }()
 	config := filepath.Join(root, "config.yml")
 	for i := 0; i < 5; i++ {
 		testutil.WriteFile(t, config, "schema_version: 2\n# edit "+string(rune('a'+i))+"\n")
@@ -105,11 +108,11 @@ func TestV2WatcherDebouncesRapidWrites(t *testing.T) {
 	}
 
 	second := make(chan tea.Msg, 1)
-	go func() { second <- watchV2Files(watcher, root)() }()
+	go func() { second <- watchV2FilesAfter(watcher, root, quiet)() }()
 	select {
 	case msg := <-second:
 		t.Fatalf("rapid write burst produced a second reload message: %T", msg)
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(2 * quiet):
 	}
 }
 

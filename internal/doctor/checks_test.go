@@ -164,28 +164,31 @@ func TestCheckProject_missingReleaseNamesFileAndIDs(t *testing.T) {
 			t.Errorf("problem message = %q, want %q", problems[0].Message, want)
 		}
 	}
-	if !strings.Contains(problems[0].Repair, "referenced R-### Release") {
-		t.Errorf("problem repair = %q, want manual Release-reference guidance", problems[0].Repair)
+	if !strings.Contains(problems[0].Repair, "referenced R-### or G-### Goal") {
+		t.Errorf("problem repair = %q, want manual Goal-reference guidance", problems[0].Repair)
 	}
 }
 
-func TestCheckReleaseReadiness_ignoresEmptyActiveGoalAndKeepsCanonicalFindings(t *testing.T) {
+func TestCheckReleaseReadiness_IgnoresIncompleteActiveGoalAndReportsDoneGoalBlockers(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "config.yml"), "schema_version: 2\n")
 	writeV2Release(t, root, "R-001-empty", "R-001", "in_progress", "")
 	writeV2Release(t, root, "R-002-active", "R-002", "in_progress", "")
 	writeV2Release(t, root, "R-003-done-empty", "R-003", "done", "")
+	writeV2Release(t, root, "R-004-done-incomplete", "R-004", "done", "")
 	writeV2ObjectiveWithRelease(t, root, "O-002-member", "O-002", "Member", "R-002")
+	writeV2Task(t, root, "O-002-member", "T-002-open.md", "T-002", "Open task", "O-002")
+	writeV2ObjectiveWithRelease(t, root, "O-004-member", "O-004", "Incomplete member", "R-004")
 	writeV2ObjectiveWithoutGoal(t, root, "O-003-unassigned", "O-003", "Independent")
 
 	problems := RunV2Checks(root).Releases
 	if len(problems) != 2 {
-		t.Fatalf("RunV2Checks().Releases = %v, want only actionable readiness findings", problems)
+		t.Fatalf("RunV2Checks().Releases = %v, want only done Goal readiness findings", problems)
 	}
-	wants := []string{"[v2-release-objective-incomplete] release R-002", "[v2-release-no-objectives] release R-003"}
+	wants := []string{"[v2-release-no-objectives] release R-003", "[v2-release-objective-incomplete] release R-004"}
 	paths := []string{
-		filepath.Join("releases", "R-002-active", "Release.md"),
 		filepath.Join("releases", "R-003-done-empty", "Release.md"),
+		filepath.Join("releases", "R-004-done-incomplete", "Release.md"),
 	}
 	for i, want := range wants {
 		if !strings.Contains(problems[i].Message, want) {
@@ -680,6 +683,16 @@ func TestV2DiagnosticName_noNewIssueSentinelFallsThrough(t *testing.T) {
 		if V2ProblemRepair(name) == "Review the V2 project diagnostic and fix the reported record" {
 			t.Errorf("V2ProblemRepair(%q) fell through to the generic repair suggestion", name)
 		}
+	}
+}
+
+func TestV2DiagnosticName_invalidGoalIdentity(t *testing.T) {
+	_, err := data.DecodeReleaseV2("releases/G-01-first/Release.md", "---\nid: G-01\n---\n")
+	if err == nil {
+		t.Fatal("DecodeReleaseV2() error = nil, want invalid Goal identity")
+	}
+	if got := v2DiagnosticName(err); got != "v2-release-invalid-id" {
+		t.Errorf("v2DiagnosticName() = %q, want v2-release-invalid-id", got)
 	}
 }
 

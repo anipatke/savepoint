@@ -18,7 +18,7 @@ selection; the command does not write project files.
 state: idea
 objective: none
 task: none
-release: R-001
+release: G-001
 ```
 
 ## Skill Activation

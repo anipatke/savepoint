@@ -41,6 +41,7 @@ func TestRunCommand_previewIsReadOnlyOnReadable0555Project(t *testing.T) {
 		Stdout:         &preview,
 		Now:            fixedClock(time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)),
 		NewOperationID: fixedOperationID("preview"),
+		RunGit:         cleanGitStub,
 	})
 	if err != nil || code != 0 {
 		t.Fatalf("preview on a readable 0555 project: code = %d, err = %v\n%s", code, err, preview.String())
@@ -48,9 +49,86 @@ func TestRunCommand_previewIsReadOnlyOnReadable0555Project(t *testing.T) {
 	if !strings.Contains(preview.String(), "Migration preview") {
 		t.Fatalf("preview output = %q, want the preview report", preview.String())
 	}
+	if !strings.Contains(preview.String(), "Status: ready") {
+		t.Fatalf("preview output = %q, want a ready status for a clean working tree", preview.String())
+	}
 	assertSnapshotsEqual(t, before, snapshotTree(t, root))
 	if probeCalls != 0 {
 		t.Fatalf("preview invoked the apply-only writeability probe %d time(s)", probeCalls)
+	}
+}
+
+func TestRunCommand_previewReportsAllGitDirtyPathGroups(t *testing.T) {
+	root := copyFixtureProject(t, "v1-basic")
+	before := snapshotTree(t, root)
+	status := " M .savepoint/config.yml\n M .savepoint/releases/v1/epics/E01-example/E01-Detail.md\n" +
+		"?? .savepoint/objectives/O-001-example/tasks/T-001-follow-up.md\n" +
+		"!! .savepoint/releases/v1/epics/E01-example/evidence/\n"
+	var preview strings.Builder
+
+	code, err := RunCommand(CommandOptions{
+		Dir:    root,
+		Stdout: &preview,
+		RunGit: func(_ string, args ...string) (string, error) {
+			if args[0] == "rev-parse" {
+				return "true\n", nil
+			}
+			return status, nil
+		},
+	})
+	if code != 1 || !errors.Is(err, ErrDirtyGitPaths) {
+		t.Fatalf("dirty preview = %d, %v; want exit 1 with %v\n%s", code, err, ErrDirtyGitPaths, preview.String())
+	}
+	for _, want := range []string{
+		"Status: blocked by working-tree changes.",
+		"Modified:\n  - .savepoint/config.yml",
+		"  - .savepoint/releases/v1/epics/E01-example/E01-Detail.md",
+		"Untracked:\n  - .savepoint/objectives/O-001-example/tasks/T-001-follow-up.md",
+		"Ignored:\n  - .savepoint/releases/v1/epics/E01-example/evidence/",
+		"stage and commit or stash changed paths",
+		"move ignored files out of planned paths",
+	} {
+		if !strings.Contains(preview.String(), want) {
+			t.Errorf("blocked preview is missing %q:\n%s", want, preview.String())
+		}
+	}
+	for _, path := range []string{
+		".savepoint/config.yml",
+		".savepoint/releases/v1/epics/E01-example/E01-Detail.md",
+		".savepoint/objectives/O-001-example/tasks/T-001-follow-up.md",
+		".savepoint/releases/v1/epics/E01-example/evidence/",
+	} {
+		if !strings.Contains(err.Error(), path) {
+			t.Errorf("apply refusal error omitted path %s:\n%v", path, err)
+		}
+	}
+	if !strings.Contains(err.Error(), "stage and commit or stash changed paths") || !strings.Contains(err.Error(), "move ignored files out of planned paths") {
+		t.Errorf("apply refusal omitted preview repair advice:\n%v", err)
+	}
+	if strings.Contains(preview.String(), "Status: ready") {
+		t.Errorf("blocked preview also says ready:\n%s", preview.String())
+	}
+	assertSnapshotsEqual(t, before, snapshotTree(t, root))
+}
+
+func TestRunCommand_previewReportsOutsideGitLikeApply(t *testing.T) {
+	root := copyFixtureProject(t, "v1-basic")
+	var preview strings.Builder
+	code, err := RunCommand(CommandOptions{
+		Dir:    root,
+		Stdout: &preview,
+		RunGit: func(string, ...string) (string, error) {
+			return "fatal: not a git repository", errors.New("exit status 128")
+		},
+	})
+	if code != 1 || !errors.Is(err, ErrNotGitWorkTree) {
+		t.Fatalf("preview outside Git = %d, %v; want exit 1 with %v\n%s", code, err, ErrNotGitWorkTree, preview.String())
+	}
+	if !strings.Contains(preview.String(), "Status: blocked by the Git working-tree check.") || !strings.Contains(preview.String(), "git init") {
+		t.Fatalf("preview outside Git omitted apply's refusal and repair guidance:\n%s", preview.String())
+	}
+	if strings.Contains(preview.String(), "Status: ready") {
+		t.Errorf("preview outside Git also says ready:\n%s", preview.String())
 	}
 }
 
@@ -340,6 +418,10 @@ func initGitRepository(t *testing.T, gitPath, root string) {
 	// Git for Windows converts line endings on checkout by default, so a
 	// restore would not reproduce the fixture's bytes.
 	runGitTest(t, gitPath, root, "config", "core.autocrlf", "false")
+	// A commit can start detached auto-maintenance that creates and removes
+	// .git lock files while a test snapshots the tree.
+	runGitTest(t, gitPath, root, "config", "maintenance.auto", "false")
+	runGitTest(t, gitPath, root, "config", "gc.auto", "0")
 	runGitTest(t, gitPath, root, "add", "-Af")
 	runGitTest(t, gitPath, root, "commit", "-qm", "fixture baseline")
 }

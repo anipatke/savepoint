@@ -2,7 +2,7 @@
 id: I-069
 title: The migrate preview says ready when apply will refuse the working tree
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -16,6 +16,30 @@ history:
       Migrating galaxy with 2.0.5: the preview printed "Status: ready", then
       --apply refused twice, first for untracked and modified audit files,
       then for git-ignored screenshot folders under planned paths.
+  - at: '2026-09-26T04:32:36Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Preview now runs the same clean-Git preflight as apply. Dirty paths are
+      grouped as modified, untracked, and ignored in a blocked preview with
+      the same repair advice; outside-Git projects show apply's refusal. Git
+      status disables optional locks so preview does not refresh .git/index.
+      Tests cover all path groups, a clean tree, outside Git, and unchanged
+      project contents. Regenerated the migration goldens; output was
+      unchanged. make build, make test-fast, and make test-full passed.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 5d3075f.
 ---
 
 # I-069: The migrate preview says ready when apply will refuse the working tree

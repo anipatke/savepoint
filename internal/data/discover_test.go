@@ -806,3 +806,26 @@ func TestDiscoverV2Issues_malformedRecordFailsClosed(t *testing.T) {
 		t.Fatalf("DiscoverV2Issues() error = %v, want ErrV2InvalidLifecycle", err)
 	}
 }
+
+func TestTaskIDLockBusy_retriesWindowsDeletePendingOnly(t *testing.T) {
+	denied := &os.PathError{Op: "open", Path: "task-ids.lock", Err: os.ErrPermission}
+	exists := &os.PathError{Op: "open", Path: "task-ids.lock", Err: os.ErrExist}
+	other := &os.PathError{Op: "open", Path: "task-ids.lock", Err: os.ErrNotExist}
+	tests := []struct {
+		name string
+		err  error
+		goos string
+		want bool
+	}{
+		{"held lock on linux", exists, "linux", true},
+		{"held lock on windows", exists, "windows", true},
+		{"windows delete pending", denied, "windows", true},
+		{"permission denied on linux", denied, "linux", false},
+		{"other error on windows", other, "windows", false},
+	}
+	for _, tc := range tests {
+		if got := taskIDLockBusy(tc.err, tc.goos); got != tc.want {
+			t.Errorf("%s: taskIDLockBusy() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

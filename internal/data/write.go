@@ -940,7 +940,7 @@ func replanV2Patch(replan *Replan) (v2FieldPatch, error) {
 // conversation, and next_action is a retired compatibility field, so neither
 // is a selection writer's to touch.
 type RouterSelectionV2 struct {
-	Release   string // R-### selection, or empty to clear the Release context
+	Release   string // R-### or G-### Goal selection, or empty to clear the Goal context
 	Objective string // O-### selection, or empty to clear the selection
 	Task      string // T-### selection, or empty to clear the selection
 	Issue     string // I-### selection, or empty to clear the selection
@@ -997,8 +997,8 @@ const routerSelectionNoneV2 = "none"
 // three rules ReadStateV2 enforces on the way in: O-###/T-### shape, and a
 // Task never selected without the Objective that owns it.
 func (s RouterSelectionV2) validate() error {
-	if s.Release != "" && !matchesV2Identity(s.Release, 'R') {
-		return fmt.Errorf("%w: router release %q must be a single R-### selection", ErrV2InvalidID, s.Release)
+	if s.Release != "" && !matchesGoalIdentityV2(s.Release) {
+		return fmt.Errorf("%w: router release %q must be a single R-### or G-### Goal selection", ErrV2InvalidID, s.Release)
 	}
 	if s.Objective != "" && !matchesV2Identity(s.Objective, 'O') {
 		return fmt.Errorf("%w: router objective %q must be a single O-### selection", ErrV2InvalidID, s.Objective)

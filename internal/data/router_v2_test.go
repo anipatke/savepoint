@@ -34,6 +34,18 @@ func TestReadStateV2_decodesSelectedRelease(t *testing.T) {
 	}
 }
 
+func TestReadStateV2_decodesSelectedGoalWithNewIdentity(t *testing.T) {
+	content := "## Current state\n\n```yaml\nstate: task\nrelease: G-001\nobjective: O-001\ntask: T-001\n```\n"
+
+	state, err := NewRouterReader().ReadStateV2(content)
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Release != "G-001" {
+		t.Errorf("Release = %q, want G-001", state.Release)
+	}
+}
+
 func TestReadStateV2_decodesIssueAloneWithoutObjective(t *testing.T) {
 	content := "## Current state\n\n```yaml\nstate: task\nissue: I-042\n```\n"
 

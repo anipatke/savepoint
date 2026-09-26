@@ -89,9 +89,10 @@ func releaseDiagnosticsForIndex(root string, index *data.V2Index) releaseDiagnos
 			continue
 		}
 		for _, blocker := range decision.Blockers {
-			// A Goal may be active before its first Objective is planned. The
-			// completion gate still blocks closing it without members.
-			if release.Status == data.ColumnInProgress && blocker.Kind == data.GateBlockReleaseNoObjectives {
+			// Active Goals may have unfinished Objectives and Tasks while their
+			// work is underway; completion blockers apply when marking a Goal done.
+			if release.Status == data.ColumnInProgress &&
+				(blocker.Kind == data.GateBlockReleaseNoObjectives || blocker.Kind == data.GateBlockReleaseObjectiveIncomplete) {
 				continue
 			}
 			diagnostics.Problems = append(diagnostics.Problems, releaseBlockerProblem(release, blocker))
@@ -338,7 +339,7 @@ func v2DiagnosticName(err error) string {
 	case errors.Is(err, data.ErrV2MissingField):
 		return "v2-missing-field"
 	case errors.Is(err, data.ErrV2InvalidID):
-		if strings.Contains(err.Error(), "release id") {
+		if strings.Contains(err.Error(), "release id") || strings.Contains(err.Error(), "Goal id") {
 			return "v2-release-invalid-id"
 		}
 		return "v2-invalid-id"

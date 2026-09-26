@@ -79,29 +79,25 @@ func TestConvertIdea_rejectsNonIdeaDocument(t *testing.T) {
 
 // TestConvertRouter_activeSelectionResolvesGlobalIDs proves that when the V1
 // router's selected epic/task both converted, the V2 router names their
-// allocated O-###/T-###, keeps next_action untouched, and adds no migration
-// note.
+// allocated O-###/T-###, drops retired fields, and adds no migration note.
 func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 	cases := []struct {
-		fixture       string
-		epicPath      string
-		taskPath      string
-		wantV2State   string
-		wantNextParts string
+		fixture     string
+		epicPath    string
+		taskPath    string
+		wantV2State string
 	}{
 		{
-			fixture:       "v1-basic",
-			epicPath:      ".savepoint/releases/v1/epics/E01-example/E01-Detail.md",
-			taskPath:      ".savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md",
-			wantV2State:   "task",
-			wantNextParts: "Build E01-example/T002-follow-up.",
+			fixture:     "v1-basic",
+			epicPath:    ".savepoint/releases/v1/epics/E01-example/E01-Detail.md",
+			taskPath:    ".savepoint/releases/v1/epics/E01-example/tasks/T002-follow-up.md",
+			wantV2State: "task",
 		},
 		{
-			fixture:       "v1-history",
-			epicPath:      ".savepoint/releases/v1.1/epics/E01-example/E01-Detail.md",
-			taskPath:      ".savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md",
-			wantV2State:   "task",
-			wantNextParts: "Build E01-example/T001-shared.",
+			fixture:     "v1-history",
+			epicPath:    ".savepoint/releases/v1.1/epics/E01-example/E01-Detail.md",
+			taskPath:    ".savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md",
+			wantV2State: "task",
 		},
 	}
 
@@ -144,8 +140,10 @@ func TestConvertRouter_activeSelectionResolvesGlobalIDs(t *testing.T) {
 			if !strings.Contains(content, "release: "+p.GoalSelection.GoalID) {
 				t.Errorf("content missing live Goal %q:\n%s", p.GoalSelection.GoalID, content)
 			}
-			if !strings.Contains(content, tc.wantNextParts) {
-				t.Errorf("content missing preserved next_action %q:\n%s", tc.wantNextParts, content)
+			for _, retiredKey := range []string{"next_action:", "epic:", "defect:"} {
+				if strings.Contains(content, retiredKey) {
+					t.Errorf("content retained retired router key %q:\n%s", retiredKey, content)
+				}
 			}
 			if strings.Contains(content, "## Migration Note") {
 				t.Errorf("content has a Migration Note for a fully-resolved selection:\n%s", content)
@@ -181,7 +179,7 @@ func TestConvertRouter_fallbackSelectionPointsAtLiveGoal(t *testing.T) {
 	}{
 		{name: "missing release", routerRelease: "", releaseStatus: "in_progress", wantGoal: "R-001"},
 		{name: "unresolvable release", routerRelease: "v9-missing", releaseStatus: "in_progress", wantGoal: "R-001"},
-		{name: "archived release", routerRelease: "v1", releaseStatus: "done", wantGoal: "R-002", wantGenerated: true},
+		{name: "archived release", routerRelease: "v1", releaseStatus: "done", wantGoal: "G-001", wantGenerated: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

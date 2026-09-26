@@ -7,10 +7,11 @@ import (
 	"strings"
 )
 
-// ReleaseID names the stable identity of a V2 Release. The filesystem slug is
-// presentation only; this value is the record's identity and is never
-// derived from the slug. It remains a string alias so transitional migration
-// readers can consume the pre-E51 Objective projection without conversion.
+// ReleaseID names the stable identity of a V2 Goal record. The filesystem
+// slug is presentation only; this value is the record's identity and is never
+// derived from the slug. Both historical R-### and new G-### identities are
+// accepted. It remains a string alias so transitional migration readers can
+// consume the pre-E51 Objective projection without conversion.
 type ReleaseID = string
 
 var legacyCompletionHashPatternV2 = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
@@ -28,7 +29,7 @@ type LegacyCompletionReference struct {
 // block rather than its reference role.
 type LegacyCompletion = LegacyCompletionReference
 
-// ReleaseV2 is a strict V2 Release record. Release membership is deliberately
+// ReleaseV2 is a strict V2 Goal record. Release membership is deliberately
 // absent: it is derived from ObjectiveV2.Release when the project index is
 // built, so there is only one authoritative membership edge.
 type ReleaseV2 struct {
@@ -78,8 +79,8 @@ func DecodeReleaseV2(path, content string) (*ReleaseV2, error) {
 		return nil, fmt.Errorf("%w: %s: %v", ErrV2Malformed, path, err)
 	}
 
-	if !matchesV2Identity(fields.ID, 'R') {
-		return nil, fmt.Errorf("%w: %s: release id %q must match R- plus at least three digits", ErrV2InvalidID, path, fields.ID)
+	if !matchesGoalIdentityV2(fields.ID) {
+		return nil, fmt.Errorf("%w: %s: Goal id %q must match R- or G- plus at least three digits", ErrV2InvalidID, path, fields.ID)
 	}
 	if strings.TrimSpace(fields.Title) == "" {
 		return nil, fmt.Errorf("%w: %s: release %s missing required field title", ErrV2MissingField, path, fields.ID)

@@ -78,11 +78,43 @@ history:
       Owner instructed the executor to mark this Issue resolved once 2.0.3 was
       live. The fix shipped in savepoint 2.0.3 on npm (tag v2.0.3, merge
       c62c366). No technical CLEAR is implied.
+  - at: '2026-09-26T04:44:12Z'
+    actor: {role: owner, session: user}
+    kind: reopened
+    note: >-
+      Reopened on the owner's instruction before merging v2 into master. A
+      different Windows failure mode: the master CI run for PR #17 (run
+      36215377170, 2c567a6, first attempt) failed
+      TestAllocateTaskID_serializesConcurrentCallers with one caller getting
+      "create lock ...task-ids.lock: Access is denied" and 15 of 16
+      reservations. The rerun passed. The owner-accepted resolution is
+      withdrawn.
+  - at: '2026-09-26T04:49:37Z'
+    actor: {role: executor, session: v2-main-flaky}
+    kind: repair_attempted
+    note: >-
+      acquireTaskIDLock now asks taskIDLockBusy whether a failed exclusive
+      create means the lock is busy: "exists" on every platform, and on
+      Windows also access denied, the delete-pending state. Busy failures
+      retry within the existing taskIDLockWait; a Windows permission error
+      that lasts the whole wait reports the real error. Added
+      TestTaskIDLockBusy_retriesWindowsDeletePendingOnly. GOOS=windows go vet,
+      make build, and make test-full passed on Linux, and the concurrency test
+      passed 30 of 30 there. Windows proof awaits the windows-tests CI job.
+  - at: '2026-09-26T04:54:11Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark fixed Issues resolved before
+      pushing. The windows-tests job passed on ae76b3d (run 36219062865),
+      the first Windows run with the fix; that is one passing run, not a
+      long streak. No independent Check was run and no technical CLEAR is
+      implied.
 resolution:
   disposition: accepted
   actor: {role: owner, session: user}
-  at: '2026-09-25T23:45:21Z'
-  reason: Owner accepted the fix as deployed in savepoint 2.0.3.
+  at: '2026-09-26T04:54:11Z'
+  reason: Owner accepted the Windows lock repair after windows-tests passed on ae76b3d.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
@@ -156,3 +188,61 @@ Show `TestAllocateTaskID_serializesConcurrentCallers` passing repeatedly in
 the windows-tests job, and add a regression test in which a lock that keeps
 changing hands for longer than `taskIDLockWait` does not cause a refusal,
 while a single lock held longer than `taskIDLockWait` still does.
+
+## Recurrence After 2.0.3 (2026-09-26)
+
+The 2.0.3 repair (a 10 s wait measured per caller) fixed the deadline
+failure; none of the later Windows runs fail that way. A different
+Windows-only failure now appears in the same test.
+
+Evidence:
+
+- Run 36215377170 (master, merge of PR #17, 2c567a6), windows-tests, first
+  attempt: `discover_test.go:398: AllocateTaskID() concurrent call error =
+  allocate Task ID: create lock C:\Users\RUNNER~1\...\.savepoint\task-ids.lock:
+  open ...task-ids.lock: Access is denied.` and `unique reservations = 15,
+  want 16`. The Linux `ci` job passed; a rerun of the Windows job passed.
+- Across the last 60 CI runs, the only failures of this test are this one and
+  the three pre-2.0.3 deadline failures already recorded above.
+
+Analysis:
+
+- `acquireTaskIDLock` retries only when `os.OpenFile(..., O_CREATE|O_EXCL)`
+  returns `os.ErrExist`; any other error fails the caller at once.
+- `releaseTaskIDLock` closes the lock and then calls `os.Remove`. On Windows
+  a deleted file stays in a "delete pending" state until every handle to it
+  is closed (another process such as an antivirus scanner can hold one
+  briefly). Creating a file with that name meanwhile fails with
+  `ERROR_ACCESS_DENIED`, which Go reports as a permission error, not
+  `os.ErrExist`. So a caller that lands in that brief window is refused
+  outright instead of waiting its turn. This is inferred from the error and
+  Windows file semantics; it was not reproduced locally (no Windows host).
+
+Possible fix: on Windows, treat a permission error from the exclusive create
+as "lock busy" and keep retrying within the existing `taskIDLockWait`
+deadline, reporting the last real error if the deadline passes. Linux
+behavior is unchanged.
+
+Proof Needed for the recurrence:
+
+- A Windows access-denied error while another allocator releases the lock is
+  retried, not reported; a lasting permission problem still fails with the
+  real error once the wait ends.
+- Unit coverage of the retry decision on every platform, plus the Windows CI
+  job passing `TestAllocateTaskID_serializesConcurrentCallers` on repeated
+  runs (for example `-count=20` in a diagnostic run).
+
+### Repair Attempt Evidence (2026-09-26)
+
+- `internal/data/task_ids.go`: new `taskIDLockBusy(err, goos)`;
+  `acquireTaskIDLock` retries while it returns true and, after the wait,
+  reports a lasting non-exists error as
+  `create lock ...: still failing after 10s: <error>`.
+- `internal/data/discover_test.go`
+  `TestTaskIDLockBusy_retriesWindowsDeletePendingOnly` covers "exists" on
+  Linux and Windows, access denied on Windows (retried), access denied on
+  Linux (not retried), and other Windows errors (not retried).
+- Linux: `make build`, `make test-full`, and
+  `go test -count=30 -run TestAllocateTaskID_serializesConcurrentCallers
+  ./internal/data` passed. `GOOS=windows go vet ./internal/data` passed.
+- Not yet proven on Windows; the next windows-tests CI run is the evidence.

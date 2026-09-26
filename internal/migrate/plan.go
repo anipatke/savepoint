@@ -112,11 +112,9 @@ func (t PlannedTarget) InstallPath() string {
 	return t.TargetPath
 }
 
-// ArchiveEntry is one V1 source preserved byte-for-byte under .savepoint/archive/v1/
-// instead of being converted, because it is settled history (a done Task, a
-// closed epic, a resolved defect, a verified or waived finding, a duplicate
-// finding whose canonical is itself archived) or because it matched no known
-// role at all.
+// ArchiveEntry is one V1 source preserved byte-for-byte under .savepoint/archive/v1/.
+// Sources for converted records are archived too, so the original stays
+// available beside the V2 identity that replaces it.
 type ArchiveEntry struct {
 	SourcePath  string
 	ArchivePath string
@@ -430,7 +428,7 @@ func indexSourcesByPath(sources []SourceFile) map[string]SourceFile {
 	return byPath
 }
 
-// idAllocator assigns the next unused O/T/I/R number in allocation order.
+// idAllocator assigns the next unused O/T/I/R/G number in allocation order.
 // Archived-only records never call allocate, so they reserve nothing —
 // exactly the "never reused, never reserved for archive-only work" rule.
 type idAllocator struct {
@@ -438,7 +436,7 @@ type idAllocator struct {
 }
 
 func newIDAllocator() *idAllocator {
-	return &idAllocator{next: map[string]int{"O": 1, "T": 1, "I": 1, "R": 1}}
+	return &idAllocator{next: map[string]int{"O": 1, "T": 1, "I": 1, "R": 1, "G": 1}}
 }
 
 func (a *idAllocator) allocate(prefix string) string {
@@ -683,7 +681,7 @@ func (b *planBuilder) planRouterGoalSelection() error {
 	}
 
 	hasExistingLiveGoal := b.hasSourceLiveGoal()
-	goalID := b.ids.allocate("R")
+	goalID := b.ids.allocate("G")
 	b.targets = append(b.targets, PlannedTarget{
 		Kind:           TargetRelease,
 		GlobalID:       goalID,
@@ -1129,6 +1127,7 @@ func (b *planBuilder) planTasksImpl(discover *data.Discover, savepointRoot, rele
 			TargetPath:    filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2TasksDir, taskID+"-"+slugOf(task.ID))),
 			DecidedStatus: decidedStatus,
 		})
+		b.archiveConvertedSource(legacy, RoleTask)
 	}
 
 	// Dependencies are resolved in a second inner pass so a task depending on
@@ -1160,13 +1159,7 @@ func (b *planBuilder) retireTaskDeclaration(path string) string {
 	kept := b.targets[:0]
 	for _, target := range b.targets {
 		if target.Kind == TargetTask && target.Legacy.Path == path {
-			legacy := target.Legacy
-			b.archives = append(b.archives, ArchiveEntry{
-				SourcePath:  path,
-				ArchivePath: archivePathFor(path),
-				Role:        RoleTask,
-				Legacy:      &legacy,
-			})
+			b.archiveConvertedSource(target.Legacy, RoleTask)
 			continue
 		}
 		kept = append(kept, target)
@@ -1284,6 +1277,7 @@ func (b *planBuilder) planDefect(release string, info data.DefectInfo) error {
 		Legacy:     legacy,
 		TargetPath: filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(defect.ID)+".md")),
 	})
+	b.archiveConvertedSource(legacy, RoleDefect)
 	return nil
 }
 
@@ -1345,6 +1339,7 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 			Legacy:     legacy,
 			TargetPath: filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
 		})
+		b.archiveConvertedSource(legacy, RoleFinding)
 		return nil
 
 	case data.FindingVerified:
@@ -1396,6 +1391,7 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 				TargetPath:    filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
 				DecidedStatus: string(data.FindingOpen),
 			})
+			b.archiveConvertedSource(legacy, RoleFinding)
 			return nil
 		}
 
@@ -1419,6 +1415,7 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 				TargetPath:          filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
 				DuplicateOfGlobalID: canonicalID,
 			})
+			b.archiveConvertedSource(legacy, RoleFinding)
 			return nil
 		}
 		b.archives = append(b.archives, ArchiveEntry{
@@ -1456,7 +1453,26 @@ func (b *planBuilder) planFindingForward(canonical *data.AuditFinding) (string, 
 		Legacy:     LegacyKey{Path: canonical.Path, OriginalID: canonical.ID},
 		TargetPath: filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(canonical.ID)+".md")),
 	})
+	b.archiveConvertedSource(LegacyKey{Path: canonical.Path, OriginalID: canonical.ID}, RoleFinding)
 	return issueID, nil
+}
+
+// archiveConvertedSource retains the exact V1 bytes for a record that also
+// gets a V2 identity. A source can pass through more than one planning path
+// (for example when a duplicate Task declaration is replaced), so keep one
+// archive mapping per source path.
+func (b *planBuilder) archiveConvertedSource(legacy LegacyKey, role Role) {
+	for _, archive := range b.archives {
+		if archive.SourcePath == legacy.Path {
+			return
+		}
+	}
+	b.archives = append(b.archives, ArchiveEntry{
+		SourcePath:  legacy.Path,
+		ArchivePath: archivePathFor(legacy.Path),
+		Role:        role,
+		Legacy:      &legacy,
+	})
 }
 
 // recordWaivedReferences checks whether a waived finding's own work_item or

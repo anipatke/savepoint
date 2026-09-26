@@ -119,9 +119,9 @@ func routerGoalRepair(index *data.V2Index) string {
 
 func objectiveGoalRepair(index *data.V2Index) string {
 	if !index.HasLiveGoal() {
-		return "Create a Goal first, then add `release: R-###` to this Objective file."
+		return "Create a Goal first, then add its `release:` field using an R-### or G-### Goal ID."
 	}
-	return "Add `release: R-###` to this Objective file, using an existing Goal ID."
+	return "Add a `release:` field to this Objective file using an existing R-### or G-### Goal ID."
 }
 
 func checkRouterV2(root string) (*data.RouterStateV2, error) {

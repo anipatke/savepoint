@@ -52,7 +52,7 @@ type ObjectiveV2 struct {
 	Priority  ObjectivePriority
 	Rank      int       // zero means unranked
 	DependsOn []string  // O-### references
-	Release   ReleaseID // optional R-### Release reference
+	Release   ReleaseID // optional R-### or G-### Goal reference
 	Evidence  *Evidence
 	Source    V2SourceDocument
 }

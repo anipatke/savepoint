@@ -9,7 +9,7 @@ description: Guides Savepoint idea intake when router state is idea, turning a r
 
 Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. This skill owns intent and boundary only: what is being built, for whom, the core experience, what's in and out of scope, and how success is judged. It does not design a solution.
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. A fresh project starts with R-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation and moves that Objective into it; unresolved release lifecycle decisions remain in the preview. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select one, or follow `savepoint doctor`'s repair guidance to create one when none exists. A missing Objective `release:` is reported by resume and the board, and doctor names the Objective and exact `release: R-###` line to add. Goals remain stored as `R-###` Release records; in the V2 board, `g` is the canonical selector and `r` remains an undisplayed compatibility alias. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. A fresh project starts with G-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. New Goals use the next unused G-### identity, while existing R-### Goals keep their IDs, paths, and references. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select one, or follow `savepoint doctor`'s repair guidance to create one when none exists. A missing Objective `release:` is reported by resume and the board, and doctor names the Objective and an exact `release:` field using an existing R-### or G-### Goal ID. Goals remain stored as R-### or G-### records in `Release.md`; in the V2 board, `g` is the canonical selector and `r` remains an undisplayed compatibility alias. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 ## Trigger
 
@@ -33,11 +33,11 @@ Read nothing else. Design.md, Guardrails.md, Objective or Task files, and untarg
 
 1. Read the router, any existing `.savepoint/Idea.md`, and its selected Goal record when that selection resolves.
 2. Accept a single rough sentence as a valid starting input. Do not require a prepared requirements document, research document, or a completed template before the conversation starts.
-3. Use the router-selected Goal as the project's planning context. On a fresh project, this is the R-001 placeholder created by `savepoint init`; tell the owner it already exists and do not create another Goal for the same initial outcome.
-4. Ask focused questions to fill each Idea section: Intent, User, Core Experience, Scope, Out of Scope, Success Criteria. For the fresh R-001 placeholder, also gather the owner's wording for Outcome, Why, Success Conditions, and Boundaries.
+3. Use the router-selected Goal as the project's planning context. On a fresh project, this is the G-001 placeholder created by `savepoint init`; tell the owner it already exists and do not create another Goal for the same initial outcome.
+4. Ask focused questions to fill each Idea section: Intent, User, Core Experience, Scope, Out of Scope, Success Criteria. For the fresh G-001 placeholder, also gather the owner's wording for Outcome, Why, Success Conditions, and Boundaries.
 5. When a question turns on material product uncertainty — a choice only the owner can make, not one inferable from context — ask the owner directly. Do not resolve product choices by inference.
 6. When grounding the idea against an existing project, read only the targeted evidence needed for that grounding; do not let it turn into designing a solution. Preserve existing Goal content; only fill the fresh scaffold placeholder from owner-provided answers.
-7. Write `.savepoint/Idea.md` using the Idea artifact template below, and fill the fresh R-001 placeholder's sections with the owner's answers while preserving its identity and project-name title.
+7. Write `.savepoint/Idea.md` using the Idea artifact template below, and fill the fresh G-001 placeholder's sections with the owner's answers while preserving its identity and project-name title.
 8. When the Idea is ready, set router `state: design` and hand off to `savepoint-design`. This skill does not detail any Objective itself; that belongs to `savepoint-design`. Do not write a free-text next action; follow AGENTS.md's Router Selection section for any selection changes.
 
 ## Idea Artifact Template
@@ -79,7 +79,7 @@ How to tell this idea succeeded.
 
 ## Rules
 
-- Write `.savepoint/Idea.md`, owner-provided sections in the fresh R-001 placeholder, and the routing handoff. Do not create another Goal or write Design, Guardrails, Objectives, Tasks, Checks, Issues, or production code.
+- Write `.savepoint/Idea.md`, owner-provided sections in the fresh G-001 placeholder, and the routing handoff. Do not create another Goal or write Design, Guardrails, Objectives, Tasks, Checks, Issues, or production code.
 - Do not design architecture or name components/interfaces.
 - Do not detail any Objective; hand off to `savepoint-design` for that.
 - Ask the owner about material product uncertainty instead of deciding it by inference.

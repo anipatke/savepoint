@@ -26,7 +26,7 @@ const (
 // against the project index by ResolveSelection.
 type RouterStateV2 struct {
 	State                RouterPhaseV2
-	Release              string // R-### selection, or empty when no Release is selected
+	Release              string // R-### or G-### Goal selection, or empty when none is selected
 	Objective            string // O-### selection, or empty when none is selected
 	Task                 string // T-### selection, or empty when none is selected
 	Issue                string // I-### selection, or empty when none is selected
@@ -50,7 +50,7 @@ type routerV2Frontmatter struct {
 // ReadStateV2 decodes the "## Current state" anchor into a V2 RouterStateV2.
 // It reuses extractStateBlock's anchor-finding — the same heading and fenced
 // ```yaml block the V1 reader locates — and then decodes strictly (DATA-03):
-// an unrecognized or empty state, a malformed R-###/O-###/T-###/I-###
+// an unrecognized or empty state, a malformed R-###/G-###/O-###/T-###/I-###
 // selection, a task selected without an objective, and an unknown key each
 // return a named diagnostic instead of a healed default. The retired
 // next_action key is tolerated for compatibility, but its value is discarded.
@@ -77,8 +77,8 @@ func (r *RouterReader) ReadStateV2(content string) (*RouterStateV2, error) {
 	}
 
 	release := normalizeRouterSelectionV2(fields.Release)
-	if release != "" && !matchesV2Identity(release, 'R') {
-		return nil, fmt.Errorf("%w: router release %q must be a single R-### selection", ErrV2InvalidID, fields.Release)
+	if release != "" && !matchesGoalIdentityV2(release) {
+		return nil, fmt.Errorf("%w: router release %q must be a single R-### or G-### Goal selection", ErrV2InvalidID, fields.Release)
 	}
 
 	objective := normalizeRouterSelectionV2(fields.Objective)

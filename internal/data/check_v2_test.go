@@ -102,6 +102,27 @@ checked_at: '2026-09-14T00:00:00Z'
 	}
 }
 
+func TestDecodeCheckV2_acceptsNewGoalScopeIdentity(t *testing.T) {
+	content := `---
+id: C-004
+scope: {kind: release, id: G-001}
+result: CLEAR
+checked_by: {role: checker, session: review-004}
+executed_session: build-004
+checked_at: '2026-09-14T00:00:00Z'
+---
+
+# Check`
+
+	check, err := DecodeCheckV2("checks/C-004-clear.md", content)
+	if err != nil {
+		t.Fatalf("DecodeCheckV2() error = %v", err)
+	}
+	if check.Scope != (CheckScope{Kind: CheckScopeRelease, ID: "G-001"}) {
+		t.Errorf("Scope = %+v, want {release G-001}", check.Scope)
+	}
+}
+
 func TestDecodeCheckV2_clearAllowsAbsentReviewed(t *testing.T) {
 	content := `---
 id: C-003

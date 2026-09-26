@@ -162,10 +162,15 @@ func RunCommand(opts CommandOptions) (int, error) {
 	}
 
 	if !opts.Write {
-		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		if !plan.Appliable {
+			fmt.Fprint(opts.Stdout, opts.preview(plan))
 			return 1, unresolvedAmbiguityError(plan)
 		}
+		if err := ensureCleanGitTree(root, plan, opts.RunGit); err != nil {
+			fmt.Fprint(opts.Stdout, previewBlockedByGit(plan, opts, err))
+			return 1, err
+		}
+		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		return 0, nil
 	}
 
@@ -219,6 +224,34 @@ func unresolvedAmbiguityError(plan *ConversionPlan) error {
 	return fmt.Errorf("migrate: unresolved blocking ambiguities: %s", strings.Join(plan.UnresolvedBlockingIDs, ", "))
 }
 
+func previewBlockedByGit(plan *ConversionPlan, opts CommandOptions, checkErr error) string {
+	preview := opts.preview(plan)
+	if !opts.Verbose {
+		preview = strings.Replace(preview, "Status: ready. To apply, run the same command with --apply.\n", "", 1)
+	}
+
+	var out strings.Builder
+	out.WriteString(preview)
+	if !strings.HasSuffix(preview, "\n") {
+		out.WriteByte('\n')
+	}
+	if !strings.HasSuffix(preview, "\n\n") {
+		out.WriteByte('\n')
+	}
+
+	var dirty *dirtyGitPathsError
+	if errors.As(checkErr, &dirty) {
+		out.WriteString("Status: blocked by working-tree changes.\n")
+		fmt.Fprintf(&out, "%s\n", formatGitPathGroups(dirty.groups))
+		fmt.Fprintf(&out, "Repair: %s\n", dirtyGitRepairAdvice)
+		return out.String()
+	}
+
+	out.WriteString("Status: blocked by the Git working-tree check.\n")
+	fmt.Fprintf(&out, "%s\n", checkErr)
+	return out.String()
+}
+
 func applyOutcomeMessage(result *ApplyResult, plan *ConversionPlan) string {
 	switch {
 	case result.AlreadyMigrated:
@@ -245,9 +278,72 @@ func ensureCleanGitTree(root string, plan *ConversionPlan, runGit GitCommand) er
 		return fmt.Errorf("migrate: inspect git status for migration paths: %w", err)
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("%w: %s; stage and commit or stash changed paths, and move ignored files out of planned paths before retrying `savepoint migrate --apply`", ErrDirtyGitPaths, strings.TrimSpace(status))
+		return &dirtyGitPathsError{groups: groupGitStatusPaths(status)}
 	}
 	return nil
+}
+
+const dirtyGitRepairAdvice = "stage and commit or stash changed paths, and move ignored files out of planned paths before retrying `savepoint migrate --apply`"
+
+type gitStatusGroups struct {
+	modified  []string
+	untracked []string
+	ignored   []string
+}
+
+type dirtyGitPathsError struct {
+	groups gitStatusGroups
+}
+
+func (e *dirtyGitPathsError) Error() string {
+	return fmt.Sprintf("%s:\n%s\nRepair: %s", ErrDirtyGitPaths, formatGitPathGroups(e.groups), dirtyGitRepairAdvice)
+}
+
+func (e *dirtyGitPathsError) Unwrap() error { return ErrDirtyGitPaths }
+
+func groupGitStatusPaths(status string) gitStatusGroups {
+	var groups gitStatusGroups
+	for _, line := range strings.Split(status, "\n") {
+		if line == "" {
+			continue
+		}
+		if len(line) < 3 {
+			groups.modified = append(groups.modified, line)
+			continue
+		}
+
+		code := line[:2]
+		path := line[3:]
+		switch code {
+		case "??":
+			groups.untracked = append(groups.untracked, path)
+		case "!!":
+			groups.ignored = append(groups.ignored, path)
+		default:
+			groups.modified = append(groups.modified, path)
+		}
+	}
+	sort.Strings(groups.modified)
+	sort.Strings(groups.untracked)
+	sort.Strings(groups.ignored)
+	return groups
+}
+
+func formatGitPathGroups(groups gitStatusGroups) string {
+	var out strings.Builder
+	writeGroup := func(name string, paths []string) {
+		if len(paths) == 0 {
+			return
+		}
+		fmt.Fprintf(&out, "%s:\n", name)
+		for _, path := range paths {
+			fmt.Fprintf(&out, "  - %s\n", path)
+		}
+	}
+	writeGroup("Modified", groups.modified)
+	writeGroup("Untracked", groups.untracked)
+	writeGroup("Ignored", groups.ignored)
+	return strings.TrimSuffix(out.String(), "\n")
 }
 
 func defaultGitCommand(dir string, args ...string) (string, error) {
@@ -258,11 +354,25 @@ func defaultGitCommand(dir string, args ...string) (string, error) {
 	commandArgs := append([]string{"--literal-pathspecs"}, args...)
 	command := exec.Command(gitPath, commandArgs...)
 	command.Dir = dir
+	if len(args) > 0 && args[0] == "status" {
+		command.Env = envWithGitOptionalLocksDisabled(os.Environ())
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return string(output), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return string(output), nil
+}
+
+func envWithGitOptionalLocksDisabled(env []string) []string {
+	const setting = "GIT_OPTIONAL_LOCKS=0"
+	for i, entry := range env {
+		if strings.HasPrefix(entry, "GIT_OPTIONAL_LOCKS=") {
+			env[i] = setting
+			return env
+		}
+	}
+	return append(env, setting)
 }
 
 func plannedGitPaths(plan *ConversionPlan) []string {

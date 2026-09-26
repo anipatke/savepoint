@@ -2,7 +2,7 @@
 id: I-070
 title: Migrate leaves the V1 sources of converted Tasks, defects, and findings in place
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -17,6 +17,31 @@ history:
       defects, 7 tasks) that had been converted to V2 Issues and Tasks were
       still at their V1 paths and had no copy under .savepoint/archive/v1/.
       The executor moved them into the archive by hand with git mv.
+  - at: '2026-09-26T04:23:06Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Added archive mappings for converted Tasks, defects, and findings. Apply
+      now copies their original bytes to .savepoint/archive/v1/ and removes the
+      V1 source through the existing archive batch; preview and manifest
+      include the mappings. Fixture tests verify source removal, byte
+      preservation, and manifest resolution. Regenerated the five migration
+      goldens after reviewing the intended archive additions. make build
+      passed. The first make test-full found one stale archived-router golden;
+      after regenerating the fallback goldens, make test-full passed.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 5d3075f.
 ---
 
 # I-070: Migrate leaves the V1 sources of converted Tasks, defects, and findings in place

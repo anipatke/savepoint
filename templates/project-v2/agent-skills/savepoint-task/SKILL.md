@@ -11,7 +11,7 @@ Build exactly one Task within the boundaries the planner already set, and leave 
 
 ## Goal Context
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive R-001 from `savepoint init`. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation and moves that Objective into it; unresolved release lifecycle decisions remain in the preview.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive G-001 from `savepoint init`; existing R-### Goals remain unchanged. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities, and unresolved release lifecycle decisions remain in the preview.
 
 ## Trigger
 
@@ -41,6 +41,8 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 6. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
 7. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
 8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
+
+In a worktree lane, follow AGENTS.md's Worktree Lanes section: skip the router writes in step 2 and after a direct Issue repair, create no Tasks, Checks, or Issues, and commit on the lane branch without pushing or merging.
 
 ## Write Boundary
 

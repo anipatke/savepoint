@@ -2,7 +2,7 @@
 id: I-071
 title: Migrate keeps the V1 router's retired next_action line
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -17,6 +17,29 @@ history:
       epic audit (savepoint-audit-epic)...", and doctor then warned
       [router-next-action-retired] with the repair "Delete the next_action
       line".
+  - at: '2026-09-26T04:37:46Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Removed next_action from the V2 router render model. Converted routers
+      retain their mapped state, Goal, Objective, Task, and surrounding prose;
+      retired V1 selection keys are omitted. Tests confirm doctor reports no
+      router-next-action-retired warning on migrated fixtures. Reviewed and
+      regenerated all five migration goldens. make build, make test-fast, and
+      the final make test-full passed.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 5d3075f.
 ---
 
 # I-071: Migrate keeps the V1 router's retired next_action line

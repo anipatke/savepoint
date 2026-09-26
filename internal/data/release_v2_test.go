@@ -59,6 +59,16 @@ func TestDecodeReleaseV2_valid(t *testing.T) {
 	}
 }
 
+func TestDecodeReleaseV2_acceptsNewGoalIdentity(t *testing.T) {
+	release, err := DecodeReleaseV2("releases/G-001-first-goal/Release.md", validReleaseContent("G-001", "First Goal", "in_progress"))
+	if err != nil {
+		t.Fatalf("DecodeReleaseV2() error = %v", err)
+	}
+	if release.ID != "G-001" {
+		t.Errorf("Release ID = %q, want G-001", release.ID)
+	}
+}
+
 func TestDecodeReleaseV2_rejectsMalformedIdentityLifecycleAndBody(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -110,10 +120,10 @@ func TestDiscoverV2Releases_absentDirectoryIsEmpty(t *testing.T) {
 func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 	root := t.TempDir()
 	writeV2ReleaseFixture(t, root, "R-001-first", "R-001", "First release")
-	writeV2ReleaseFixture(t, root, "R-002-second", "R-002", "Second release")
+	writeV2ReleaseFixture(t, root, "G-001-second", "G-001", "Second Goal")
 
 	writeV2ObjectiveWithRelease(t, root, "O-001-first", "O-001", "First objective", "R-001")
-	writeV2ObjectiveWithRelease(t, root, "O-002-second", "O-002", "Second objective", "R-002")
+	writeV2ObjectiveWithRelease(t, root, "O-002-second", "O-002", "Second objective", "G-001")
 	writeV2ObjectiveFixture(t, root, "O-003-unassigned", "O-003", "Unassigned objective")
 	writeV2TaskFixture(t, root, "O-001-first", "T-001-first.md", "T-001", "First task", "O-001")
 
@@ -127,8 +137,8 @@ func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 	if got := index.ReleaseObjectives["R-001"]; len(got) != 1 || got[0] != "O-001" {
 		t.Errorf("ReleaseObjectives[R-001] = %v, want [O-001]", got)
 	}
-	if got := index.ReleaseObjectives["R-002"]; len(got) != 1 || got[0] != "O-002" {
-		t.Errorf("ReleaseObjectives[R-002] = %v, want [O-002]", got)
+	if got := index.ReleaseObjectives["G-001"]; len(got) != 1 || got[0] != "O-002" {
+		t.Errorf("ReleaseObjectives[G-001] = %v, want [O-002]", got)
 	}
 	if got := index.ReleaseObjectives["R-003"]; got != nil {
 		t.Errorf("ReleaseObjectives[R-003] = %v, want nil for unknown Release", got)
@@ -144,9 +154,9 @@ func TestLoadV2Index_releasesDeriveObjectiveMembership(t *testing.T) {
 func TestLoadV2Index_routerReleaseSelectionResolvesExistingRecords(t *testing.T) {
 	root := t.TempDir()
 	writeV2ReleaseFixture(t, root, "R-001-existing", "R-001", "Existing release one")
-	writeV2ReleaseFixture(t, root, "R-002-existing", "R-002", "Existing release two")
+	writeV2ReleaseFixture(t, root, "G-001-existing", "G-001", "Existing Goal two")
 	writeV2ObjectiveWithRelease(t, root, "O-001-existing", "O-001", "Existing objective one", "R-001")
-	writeV2ObjectiveWithRelease(t, root, "O-002-existing", "O-002", "Existing objective two", "R-002")
+	writeV2ObjectiveWithRelease(t, root, "O-002-existing", "O-002", "Existing objective two", "G-001")
 	writeV2TaskFixture(t, root, "O-001-existing", "T-001-existing.md", "T-001", "Existing task one", "O-001")
 	writeV2TaskFixture(t, root, "O-002-existing", "T-002-existing.md", "T-002", "Existing task two", "O-002")
 
@@ -185,6 +195,14 @@ func TestLoadV2Index_routerReleaseSelectionResolvesExistingRecords(t *testing.T)
 	}
 	if selection.Release == nil || selection.Release.ID != "R-001" || selection.Objective != nil || selection.Task != nil {
 		t.Errorf("mismatched selection = %+v, want only R-001 without substituted Objective or Task", selection)
+	}
+
+	selection, diagnostic = ResolveSelection(index, readRouter("G-001", "O-002", "T-002"))
+	if diagnostic != nil {
+		t.Fatalf("ResolveSelection() with G Goal diagnostic = %+v, want nil", diagnostic)
+	}
+	if selection.Release == nil || selection.Release.ID != "G-001" || selection.Objective == nil || selection.Objective.ID != "O-002" {
+		t.Errorf("G Goal selection = %+v, want G-001 with O-002", selection)
 	}
 }
 
