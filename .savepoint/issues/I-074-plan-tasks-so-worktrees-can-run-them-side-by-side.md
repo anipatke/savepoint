@@ -18,6 +18,16 @@ history:
       deliver in parallel where practical. Today the planner orders Tasks but
       never says which can run side by side, and every lane prompt had to
       restate the worktree rules.
+  - at: '2026-09-26T04:35:18Z'
+    actor: {role: executor, session: v2-main-i074}
+    kind: repair_attempted
+    note: >-
+      Added lane shaping and plain-language lane naming to savepoint-design
+      steps 5 and 7, a Worktree Lanes section to AGENTS.md and the V2
+      scaffold AGENTS.md, and a pointer to it from savepoint-task. Template
+      skill copies stay byte-identical. Added
+      TestGuidancePlansAndBoundsWorktreeLanes; `make build && make test-fast`
+      passed. No router edit: I-074 was never the router selection.
 ---
 
 # I-074: Plan Tasks so worktrees can run them side by side
@@ -69,3 +79,18 @@ machinery. Keep it small: no new fields, statuses, router keys, or commands.
   merging.
 - Canonical skills and their `templates/project-v2` copies stay byte-identical;
   guidance tests cover the new phrases; `make build && make test-fast` pass.
+
+## Repair Attempt Evidence
+
+- `agent-skills/savepoint-design/SKILL.md` step 7 now prefers Tasks with no
+  `depends_on` path between them and no overlapping Context Files where
+  practical, keeping shared work in one sequential lane; step 5 names the
+  parallel lanes in plain words in the owner review.
+- `AGENTS.md` and `templates/project-v2/AGENTS.md` gain a Worktree Lanes
+  section: how a lane is recognised, no router edits, no new Tasks, Checks,
+  or Issues, commit on the lane branch, Checks after merging.
+- `agent-skills/savepoint-task/SKILL.md` points to that section from its
+  Workflow. Canonical and template skills are byte-identical.
+- `internal/init/template_freshness_test.go`
+  `TestGuidancePlansAndBoundsWorktreeLanes` covers every new phrase in live
+  and template copies. `make build && make test-fast` passed (2026-09-26T04:35:18Z).

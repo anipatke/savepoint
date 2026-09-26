@@ -42,6 +42,8 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 7. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
 8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
 
+In a worktree lane, follow AGENTS.md's Worktree Lanes section: skip the router writes in step 2 and after a direct Issue repair, create no Tasks, Checks, or Issues, and commit on the lane branch without pushing or merging.
+
 ## Write Boundary
 
 This skill may write: scoped implementation for the active Task, recorded evidence (extra reads, per-criterion outcomes, command results, limitations), lifecycle progress (`status` and `stage`), and a replan handoff when one is needed.
