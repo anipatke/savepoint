@@ -16,6 +16,17 @@ history:
       Migrating galaxy with 2.0.5: the preview printed "Status: ready", then
       --apply refused twice, first for untracked and modified audit files,
       then for git-ignored screenshot folders under planned paths.
+  - at: '2026-09-26T04:32:36Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Preview now runs the same clean-Git preflight as apply. Dirty paths are
+      grouped as modified, untracked, and ignored in a blocked preview with
+      the same repair advice; outside-Git projects show apply's refusal. Git
+      status disables optional locks so preview does not refresh .git/index.
+      Tests cover all path groups, a clean tree, outside Git, and unchanged
+      project contents. Regenerated the migration goldens; output was
+      unchanged. make build, make test-fast, and make test-full passed.
 ---
 
 # I-069: The migrate preview says ready when apply will refuse the working tree
