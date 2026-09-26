@@ -2,7 +2,7 @@
 id: I-067
 title: Migrate reports some owner decisions resolved but never applies them
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -41,6 +41,18 @@ history:
       earlier test-full run failed TestV2WatcherDebouncesRapidWrites under
       load, which passed 20 of 20 in isolation and on the rerun. Issue
       remains open for verification or owner acceptance.
+  - at: '2026-09-26T03:34:53Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved. The fix
+      shipped in savepoint 2.0.5 on npm (tag v2.0.5), and in real use the galaxy migration planned the decided epics E10 and E11 as O-006 and O-007.
+      No technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T03:34:53Z'
+  reason: Owner accepted the fix as deployed in savepoint 2.0.5.
 ---
 
 # I-067: Migrate reports some owner decisions resolved but never applies them

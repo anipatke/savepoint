@@ -2,7 +2,7 @@
 id: I-066
 title: An unknown command opens the board, and a board failure panics
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -29,6 +29,18 @@ history:
       V1 board refusal tests still pass. Bare savepoint in this V2 repo still
       renders the board. git diff --check and make build && make test-fast
       passed. Issue remains open for verification or owner acceptance.
+  - at: '2026-09-26T03:34:53Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved. The fix
+      shipped in savepoint 2.0.4 on npm (tag v2.0.4), and in real use "npx savepoint update" in a V1 project printed the unknown-command usage without a panic.
+      No technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T03:34:53Z'
+  reason: Owner accepted the fix as deployed in savepoint 2.0.4.
 ---
 
 # I-066: An unknown command opens the board, and a board failure panics
