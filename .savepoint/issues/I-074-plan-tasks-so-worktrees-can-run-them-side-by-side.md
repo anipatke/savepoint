@@ -2,7 +2,7 @@
 id: I-074
 title: Plan Tasks so worktrees can run them side by side
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -28,6 +28,25 @@ history:
       skill copies stay byte-identical. Added
       TestGuidancePlansAndBoundsWorktreeLanes; `make build && make test-fast`
       passed. No router edit: I-074 was never the router selection.
+  - at: "2026-09-26T04:36:29Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Moved from open to in_progress by the owner from the board.
+  - at: "2026-09-26T04:36:30Z"
+    actor:
+      role: owner
+      session: board-owner
+    kind: owner_decision
+    note: Resolved by the owner from the board.
+resolution:
+  disposition: accepted
+  actor:
+    role: owner
+    session: board-owner
+  at: "2026-09-26T04:36:30Z"
+  reason: Resolved by the owner from the board.
 ---
 
 # I-074: Plan Tasks so worktrees can run them side by side

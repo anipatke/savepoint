@@ -2,7 +2,7 @@
 id: I-069
 title: The migrate preview says ready when apply will refuse the working tree
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -27,6 +27,19 @@ history:
       Tests cover all path groups, a clean tree, outside Git, and unchanged
       project contents. Regenerated the migration goldens; output was
       unchanged. make build, make test-fast, and make test-full passed.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 5d3075f.
 ---
 
 # I-069: The migrate preview says ready when apply will refuse the working tree

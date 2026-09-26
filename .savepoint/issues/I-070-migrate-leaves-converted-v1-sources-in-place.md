@@ -2,7 +2,7 @@
 id: I-070
 title: Migrate leaves the V1 sources of converted Tasks, defects, and findings in place
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -29,6 +29,19 @@ history:
       goldens after reviewing the intended archive additions. make build
       passed. The first make test-full found one stale archived-router golden;
       after regenerating the fallback goldens, make test-full passed.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 5d3075f.
 ---
 
 # I-070: Migrate leaves the V1 sources of converted Tasks, defects, and findings in place

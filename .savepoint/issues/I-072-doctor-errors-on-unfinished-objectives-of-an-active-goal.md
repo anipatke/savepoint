@@ -2,7 +2,7 @@
 id: I-072
 title: Doctor reports every unfinished Objective of an in-progress Goal as an error
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -33,6 +33,19 @@ history:
       written and the router was not edited. The reported galaxy project was
       unavailable in this worktree, so its direct Doctor command remains
       unverified.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair merged to v2 in 7adeff8.
 ---
 
 # I-072: Doctor reports every unfinished Objective of an in-progress Goal as an error

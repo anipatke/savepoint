@@ -2,7 +2,7 @@
 id: I-073
 title: New Goals still get R-### Release identities
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -30,6 +30,19 @@ history:
       Windows targets. `./savepoint resume` loaded this repository's existing
       R-007 Goal. See Repair Attempt Evidence for changed areas, test names,
       and the one unavailable external-project check.
+  - at: '2026-09-26T04:41:01Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved after the
+      repair merged to v2 with make build, make test-fast, and make test-full
+      passing on the merged branch. No independent Check was run and no
+      technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:41:01Z'
+  reason: Owner accepted the repair committed to v2 in c9a5e50.
 ---
 
 # I-073: New Goals still get R-### Release identities
