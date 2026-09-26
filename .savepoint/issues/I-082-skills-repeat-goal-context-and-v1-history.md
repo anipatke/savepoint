@@ -2,7 +2,7 @@
 id: I-082
 title: Every skill repeats Goal context, and two carry V1 and keybinding history
 type: drift
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:29:40Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      The four skills now carry a role-sized Goal paragraph and a one-line pointer to AGENTS.md for Next-line handling; V1 conversion detail and the r keybinding alias are gone from packaged skills. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-082: Every skill repeats Goal context, and two carry V1 and keybinding history
@@ -42,3 +48,10 @@ defect.
   keybinding detail move to migration or board guidance.
 - Router behavior and stale-reference tests still pass; packaged copies stay
   in parity.
+
+## Repair Attempt Evidence
+
+- Goal paragraph keeps every phrase `TestProjectGuidanceRequiresGoalContext` and `TestIdeaGuidanceFillsTheFreshProjectsGoal` pin.
+- task and check now tell the agent to report a missing Goal to the owner rather than select one.
+- Size: idea 5882→4788 bytes, design 19572→18790, check 13210→12738; task grew slightly (12197→12279) from the I-077/I-079 examples.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.

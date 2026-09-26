@@ -17,7 +17,7 @@ Use this skill when router `state` is `design`. When an executor returns `REPLAN
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. New Task creation uses the narrow `savepoint create-task` exception in the Task Creation section below. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router. New Task creation uses the narrow `savepoint create-task` exception in the Task Creation section below.
 
 ## Read
 
@@ -89,19 +89,13 @@ Objective references remain errors.
 
 `savepoint init` creates and selects G-001, titled after the project, with
 stub sections for Outcome, Why, Success Conditions, and Boundaries. Idea fills
-those sections with the owner. `savepoint migrate` retains the V1 router's live
-Goal. When that selection is missing or unresolvable, it reuses a uniquely
-identifiable existing live Goal for the converted active work when possible.
-If selected work belongs only to a historical Goal, migration creates a live
-continuation with a G-### identity and moves that active Objective into it.
-Converted V1 Releases keep their R-### identities. An unresolved release
-lifecycle decision stays in the preview and blocks Apply.
+those sections with the owner. Projects converted by `savepoint migrate` keep
+their R-### Goal identities.
 
 Existing V2 storage remains Release-compatible: existing Goals keep their
 stable `R-###` identities, paths, and references; new Goals use stable `G-###`
 identities in `.savepoint/releases/<slug>/Release.md`. Objectives and router
-selection retain the `release:` field for compatibility. The V2 board uses `g`
-as the canonical Goal selector; `r` is an undisplayed compatibility alias. A
+selection retain the `release:` field for compatibility. A
 Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 When adding another Goal:

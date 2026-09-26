@@ -11,7 +11,7 @@ Turn recorded evidence into an independent, immutable verdict. A Task Check is a
 
 ## Goal Context
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select a live Goal or follow `savepoint doctor`'s repair guidance to create one. An Objective missing `release:` remains loadable, but doctor names the Objective and the exact line to add. Fresh projects receive G-001 from `savepoint init`; existing R-### Goals remain unchanged. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities, and unresolved release lifecycle decisions remain in the preview.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. Goals come from `savepoint init` (G-001), `savepoint migrate`, and the planner, never from this skill. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal or `release:`, report it to the owner; do not pick or create a Goal yourself.
 
 ## Trigger
 
@@ -22,7 +22,7 @@ This session must be fresh: independent from the executor's conversation that bu
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This Check workflow uses `savepoint resume` only to resolve Next and validate project loading; Task creation remains planner-only under the narrow exception in AGENTS.md. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router. This Check workflow uses `savepoint resume` only to resolve Next and validate project loading.
 
 ## Read
 

@@ -9,7 +9,7 @@ description: Guides Savepoint idea intake when router state is idea, turning a r
 
 Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. This skill owns intent and boundary only: what is being built, for whom, the core experience, what's in and out of scope, and how success is judged. It does not design a solution.
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. A fresh project starts with G-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. New Goals use the next unused G-### identity, while existing R-### Goals keep their IDs, paths, and references. `savepoint migrate` keeps the V1 router's live Goal and reuses a uniquely identifiable existing live Goal for active work when its selection is missing or unresolvable. If selected work belongs only to a historical Goal, migration creates a live continuation with a G-### identity and moves that Objective into it; converted V1 Releases keep R-### identities. If the router Goal is missing, Next says `Choose a Goal`; use `g` to select one, or follow `savepoint doctor`'s repair guidance to create one when none exists. A missing Objective `release:` is reported by resume and the board, and doctor names the Objective and an exact `release:` field using an existing R-### or G-### Goal ID. Goals remain stored as R-### or G-### records in `Release.md`; in the V2 board, `g` is the canonical selector and `r` remains an undisplayed compatibility alias. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
+Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. `savepoint init` creates G-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. Projects converted by `savepoint migrate` may carry R-### Goal IDs; treat them like G-### Goals. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal, report it to the owner. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 ## Trigger
 
@@ -17,7 +17,7 @@ Use this skill when router `state` is `idea` in a V2 project. Legacy input is ha
 
 ## Next
 
-If the owner pasted a `Next` line, act on it directly without re-running `savepoint resume`; otherwise run the read-only `savepoint resume` command and act on its `Next` line. This is the only Savepoint CLI command agents may run. If the binary is unavailable, follow AGENTS.md: read `.savepoint/router.md`, report the missing tool, and do not guess the next step. For an owner Task closure, use the board's router advance; see AGENTS.md's Router Selection section for the other selection owners and the `release:` rule.
+Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is unavailable, follow AGENTS.md rather than guessing. AGENTS.md's Router Selection section says who changes the router.
 
 ## Read
 

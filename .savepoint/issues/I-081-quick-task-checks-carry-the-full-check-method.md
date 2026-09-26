@@ -2,7 +2,7 @@
 id: I-081
 title: Quick Task Checks carry the full Objective check method
 type: drift
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:29:40Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      check-method.md now gives Quick mode its own six-step Quick Check Procedure with a short scope lock, and marks the coverage matrix, workflow and side-effect lock, and adversarial pass as Full mode only. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-081: Quick Task Checks carry the full Objective check method
@@ -39,3 +45,9 @@ Quick mode a short procedure of its own.
   probes on changed code, configured gates, relevant guardrails).
 - The full method stays required for the mandatory Objective Check.
 - Packaged template copies stay byte-identical.
+
+## Repair Attempt Evidence
+
+- `references/check-method.md` adds `### Quick Check Procedure` under Quick And Full Evidence Modes; the three heavy sections open with a Full-mode-only line; re-check covers a Quick scope lock.
+- All section headings the tests pin are unchanged; `savepoint-check` still loads the method in full.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.
