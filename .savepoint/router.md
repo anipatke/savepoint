@@ -20,7 +20,7 @@ state: task
 release: R-006
 objective: none
 task: none
-issue: none
+issue: I-068
 ```
 
 ## State → action

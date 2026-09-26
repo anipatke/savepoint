@@ -258,7 +258,11 @@ func convertFindingIssue(root string, plan *ConversionPlan, target PlannedTarget
 			Reason:      fmt.Sprintf("migrated V1 finding %s recorded as a duplicate of %s; no independent proof is tracked here", finding.ID, finding.DuplicateOf),
 		}
 	} else {
-		rule, ok := findingDispositionRules[finding.Status]
+		findingStatus := finding.Status
+		if target.DecidedStatus != "" {
+			findingStatus = data.FindingStatus(target.DecidedStatus)
+		}
+		rule, ok := findingDispositionRules[findingStatus]
 		if !ok {
 			return "", fmt.Errorf("%w: finding %s status %q does not convert to an Issue", ErrAmbiguousLifecycle, finding.ID, finding.Status)
 		}

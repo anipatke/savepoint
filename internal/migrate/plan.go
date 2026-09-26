@@ -80,6 +80,11 @@ type PlannedTarget struct {
 	// persisted with the plan so recovery never has to reinterpret legacy
 	// release status after source files have been archived.
 	ReleaseStatus string
+	// DecidedStatus is the owner's decided lifecycle for an Objective or Task
+	// whose V1 status migration does not recognise (I-067). It is persisted
+	// with the plan so conversion and recovery use the decision rather than
+	// reinterpreting the source. Empty when the source status is used.
+	DecidedStatus string
 	// DependsOn lists the global Task IDs (only meaningful for TargetTask)
 	// this target's converted depends_on will name. A dependency on
 	// archived, completed work never appears here; see LegacyPrerequisite.
@@ -962,11 +967,16 @@ func (b *planBuilder) planEpic(discover *data.Discover, savepointRoot, release, 
 	status, healed, recognized := resolveEpicStatus(raw.Status)
 	legacy := LegacyKey{Release: release, Epic: epic, Path: sf.Path, OriginalID: epic}
 
+	decidedStatus := ""
 	if !recognized {
 		b.addAmbiguity(AmbiguityUnrecognizedLifecycle, sf.Path,
 			fmt.Sprintf("epic %s/%s has unrecognized status %q; no Objective or Task under it can be planned until an owner decision resolves it", release, epic, raw.Status),
 			epicStatusChoices())
-		return nil
+		decided, ok := b.decidedLifecycle(sf.Path)
+		if !ok {
+			return nil
+		}
+		status, decidedStatus = decided, decided
 	}
 	_ = healed
 
@@ -992,11 +1002,12 @@ func (b *planBuilder) planEpic(discover *data.Discover, savepointRoot, release, 
 
 	objectiveID := b.ids.allocate("O")
 	b.targets = append(b.targets, PlannedTarget{
-		Kind:       TargetObjective,
-		GlobalID:   objectiveID,
-		Legacy:     legacy,
-		TargetPath: filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2ObjectiveFile)),
-		ReleaseID:  goalID,
+		Kind:          TargetObjective,
+		GlobalID:      objectiveID,
+		Legacy:        legacy,
+		TargetPath:    filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2ObjectiveFile)),
+		ReleaseID:     goalID,
+		DecidedStatus: decidedStatus,
 	})
 	// The original epic detail is archived alongside conversion: migration
 	// preserves the source bytes even though their content became an
@@ -1056,19 +1067,41 @@ func (b *planBuilder) planTasksImpl(discover *data.Discover, savepointRoot, rele
 			return fmt.Errorf("parse task %s: %w", rel, err)
 		}
 		status, _, recognized := resolveTaskStatus(raw)
+		decidedStatus := ""
 		if !recognized {
 			b.addAmbiguity(AmbiguityUnrecognizedLifecycle, rel,
 				fmt.Sprintf("task %s has unrecognized status %q; it cannot be planned as active or archived until an owner decision resolves it", task.ID, raw),
 				taskStatusChoices())
-			continue
+			decided, ok := b.decidedLifecycle(rel)
+			if !ok {
+				continue
+			}
+			status, decidedStatus = decided, decided
+			task.Column = data.ColumnType(decided)
 		}
 
 		identityScope := release + "/" + epic + "/" + task.ID
+		reuseID := ""
 		if firstPath, seen := b.taskIdentitySeen[identityScope]; seen {
 			b.addAmbiguityDiscriminated(AmbiguityDuplicateSourceIdentity, rel, firstPath,
 				fmt.Sprintf("task id %s is declared by both %s and %s; allocation cannot tell which one it actually names", task.ID, firstPath, rel),
 				[]string{"keep_first", "keep_second"})
-			continue
+			decision, ok := b.decisions[string(AmbiguityDuplicateSourceIdentity)+":"+rel+"#"+firstPath]
+			if !ok {
+				continue
+			}
+			if decision.Value == "keep_first" {
+				b.archives = append(b.archives, ArchiveEntry{
+					SourcePath:  rel,
+					ArchivePath: archivePathFor(rel),
+					Role:        RoleTask,
+					Legacy:      &legacy,
+				})
+				continue
+			}
+			// keep_second: archive the first declaration and plan this one
+			// in its place, under the identity the first was given.
+			reuseID = b.retireTaskDeclaration(firstPath)
 		}
 		b.taskIdentitySeen[identityScope] = rel
 
@@ -1084,13 +1117,17 @@ func (b *planBuilder) planTasksImpl(discover *data.Discover, savepointRoot, rele
 			continue
 		}
 
-		taskID := b.ids.allocate("T")
+		taskID := reuseID
+		if taskID == "" {
+			taskID = b.ids.allocate("T")
+		}
 		b.taskByLegacyPath[rel] = plannedTaskOutcome{task: *task, globalID: taskID}
 		b.targets = append(b.targets, PlannedTarget{
-			Kind:       TargetTask,
-			GlobalID:   taskID,
-			Legacy:     legacy,
-			TargetPath: filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2TasksDir, taskID+"-"+slugOf(task.ID))),
+			Kind:          TargetTask,
+			GlobalID:      taskID,
+			Legacy:        legacy,
+			TargetPath:    filepath.ToSlash(filepath.Join(v2ObjectivesDir, objectiveID+"-"+slugOf(epic), v2TasksDir, taskID+"-"+slugOf(task.ID))),
+			DecidedStatus: decidedStatus,
 		})
 	}
 
@@ -1108,6 +1145,34 @@ func (b *planBuilder) planTasksImpl(discover *data.Discover, savepointRoot, rele
 	}
 
 	return nil
+}
+
+// retireTaskDeclaration withdraws an earlier task declaration that an owner
+// decision replaced (keep_second): its planned target, if any, is removed and
+// the source is archived instead. It returns the Task identity the retired
+// declaration held, or "" when it was already archive-only.
+func (b *planBuilder) retireTaskDeclaration(path string) string {
+	outcome := b.taskByLegacyPath[path]
+	delete(b.taskByLegacyPath, path)
+	if outcome.globalID == "" {
+		return ""
+	}
+	kept := b.targets[:0]
+	for _, target := range b.targets {
+		if target.Kind == TargetTask && target.Legacy.Path == path {
+			legacy := target.Legacy
+			b.archives = append(b.archives, ArchiveEntry{
+				SourcePath:  path,
+				ArchivePath: archivePathFor(path),
+				Role:        RoleTask,
+				Legacy:      &legacy,
+			})
+			continue
+		}
+		kept = append(kept, target)
+	}
+	b.targets = kept
+	return outcome.globalID
 }
 
 // resolveTaskDependencies resolves one active task's depends_on references
@@ -1308,6 +1373,29 @@ func (b *planBuilder) planFinding(path string, finding *data.AuditFinding, all m
 			b.addAmbiguity(AmbiguityUnresolvedNarrativeFind, path,
 				fmt.Sprintf("finding %s is marked duplicate of %q, which names no known finding in this project", finding.ID, finding.DuplicateOf),
 				unresolvedNarrativeFindingChoices())
+			decision, ok := b.decisions[string(AmbiguityUnresolvedNarrativeFind)+":"+path]
+			if !ok {
+				return nil
+			}
+			if decision.Value == "archive" {
+				b.archives = append(b.archives, ArchiveEntry{
+					SourcePath:  path,
+					ArchivePath: archivePathFor(path),
+					Role:        RoleFinding,
+					Legacy:      &legacy,
+				})
+				return nil
+			}
+			// treat_as_original: the finding converts as its own open Issue.
+			issueID := b.ids.allocate("I")
+			b.issueByFindingID[finding.ID] = issueID
+			b.targets = append(b.targets, PlannedTarget{
+				Kind:          TargetIssue,
+				GlobalID:      issueID,
+				Legacy:        legacy,
+				TargetPath:    filepath.ToSlash(filepath.Join(v2IssuesDir, issueID+"-"+slugOf(finding.ID)+".md")),
+				DecidedStatus: string(data.FindingOpen),
+			})
 			return nil
 		}
 

@@ -194,6 +194,14 @@ func validateDecisions(decisions Decisions, ambiguities []Ambiguity) error {
 	return nil
 }
 
+// decidedLifecycle returns the owner's decided status for a record whose own
+// lifecycle value migration does not recognise. Decision values are already
+// checked against the ambiguity's choices when the decisions file is read.
+func (b *planBuilder) decidedLifecycle(path string) (string, bool) {
+	decision, ok := b.decisions[string(AmbiguityUnrecognizedLifecycle)+":"+path]
+	return decision.Value, ok
+}
+
 // addAmbiguity records one ambiguity with an ID derived solely from kind and
 // path, for a kind that can never recur more than once against the same
 // path.
