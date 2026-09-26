@@ -2,7 +2,7 @@
 id: I-068
 title: The migrate preview is too long and noisy to review
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -35,6 +35,18 @@ history:
       TestParseMigrateArgs_verbose, and the default preview test updated to
       expect the summary. make build, make test-fast, and make test-full
       passed. Issue remains open for verification or owner acceptance.
+  - at: '2026-09-26T03:34:53Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark this Issue resolved. The fix
+      shipped in savepoint 2.0.5 on npm (tag v2.0.5), and in real use the galaxy preview printed a 36-line summary.
+      No technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T03:34:53Z'
+  reason: Owner accepted the fix as deployed in savepoint 2.0.5.
 ---
 
 # I-068: The migrate preview is too long and noisy to review
