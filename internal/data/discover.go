@@ -153,7 +153,7 @@ const (
 // DiscoverV2Releases confines discovery to root/releases and decodes the
 // optional Release record family. A release directory is identified by its
 // own Release.md record; the directory slug never supplies or changes the
-// declared R-### identity. Missing releases/ and directories without a
+// declared R-### or G-### identity. Missing releases/ and directories without a
 // Release.md are valid, which keeps release-free V2 projects unchanged.
 func DiscoverV2Releases(root string) (map[string]*ReleaseV2, error) {
 	releases := map[string]*ReleaseV2{}

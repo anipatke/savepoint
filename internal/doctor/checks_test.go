@@ -164,8 +164,8 @@ func TestCheckProject_missingReleaseNamesFileAndIDs(t *testing.T) {
 			t.Errorf("problem message = %q, want %q", problems[0].Message, want)
 		}
 	}
-	if !strings.Contains(problems[0].Repair, "referenced R-### Release") {
-		t.Errorf("problem repair = %q, want manual Release-reference guidance", problems[0].Repair)
+	if !strings.Contains(problems[0].Repair, "referenced R-### or G-### Goal") {
+		t.Errorf("problem repair = %q, want manual Goal-reference guidance", problems[0].Repair)
 	}
 }
 
@@ -680,6 +680,16 @@ func TestV2DiagnosticName_noNewIssueSentinelFallsThrough(t *testing.T) {
 		if V2ProblemRepair(name) == "Review the V2 project diagnostic and fix the reported record" {
 			t.Errorf("V2ProblemRepair(%q) fell through to the generic repair suggestion", name)
 		}
+	}
+}
+
+func TestV2DiagnosticName_invalidGoalIdentity(t *testing.T) {
+	_, err := data.DecodeReleaseV2("releases/G-01-first/Release.md", "---\nid: G-01\n---\n")
+	if err == nil {
+		t.Fatal("DecodeReleaseV2() error = nil, want invalid Goal identity")
+	}
+	if got := v2DiagnosticName(err); got != "v2-release-invalid-id" {
+		t.Errorf("v2DiagnosticName() = %q, want v2-release-invalid-id", got)
 	}
 }
 

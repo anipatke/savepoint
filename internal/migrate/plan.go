@@ -430,7 +430,7 @@ func indexSourcesByPath(sources []SourceFile) map[string]SourceFile {
 	return byPath
 }
 
-// idAllocator assigns the next unused O/T/I/R number in allocation order.
+// idAllocator assigns the next unused O/T/I/R/G number in allocation order.
 // Archived-only records never call allocate, so they reserve nothing —
 // exactly the "never reused, never reserved for archive-only work" rule.
 type idAllocator struct {
@@ -438,7 +438,7 @@ type idAllocator struct {
 }
 
 func newIDAllocator() *idAllocator {
-	return &idAllocator{next: map[string]int{"O": 1, "T": 1, "I": 1, "R": 1}}
+	return &idAllocator{next: map[string]int{"O": 1, "T": 1, "I": 1, "R": 1, "G": 1}}
 }
 
 func (a *idAllocator) allocate(prefix string) string {
@@ -683,7 +683,7 @@ func (b *planBuilder) planRouterGoalSelection() error {
 	}
 
 	hasExistingLiveGoal := b.hasSourceLiveGoal()
-	goalID := b.ids.allocate("R")
+	goalID := b.ids.allocate("G")
 	b.targets = append(b.targets, PlannedTarget{
 		Kind:           TargetRelease,
 		GlobalID:       goalID,

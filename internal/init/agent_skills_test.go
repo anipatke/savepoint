@@ -995,7 +995,7 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 		for _, phrase := range []string{
 			"Every Savepoint project has at least one live Goal selected by the router",
 			"every live Objective names exactly one Goal through `release:`",
-			"R-001, titled after the project",
+			"G-001, titled after the project",
 			"do not create another Goal for the same initial outcome",
 			"only fill the fresh scaffold placeholder from owner-provided answers",
 			"Choose a Goal",
@@ -1015,8 +1015,8 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 			"savepoint doctor",
 			"savepoint init",
 			"savepoint migrate",
-			"required `release: R-###` compatibility field",
-			"stable global `R-###` identity from the first unused number",
+			"required `release:` compatibility field containing its Goal's R-### or G-### identity",
+			"stable global `G-###` identity from the first unused G number",
 			"Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
 			"do not maintain a second membership list",
 			"A Goal is complete when every member Objective is complete",
@@ -1036,7 +1036,7 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 			"Every Savepoint project has at least one live Goal selected by the router",
 			"Choose a Goal",
 			"savepoint doctor",
-			"R-001",
+			"G-001",
 			"savepoint migrate",
 		} {
 			if !strings.Contains(task, phrase) {
@@ -1050,7 +1050,7 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 			"Every Savepoint project has at least one live Goal selected by the router",
 			"Choose a Goal",
 			"savepoint doctor",
-			"R-001",
+			"G-001",
 			"savepoint migrate",
 			"scope: {kind: task, id: T-001}",
 			"A Goal is complete when every member Objective is complete",

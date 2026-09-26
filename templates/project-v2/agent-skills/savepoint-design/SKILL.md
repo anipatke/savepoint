@@ -84,29 +84,31 @@ select a live Goal with `g`. Unknown or archived router selections are
 reported as selection diagnostics; choose a live Goal with `g`. If no live
 Goal exists, `savepoint doctor` directs the owner to create one. An Objective missing
 `release:` remains loadable, but resume and the board flag it and doctor names
-the Objective and exact `release: R-###` repair. Unknown or malformed
+the Objective and the exact `release:` repair using an `R-###` or `G-###` Goal ID. Unknown or malformed
 Objective references remain errors.
 
-`savepoint init` creates and selects R-001, titled after the project, with
+`savepoint init` creates and selects G-001, titled after the project, with
 stub sections for Outcome, Why, Success Conditions, and Boundaries. Idea fills
 those sections with the owner. `savepoint migrate` retains the V1 router's live
 Goal. When that selection is missing or unresolvable, it reuses a uniquely
 identifiable existing live Goal for the converted active work when possible.
 If selected work belongs only to a historical Goal, migration creates a live
-continuation and moves that active Objective into it. An unresolved release
+continuation with a G-### identity and moves that active Objective into it.
+Converted V1 Releases keep their R-### identities. An unresolved release
 lifecycle decision stays in the preview and blocks Apply.
 
-Existing V2 storage remains Release-compatible: Goals use stable `R-###`
-identities in `.savepoint/releases/<slug>/Release.md`; Objectives and router
-selection retain the `release: R-###` field. The V2 board uses `g` as the canonical Goal selector;
-`r` is an undisplayed compatibility alias. A Goal does not own Tasks or
-publish, deploy, tag, or generate changelogs.
+Existing V2 storage remains Release-compatible: existing Goals keep their
+stable `R-###` identities, paths, and references; new Goals use stable `G-###`
+identities in `.savepoint/releases/<slug>/Release.md`. Objectives and router
+selection retain the `release:` field for compatibility. The V2 board uses `g`
+as the canonical Goal selector; `r` is an undisplayed compatibility alias. A
+Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 When adding another Goal:
 
-1. Allocate a stable global `R-###` identity from the first unused number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates.
+1. Allocate a stable global `G-###` identity from the first unused G number. Keep that identity stable across title or path edits, never silently reuse it, and fail closed on duplicates. Existing R-### identities remain unchanged.
 2. Author the Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes the grouped Objectives' result, not whether anything has been published or deployed.
-3. Give each member Objective the required `release: R-###` compatibility field. Derive membership from those Objective records; do not maintain a second membership list.
+3. Give each member Objective the required `release:` compatibility field containing its Goal's R-### or G-### identity. Derive membership from those Objective records; do not maintain a second membership list.
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. Treat Goal completion as derived from its Objectives: a Goal is complete when every member Objective is complete. It does not mean published or deployed.
 
@@ -120,7 +122,7 @@ id: O-###
 title: Objective Title
 status: planned|in_progress|done
 depends_on: [O-###]
-release: R-###
+release: G-###
 # Optional ordering metadata: priority defaults to medium; omit rank to leave unranked.
 # priority: critical|high|medium|low
 # rank: 1
@@ -160,7 +162,7 @@ Interfaces, data ownership, and constraints this Objective must respect.
 - Excluded work
 ```
 
-Every Objective must set `release: R-###` to its Goal's stable identity; this is the compatibility field, not free-form text.
+Every Objective must set `release:` to its Goal's stable R-### or G-### identity; this is the compatibility field, not free-form text.
 
 Task membership is derived from which Tasks name this Objective as their owner. Do not also maintain a second, manually kept list of member Tasks in the Objective body — that list drifts from the Tasks themselves and becomes a second source of truth.
 

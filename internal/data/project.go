@@ -170,7 +170,7 @@ func LoadV2Index(root string) (*V2Index, error) {
 
 // indexReleaseObjectives validates typed Objective release references and
 // derives the only reverse membership view. Any present reference must use the
-// R-### identity vocabulary and resolve to a discovered Release.
+// R-### or G-### Goal identity vocabulary and resolve to a discovered Goal.
 func indexReleaseObjectives(index *V2Index) error {
 	for _, id := range slices.Sorted(maps.Keys(index.Objectives)) {
 		objective := index.Objectives[id]
@@ -180,8 +180,8 @@ func indexReleaseObjectives(index *V2Index) error {
 		}
 
 		ref := objective.Release
-		if !matchesV2Identity(ref, 'R') {
-			return fmt.Errorf("%w: %s: objective %s release %q must match R-###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
+		if !matchesGoalIdentityV2(ref) {
+			return fmt.Errorf("%w: %s: objective %s release %q must match R-### or G-###", ErrV2InvalidReleaseReference, objective.Source.Path, objective.ID, ref)
 		}
 
 		releaseID := string(ref)

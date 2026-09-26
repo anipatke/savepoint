@@ -216,8 +216,8 @@ func TestPlan_routerSelectsLiveGoalOrPlansContinuationGoal(t *testing.T) {
 			wantGeneratedCount := 0
 			if tc.wantGenerated {
 				wantGeneratedCount = 1
-				if selection.GoalID != "R-002" {
-					t.Errorf("fallback GoalID = %q, want next free R-002", selection.GoalID)
+				if selection.GoalID != "G-001" {
+					t.Errorf("fallback GoalID = %q, want next free G-001", selection.GoalID)
 				}
 			} else {
 				if selection.GoalID != "R-001" {
@@ -678,7 +678,7 @@ func TestPlan_ambiguitiesSortedByID(t *testing.T) {
 
 func TestIDAllocator_allocateUsesHyphenatedIdentities(t *testing.T) {
 	allocator := newIDAllocator()
-	for _, prefix := range []string{"R", "O", "T", "I"} {
+	for _, prefix := range []string{"R", "G", "O", "T", "I"} {
 		if got, want := allocator.allocate(prefix), prefix+"-001"; got != want {
 			t.Errorf("allocate(%q) = %q, want %q", prefix, got, want)
 		}

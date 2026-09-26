@@ -42,6 +42,9 @@ func TestConvertRelease_activeAndHistoricalForms(t *testing.T) {
 				if release.ID != target.GlobalID {
 					t.Errorf("Release ID = %q, want %q", release.ID, target.GlobalID)
 				}
+				if !target.Generated && !strings.HasPrefix(release.ID, "R-") {
+					t.Errorf("converted V1 Release ID = %q, want an unchanged R-### identity", release.ID)
+				}
 				if !strings.Contains(release.Source.Body, "## Legacy Source (verbatim)") {
 					t.Error("Release body has no accountable legacy-source section")
 				}
@@ -64,8 +67,8 @@ func TestConvertRelease_activeAndHistoricalForms(t *testing.T) {
 func TestConvertRelease_rendersGeneratedContinuationGoalWithoutV1Source(t *testing.T) {
 	target := PlannedTarget{
 		Kind:           TargetRelease,
-		GlobalID:       "R-009",
-		TargetPath:     "releases/R-009-continued-after-migration/Release.md",
+		GlobalID:       "G-001",
+		TargetPath:     "releases/G-001-continued-after-migration/Release.md",
 		ReleaseStatus:  string(data.ColumnInProgress),
 		Generated:      true,
 		GeneratedTitle: continuationGoalTitle,

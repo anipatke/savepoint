@@ -96,9 +96,9 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 		{"v2-check-malformed", "result must be CLEAR or NEEDS WORK"},
 		{"v2-check-missing-scope-target", "Create the Task or Objective"},
 		{"v2-check-missing-release-scope-target", "Create the Release"},
-		{"v2-release-invalid-id", "valid R-### identity"},
-		{"v2-invalid-release-reference", "existing R-### Release"},
-		{"v2-missing-release", "referenced R-### Release"},
+		{"v2-release-invalid-id", "valid R-### or G-### identity"},
+		{"v2-invalid-release-reference", "existing R-### or G-### Goal ID"},
+		{"v2-missing-release", "referenced R-### or G-### Goal"},
 		{"v2-release-missing-section", "required Release body section"},
 		{"v2-release-legacy-malformed", "legacy_completion"},
 		{"v2-check-missing-reference", "Create the Check named in supersedes"},
@@ -131,7 +131,7 @@ func TestV2ProblemRepair_checkAndEvidenceNames(t *testing.T) {
 
 func TestV2ProblemRepair_invalidIDNamesEveryV2RecordFamily(t *testing.T) {
 	got := V2ProblemRepair("v2-invalid-id")
-	for _, identity := range []string{"O-### (Objective)", "T-### (Task)", "C-### (Check)", "I-### (Issue reference)"} {
+	for _, identity := range []string{"G-### (Goal)", "O-### (Objective)", "T-### (Task)", "C-### (Check)", "I-### (Issue reference)"} {
 		if !strings.Contains(got, identity) {
 			t.Errorf("V2ProblemRepair(v2-invalid-id) = %q, want %q guidance", got, identity)
 		}

@@ -379,7 +379,7 @@ func TestRunV2ChecksReportsMissingGoalsAndConcreteRepairs(t *testing.T) {
 	if objectiveProblem == nil {
 		t.Fatalf("Project = %+v, want an Objective Goal problem", report.Project)
 	}
-	if objectiveProblem.File != objectivePath || !strings.Contains(objectiveProblem.Message, "O-001") || !strings.Contains(objectiveProblem.Repair, "`release: R-###`") {
+	if objectiveProblem.File != objectivePath || !strings.Contains(objectiveProblem.Message, "O-001") || !strings.Contains(objectiveProblem.Repair, "R-###") || !strings.Contains(objectiveProblem.Repair, "G-###") {
 		t.Errorf("Objective problem = %+v, want O-001's file and exact release field repair", objectiveProblem)
 	}
 

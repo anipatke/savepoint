@@ -338,7 +338,7 @@ func v2DiagnosticName(err error) string {
 	case errors.Is(err, data.ErrV2MissingField):
 		return "v2-missing-field"
 	case errors.Is(err, data.ErrV2InvalidID):
-		if strings.Contains(err.Error(), "release id") {
+		if strings.Contains(err.Error(), "release id") || strings.Contains(err.Error(), "Goal id") {
 			return "v2-release-invalid-id"
 		}
 		return "v2-invalid-id"

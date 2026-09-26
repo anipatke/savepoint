@@ -36,9 +36,9 @@ func TestV2ScaffoldSavepointFileSet(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "objectives", ".gitkeep")); err != nil {
 		t.Errorf("templates/project-v2/.savepoint/objectives/.gitkeep missing: %v", err)
 	}
-	goalPath := filepath.Join(root, "releases", "R-001-first-goal", "Release.md")
+	goalPath := filepath.Join(root, "releases", "G-001-first-goal", "Release.md")
 	if _, err := os.Stat(goalPath); err != nil {
-		t.Errorf("templates/project-v2/.savepoint/releases/R-001-first-goal/Release.md missing: %v", err)
+		t.Errorf("templates/project-v2/.savepoint/releases/G-001-first-goal/Release.md missing: %v", err)
 	}
 
 	for _, name := range v2ScaffoldForbiddenFiles {
@@ -60,13 +60,13 @@ func TestV2ScaffoldCreatesProjectGoalWithInterpolatedName(t *testing.T) {
 		t.Fatalf("Scaffold() from templates/project-v2 error = %v", err)
 	}
 
-	goalPath := filepath.Join(target, ".savepoint", "releases", "R-001-first-goal", "Release.md")
+	goalPath := filepath.Join(target, ".savepoint", "releases", "G-001-first-goal", "Release.md")
 	content, err := os.ReadFile(goalPath)
 	if err != nil {
 		t.Fatalf("read fresh Goal record: %v", err)
 	}
 	for _, want := range []string{
-		"id: R-001",
+		"id: G-001",
 		"title: myapp",
 		"status: in_progress",
 		"## Outcome",
@@ -80,6 +80,22 @@ func TestV2ScaffoldCreatesProjectGoalWithInterpolatedName(t *testing.T) {
 	}
 	if strings.Contains(string(content), "{{PROJECT_NAME}}") {
 		t.Error("fresh Goal record retained the project-name placeholder")
+	}
+	index, err := data.LoadV2Index(filepath.Join(target, ".savepoint"))
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	routerBytes, err := os.ReadFile(filepath.Join(target, ".savepoint", "router.md"))
+	if err != nil {
+		t.Fatalf("read fresh router: %v", err)
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(routerBytes))
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	selection, diagnostic := data.ResolveSelection(index, router)
+	if diagnostic != nil || selection.Release == nil || selection.Release.ID != "G-001" {
+		t.Fatalf("fresh Goal selection = %+v, diagnostic = %+v; want resolved G-001", selection, diagnostic)
 	}
 }
 
@@ -98,7 +114,7 @@ func TestV2ScaffoldRouterOpensAtIdeaWithObjectiveField(t *testing.T) {
 
 	assertContains(t, content, "state: idea")
 	assertContains(t, content, "objective:")
-	assertContains(t, content, "release: R-001")
+	assertContains(t, content, "release: G-001")
 	assertContains(t, content, "| idea | savepoint-idea |")
 	assertContains(t, content, "| design | savepoint-design |")
 	assertContains(t, content, "| task | savepoint-task |")
@@ -222,7 +238,7 @@ func TestV2AgentsGuideCarriesExistingCodebaseAdoptionSection(t *testing.T) {
 	if !strings.Contains(body, "Their absence is normal, not a finding") {
 		t.Error("adoption section does not state absence of optional files is normal, not a finding")
 	}
-	for _, phrase := range []string{"A Goal is required", "Choose a Goal", "savepoint doctor", "R-001", "savepoint init", "migration keeps or selects an existing live Goal"} {
+	for _, phrase := range []string{"A Goal is required", "Choose a Goal", "savepoint doctor", "G-001", "savepoint init", "migration keeps or selects an existing live Goal"} {
 		if !strings.Contains(body, phrase) {
 			t.Errorf("adoption section does not explain required Goal context: %q", phrase)
 		}

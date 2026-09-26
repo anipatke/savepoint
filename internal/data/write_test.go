@@ -1334,6 +1334,20 @@ func TestRouterSelectionAfterClosureV2_clearsMatchingSelectionsAndLeavesOthersAl
 	}
 }
 
+func TestWriteRouterStateV2_setsGGoalContext(t *testing.T) {
+	root, path, mtime := writeRouterV2Fixture(t, routerV2FixtureContent())
+	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "G-001"}, mtime); err != nil {
+		t.Fatalf("WriteRouterStateV2() error = %v", err)
+	}
+	state, err := NewRouterReader().ReadStateV2(readFileString(t, path))
+	if err != nil {
+		t.Fatalf("ReadStateV2() error = %v", err)
+	}
+	if state.Release != "G-001" {
+		t.Errorf("Release = %q, want G-001", state.Release)
+	}
+}
+
 func TestWriteRouterStateV2_setsReleaseContextWithoutChangingRouterProse(t *testing.T) {
 	content := routerV2FixtureContent()
 	root, path, mtime := writeRouterV2Fixture(t, content)

@@ -42,7 +42,7 @@ files:
             - global_id: O-001
               kind: objective
               release: v1
-              release_id: R-002
+              release_id: G-001
               epic: E01-example
               path: .savepoint/releases/v1/epics/E01-example/E01-Detail.md
               original_id: E01-example
@@ -92,7 +92,7 @@ files:
         id: O-001
         title: 'Epic E01: Example'
         status: in_progress
-        release: R-002
+        release: G-001
         ---
         ## Migrated from V1
 
@@ -169,10 +169,10 @@ files:
         Minimal frozen release scope, kept only as migration source evidence for
         E41. One epic, two tasks: a completed baseline and a dependent follow-up.
         ````
-    - path: .savepoint/releases/R-002-continued-after-migration/Release.md
+    - path: .savepoint/releases/G-001-continued-after-migration/Release.md
       content: |
         ---
-        id: R-002
+        id: G-001
         title: Continued work after migration
         status: in_progress
         ---
@@ -206,7 +206,7 @@ files:
 
         ```yaml
         state: task
-        release: R-002
+        release: G-001
         objective: O-001
         task: T-001
         next_action: Build E01-example/T002-follow-up.
@@ -214,4 +214,4 @@ files:
 
         ## Migration Note
 
-        V1 router selection points to historical Goal R-001; active Objectives move to the continuation Goal; migration created `R-002` (Continued work after migration) and selected it as the live Goal.
+        V1 router selection points to historical Goal R-001; active Objectives move to the continuation Goal; migration created `G-001` (Continued work after migration) and selected it as the live Goal.

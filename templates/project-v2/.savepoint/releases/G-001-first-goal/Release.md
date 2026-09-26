@@ -1,5 +1,5 @@
 ---
-id: R-001
+id: G-001
 title: {{PROJECT_NAME}}
 status: in_progress
 ---

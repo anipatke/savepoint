@@ -181,7 +181,7 @@ func TestConvertRouter_fallbackSelectionPointsAtLiveGoal(t *testing.T) {
 	}{
 		{name: "missing release", routerRelease: "", releaseStatus: "in_progress", wantGoal: "R-001"},
 		{name: "unresolvable release", routerRelease: "v9-missing", releaseStatus: "in_progress", wantGoal: "R-001"},
-		{name: "archived release", routerRelease: "v1", releaseStatus: "done", wantGoal: "R-002", wantGenerated: true},
+		{name: "archived release", routerRelease: "v1", releaseStatus: "done", wantGoal: "G-001", wantGenerated: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

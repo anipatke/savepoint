@@ -37,7 +37,7 @@ func TestIdeaGuidanceFillsTheFreshProjectsGoal(t *testing.T) {
 		content := readTemplate(t, path)
 		for _, phrase := range []string{
 			"Every Savepoint project has at least one live Goal selected by the router",
-			"R-001, titled after the project",
+			"G-001, titled after the project",
 			"Outcome, Why, Success Conditions, and Boundaries",
 			"do not create another Goal for the same initial outcome",
 			"only fill the fresh scaffold placeholder from owner-provided answers",
@@ -120,7 +120,7 @@ func TestProjectGuidanceRequiresGoalContext(t *testing.T) {
 		for _, phrase := range []string{"Choose a Goal", "savepoint doctor", "savepoint init", "savepoint migrate"} {
 			assertContains(t, content, phrase)
 		}
-		assertContains(t, content, "R-001")
+		assertContains(t, content, "G-001")
 	}
 	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
 		content := readTemplate(t, root, parts...)

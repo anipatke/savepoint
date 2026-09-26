@@ -62,29 +62,31 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 Every Savepoint project must have a live Goal selected by the router, and
 every live Objective must name exactly one Goal in its `release:` field.
-`savepoint init` creates and selects R-001, titled after the project.
+`savepoint init` creates and selects G-001, titled after the project.
 `savepoint migrate` keeps the V1 router's live Goal. When that selection is
 missing or unresolvable, it selects a uniquely identifiable existing live
 Goal for the converted active work when possible. If selected work belongs
-only to a historical Goal, migration creates a live continuation and moves
-that active Objective into it. An unresolved release lifecycle decision stays
-in the preview and blocks Apply.
+only to a historical Goal, migration creates a live continuation with a G-###
+identity and moves that active Objective into it. Converted V1 Releases keep
+their R-### identities. An unresolved release lifecycle decision stays in
+the preview and blocks Apply.
 
 If the router Goal is missing, blank, or `none`, Next says `Choose a Goal`; use
 `g` to select a live Goal. Unknown or archived router selections are reported
 as selection diagnostics; use `g` to select a live Goal. If there are no live
 Goals, `savepoint doctor` says to create one. An Objective missing `release:` remains
 loadable, but resume and the board flag it and doctor names the Objective and
-the exact `release: R-###` repair. Unknown or malformed Objective references
-remain errors. The board shows only the selected Goal's Objectives and Tasks;
-it never falls back to a project-wide view.
+the exact `release:` field using an `R-###` or `G-###` Goal ID. Unknown or
+malformed Objective references remain errors. The board shows only the selected
+Goal's Objectives and Tasks; it never falls back to a project-wide view.
 
-Existing storage is unchanged: Goals use stable `R-###` records under
-`.savepoint/releases/` (`Release.md`), Objective `release:` references, and
-router `release:` selections. These names are a compatibility boundary, not
-the public board vocabulary. Goals group Objectives;
-a Goal is complete when every member Objective is complete. Goals do not own
-Tasks, and do not publish, deploy, tag, or generate changelogs.
+Existing Goals keep their stable `R-###` identities, paths, and references.
+New Goals use stable `G-###` identities under `.savepoint/releases/`
+(`Release.md`); Objective and router `release:` fields remain the persisted
+compatibility boundary. Converted V1 Releases keep their `R-###` identities.
+Goals group Objectives; a Goal is complete when every member Objective is
+complete. Goals do not own Tasks, and do not publish, deploy, tag, or generate
+changelogs.
 
 ## Terminology
 
@@ -144,10 +146,11 @@ adoption can proceed. Their absence is normal, not a finding. A Goal is required
 If the router has no live Goal, Next says `Choose a Goal`; use `g` to select
 one or use `savepoint doctor`'s repair guidance to create one. If an Objective
 lacks `release:`, doctor names the
-Objective and the exact line to add. A fresh project receives R-001 from
+Objective and the exact line to add. A fresh project receives G-001 from
 `savepoint init`; migration keeps or selects an existing live Goal when the
 active work can be resolved to it, and creates a continuation for work whose
-source Goal is historical.
+source Goal is historical. New Goals use G-### identities; converted V1
+Releases retain R-### identities.
 
 ## Code Style
 
