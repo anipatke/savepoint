@@ -6,16 +6,19 @@ import (
 	"io"
 )
 
-const migrateUsage = "Usage: migrate [dir] [--apply] [--dry-run] [--decisions FILE]\n" +
+const migrateUsage = "Usage: migrate [dir] [--apply] [--dry-run] [--decisions FILE] [--verbose]\n" +
 	"  Preview is the default: nothing is written unless --apply is given.\n" +
 	"  --dry-run is an explicit synonym for the default preview behavior;\n" +
-	"  passing both --apply and --dry-run previews."
+	"  passing both --apply and --dry-run previews.\n" +
+	"  --verbose lists every planned record, archived file, and note instead\n" +
+	"  of the summary."
 
 type MigrateOptions struct {
 	Dir           string
 	Apply         bool
 	DryRun        bool
 	DecisionsFile string
+	Verbose       bool
 }
 
 // WillWrite reports whether these options ask the runner to write:
@@ -54,6 +57,8 @@ func ParseMigrateArgs(args []string) (MigrateOptions, bool, error) {
 			options.Apply = true
 		case "--dry-run":
 			options.DryRun = true
+		case "--verbose":
+			options.Verbose = true
 		case "--decisions":
 			i++
 			if i >= len(args) {

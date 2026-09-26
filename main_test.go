@@ -561,8 +561,25 @@ func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
 	if !strings.Contains(result.stdout, "Migration preview") {
 		t.Fatalf("stdout = %q, want a preview report", result.stdout)
 	}
-	if !strings.Contains(result.stdout, "Planned records") {
-		t.Fatalf("stdout = %q, want the planned records enumerated", result.stdout)
+	if !strings.Contains(result.stdout, "Will create") || strings.Contains(result.stdout, "Planned records") {
+		t.Fatalf("stdout = %q, want the summary preview by default", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainMigrateVerboseListsEveryPlannedRecord(t *testing.T) {
+	dir := copyMigrateFixture(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"migrate", dir, "--verbose"}, "")
+
+	if result.err != nil {
+		t.Fatalf("savepoint migrate --verbose failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	for _, want := range []string{"Planned records", "Archives"} {
+		if !strings.Contains(result.stdout, want) {
+			t.Fatalf("stdout = %q, want the full listing section %q", result.stdout, want)
+		}
 	}
 	assertSameSnapshot(t, before, snapshotDir(t, dir))
 }

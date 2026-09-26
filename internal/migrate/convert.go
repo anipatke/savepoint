@@ -154,6 +154,9 @@ func ConvertObjective(root string, plan *ConversionPlan, target PlannedTarget) (
 	}
 
 	status, _, recognized := resolveEpicStatus(source.Status)
+	if target.DecidedStatus != "" {
+		status, recognized = target.DecidedStatus, true
+	}
 	if !recognized {
 		return "", fmt.Errorf("%w: epic %s status %q", ErrAmbiguousLifecycle, target.Legacy.Epic, source.Status)
 	}
@@ -238,6 +241,9 @@ func ConvertTask(root string, plan *ConversionPlan, target PlannedTarget) (strin
 		rawStatus = source.Column
 	}
 	status, _, recognized := resolveTaskStatus(rawStatus)
+	if target.DecidedStatus != "" {
+		status, recognized = target.DecidedStatus, true
+	}
 	if !recognized {
 		return "", fmt.Errorf("%w: task %s status %q", ErrAmbiguousLifecycle, target.Legacy.OriginalID, rawStatus)
 	}
