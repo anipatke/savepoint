@@ -41,16 +41,15 @@ var routerStateMap = map[string]string{
 }
 
 // routerV2State is the "## Current state" YAML anchor's V2 shape: state,
-// optional objective, optional task, and the preserved next_action prose.
+// selected Goal, optional Objective, and optional Task.
 // There is no V2 release/epic/defect field, so an archived selection is
 // explained in an appended note rather than a fifth anchor field the design
 // does not define.
 type routerV2State struct {
-	State      string `yaml:"state"`
-	Release    string `yaml:"release,omitempty"`
-	Objective  string `yaml:"objective,omitempty"`
-	Task       string `yaml:"task,omitempty"`
-	NextAction string `yaml:"next_action"`
+	State     string `yaml:"state"`
+	Release   string `yaml:"release,omitempty"`
+	Objective string `yaml:"objective,omitempty"`
+	Task      string `yaml:"task,omitempty"`
 }
 
 // ConvertRouter renders the V2 router.md content for doc, reading the V1
@@ -111,7 +110,7 @@ func mapRouterState(plan *ConversionPlan, v1 data.RouterState) (routerV2State, s
 		return routerV2State{}, "", fmt.Errorf("%w: router state %q", ErrAmbiguousLifecycle, v1.State)
 	}
 
-	out := routerV2State{State: v2, NextAction: v1.NextAction}
+	out := routerV2State{State: v2}
 	var notes []string
 
 	if plan.GoalSelection.GoalID == "" {

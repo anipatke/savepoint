@@ -1,5 +1,5 @@
 fixture: v1-history
-note: Converted output under the fixed clock in end_to_end_test.go. The manifest omits apply-recovery generated_at and operation_id fields; this is the intentional golden diff for T-025. Regenerate only through the documented procedure at regenerateGoldenEnv; other mismatches are behavior changes to review.
+note: Converted output of this fixture under the fixed clock and operation id in end_to_end_test.go. Regenerate only through the documented procedure at regenerateGoldenEnv; a mismatch is a behavior change to review, not a file to refresh.
 files:
     - path: .savepoint/Idea.md
       content: |
@@ -298,10 +298,18 @@ files:
             - source_path: .savepoint/PRD.md
               archive_path: .savepoint/archive/v1/.savepoint/PRD.md
               role: product-prd
+            - source_path: .savepoint/audit/findings/F001-awaiting-proof.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F001-awaiting-proof.md
+              role: finding
+              original_id: F001
             - source_path: .savepoint/audit/findings/F002-owner-waiver.md
               archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F002-owner-waiver.md
               role: finding
               original_id: F002
+            - source_path: .savepoint/audit/findings/F003-duplicate.md
+              archive_path: .savepoint/archive/v1/.savepoint/audit/findings/F003-duplicate.md
+              role: finding
+              original_id: F003
             - source_path: .savepoint/audit/prompt.md
               archive_path: .savepoint/archive/v1/.savepoint/audit/prompt.md
               role: audit-prompt
@@ -311,6 +319,11 @@ files:
             - source_path: .savepoint/audit/runs/2026-07-01-example.md
               archive_path: .savepoint/archive/v1/.savepoint/audit/runs/2026-07-01-example.md
               role: audit-run
+            - source_path: .savepoint/releases/v1.1/defects/D001-shared.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/defects/D001-shared.md
+              role: defect
+              release: v1.1
+              original_id: v1.1/D001-shared
             - source_path: .savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/epics/E01-example/E01-Audit.md
               role: epic-audit
@@ -320,6 +333,18 @@ files:
               release: v1.1
               epic: E01-example
               original_id: E01-example
+            - source_path: .savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/epics/E01-example/tasks/T001-shared.md
+              role: task
+              release: v1.1
+              epic: E01-example
+              original_id: E01-example/T001-shared
+            - source_path: .savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md
+              archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/epics/E01-example/tasks/T002-follow-up.md
+              role: task
+              release: v1.1
+              epic: E01-example
+              original_id: E01-example/T002-follow-up
             - source_path: .savepoint/releases/v1.1/v1.1-PRD.md
               archive_path: .savepoint/archive/v1/.savepoint/releases/v1.1/v1.1-PRD.md
               sha256: 04e9a920234ac71d1d67f92b378ccc4c4134790da1e66c01963be04ceb78cdd6
@@ -555,5 +580,4 @@ files:
         release: R-002
         objective: O-001
         task: T-001
-        next_action: Build E01-example/T001-shared.
         ```

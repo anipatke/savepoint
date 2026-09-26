@@ -17,6 +17,16 @@ history:
       epic audit (savepoint-audit-epic)...", and doctor then warned
       [router-next-action-retired] with the repair "Delete the next_action
       line".
+  - at: '2026-09-26T04:37:46Z'
+    actor: {role: executor, session: codex}
+    kind: repair_attempted
+    note: >-
+      Removed next_action from the V2 router render model. Converted routers
+      retain their mapped state, Goal, Objective, Task, and surrounding prose;
+      retired V1 selection keys are omitted. Tests confirm doctor reports no
+      router-next-action-retired warning on migrated fixtures. Reviewed and
+      regenerated all five migration goldens. make build, make test-fast, and
+      the final make test-full passed.
 ---
 
 # I-071: Migrate keeps the V1 router's retired next_action line

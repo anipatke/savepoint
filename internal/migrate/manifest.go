@@ -52,8 +52,8 @@ type ManifestIdentity struct {
 	TargetPath string `yaml:"target_path"`
 }
 
-// ManifestArchive is one V1 source preserved byte-for-byte instead of
-// converted, with enough legacy context to explain why.
+// ManifestArchive maps one V1 source to its byte-preserved archive copy. A
+// converted record can have both an identity mapping and an archive mapping.
 type ManifestArchive struct {
 	SourcePath  string `yaml:"source_path"`
 	ArchivePath string `yaml:"archive_path"`

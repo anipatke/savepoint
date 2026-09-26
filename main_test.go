@@ -551,6 +551,7 @@ func TestMainMigrateRejectsUnknownFlag(t *testing.T) {
 
 func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir}, "")
@@ -569,6 +570,7 @@ func TestMainMigratePreviewDefaultWritesNothing(t *testing.T) {
 
 func TestMainMigrateVerboseListsEveryPlannedRecord(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--verbose"}, "")
@@ -586,6 +588,7 @@ func TestMainMigrateVerboseListsEveryPlannedRecord(t *testing.T) {
 
 func TestMainMigrateDryRunIsSynonymOfDefault(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--dry-run"}, "")
@@ -598,6 +601,7 @@ func TestMainMigrateDryRunIsSynonymOfDefault(t *testing.T) {
 
 func TestMainMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 	before := snapshotDir(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--apply", "--dry-run"}, "")
@@ -610,6 +614,7 @@ func TestMainMigrateApplyAndDryRunTogetherPreviews(t *testing.T) {
 
 func TestMainMigratePreviewIsDeterministic(t *testing.T) {
 	dir := copyMigrateFixture(t)
+	initMigrateGitRepo(t, dir)
 
 	first := runMainForTest(t, []string{"migrate", dir}, "")
 	if first.err != nil {
@@ -688,6 +693,7 @@ func TestMainMigrateDecisionsFileResolvesAmbiguity(t *testing.T) {
 	if err := os.WriteFile(decisionsPath, []byte(decisionsContent), 0644); err != nil {
 		t.Fatal(err)
 	}
+	initMigrateGitRepo(t, dir)
 
 	result := runMainForTest(t, []string{"migrate", dir, "--decisions", decisionsPath}, "")
 
