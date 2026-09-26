@@ -2,7 +2,7 @@
 id: I-077
 title: Task skill never shows the replan frontmatter, so REPLAN REQUIRED does not route
 type: defect
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -20,6 +20,17 @@ history:
     note: >-
       savepoint-task now shows the exact replan: block (reason, recorded_by, recorded_at) and says resume routes to Replan only from it. Packaged template copies re-synced; make build and make
       test-fast passed.
+  - at: '2026-09-26T05:26:38Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner waived the independent Check and instructed the executor to
+      resolve this Issue. No Check was run and no technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T05:26:38Z'
+  reason: Owner accepted the skill repair committed to v2 in 0ddf034 without a Check.
 ---
 
 # I-077: Task skill never shows the replan frontmatter, so REPLAN REQUIRED does not route

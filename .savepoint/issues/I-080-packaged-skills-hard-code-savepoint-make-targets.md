@@ -2,7 +2,7 @@
 id: I-080
 title: Packaged skills hard-code Savepoint's own make targets and Go paths
 type: defect
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -20,6 +20,17 @@ history:
     note: >-
       Packaged skills, check-method, commands-and-procedures, and the scaffold AGENTS.md now name gates through config.yml quality_gates or the project's AGENTS.md; the Context Files example uses language-neutral paths; Savepoint's own make gates remain only in the repo AGENTS.md. Packaged template copies re-synced; make build and make
       test-fast passed.
+  - at: '2026-09-26T05:26:38Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner waived the independent Check and instructed the executor to
+      resolve this Issue. No Check was run and no technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T05:26:38Z'
+  reason: Owner accepted the skill repair committed to v2 in 0ddf034 without a Check.
 ---
 
 # I-080: Packaged skills hard-code Savepoint's own make targets and Go paths

@@ -2,7 +2,7 @@
 id: I-078
 title: Objective template shows freshness.assessed_by as a string
 type: defect
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -20,6 +20,17 @@ history:
     note: >-
       The Objective template now shows assessed_by as {role: checker, session: <session>}. Packaged template copies re-synced; make build and make
       test-fast passed.
+  - at: '2026-09-26T05:26:38Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner waived the independent Check and instructed the executor to
+      resolve this Issue. No Check was run and no technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T05:26:38Z'
+  reason: Owner accepted the skill repair committed to v2 in 0ddf034 without a Check.
 ---
 
 # I-078: Objective template shows freshness.assessed_by as a string
