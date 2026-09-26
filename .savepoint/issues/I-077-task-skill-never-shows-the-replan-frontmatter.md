@@ -2,7 +2,7 @@
 id: I-077
 title: Task skill never shows the replan frontmatter, so REPLAN REQUIRED does not route
 type: defect
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:25:10Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      savepoint-task now shows the exact replan: block (reason, recorded_by, recorded_at) and says resume routes to Replan only from it. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-077: Task skill never shows the replan frontmatter, so REPLAN REQUIRED does not route
@@ -42,3 +48,9 @@ at the Task as if nothing broke.
 - A Task written from that example loads and `savepoint resume` reads
   `Replan`.
 - Packaged template copies stay byte-identical.
+
+## Repair Attempt Evidence
+
+- `savepoint-task` Lifecycle, REPLAN REQUIRED, and a YAML example name the `replan:` block and its three required fields.
+- The example block, added to a copy of T-010, loads under `savepoint resume`.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.

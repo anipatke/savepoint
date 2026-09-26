@@ -2,7 +2,7 @@
 id: I-080
 title: Packaged skills hard-code Savepoint's own make targets and Go paths
 type: defect
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:25:10Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      Packaged skills, check-method, commands-and-procedures, and the scaffold AGENTS.md now name gates through config.yml quality_gates or the project's AGENTS.md; the Context Files example uses language-neutral paths; Savepoint's own make gates remain only in the repo AGENTS.md. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-080: Packaged skills hard-code Savepoint's own make targets and Go paths
@@ -48,3 +54,10 @@ gates it cannot run. It also contradicts the skills' own rule that
   packaged text.
 - A freshly initialized project's skills contain no Savepoint-repo commands
   or paths; packaged copies stay in parity.
+
+## Repair Attempt Evidence
+
+- No `make` target, `cmd/`, or `internal/` path remains under `templates/project-v2/`.
+- The scaffold AGENTS.md Build section is now a place for the project to list its own gates.
+- `TestSavepointTaskSkillEvidenceRequirement` now asserts `configured build and test gates`.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.

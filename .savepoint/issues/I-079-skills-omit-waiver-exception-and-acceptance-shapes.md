@@ -2,7 +2,7 @@
 id: I-079
 title: Skills describe waiver, exception, and owner acceptance without their frontmatter shapes
 type: drift
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:25:10Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      savepoint-task shows the check_waiver shape; savepoint-check shows owner_validation acceptance and exception shapes, all from evidence_v2.go field names. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-079: Skills describe waiver, exception, and owner acceptance without their frontmatter shapes
@@ -45,3 +51,9 @@ guess the field names; prose in the body is ignored by the gates.
   runtime field names.
 - Records written from those examples load and satisfy the matching gates.
 - Packaged template copies stay byte-identical.
+
+## Repair Attempt Evidence
+
+- Shapes match the decoders: waiver actor role owner and `task` equal to its own ID; exception requires `check`; acceptance requires `accepted_check` and an owner `accepted_by`.
+- An `exception:` block written from the example, added to a copy of T-010 alongside its board-written waiver, loads under `savepoint resume`.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.

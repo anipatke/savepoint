@@ -71,7 +71,7 @@ Apply this contract to every implementation, not only to migration work:
   every owned Task, including waived Tasks, cross-Task integration, and
   reconciliation against this Design.
 - A Goal is complete when every member Objective is complete.
-- In this repository, focused `make test-focused TEST=...` runs are for iteration; ordinary Task handoff uses `make build && make test-fast`; migration/platform-sensitive Task handoff uses `make test-full`; and CI plus Full Objective Checks require the full gate through `make ci` or `make test-full`.
+- Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml`, plus any fuller gate the project's `AGENTS.md` names. Focused runs are for iteration; ordinary Task handoff runs the configured build and test gates; migration/platform-sensitive Task handoff and Full Objective Checks require the project's full gate.
 - Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
 
 ## Required Goal Context
@@ -130,7 +130,7 @@ last_check: optional-check-id
 freshness:  # optional; only to mark the latest Check stale or unknown
   state: current|stale|unknown
   check: C-###
-  assessed_by: role/session
+  assessed_by: {role: checker, session: <session>}
   assessed_at: '2026-09-19T00:00:00Z'
   basis: what was compared to reach this state
 ---
@@ -204,7 +204,7 @@ validation is recorded after the mandatory integration evidence.
 
 ## Context Files
 
-Name exact paths only — no globs, no directory-only entries: `cmd/board.go`, `cmd/board_test.go` (command pattern); `internal/data/project.go`, `internal/data/next.go` (shared index/projection); `main.go`, `main_test.go`; `internal/resume/resume.go`, `internal/resume/resume_test.go`, `cmd/resume.go`, `cmd/resume_test.go`.
+Name exact paths only — no globs, no directory-only entries: `src/commands/status.ts`, `src/commands/status.test.ts` (command pattern); `src/project/index.ts` (shared index/projection); `src/cli.ts`; `src/resume/render.ts`, `src/resume/render.test.ts`.
 
 ## Design References
 
@@ -229,7 +229,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused tests during iteration; `make build && make test-fast` for ordinary Task handoff; `make test-full` for migration/platform-sensitive work and Full Objective Checks.
+Focused tests during iteration; the configured build and test gates for ordinary Task handoff; the project's full gate for migration/platform-sensitive work and Full Objective Checks.
 
 ## Technical Evidence
 

@@ -265,8 +265,9 @@ Issue.
 
 Run focused tests for changed behavior and relevant failure paths. Run
 direct type or lint checks when the default gate excludes scoped files. Run
-`git diff --check`, `make build`, and `make test` unless the invoking skill
-names a narrower approved gate. Apply the evidence mode the invoking skill
+`git diff --check` and the project's configured build and test gates
+(`quality_gates` in `.savepoint/config.yml`) unless the invoking skill names
+a narrower approved gate. Apply the evidence mode the invoking skill
 requires: Quick only for a requested Task Check, Full for the mandatory
 Objective Check. Treat passing
 tests and gates as supporting evidence, never as a substitute for acceptance

@@ -2,7 +2,7 @@
 id: I-078
 title: Objective template shows freshness.assessed_by as a string
 type: defect
-status: open
+status: in_progress
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -14,6 +14,12 @@ history:
     kind: observed
     note: >-
       Raised by an independent review of the packaged Savepoint skills; claim verified against the code in a follow-up review session before capture.
+  - at: '2026-09-26T05:25:10Z'
+    actor: {role: executor, session: skill-review-fixes}
+    kind: repair_attempted
+    note: >-
+      The Objective template now shows assessed_by as {role: checker, session: <session>}. Packaged template copies re-synced; make build and make
+      test-fast passed.
 ---
 
 # I-078: Objective template shows freshness.assessed_by as a string
@@ -38,3 +44,9 @@ template's shape fails to load as malformed evidence.
 - The template shows `assessed_by: {role: checker, session: ...}`.
 - An Objective with a freshness block copied from the template loads.
 - Packaged template copies stay byte-identical.
+
+## Repair Attempt Evidence
+
+- `savepoint-design` Objective template uses the map shape.
+- In a project copy, the new shape loads; the old `role/session` string fails the whole project load with `cannot unmarshal !!str into data.evidenceActorFrontmatter`, which is worse than first recorded.
+- Packaged copies are byte-identical to `agent-skills/`; `make build` and `make test-fast` passed.
