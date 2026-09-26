@@ -205,9 +205,14 @@ func TestMigratedReleaseFlowsThroughDoctorBoardSelectorPlainAndResume(t *testing
 	if len(index.Releases) != 1 {
 		t.Fatalf("migrated Releases = %d, want one first-class Release", len(index.Releases))
 	}
+	for id, release := range index.Releases {
+		if release.Status != data.ColumnInProgress {
+			t.Fatalf("migrated Release %s status = %s, want in_progress for this fixture", id, release.Status)
+		}
+	}
 	problems := doctor.RunV2Checks(savepointRoot).Releases
-	if len(problems) == 0 {
-		t.Fatal("doctor reported no Release readiness diagnostic for the migrated incomplete fixture")
+	if len(problems) != 0 {
+		t.Fatalf("doctor reported false readiness diagnostics for an in-progress migrated Goal: %v", problems)
 	}
 
 	// Plain board, TUI board, and resume must each still report the same
