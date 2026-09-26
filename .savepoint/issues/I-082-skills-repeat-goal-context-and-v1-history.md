@@ -2,7 +2,7 @@
 id: I-082
 title: Every skill repeats Goal context, and two carry V1 and keybinding history
 type: drift
-status: in_progress
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: user}
@@ -20,6 +20,17 @@ history:
     note: >-
       The four skills now carry a role-sized Goal paragraph and a one-line pointer to AGENTS.md for Next-line handling; V1 conversion detail and the r keybinding alias are gone from packaged skills. Packaged template copies re-synced; make build and make
       test-fast passed.
+  - at: '2026-09-26T05:30:33Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner waived the independent Check and instructed the executor to
+      resolve this Issue. No Check was run and no technical CLEAR is implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T05:30:33Z'
+  reason: Owner accepted the skill repair committed to v2 in 03d4629 without a Check.
 ---
 
 # I-082: Every skill repeats Goal context, and two carry V1 and keybinding history
