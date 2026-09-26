@@ -580,5 +580,4 @@ files:
         release: R-002
         objective: O-001
         task: T-001
-        next_action: Build E01-example/T001-shared.
         ```

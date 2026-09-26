@@ -306,6 +306,27 @@ func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
 			if len(index.Tasks) == 0 {
 				t.Errorf("migrated %s has no Tasks; the fixture's active work should have converted", fixture)
 			}
+
+			sourceRouter, err := os.ReadFile(filepath.Join(fixtureRoot, fixture, "project", ".savepoint", "router.md"))
+			if err != nil {
+				t.Fatalf("read %s V1 router: %v", fixture, err)
+			}
+			if !strings.Contains(string(sourceRouter), "next_action:") {
+				t.Fatalf("%s fixture no longer covers a V1 router with next_action", fixture)
+			}
+			convertedRouter, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+			if err != nil {
+				t.Fatalf("read %s converted router: %v", fixture, err)
+			}
+			if strings.Contains(string(convertedRouter), "next_action:") {
+				t.Errorf("%s migrated router retained retired next_action:\n%s", fixture, convertedRouter)
+			}
+			doctorReport := doctor.RunV2Checks(filepath.Join(root, ".savepoint"))
+			for _, problem := range doctorReport.Project {
+				if strings.Contains(problem.Message, "[router-next-action-retired]") {
+					t.Errorf("doctor reports the retired next_action on migrated %s: %+v", fixture, problem)
+				}
+			}
 		})
 	}
 }
