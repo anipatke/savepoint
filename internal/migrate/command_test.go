@@ -418,6 +418,10 @@ func initGitRepository(t *testing.T, gitPath, root string) {
 	// Git for Windows converts line endings on checkout by default, so a
 	// restore would not reproduce the fixture's bytes.
 	runGitTest(t, gitPath, root, "config", "core.autocrlf", "false")
+	// A commit can start detached auto-maintenance that creates and removes
+	// .git lock files while a test snapshots the tree.
+	runGitTest(t, gitPath, root, "config", "maintenance.auto", "false")
+	runGitTest(t, gitPath, root, "config", "gc.auto", "0")
 	runGitTest(t, gitPath, root, "add", "-Af")
 	runGitTest(t, gitPath, root, "commit", "-qm", "fixture baseline")
 }

@@ -773,6 +773,10 @@ func initMigrateGitRepo(t *testing.T, dir string) {
 	run("init", "-q")
 	run("config", "user.name", "Savepoint Test")
 	run("config", "user.email", "savepoint-test@example.invalid")
+	// A commit can start detached auto-maintenance that creates and removes
+	// .git lock files while a test snapshots the directory.
+	run("config", "maintenance.auto", "false")
+	run("config", "gc.auto", "0")
 	run("add", "-A")
 	run("commit", "-qm", "fixture baseline")
 }

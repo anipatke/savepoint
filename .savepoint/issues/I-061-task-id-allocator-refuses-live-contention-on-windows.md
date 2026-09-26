@@ -2,7 +2,7 @@
 id: I-061
 title: Task ID allocator refuses live contention as a leftover lock on Windows
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: planner, session: i061-windows-allocator-20260926}
@@ -101,6 +101,20 @@ history:
       TestTaskIDLockBusy_retriesWindowsDeletePendingOnly. GOOS=windows go vet,
       make build, and make test-full passed on Linux, and the concurrency test
       passed 30 of 30 there. Windows proof awaits the windows-tests CI job.
+  - at: '2026-09-26T04:54:11Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner instructed the executor to mark fixed Issues resolved before
+      pushing. The windows-tests job passed on ae76b3d (run 36219062865),
+      the first Windows run with the fix; that is one passing run, not a
+      long streak. No independent Check was run and no technical CLEAR is
+      implied.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-09-26T04:54:11Z'
+  reason: Owner accepted the Windows lock repair after windows-tests passed on ae76b3d.
 ---
 
 # I-061: Task ID allocator refuses live contention as a leftover lock on Windows
