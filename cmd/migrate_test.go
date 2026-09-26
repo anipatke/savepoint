@@ -193,3 +193,13 @@ func runMigrateOptions(t *testing.T, args []string) MigrateOptions {
 	}
 	return got
 }
+
+func TestParseMigrateArgs_verbose(t *testing.T) {
+	got := runMigrateOptions(t, []string{"--verbose"})
+	if !got.Verbose {
+		t.Fatal("Verbose = false, want true for --verbose")
+	}
+	if got.WillWrite() {
+		t.Fatal("WillWrite() = true, want --verbose alone to preview")
+	}
+}

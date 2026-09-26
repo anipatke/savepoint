@@ -58,6 +58,8 @@ type CommandOptions struct {
 	// command layer and is deliberately not duplicated here.
 	Write         bool
 	DecisionsFile string
+	// Verbose prints the complete preview listing instead of the summary.
+	Verbose bool
 
 	Stdout         io.Writer
 	Now            Clock
@@ -114,6 +116,14 @@ func ensureTargetWritable(root string) error {
 	return nil
 }
 
+// preview renders the plan as the summary, or the full listing when Verbose.
+func (opts CommandOptions) preview(plan *ConversionPlan) string {
+	if opts.Verbose {
+		return FormatPreview(plan)
+	}
+	return FormatSummaryPreview(plan)
+}
+
 // RunCommand performs one `savepoint migrate` invocation and returns its exit
 // code: 0 clean, 1 a named refusal, 2 an internal error.
 func RunCommand(opts CommandOptions) (int, error) {
@@ -142,17 +152,17 @@ func RunCommand(opts CommandOptions) (int, error) {
 			fmt.Fprintln(opts.Stdout, "project is already migrated (schema_version: 2); nothing to do")
 			return 0, nil
 		}
-		fmt.Fprint(opts.Stdout, FormatPreview(plan))
+		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		return 0, nil
 	}
 
 	if len(plan.Conflicts) > 0 {
-		fmt.Fprint(opts.Stdout, FormatPreview(plan))
+		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		return 1, fmt.Errorf("migrate: plan reports %d conflict(s); resolve before migrating", len(plan.Conflicts))
 	}
 
 	if !opts.Write {
-		fmt.Fprint(opts.Stdout, FormatPreview(plan))
+		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		if !plan.Appliable {
 			return 1, unresolvedAmbiguityError(plan)
 		}
@@ -160,7 +170,7 @@ func RunCommand(opts CommandOptions) (int, error) {
 	}
 
 	if !plan.Appliable {
-		fmt.Fprint(opts.Stdout, FormatPreview(plan))
+		fmt.Fprint(opts.Stdout, opts.preview(plan))
 		return 1, unresolvedAmbiguityError(plan)
 	}
 	if err := ensureCleanGitTree(root, plan, opts.RunGit); err != nil {

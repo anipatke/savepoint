@@ -187,6 +187,7 @@ func migrateRunner(ctx context.Context, opts cmd.MigrateOptions) (int, error) {
 		Dir:            opts.Dir,
 		Write:          opts.WillWrite(),
 		DecisionsFile:  opts.DecisionsFile,
+		Verbose:        opts.Verbose,
 		Stdout:         os.Stdout,
 		Now:            time.Now,
 		NewOperationID: migrate.NewOperationID,

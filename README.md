@@ -223,9 +223,19 @@ npx savepoint migrate
 npx savepoint migrate --apply
 ```
 
-The preview reports planned records, identity mappings, archived source,
-conflicts, and decisions that still need an owner. Nothing is written unless
-`--apply` is used. Apply requires a Git work tree, and every planned write or
+The preview is a short summary: the Goals, Objectives, Tasks, and Issues it
+will create, how many V1 files it will archive, any conflicts, and any
+decisions that still need an owner. Nothing is written unless `--apply` is
+used. When a V1 record has a status V2 cannot map on its own, the preview
+lists the choices and the exact entries to put in a decisions file:
+
+```bash
+npx savepoint migrate --decisions decisions.yml
+npx savepoint migrate --decisions decisions.yml --apply
+```
+
+Add `--verbose` to list every planned record, identity mapping, archived
+file, and advisory note. Apply requires a Git work tree, and every planned write or
 removal path must be free of modified, untracked, or ignored files. Commit or
 stash changes at those paths and move ignored files away from them before
 retrying. Legacy Release PRDs
