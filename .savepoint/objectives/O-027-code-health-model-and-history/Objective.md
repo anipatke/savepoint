@@ -20,7 +20,7 @@ Providers and UI need stable semantics. Missing measurements must never become z
 
 ## Success Conditions
 
-- The model represents scoped results for all six signals and distinguishes available, unavailable, not configured, failed, timed out, and cancelled outcomes where applicable.
+- The model represents scoped results for the five V2.1 capabilities—tests, coverage, complexity, duplication, and dependency vulnerabilities—and distinguishes available, partial, absent, unsupported, unavailable, not configured, failed, timed out, and cancelled outcomes where applicable.
 - Versioned machine-readable snapshots live in a dedicated `.savepoint` health area with origin, provider/version, configuration and exclusion fingerprints, repository state, bounded detail, and sanitised evidence references.
 - Repository identity handles commits, dirty tracked and relevant untracked inputs, ancestor-based “commits behind” wording, divergence, and repositories without a useful commit.
 - Deterministic classification implements current-value thresholds, one-level worsening for material decline, hard blockers, partial-data summaries, and a recent range after three comparable official snapshots.
@@ -40,3 +40,5 @@ Code Health owns these records. Check records reference snapshot identities rath
 ## Confirmed Design Decisions
 
 The owner confirmed versioned records intended for Git, separate Check references, dirty-tree fingerprints, official-only baselines, ten manual snapshots, comparability resets, configurable guidance with hard minimums, and no numerical score on 2026-09-26.
+
+On 2026-09-29, the owner confirmed the reconciled five-capability design. Collection outcome and freshness are separate dimensions: freshness is `fresh`, `stale`, or `unknown`, so missing or failed evidence cannot masquerade as stale-but-valid data. Configuration and immutable snapshots live under `.savepoint/health/`; stable snapshot identities derive from canonical snapshot content. Repository fingerprints cover configured scope and relevant tracked and untracked inputs without storing sensitive file content. History compares only compatible provider, schema, measurement-definition, configuration, and scope identities. Full Objective Check snapshots remain permanent; explicit maintenance retains only the ten newest manual snapshots. Classification produces deterministic Good, Watch, and Needs Attention summaries without a composite score.
