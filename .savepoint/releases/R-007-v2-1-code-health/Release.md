@@ -10,13 +10,13 @@ AI-assisted solo builders can see whether the code their agents produce is stayi
 
 ## Why
 
-Savepoint helps users plan, build, and independently verify work, but it does not translate ongoing software-health signals for users unfamiliar with coverage, complexity, duplication, change hotspots, or vulnerability reports. Code Health extends Objective Checks without turning Savepoint into a language-specific analysis platform.
+Savepoint helps users plan, build, and independently verify work, but it does not translate ongoing software-health signals for users unfamiliar with tests, coverage, complexity, duplication, or dependency vulnerability reports. Code Health extends Objective Checks without turning Savepoint into a language-specific analysis platform.
 
 ## Success Conditions
 
 - A separate internal Code Health module owns its normalized model, supported provider adapters, execution, classification, snapshot history, and persistence; the TUI and Objective Check use narrow interfaces.
 - Initial scaffolding discovers likely capabilities, proposes them for confirmation, records human-readable intentions in `Design.md`, and keeps executable settings in dedicated machine-readable configuration.
-- Tests, coverage, complexity, duplication, change hotspots, and known dependency vulnerabilities each have one supported official provider path using project-owned tools or structured reports. Missing capabilities remain explicitly unavailable.
+- Tests, coverage, complexity, duplication, and known dependency vulnerabilities each have one supported official provider path using project-owned tools or structured reports. Missing capabilities remain explicitly unavailable.
 - Full Objective Checks and explicit manual refreshes collect health data. Official trends use Full Objective Check snapshots; manual results remain visible without altering the official baseline.
 - Compact versioned snapshots identify repository state and provider provenance, distinguish collection failure from unhealthy code, preserve comparable history, and never store unrestricted scanner output.
 - The dedicated TUI view uses deterministic Good, Watch, and Needs Attention states without a composite score or AI assessment, explains every warning, and never starts a scan merely by opening.
@@ -25,7 +25,7 @@ Savepoint helps users plan, build, and independently verify work, but it does no
 
 ## Boundaries
 
-**In scope:** modular health records and services; confirmed discovery and configuration; safe use of project-owned tools; six supported capabilities; history, classification, and staleness; Full Objective Check integration; a dedicated TUI view; upgrades, tests, and documentation.
+**In scope:** modular health records and services; confirmed discovery and configuration; safe use of project-owned tools; five supported capabilities; history, classification, and staleness; Full Objective Check integration; a dedicated TUI view; upgrades, tests, and documentation.
 
 **Out of scope:** AI review or health judgment, cloud analysis, language-specific analysis engines inside Savepoint, composite numerical scores, automatic tool installation, background monitoring, daemons, watchers, dead-code analysis as a core capability, automatic Issue creation, web dashboards, enterprise reporting, and a generic plugin ecosystem.
 
@@ -47,7 +47,8 @@ Confirmed by the owner in chat on 2026-09-26.
 - Healthy requires all required capabilities to complete with none needing attention. Partial, stale, failed, and absent data receive explicit alternative summaries.
 - Generated, vendored, and third-party code is excluded by default through provider-native mechanisms. Scope and configuration fingerprints control comparability.
 - Monorepos may configure multiple scoped provider instances per capability. Savepoint does not aggregate values that are not semantically compatible.
-- All six capabilities ship with one tested official path selected from a supported catalogue. External tools remain project-owned. Complexity and change-hotspot calculation remain in approved external tools rather than Savepoint.
+- Each of the five in-scope capabilities will use one tested official path selected from a supported catalogue. External tools remain project-owned; complexity analysis stays outside Savepoint.
+- On 2026-09-27, the owner confirmed the V2.1 measure set as tests, test coverage, complexity, duplication, and dependency vulnerabilities. Change hotspots and dead-code analysis are excluded from V2.1. On 2026-09-29, the owner approved the five official provider/report paths and the proposed Code Health module boundary and compatibility rules recorded in O-026.
 - Security database behavior belongs to the project scanner. Savepoint records freshness when available and preserves unknown severity instead of guessing.
 - Health warnings never create Issues automatically; an independent checker decides whether durable Issue capture is warranted.
 - The public concept is Goal, while the current schema retains the `R-###` compatibility identity. A future `G-###` migration is separate from v2.1.
