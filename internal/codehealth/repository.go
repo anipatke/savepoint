@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -153,6 +154,8 @@ func matchSegments(pat, segs []string) bool {
 	if len(segs) == 0 {
 		return false
 	}
+	// Patterns are validated at the configuration boundary (validateGlob), so
+	// a match error cannot occur here.
 	ok, err := path.Match(pat[0], segs[0])
 	return err == nil && ok && matchSegments(pat[1:], segs[1:])
 }
@@ -307,18 +310,32 @@ func (q gitQuery) paths(ctx context.Context, scope InputScope, args ...string) (
 	}
 	var out []string
 	for _, raw := range strings.Split(string(res.Stdout), "\x00") {
-		p := filepath.ToSlash(raw)
-		if raw != "" && safeRelative(p) && scope.relevant(p) {
-			out = append(out, p)
+		if raw == "" {
+			continue
 		}
+		p := filepath.ToSlash(raw)
+		if !scope.relevant(p) {
+			continue
+		}
+		// A relevant input that cannot be fingerprinted safely must not vanish
+		// from the identity; refuse to describe the repository instead.
+		if !safeRelative(runtime.GOOS, p) {
+			return nil, fieldError(ErrInputUnreadable, "input", "%q is not a safe project-relative path on %s", p, runtime.GOOS)
+		}
+		out = append(out, p)
 	}
 	slices.Sort(out)
 	return slices.Compact(out), nil
 }
 
-// safeRelative refuses anything that could leave the project root.
-func safeRelative(p string) bool {
-	return !strings.HasPrefix(p, "/") && !slices.Contains(splitPath(p), "..") && !strings.Contains(p, ":")
+// safeRelative refuses anything that could leave the project root. A colon is
+// a drive or alternate-data-stream marker only on Windows; elsewhere it is an
+// ordinary filename character.
+func safeRelative(goos, p string) bool {
+	if strings.HasPrefix(p, "/") || slices.Contains(splitPath(p), "..") {
+		return false
+	}
+	return goos != "windows" || !strings.Contains(p, ":")
 }
 
 // fingerprintInputs hashes the working-tree bytes of every listed file. A file

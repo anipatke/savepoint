@@ -2,6 +2,7 @@ package codehealth
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -151,5 +152,40 @@ func TestConfigDigest(t *testing.T) {
 	}
 	if got := base.Digest(); got != fixtureConfigDigest {
 		t.Errorf("Digest() = %s, want pinned vector %s", got, fixtureConfigDigest)
+	}
+}
+
+// Evidence entries that share a path and line differ only by note; their order
+// must not change identity, and a retry in either order must be the same save.
+func TestSnapshotIDIgnoresEvidenceTieOrder(t *testing.T) {
+	first := EvidenceRef{Path: "report.json", Line: 1, Note: "first"}
+	second := EvidenceRef{Path: "report.json", Line: 1, Note: "second"}
+	s := validSnapshot(t)
+	s.Results[0].Evidence = []EvidenceRef{first, second}
+	sealed := reseal(s)
+	if err := sealed.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	reversed := sealed
+	reversed.Results = slices.Clone(sealed.Results)
+	reversed.Results[0].Evidence = []EvidenceRef{second, first}
+	if err := reversed.Validate(); err != nil {
+		t.Fatalf("reordered tied evidence should keep its ID: %v", err)
+	}
+
+	distinct := sealed
+	distinct.Results = slices.Clone(sealed.Results)
+	distinct.Results[0].Evidence = []EvidenceRef{first, {Path: "report.json", Line: 1, Note: "other"}}
+	if distinct.ComputeID() == sealed.ID {
+		t.Fatal("a different note kept the same ID")
+	}
+
+	st, _ := newProject(t)
+	if created, err := st.SaveSnapshot(sealed); err != nil || !created {
+		t.Fatalf("first save = %v, %v", created, err)
+	}
+	if created, err := st.SaveSnapshot(reversed); err != nil || created {
+		t.Fatalf("retry with reordered evidence = %v, %v; want unchanged success", created, err)
 	}
 }

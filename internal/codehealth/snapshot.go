@@ -40,10 +40,44 @@ type Value struct {
 	Unit   Unit    `json:"unit"`
 }
 
+// UnmarshalJSON requires a present number; see requiredNumber.
+func (v *Value) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Number *float64 `json:"number"`
+		Unit   Unit     `json:"unit"`
+	}
+	if err := decodeRecord(data, &raw); err != nil {
+		return err
+	}
+	n, err := requiredNumber("value.number", raw.Number)
+	if err != nil {
+		return err
+	}
+	*v = Value{Number: n, Unit: raw.Unit}
+	return nil
+}
+
 // Detail is one bounded, normalized supporting number such as total_tests.
 type Detail struct {
 	Key    string  `json:"key"`
 	Number float64 `json:"number"`
+}
+
+// UnmarshalJSON requires a present number; see requiredNumber.
+func (d *Detail) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Key    string   `json:"key"`
+		Number *float64 `json:"number"`
+	}
+	if err := decodeRecord(data, &raw); err != nil {
+		return err
+	}
+	n, err := requiredNumber("details.number", raw.Number)
+	if err != nil {
+		return err
+	}
+	*d = Detail{Key: raw.Key, Number: n}
+	return nil
 }
 
 // EvidenceRef points at a repository-relative file that supports a result.
@@ -268,6 +302,28 @@ func (v Value) validate(field string, c Capability) error {
 	return nil
 }
 
+// validateSeverity checks the vulnerability severity counts: each must be a
+// whole, non-negative count, and together they cannot exceed the total.
+func (r CapabilityResult) validateSeverity(field string) error {
+	if r.Capability != CapabilityDependencyVulnerability {
+		return nil
+	}
+	var sum float64
+	for i, d := range r.Details {
+		if d.Key != DetailHighVulnerabilities && d.Key != DetailCriticalVulnerabilities {
+			continue
+		}
+		if d.Number < 0 || d.Number != math.Trunc(d.Number) {
+			return fieldError(ErrIncompatibleUnit, indexed(field+".details", i)+".number", "%v must be a whole, non-negative count", d.Number)
+		}
+		sum += d.Number
+	}
+	if r.Value != nil && sum > r.Value.Number {
+		return fieldError(ErrIncompatibleUnit, field+".details", "severity counts total %v, more than the %v vulnerabilities reported", sum, r.Value.Number)
+	}
+	return nil
+}
+
 func (r CapabilityResult) validateBounded(field string) error {
 	if err := validateText(field+".reason", r.Reason, MaxReasonLen); err != nil {
 		return err
@@ -288,6 +344,9 @@ func (r CapabilityResult) validateBounded(field string) error {
 		if math.IsNaN(d.Number) || math.IsInf(d.Number, 0) {
 			return fieldError(ErrIncompatibleUnit, f+".number", "%v must be finite", d.Number)
 		}
+	}
+	if err := r.validateSeverity(field); err != nil {
+		return err
 	}
 	if len(r.Evidence) > MaxEvidence {
 		return fieldError(ErrUnboundedDetail, field+".evidence", "has %d entries; at most %d", len(r.Evidence), MaxEvidence)

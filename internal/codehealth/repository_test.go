@@ -259,17 +259,17 @@ func TestObserveSymlinkHashesTargetWithoutFollowing(t *testing.T) {
 
 func TestObserveUnusualFilenames(t *testing.T) {
 	dir := newRepo(t)
-	names := []string{"with space.txt", "ünï-cödé.txt", "-leading-dash.txt", "quote'\"s.txt", "tab\there.txt"}
+	names := []string{"with space.txt", "ünï-cödé.txt", "-leading-dash.txt"}
 	if runtime.GOOS != "windows" {
-		names = append(names, "new\nline.txt")
+		// Windows cannot create these names, so they are never written there.
+		names = append(names, "quote'\"s.txt", "tab\there.txt", "new\nline.txt")
+	} else {
+		names = append(names, "quote's.txt")
 	}
 	files := map[string]string{"a.go": "package a\n", "sub/b.go": "package b\n"}
 	for _, n := range names {
 		write(t, dir, n, "data "+n)
 		files[n] = "data " + n
-	}
-	if runtime.GOOS == "windows" {
-		delete(files, "tab\there.txt") // tab is not a legal Windows filename character
 	}
 	got := observe(t, dir, InputScope{})
 	if want := oracleFingerprint(files); got.Identity.InputFingerprint != want {
@@ -375,6 +375,20 @@ func TestObserveBoundaryFailures(t *testing.T) {
 		_, err := ObserveRepository(context.Background(), GitRunner{}, newRepo(t), InputScope{Include: []string{"../escape"}})
 		if !errors.Is(err, ErrInvalidConfig) {
 			t.Fatalf("err = %v, want ErrInvalidConfig", err)
+		}
+	})
+	t.Run("malformed glob", func(t *testing.T) {
+		for _, scope := range []InputScope{
+			{Include: []string{"["}},
+			{Include: []string{"src/[abc"}},
+			{Exclude: []string{"src/[abc"}},
+			{Include: []string{"ok/**/[z-a"}},
+			{Include: []string{"a\\"}},
+		} {
+			_, err := ObserveRepository(context.Background(), GitRunner{}, newRepo(t), scope)
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("%+v: err = %v, want ErrInvalidConfig", scope, err)
+			}
 		}
 	})
 	t.Run("unreadable input", func(t *testing.T) {
@@ -663,5 +677,101 @@ func TestInputScopeMatching(t *testing.T) {
 		if got := tt.scope.relevant(tt.path); got != tt.want {
 			t.Errorf("%+v relevant(%q) = %v, want %v", tt.scope, tt.path, got, tt.want)
 		}
+	}
+}
+
+func TestScopeGlobValidation(t *testing.T) {
+	for pattern, ok := range map[string]bool{
+		"src":          true,
+		"src/*":        true,
+		"**":           true,
+		"**/*.go":      true,
+		"a/**/b":       true,
+		"file[0-9].go": true,
+		"file[!a].go":  true,
+		"q?.go":        true,
+		"[":            false,
+		"src/[abc":     false,
+		"**/[":         false,
+		"x[":           false,
+	} {
+		for name, scope := range map[string]InputScope{"include": {Include: []string{pattern}}, "exclude": {Exclude: []string{pattern}}} {
+			err := scope.Validate()
+			if ok && err != nil || !ok && !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("%s %q: Validate() = %v, want ok=%v", name, pattern, err, ok)
+			}
+		}
+		cfg := validConfig(t)
+		cfg.Capabilities[0].Scope = []string{pattern}
+		if err := cfg.Validate(); ok && err != nil || !ok && !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("config scope %q: Validate() = %v, want ok=%v", pattern, err, ok)
+		}
+	}
+}
+
+func TestSafeRelativeByPlatform(t *testing.T) {
+	tests := []struct {
+		goos, path string
+		want       bool
+	}{
+		{"linux", "source:part.go", true},
+		{"linux", "dir:x/a.go", true},
+		{"darwin", "a:b", true},
+		{"windows", "source:part.go", false},
+		{"windows", "C:/x.go", false},
+		{"windows", "a.go:stream", false},
+		{"windows", "plain/a.go", true},
+		{"linux", "/abs/a.go", false},
+		{"linux", "../escape.go", false},
+		{"linux", "a/../b.go", false},
+		{"windows", "../escape.go", false},
+	}
+	for _, tt := range tests {
+		if got := safeRelative(tt.goos, tt.path); got != tt.want {
+			t.Errorf("safeRelative(%q, %q) = %v, want %v", tt.goos, tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestObserveFingerprintsPOSIXColonFilenames(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("colons are not legal in Windows filenames")
+	}
+	dir := newRepo(t)
+	write(t, dir, "source:part.go", "package a\n")
+	untracked := observe(t, dir, InputScope{})
+	want := map[string]string{"a.go": "package a\n", "sub/b.go": "package b\n", "source:part.go": "package a\n"}
+	if got := oracleFingerprint(want); untracked.Identity.InputFingerprint != got {
+		t.Fatalf("untracked colon file missing from fingerprint: %s, want %s", untracked.Identity.InputFingerprint, got)
+	}
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "-qm", "colon")
+	clean := observe(t, dir, InputScope{})
+	if clean.Identity.Dirty {
+		t.Fatal("committed colon file reported dirty")
+	}
+	write(t, dir, "source:part.go", "package changed\n")
+	edited := observe(t, dir, InputScope{})
+	if !edited.Identity.Dirty || edited.Identity.InputFingerprint == clean.Identity.InputFingerprint {
+		t.Errorf("edit to a tracked colon file went unnoticed: %+v", edited.Identity)
+	}
+	if got := observe(t, dir, InputScope{Exclude: []string{"source*part.go"}}); got.Identity.Dirty {
+		t.Error("an excluded colon file still counted")
+	}
+}
+
+func TestObserveRefusesUnsafeRelevantPaths(t *testing.T) {
+	list := func(out string, scope InputScope) error {
+		f := &fakeRunner{reply: func(args []string) (CommandResult, error) {
+			return CommandResult{Stdout: []byte(out)}, nil
+		}}
+		_, err := gitQuery{runner: f}.paths(context.Background(), scope, "ls-files", "-z")
+		return err
+	}
+	if err := list("ok.go\x00../escape.go\x00", InputScope{}); !errors.Is(err, ErrInputUnreadable) {
+		t.Errorf("relevant traversal path: err = %v, want ErrInputUnreadable", err)
+	}
+	if err := list("ok.go\x00../escape.go\x00", InputScope{Include: []string{"ok.go"}}); err != nil {
+		t.Errorf("irrelevant unsafe path should not fail: %v", err)
 	}
 }

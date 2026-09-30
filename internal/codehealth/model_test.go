@@ -1,7 +1,9 @@
 package codehealth
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -381,5 +383,128 @@ func TestDecodeSnapshotRejectsMalformedInput(t *testing.T) {
 				t.Fatalf("got %v, want ErrMalformedRecord", err)
 			}
 		})
+	}
+}
+
+func TestVulnerabilitySeverityCountsAreValidated(t *testing.T) {
+	sev := func(high, critical float64) []Detail {
+		return []Detail{{Key: "high", Number: high}, {Key: "critical", Number: critical}}
+	}
+	tests := []struct {
+		name    string
+		total   float64
+		details []Detail
+		ok      bool
+	}{
+		{"consistent", 3, sev(1, 1), true},
+		{"all severe", 2, sev(1, 1), true},
+		{"no severity details", 0, nil, true},
+		{"zero total with high", 0, sev(1, 0), false},
+		{"zero total with critical", 0, sev(0, 1), false},
+		{"severity exceeds total", 1, sev(1, 1), false},
+		{"negative count", 3, sev(-1, 0), false},
+		{"fractional count", 3, sev(0.5, 0), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := vulnResult(tt.total, tt.details...)
+			err := r.validateBounded("r")
+			if tt.ok && err != nil || !tt.ok && !errors.Is(err, ErrIncompatibleUnit) {
+				t.Fatalf("validateBounded() = %v, ok want %v", err, tt.ok)
+			}
+		})
+	}
+}
+
+func TestRequiredNumbersMustBePresent(t *testing.T) {
+	var v Value
+	var d Detail
+	var th Threshold
+	for name, tc := range map[string]struct {
+		decode func(string) error
+		in     string
+		want   error
+	}{
+		"value omitted":     {func(s string) error { return json.Unmarshal([]byte(s), &v) }, `{"unit":"count"}`, ErrMissingValue},
+		"value null":        {func(s string) error { return json.Unmarshal([]byte(s), &v) }, `{"number":null,"unit":"count"}`, ErrMissingValue},
+		"value zero":        {func(s string) error { return json.Unmarshal([]byte(s), &v) }, `{"number":0,"unit":"count"}`, nil},
+		"value unknown key": {func(s string) error { return json.Unmarshal([]byte(s), &v) }, `{"number":1,"unit":"count","x":1}`, ErrMalformedRecord},
+		"detail omitted":    {func(s string) error { return json.Unmarshal([]byte(s), &d) }, `{"key":"high"}`, ErrMissingValue},
+		"detail null":       {func(s string) error { return json.Unmarshal([]byte(s), &d) }, `{"key":"high","number":null}`, ErrMissingValue},
+		"detail zero":       {func(s string) error { return json.Unmarshal([]byte(s), &d) }, `{"key":"high","number":0}`, nil},
+		"threshold omitted": {func(s string) error { return json.Unmarshal([]byte(s), &th) }, `{"good":80}`, ErrMissingValue},
+		"threshold null":    {func(s string) error { return json.Unmarshal([]byte(s), &th) }, `{"good":null,"watch":60}`, ErrMissingValue},
+		"threshold zero":    {func(s string) error { return json.Unmarshal([]byte(s), &th) }, `{"good":0,"watch":0}`, nil},
+		"threshold unknown": {func(s string) error { return json.Unmarshal([]byte(s), &th) }, `{"good":1,"watch":2,"x":1}`, ErrMalformedRecord},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := tc.decode(tc.in)
+			if tc.want == nil && err != nil || !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestDecodeRejectsMissingNumbersInWholeRecords(t *testing.T) {
+	var snap map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid-snapshot-v1.json"), &snap); err != nil {
+		t.Fatal(err)
+	}
+	delete(snap["results"].([]any)[0].(map[string]any)["value"].(map[string]any), "number")
+	data, _ := json.Marshal(snap)
+	if _, err := DecodeSnapshot(data); !errors.Is(err, ErrMissingValue) {
+		t.Fatalf("DecodeSnapshot() = %v, want ErrMissingValue", err)
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid-config-v1.json"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cfg["capabilities"].([]any) {
+		m := c.(map[string]any)
+		if th, ok := m["thresholds"].(map[string]any); ok {
+			delete(th, "watch")
+			data, _ := json.Marshal(cfg)
+			if _, err := DecodeConfig(data); !errors.Is(err, ErrMissingValue) {
+				t.Fatalf("DecodeConfig() = %v, want ErrMissingValue", err)
+			}
+			return
+		}
+	}
+	t.Log("config fixture has no thresholds; threshold case covered by TestRequiredNumbersMustBePresent")
+}
+
+func TestDecodersRequireEndOfInputAfterOneRecord(t *testing.T) {
+	cfg := readFixture(t, "valid-config-v1.json")
+	snap := readFixture(t, "valid-snapshot-v1.json")
+	decoders := map[string]struct {
+		data   []byte
+		decode func([]byte) error
+	}{
+		"config":   {cfg, func(b []byte) error { _, err := DecodeConfig(b); return err }},
+		"snapshot": {snap, func(b []byte) error { _, err := DecodeSnapshot(b); return err }},
+	}
+	for name, d := range decoders {
+		for tail, ok := range map[string]bool{
+			"":            true,
+			" \n\t\r\n":   true,
+			"}":           false,
+			"]":           false,
+			"\" }garbage": false,
+			" ] {}":       false,
+			" {}":         false,
+			" 1":          false,
+		} {
+			t.Run(fmt.Sprintf("%s %q", name, tail), func(t *testing.T) {
+				err := d.decode(append(slices.Clone(d.data), tail...))
+				if ok && err != nil {
+					t.Fatalf("got %v, want success", err)
+				}
+				if !ok && !errors.Is(err, ErrMalformedRecord) {
+					t.Fatalf("got %v, want ErrMalformedRecord", err)
+				}
+			})
+		}
 	}
 }

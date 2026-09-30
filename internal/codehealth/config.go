@@ -3,6 +3,8 @@ package codehealth
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"math"
 )
 
@@ -150,13 +152,59 @@ func DecodeConfig(data []byte) (Config, error) {
 	return c, c.Validate()
 }
 
-func decodeStrict(data []byte, into any) error {
+// decodeRecord decodes one nested object, rejecting unknown fields like the
+// root decoder does. Custom unmarshalers use it because encoding/json does not
+// carry DisallowUnknownFields into them.
+func decodeRecord(data []byte, into any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(into); err != nil {
 		return fieldError(ErrMalformedRecord, "json", "%v", err)
 	}
-	if dec.More() {
+	return nil
+}
+
+// requiredNumber reads a number that must be present and non-null, so an
+// omitted measurement is never read back as a measured zero.
+func requiredNumber(field string, p *float64) (float64, error) {
+	if p == nil {
+		return 0, fieldError(ErrMissingValue, field, "a number is required; omitted or null is not zero")
+	}
+	return *p, nil
+}
+
+// UnmarshalJSON requires good and watch to be present numbers.
+func (t *Threshold) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Good  *float64 `json:"good"`
+		Watch *float64 `json:"watch"`
+	}
+	if err := decodeRecord(data, &raw); err != nil {
+		return err
+	}
+	good, err := requiredNumber("thresholds.good", raw.Good)
+	if err != nil {
+		return err
+	}
+	watch, err := requiredNumber("thresholds.watch", raw.Watch)
+	if err != nil {
+		return err
+	}
+	*t = Threshold{Good: good, Watch: watch}
+	return nil
+}
+
+func decodeStrict(data []byte, into any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		if errors.Is(err, ErrMissingValue) {
+			return err
+		}
+		return fieldError(ErrMalformedRecord, "json", "%v", err)
+	}
+	// More reports false on a closing delimiter, so demand end of input instead.
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return fieldError(ErrMalformedRecord, "json", "trailing data after record")
 	}
 	return nil

@@ -168,6 +168,8 @@ func TestLoadConfigRejectsBadFiles(t *testing.T) {
 		"unknown field":       {`{"version":1,"capabilities":[],"extra":true}`, ErrMalformedRecord},
 		"unsupported version": {`{"version":2,"capabilities":[]}`, ErrUnsupportedVersion},
 		"trailing data":       {`{"version":1,"capabilities":[]} {}`, ErrMalformedRecord},
+		"closing brace":       {`{"version":1,"capabilities":[]}}`, ErrMalformedRecord},
+		"closing bracket":     {`{"version":1,"capabilities":[]}]`, ErrMalformedRecord},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -354,6 +356,10 @@ func TestLoadSnapshotsRejectsBadFiles(t *testing.T) {
 	}{
 		"malformed json":      {snapshotFileName(valid.ID), `{"version":1`, ErrMalformedRecord},
 		"unsupported version": {snapshotFileName(valid.ID), `{"version":2}`, ErrUnsupportedVersion},
+		"missing number":      {snapshotFileName(valid.ID), `{"version":1,"results":[{"value":{"unit":"count"}}]}`, ErrMissingValue},
+		"null number":         {snapshotFileName(valid.ID), `{"version":1,"results":[{"value":{"number":null,"unit":"count"}}]}`, ErrMissingValue},
+		"closing brace":       {snapshotFileName(valid.ID), string(validData) + "}", ErrMalformedRecord},
+		"closing bracket":     {snapshotFileName(valid.ID), string(validData) + " ]", ErrMalformedRecord},
 		"name mismatch":       {snapshotFileName(snapAt(t, OriginManual, 2).ID), string(validData), ErrIdentityMismatch},
 		"not a snapshot name": {"notes.txt", "hello", ErrMalformedRecord},
 		"uppercase digest":    {"ABCDEF" + snapshotFileName(valid.ID)[6:], string(validData), ErrMalformedRecord},

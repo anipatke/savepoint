@@ -52,7 +52,10 @@ func (r CapabilityResult) canonical() CapabilityResult {
 		if c := strings.Compare(a.Path, b.Path); c != 0 {
 			return c
 		}
-		return a.Line - b.Line
+		if a.Line != b.Line {
+			return a.Line - b.Line
+		}
+		return strings.Compare(a.Note, b.Note)
 	})
 	if r.Value != nil {
 		v := *r.Value

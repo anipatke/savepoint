@@ -2,6 +2,7 @@ package codehealth
 
 import (
 	"encoding/hex"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -127,10 +128,28 @@ func validatePatternList(field string, patterns []string) error {
 		if err := validateRelativePath(ErrInvalidConfig, f, p); err != nil {
 			return err
 		}
+		if err := validateGlob(f, p); err != nil {
+			return err
+		}
 		if seen[p] {
 			return fieldError(ErrInvalidConfig, f, "duplicate entry %q", p)
 		}
 		seen[p] = true
+	}
+	return nil
+}
+
+// validateGlob rejects a pattern whose segments path.Match cannot parse, so a
+// typo such as an unterminated bracket fails loudly instead of matching
+// nothing. "**" is handled by the matcher itself and is always valid.
+func validateGlob(field, pattern string) error {
+	for _, seg := range strings.Split(pattern, "/") {
+		if seg == "**" {
+			continue
+		}
+		if _, err := path.Match(seg, ""); err != nil {
+			return fieldError(ErrInvalidConfig, field, "pattern %q is malformed: %v", pattern, err)
+		}
 	}
 	return nil
 }
