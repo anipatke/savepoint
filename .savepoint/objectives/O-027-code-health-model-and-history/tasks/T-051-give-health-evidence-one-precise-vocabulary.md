@@ -2,10 +2,19 @@
 id: T-051
 title: Give health evidence one precise vocabulary
 objective: O-027
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o027-20260929}
+check_waiver:
+    task: T-051
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-30T20:43:24Z"
 ---
 
 # Give health evidence one precise vocabulary
@@ -57,7 +66,33 @@ Run focused `internal/codehealth` model tests during iteration, then `make build
 
 ## Technical Evidence
 
-Pending execution: record schema cases, identity vectors, commands, changed files, and limitations.
+Implemented in `internal/codehealth` (model.go, errors.go, primitives.go, config.go, snapshot.go, identity.go; model_test.go, identity_test.go; testdata/valid-config-v1.json, testdata/valid-snapshot-v1.json). Stage is `audit`: ready for a Check, not passed.
+
+### Per-criterion outcomes
+
+1. **Fixed capability set / named errors:** met. `TestCapabilitiesAreTheFixedFive`; `TestConfigValidation` cases "unknown capability", "sixth capability rejected" (`ErrUnknownCapability`) and "duplicate instance" (`ErrDuplicateInstance`). Instance key is capability + provider.
+2. **Orthogonal outcome/freshness, values only on available/partial:** met. `TestOutcomeAndFreshnessAreOrthogonal` (all 9 outcomes x 3 freshness), `TestOnlyMeasuredOutcomesCarryValues`, `TestMeasuredOutcomeRules`. Unmeasured outcomes must be `unknown` freshness.
+3. **Versioned types with explicit validation:** met. `Config`, `Snapshot`, `CapabilityResult`, `Provenance`, `RepositoryIdentity`, `EvidenceRef`, `Origin`/`Retention`, `Threshold`, `Summary`; `TestSnapshotValidation` (about 45 cases), `TestConfigValidation`.
+4. **Canonical identities:** met. Pinned vectors `TestSnapshotIDVector`, `TestConfigDigest`; `TestSeriesIDChangesWithCompatibility` (provider, version, schema, definition, configuration, exclusions, scope, capability), `TestSeriesIDIgnoresObservation`, `TestSeriesIDExcludesRepositoryCommit`, `TestSnapshotIDIgnoresListOrder`.
+5. **Rejection rules:** met. `TestEvidenceReferenceSafety` (absolute, traversal, drive, URL, sensitive, control characters), bounds cases, `TestValueUnitCompatibility`, `TestNonFiniteNumbersAreRejected`, timestamp/identity cases, origin/retention cases.
+6. **Fixtures and table tests:** met. Fixture snapshot covers available, failed and not_configured; table tests construct partial, unsupported, unavailable, timed_out, cancelled, absent, stale, unknown-freshness, malformed (`TestDecode*RejectsMalformedInput`), duplicate and incompatible cases. `TestMutationAfterValidationIsCaught` re-validates after mutation.
+
+### Commands
+
+- `go test -count=1 -cover ./internal/codehealth`: ok, 94.6% statements (iteration aid).
+- `make build`: exit 0.
+- `make test-fast`: exit 0.
+
+### Files
+
+Read: the Context Files listed above (model.go, model_test.go and both fixtures did not exist and were created). Extra reads: `AGENTS.md` (workflow and Codebase Map), `agent-skills/savepoint-task/SKILL.md`, `Makefile` (first 30 lines), `go.mod` (yaml.v3 is indirect only, so fixtures are JSON). Changed: new `internal/codehealth/*`; `AGENTS.md` (Codebase Map row, ARCH-04); this Task and O-027 `status: in_progress`.
+
+### Limitations
+
+- Fixtures are JSON; the design names `.savepoint/health/config.yml`, so YAML encoding and persistence belong to a later Task.
+- The summary validates consistency only (good needs available, fresh evidence); threshold classification, worsening and hard blockers are later Tasks.
+- Per-capability units (tests = failed count, coverage and duplication = percent, complexity = highest CCN, vulnerabilities = count) are my choice; the Task did not specify them. Review them before downstream Tasks rely on them.
+- Not run: `make test-full` (not required for ordinary handoff). No Task Check requested and no waiver recorded.
 
 ## Drift Notes
 

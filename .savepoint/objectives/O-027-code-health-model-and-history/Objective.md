@@ -1,7 +1,7 @@
 ---
 id: O-027
 title: Define trustworthy health records and history
-status: planned
+status: in_progress
 depends_on: [O-026]
 release: R-007
 priority: critical

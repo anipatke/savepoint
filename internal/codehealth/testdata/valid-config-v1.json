@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "capabilities": [
+    {
+      "capability": "tests",
+      "provider": "go-test-json",
+      "executable": "go",
+      "args": ["test", "-json", "./..."],
+      "report": ".savepoint/health/reports/go-test.json",
+      "timeout_seconds": 120,
+      "scope": ["**/*.go"],
+      "exclusions": ["vendor/**"],
+      "thresholds": {"good": 0, "watch": 2}
+    },
+    {
+      "capability": "coverage",
+      "provider": "go-cover-profile",
+      "report": "coverage.out",
+      "thresholds": {"good": 80, "watch": 60}
+    },
+    {
+      "capability": "duplication",
+      "provider": "jscpd-json",
+      "executable": "jscpd",
+      "args": ["--reporters", "json", "--workers", "1"],
+      "thresholds": {"good": 3, "watch": 8}
+    }
+  ]
+}
