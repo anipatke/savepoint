@@ -2,10 +2,19 @@
 id: T-053
 title: Describe repository state without guessing
 objective: O-027
-status: planned
+status: done
 depends_on: [{task: T-051, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o027-20260929}
+check_waiver:
+    task: T-053
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-09-30T21:07:17Z"
 ---
 
 # Describe repository state without guessing
@@ -57,7 +66,25 @@ Run focused repository-state tests during iteration, then `make build && make te
 
 ## Technical Evidence
 
-Pending execution: record repository matrices, independent oracles, commands, changed files, and platform limitations.
+Executor session: T-053 build, 2026-10-01. Not a worktree lane (git-dir equals common dir). Audit means ready for a Check, not passed.
+
+**Changed files:** `internal/codehealth/repository.go` (new), `internal/codehealth/repository_test.go` (new), this Task file (status/stage and evidence only).
+
+**Extra reads (beyond Context Files):** `AGENTS.md`, `agent-skills/savepoint-task/SKILL.md` (workflow); `internal/codehealth/errors.go`, `primitives.go`, `config.go`, `snapshot.go`, `identity.go`, `identity_test.go`, `storage.go` (grep only) to reuse `RepositoryIdentity`, digest/path validators, the `.savepoint/health` constants and pattern rules. The `savepoint-task` skill was not registered with the Skill tool, so it was read directly per AGENTS.md. `repository.go` was listed as a Context File but did not exist; the plan creates it, so this was not treated as a material gap.
+
+**Design as built:** `CommandRunner` boundary (argument vectors, no shell; `GitRunner` pins `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, discards stderr, caps output at 32 MiB). `ObserveRepository` returns `Observation{Identity, Shallow}` using `rev-parse`, `ls-files -z`, and `diff --relative --name-only -z HEAD`. Fingerprint is sha256 over sorted, NUL-delimited, length-prefixed entries of working-tree content digests (symlinks hash their target without following; directories and special files are skipped; files Git lists but missing on disk are skipped). `.savepoint/health/**` is always excluded so storing a snapshot cannot change the state it describes. `Relate` uses `cat-file -e`, `merge-base --is-ancestor`, and `rev-list --left-right --count`; counts are set only when not shallow. Wording comes from `Describe`/`DescribeRepositoryError`. Whole observation and comparison use a 30s timeout and honour cancellation.
+
+**Per-criterion outcomes** (all in `internal/codehealth/repository_test.go`):
+1. Identity with commit, fingerprint, explicit unborn state: `TestObserveCleanMatchesOracles`, `TestObserveUnborn`, `TestObserveDirtyTracked`; every observation is also checked against `RepositoryIdentity.validate`.
+2. Fingerprint stability/sensitivity/exclusion/no retention: `TestFingerprintIgnoresEnumerationOrderAndLocation`, `TestObserveDirtyTracked` (change and revert), `TestObserveUntrackedRelevanceAndScope`, `TestObserveExcludesStoredHealthSnapshots`, `TestObserveLeaksNothingSensitive` (remote credentials, file content, author, message, path absent from output), `TestInputScopeMatching`.
+3. Ancestry relations, numeric wording only when proven: `TestRelateAgainstGitOracles` (same, same-with-changed-inputs, behind, ahead, diverged, no-commit, missing object is unknown not diverged), `TestRelateInShallowClone` (ancestry proven but no count; beyond boundary unknown), `TestRelateFailurePaths`, `TestDescriptionsAreDeterministicPlainWords`.
+4. Failure and platform cases without panics: `TestObserveBoundaryFailures` (non-repo, missing git, cancelled, invalid scope, unreadable input), `TestObserveRunnerFailuresAreNamed` (runner error, timeout, bad exit code; runner detail not echoed), `TestObserveFromSubdirectoryStaysInsideIt`, `TestObserveLinkedWorktree`, `TestObserveDeletedFile`, `TestObserveSymlinkHashesTargetWithoutFollowing` (incl. dangling), `TestObserveUnusualFilenames` (spaces, unicode, leading dash, quotes, tab, newline off Windows).
+5. Structured arguments, no shell, cancellation/timeouts: `TestRunnerBoundaryUsesArgumentVectors`, cancellation and timeout subtests above.
+6. Independent oracles: real `git rev-parse`, `git rev-list --count`, and a test-side recomputation of the fingerprint from file bytes (`oracleFingerprint`) over clean, dirty, untracked, ancestor, divergence, unborn, worktree, shallow, and unavailable cases. No test was skipped on this host (Linux).
+
+**Commands run:** `go vet ./internal/codehealth`; `GOOS=windows go vet ./internal/codehealth` (compiles for Windows); `go test -count=1 ./internal/codehealth` (pass); `make build && make test-fast` (pass, all packages). `make test-full` was not run: this Task is neither migration nor evidently platform-sensitive by gate definition, though it does touch path handling (CFG-02/CFG-03); the owner may want a fresh full run or Windows CI before close.
+
+**Limitations:** Fingerprint hashes working-tree bytes, so line-ending conversion (autocrlf) can give different fingerprints for identical commits on different platforms; this is explicit, not normalised. Submodule contents are not fingerprinted. A not-a-repository answer also covers Git refusing an unsafe (foreign-owner) directory, since Git reports both with exit 128. Windows behaviour (path separators, symlink and newline-filename skips) was compiled and vetted but not executed here. Mapping configured per-capability scope/exclusions to one `InputScope` is left to the caller; this Task defines `InputScope` only. Mode-only changes count as dirty but leave the fingerprint unchanged. No Check was written and no owner waiver recorded.
 
 ## Drift Notes
 
