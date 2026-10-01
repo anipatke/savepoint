@@ -77,8 +77,15 @@ type CheckV2 struct {
 	// record of which Issues the evaluation opened.
 	Issues     []string
 	Supersedes string // C-### reference to the Check this run replaces, empty if none
-	Source     V2SourceDocument
+	// HealthSnapshot names the official health snapshot the evaluation relied
+	// on, empty if none. It is an opaque reference resolved by doctor; it
+	// never participates in clearance resolution.
+	HealthSnapshot string
+	Source         V2SourceDocument
 }
+
+// MaxHealthSnapshotRefLen bounds a Check's health_snapshot reference.
+const MaxHealthSnapshotRefLen = 128
 
 type checkScopeFrontmatter struct {
 	Kind string `yaml:"kind"`
@@ -107,6 +114,7 @@ type checkV2Frontmatter struct {
 	Reviewed        *reviewedFrontmatter  `yaml:"reviewed"`
 	Issues          []string              `yaml:"issues"`
 	Supersedes      string                `yaml:"supersedes"`
+	HealthSnapshot  *string               `yaml:"health_snapshot"`
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
@@ -195,6 +203,11 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		return nil, fmt.Errorf("%w: %s: check %s supersedes %q must match C- plus at least three digits", ErrV2InvalidID, path, fields.ID, fields.Supersedes)
 	}
 
+	healthSnapshot, err := decodeHealthSnapshotRef(path, fields.ID, fields.HealthSnapshot)
+	if err != nil {
+		return nil, err
+	}
+
 	return &CheckV2{
 		ID:              fields.ID,
 		Scope:           scope,
@@ -205,8 +218,28 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		Reviewed:        reviewed,
 		Issues:          issues,
 		Supersedes:      fields.Supersedes,
+		HealthSnapshot:  healthSnapshot,
 		Source:          doc,
 	}, nil
+}
+
+// decodeHealthSnapshotRef validates the optional health_snapshot field for
+// shape only. Whether it names a stored snapshot is doctor's question, so this
+// package never needs to know the health record schema.
+func decodeHealthSnapshotRef(path, checkID string, raw *string) (string, error) {
+	if raw == nil {
+		return "", nil
+	}
+	ref := *raw
+	switch {
+	case strings.TrimSpace(ref) == "":
+		return "", fmt.Errorf("%w: %s: check %s health_snapshot must not be empty; remove the field or name a snapshot", ErrV2CheckMalformed, path, checkID)
+	case strings.ContainsAny(ref, "\r\n"):
+		return "", fmt.Errorf("%w: %s: check %s health_snapshot must be a single line", ErrV2CheckMalformed, path, checkID)
+	case len(ref) > MaxHealthSnapshotRefLen:
+		return "", fmt.Errorf("%w: %s: check %s health_snapshot is %d bytes; at most %d", ErrV2CheckMalformed, path, checkID, len(ref), MaxHealthSnapshotRefLen)
+	}
+	return ref, nil
 }
 
 func decodeCheckScope(path, checkID string, raw checkScopeFrontmatter) (CheckScope, error) {

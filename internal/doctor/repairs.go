@@ -107,6 +107,12 @@ func V2ProblemRepair(name string) string {
 		return "Set config.yml's schema_version to the integer 2, or remove the field for a V1 project"
 	case "schema-version-unsupported":
 		return "Set config.yml's schema_version to 2, the only supported explicit value, or remove the field for a V1 project"
+	case "health-snapshot-missing":
+		return "Set health_snapshot to the ID of an official snapshot under .savepoint/health/snapshots, or remove the field from the Check"
+	case "health-snapshot-manual":
+		return "Point health_snapshot at an official snapshot recorded by a Full Objective Check; a manual refresh cannot back a Check"
+	case "health-snapshot-unreadable":
+		return "Fix or remove the unreadable file named in the message under .savepoint/health/snapshots, then run doctor again"
 	case "v2-missing-field":
 		return "Add the missing required field named in the diagnostic to the record's frontmatter"
 	case "v2-invalid-id":
