@@ -2,10 +2,19 @@
 id: T-058
 title: Add the health setup command
 objective: O-028
-status: planned
+status: done
 depends_on: [{task: T-056, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o028-20261001}
+check_waiver:
+    task: T-058
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T08:02:26Z"
 ---
 
 # Add the health setup command
@@ -58,7 +67,25 @@ Focused runs while iterating. Scaffolding and file writes are covered by TEST-03
 
 ## Technical Evidence
 
-Pending execution.
+Executor evidence for a fresh check to verify; not a Check and not clearance.
+
+**Per criterion**
+
+- Preview command: `savepoint health setup [dir]` resolves the target, runs `Discover`, loads any config, prints New / Unchanged / Needs attention / Not suggested, reasons, gaps, exclusions and a closing `--apply` line; writes nothing. Evidence: `TestPreviewWritesNothing` (bytes and mtimes), `TestMainHealthSetupPreviewWritesNothing`.
+- `--apply`: writes only `.savepoint/health/config.json` via `Store.SaveConfig`; second apply reports "No changes". Evidence: `TestApplyThenReapplyIsUnchanged`, `TestMainHealthSetupApplyWritesOnlyConfigAndRepeatsAsUnchanged`. Missing and non-project directories fail with no `.savepoint` created: `TestMainHealthSetupRefusesMissingAndNonSavepointDirectories`, `TestApplyRefusesNonProjectWithoutWriting`. A corrupt existing config fails clearly: `TestUnusableExistingConfigFailsClearly`.
+- Reconciliation: edited args, thresholds, `required`, timeout and exclusions survive (`TestReconciliationKeepsOwnerEdits`); a missing executable or scope is reported and kept (`TestMissingToolIsReportedNotRemoved`, `TestMissingScopeIsReported`); a hand-formatted file is not rewritten when nothing is new (`TestApplyWithNothingNewKeepsHandEditedFileBytes`); a proposal that would conflict with the existing config is refused with nothing written (`TestConflictingProposalIsNotSavedAndIsExplained`).
+- `savepoint init` prints the same preview after scaffolding and writes no health config (`TestMainInitEndsWithHealthPreviewAndWritesNoHealthConfig`); a discovery failure only warns on stderr (`TestMainInitStillSucceedsWhenHealthDiscoveryFails`).
+- Board, resume, doctor, upgrade-assets: not touched; no discovery or health writes added to them.
+- Docs: design skill line added to both copies (identical; `TestScaffoldedSavepointSkillsMatchBundledSkills` passes); AGENTS.md CLI Rules in both copies, live Codebase Map rows for `cmd/` and `internal/codehealth/`, and Design section 6 name the human-only command.
+- OSV line: preview states the scanner, not Savepoint, contacts OSV.dev (asserted in tests).
+
+**Commands run**: `make build && make test-fast` passed; `make test-full` passed (exit 0, includes cross-platform builds). Manual preview of a scratch Go project read as expected.
+
+**Files changed**: new `cmd/health.go`, `cmd/health_test.go`, `internal/codehealth/setup.go`, `internal/codehealth/setup_test.go`, `main_health_test.go`; edited `main.go`, `AGENTS.md`, `templates/project-v2/AGENTS.md`, both design skill copies, `.savepoint/Design.md`.
+
+**Extra reads** (outside Context Files): `internal/codehealth/config.go` (Config/CapabilityConfig fields and validation), `cmd/resume.go` (command pattern), `internal/codehealth/discovery_catalogue.go` (default exclusions), `internal/codehealth/discovery_test.go` (test helpers), `main_test.go` (subprocess test helpers), `.savepoint/Guardrails.md` (named rule text), `.savepoint/Design.md` section 6.
+
+**Limitations**: `cmd/init_test.go` was read but not changed; init behavior is tested in `main_health_test.go`. The owner User Check (scratch project walkthrough) is not yet done. Setup also adds proposals whose tool is not installed yet (they are marked and reported as needing attention later). The discovery-failure init test triggers failure through a corrupt existing config and cannot see the stderr warning on success.
 
 ## Drift Notes
 

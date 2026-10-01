@@ -131,12 +131,13 @@ Task files may include `complexity_tier` (`low`, `medium`, `high`, or `spike`) a
 | `savepoint doctor`     | Integrity check + ad-hoc quality-gate run + Layer-2 prompt for AI semantic review |
 | `savepoint create-task --objective O-### --draft <path> [dir]` | Create a Task from an ID-free draft, assign its project-wide ID, and strict-load the full V2 index |
 | `savepoint migrate [dir]` | Preview-first V1-to-V2 conversion; apply checks planned paths in Git before writing |
+| `savepoint health setup [dir] [--apply]` | Human-only: preview suggested health tools and what would change; `--apply` writes only `.savepoint/health/config.json`, keeping confirmed entries and reporting missing tools without removing them. `init` ends with the same preview |
 | `savepoint resume [dir]` | Print the shared V2 Next projection without writing project files |
 | `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refresh package-owned agent skills and the managed agent-guide block without touching project state |
 | `--version` / `--help` | Standard global flags                                                             |
 
 - Bare `savepoint` prints help.
-- Agents may run `savepoint resume` for read-only routing and `savepoint create-task` only to create a new Task from an ID-free draft. The creation command assigns the ID and path, then strict-loads the complete V2 index before success; all other Savepoint commands are human-only. After creating or renaming any other identity-bearing record, agents run `savepoint resume` to strict-load the full index.
+- Agents may run `savepoint resume` for read-only routing and `savepoint create-task` only to create a new Task from an ID-free draft. The creation command assigns the ID and path, then strict-loads the complete V2 index before success; all other Savepoint commands, including `savepoint health setup`, are human-only. After creating or renaming any other identity-bearing record, agents run `savepoint resume` to strict-load the full index.
 - Source modules: see AGENTS.md Codebase Map.
 - **Explicitly rejected:** `task new`, `epic new`, `release new`, `plan`, `next`, `status`, `task done`. All are file edits or TUI actions.
 

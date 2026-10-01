@@ -186,7 +186,7 @@ Focused test runs are an iteration aid. Reuse a prior full result only for a met
 
 ## CLI Rules
 
-Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below.
+Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below. `savepoint health setup [dir] [--apply]` is human-only: it suggests health tools and, with `--apply`, saves them; agents never run it.
 
 Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the V2 index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.
 

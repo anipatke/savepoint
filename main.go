@@ -8,11 +8,13 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
 	"github.com/opencode/savepoint/cmd"
 	"github.com/opencode/savepoint/internal/board"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/doctor"
 	savepointinit "github.com/opencode/savepoint/internal/init"
@@ -85,6 +87,12 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 			}
 			os.Exit(code)
+		case "health":
+			if err := cmd.RunHealth(context.Background(), args[1:], os.Stdout, healthSetupRunner); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
 		case "resume":
 			code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
 			if err != nil {
@@ -112,6 +120,7 @@ Commands:
   board [--objective <objective>]        Open the V2 board
   doctor                                Check project health
   resume [dir]                           Print the next V2 action
+  health setup [dir] [--apply]           Preview or save suggested health tools
   migrate [dir] [--apply]                Convert a legacy project to V2
   upgrade-assets [dir]                   Refresh assets in an existing V2 project
 
@@ -303,7 +312,61 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 		}
 	}
 
+	// Discovery trouble never fails an init that already scaffolded.
+	if err := previewHealthSetup(ctx, opts.Dir, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: health tool suggestions unavailable: %s\n", err)
+	}
+
 	return nil
+}
+
+// healthSetupRunner is the production wiring for `health setup`. Discovery,
+// reconciliation, and rendering live in internal/codehealth.
+func healthSetupRunner(ctx context.Context, opts cmd.HealthSetupOptions) error {
+	root, plan, err := planHealthSetup(ctx, opts.Dir)
+	if err != nil {
+		return err
+	}
+	if !opts.Apply {
+		_, err = fmt.Fprint(os.Stdout, plan.Preview())
+		return err
+	}
+	changed, err := plan.Apply(codehealth.NewStore(root))
+	if err != nil {
+		return fmt.Errorf("health setup: %w", err)
+	}
+	_, err = fmt.Fprint(os.Stdout, plan.Applied(changed))
+	return err
+}
+
+// previewHealthSetup prints what setup would suggest without writing anything.
+func previewHealthSetup(ctx context.Context, dir string, stdout io.Writer) error {
+	_, plan, err := planHealthSetup(ctx, dir)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(stdout, "\n"+plan.Preview())
+	return err
+}
+
+func planHealthSetup(ctx context.Context, dir string) (string, codehealth.SetupPlan, error) {
+	root, err := data.ResolveTarget(dir)
+	switch {
+	case errors.Is(err, data.ErrTargetMissing):
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: target directory does not exist: %s", dir)
+	case errors.Is(err, data.ErrTargetNotSavepoint):
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: target directory is not a Savepoint project: %s has no .savepoint directory", dir)
+	case err != nil:
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	plan, err := codehealth.PlanProject(ctx, root, exec.LookPath)
+	if err != nil {
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	return root, plan, nil
 }
 
 func createTaskRunner(_ context.Context, opts cmd.CreateTaskOptions) (string, string, error) {
