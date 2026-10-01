@@ -272,7 +272,7 @@ func TestDiscoverExecutedToolArgsTranslateExclusions(t *testing.T) {
 	}
 	jscpd := find(t, got, ".", ProviderJscpdJSON).Config
 	if jscpd.Report != ".savepoint/health/reports/root/jscpd-report.json" ||
-		!slices.Contains(jscpd.Args, "vendor/**,**/*.pb.go,**/*_generated.*,**/*.min.js") ||
+		!slices.Contains(jscpd.Args, "vendor/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/.git/**") ||
 		!slices.Contains(jscpd.Args, ".savepoint/health/reports/root") {
 		t.Errorf("jscpd = %v report %q", jscpd.Args, jscpd.Report)
 	}

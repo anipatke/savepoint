@@ -1,6 +1,12 @@
 package codehealth
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
+
+// jscpdAlwaysIgnore is added to every suggested jscpd run.
+const jscpdAlwaysIgnore = "**/.git/**"
 
 // This file is the data behind Discover: what to look for, where each provider's
 // report conventionally lives, and how to translate exclusions into each tool's
@@ -116,9 +122,8 @@ var executedProviders = map[ProviderKey]executed{
 		Report:     func(i string) string { return reportsDir + "/" + i + "/jscpd-report.json" },
 		Args: func(target, report string, ex []string) []string {
 			args := []string{"--reporters", "json", "--output", report[:strings.LastIndex(report, "/")], "--workers", "1"}
-			if len(ex) > 0 {
-				args = append(args, "--ignore", strings.Join(ex, ","))
-			}
+			// jscpd does not skip .git on its own, so hooks and objects would count.
+			args = append(args, "--ignore", strings.Join(append(slices.Clone(ex), jscpdAlwaysIgnore), ","))
 			return append(args, target)
 		},
 	},

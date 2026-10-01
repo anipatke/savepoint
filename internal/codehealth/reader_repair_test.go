@@ -302,13 +302,13 @@ func TestJscpdReaderScopesItsTotalsAndEvidence(t *testing.T) {
 	}
 }
 
-func TestJscpdReaderWithoutPerFileCountsCannotBeScoped(t *testing.T) {
+func TestJscpdReaderWithoutPerFileCountsKeepsTheReportTotal(t *testing.T) {
 	rd, err := JscpdReader{}.Read(context.Background(), ReportInput{Root: "/r", Scope: []string{"a/**"}, Data: jscpdReportJSON(`"x":1`, "")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rd.Value != nil || !rd.Partial || rd.Reason == "" {
-		t.Errorf("value %v partial %v reason %q, want whole-project totals withheld", rd.Value, rd.Partial, rd.Reason)
+	if rd.Value == nil || rd.Value.Number != 20 || rd.Partial {
+		t.Errorf("value %v partial %v, want the report's own total kept", rd.Value, rd.Partial)
 	}
 	rd, err = JscpdReader{}.Read(context.Background(), ReportInput{Root: "/r", Data: jscpdReportJSON(`"x":1`, "")})
 	if err != nil || rd.Value == nil || rd.Value.Number != 20 {

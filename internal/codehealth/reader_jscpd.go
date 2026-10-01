@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // Reader for the duplication capability. The value is jscpd's own share of
@@ -51,7 +52,9 @@ type jscpdReport struct {
 	Statistics *struct {
 		Total   *jscpdTotal `json:"total"`
 		Formats map[string]struct {
-			Sources map[string]jscpdSource `json:"sources"`
+			// Older jscpd writes per-file counts here; jscpd 5 writes a plain
+			// source count, which carries no per-file lines.
+			Sources json.RawMessage `json:"sources"`
 		} `json:"formats"`
 	} `json:"statistics"`
 	Duplicates []struct {
@@ -99,20 +102,21 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	prov := Provenance{ProviderVersion: version, MeasurementDefinition: duplicationDefinition}
 	lines, duplicated, sources := *t.Lines, *t.DuplicatedLines, t.Sources
 	percentage := *t.Percentage
+	// Without per-file counts (jscpd 5) the report's own total stands: the
+	// tool was already given the exclusions and target, so it is the best
+	// measurement available.
+	rebuilt := false
 	if scoped {
 		var found bool
-		lines, duplicated, sources, found = jscpdScopedCounts(in, report)
-		if !found {
-			return Reading{
-				Partial:    true,
-				Reason:     "jscpd JSON has no per-file line counts, so its totals cannot be limited to the instance scope",
-				Provenance: prov,
-			}, nil
+		var l, d, n int
+		l, d, n, found = jscpdScopedCounts(in, report)
+		if found {
+			if l == 0 {
+				return Reading{}, errors.New("jscpd scanned no lines inside the instance scope, so there is nothing to measure")
+			}
+			lines, duplicated, sources, rebuilt = l, d, n, true
+			percentage = percent(duplicated, lines)
 		}
-		if lines == 0 {
-			return Reading{}, errors.New("jscpd scanned no lines inside the instance scope, so there is nothing to measure")
-		}
-		percentage = percent(duplicated, lines)
 	}
 
 	var evidence []RankedEvidence
@@ -121,8 +125,8 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		if err := ctx.Err(); err != nil {
 			return Reading{}, err
 		}
-		first, ok1 := RelPath(in.Root, c.FirstFile.Name)
-		second, ok2 := RelPath(in.Root, c.SecondFile.Name)
+		first, ok1 := RelPath(in.Root, jscpdFileName(c.FirstFile.Name))
+		second, ok2 := RelPath(in.Root, jscpdFileName(c.SecondFile.Name))
 		if !ok1 || !ok2 {
 			outside++
 			continue
@@ -146,7 +150,7 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 			Rank: float64(c.Lines),
 		})
 	}
-	if !scoped {
+	if !rebuilt {
 		clones = t.Clones
 	}
 
@@ -166,12 +170,26 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	}, nil
 }
 
+// jscpdFileName drops the ":format" suffix jscpd 5 adds to a clone found in a
+// code block inside another file, such as "docs/a.md:markdown".
+func jscpdFileName(name string) string {
+	i := strings.LastIndex(name, ":")
+	if i <= 0 || i == len(name)-1 || strings.ContainsAny(name[i+1:], `/\:`) {
+		return name
+	}
+	return name[:i]
+}
+
 // jscpdScopedCounts sums the per-file line counts of files inside the instance
 // scope. found is false when the report carries no per-file counts at all.
 func jscpdScopedCounts(in ReportInput, report jscpdReport) (lines, duplicated, sources int, found bool) {
 	scope := in.inputScope()
 	for _, format := range report.Statistics.Formats {
-		for name, src := range format.Sources {
+		var files map[string]jscpdSource
+		if json.Unmarshal(format.Sources, &files) != nil {
+			continue
+		}
+		for name, src := range files {
 			found = true
 			if rel, ok := RelPath(in.Root, name); ok && scope.relevant(rel) {
 				lines += src.Lines

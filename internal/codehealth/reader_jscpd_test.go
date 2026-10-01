@@ -124,3 +124,34 @@ func TestJscpdEvidenceIsBounded(t *testing.T) {
 		t.Errorf("evidence has %d items, want %d", len(rd.Evidence), MaxEvidence)
 	}
 }
+
+// jscpd 5 writes a plain source count per format instead of per-file counts.
+func TestJscpdReaderReadsJscpd5Report(t *testing.T) {
+	data := duplicationFixture(t, "jscpd5.json")
+	rd, err := JscpdReader{}.Read(context.Background(), ReportInput{Root: vitestRoot, Data: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rd.Partial || rd.Value == nil || rd.Value.Number != 3.33 {
+		t.Errorf("reading = %+v, want a complete 3.33%% value", rd)
+	}
+
+	scoped, err := JscpdReader{}.Read(context.Background(), ReportInput{Root: vitestRoot, Data: data, Scope: []string{"internal"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scoped.Partial || scoped.Value == nil || scoped.Value.Number != 3.33 {
+		t.Errorf("scoped reading = %+v, want the report's own 3.33%% total", scoped)
+	}
+}
+
+func TestJscpdReaderMapsFormatSuffixedFileNames(t *testing.T) {
+	data := []byte(`{"statistics":{"total":{"lines":100,"sources":2,"clones":1,"duplicatedLines":10,"percentage":10}},"duplicates":[{"lines":10,"firstFile":{"name":"docs/a.md:markdown","start":3},"secondFile":{"name":"b.go","start":1}}]}`)
+	rd, err := JscpdReader{}.Read(context.Background(), ReportInput{Root: vitestRoot, Data: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rd.Partial || len(rd.Evidence) != 1 || rd.Evidence[0].Path != "docs/a.md" {
+		t.Errorf("reading = %+v, want one clone mapped to docs/a.md and not partial", rd)
+	}
+}
