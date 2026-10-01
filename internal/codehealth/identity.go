@@ -33,13 +33,19 @@ func (s Snapshot) Canonical() Snapshot {
 		c.Results[i] = r.canonical()
 	}
 	slices.SortFunc(c.Results, func(a, b CapabilityResult) int {
-		return strings.Compare(string(a.Capability)+"/"+string(a.Provenance.Provider), string(b.Capability)+"/"+string(b.Provenance.Provider))
+		return strings.Compare(sortKey(a.key()), sortKey(b.key()))
 	})
 	c.Summary.Capabilities = slices.Clone(s.Summary.Capabilities)
 	slices.SortFunc(c.Summary.Capabilities, func(a, b CapabilitySummary) int {
-		return strings.Compare(string(a.Capability)+"/"+string(a.Provider), string(b.Capability)+"/"+string(b.Provider))
+		return strings.Compare(sortKey(instanceKey{a.Capability, a.Provider, a.Name}), sortKey(instanceKey{b.Capability, b.Provider, b.Name}))
 	})
 	return c
+}
+
+// sortKey orders instances by capability, provider, then name. A NUL separator
+// cannot appear in a validated token, so keys never run together.
+func sortKey(k instanceKey) string {
+	return string(k.capability) + "/" + string(k.provider) + "\x00" + k.name
 }
 
 func (r CapabilityResult) canonical() CapabilityResult {

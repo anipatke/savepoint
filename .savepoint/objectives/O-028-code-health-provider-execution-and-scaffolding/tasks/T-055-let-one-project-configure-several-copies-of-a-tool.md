@@ -2,7 +2,8 @@
 id: T-055
 title: Let one project configure several copies of a tool
 objective: O-028
-status: planned
+status: in_progress
+stage: audit
 depends_on: []
 owner_validation: {required: false}
 planned_by: {role: planner, session: planning-o028-20261001}
@@ -57,7 +58,19 @@ Focused `make test-focused TEST=./internal/codehealth/...` while iterating; `mak
 
 ## Technical Evidence
 
-Pending execution.
+Executed 2026-10-01 by the task executor. No extra reads beyond Context Files except `internal/codehealth/history.go`, `primitives.go` (to see `selectSeries`, `validateToken`) and `AGENTS.md`/`savepoint-task` skill for workflow.
+
+Per-criterion outcome:
+
+- **Name/required, instance key, duplicates:** met. `CapabilityConfig.Name` (token) and `Required` (omitempty) added; `instanceKey` is capability+provider+name; same key gives `ErrDuplicateInstance`; shared capability+provider requires a non-empty name and a non-identical scope (compared as sets) or `ErrInvalidConfig` names the instance. Tests: `TestConfigInstances`, `TestConfigNameAndRequiredRoundTrip`.
+- **Result/summary carry name; identities unchanged:** met. `CapabilityResult.Name` and `CapabilitySummary.Name` are omitempty; pinned `fixtureSnapshotID` and `fixtureConfigDigest` tests pass unchanged. Name is absent from `seriesKey` and `digestKey`: `TestRenameKeepsSeriesButScopeStartsOne`, `TestNameStaysOutOfConfigDigest`; scope change still starts a new series. Canonical sort and duplicate/summary matching include the name: `TestSnapshotNamedInstances`, `TestSnapshotIDIgnoresInstanceOrder`.
+- **Default timeouts:** met. `DefaultTimeoutSeconds` (Lizard/jscpd 60, OSV 120, report-only none), `CapabilityConfig.EffectiveTimeout()`, `MaxTimeoutSecond` 600; out-of-range refused: `TestEffectiveTimeout`, `TestEveryExecutedProviderHasADefaultTimeout`, `TestTimeoutBounds`.
+- **Versions and unknown fields:** met. Versions stay 1; unknown config field still rejected (`TestConfigNameAndRequiredRoundTrip`, existing decode tests).
+- **Instances kept apart:** met. `Assess` carries the name; history already filters by series identity, which includes scope, so no change to `selectSeries` was needed (filtering by name would contradict rename-keeps-series). `Overall` never merges values. `TestInstancesAreAssessedSeparately`.
+
+Commands run: `go vet ./internal/codehealth`; `go test ./internal/codehealth`; `make build && make test-fast` (passed).
+
+Limitations: a `not_configured` result carrying a name is refused (my addition, beyond the written criteria). Two instances of one provider with identical scope are refused only inside one config, not across a rename over time. `gofmt -l` lists three unrelated pre-existing files (`internal/init/manifest_test.go`, `internal/styles/*`); untouched. Task Check not requested; stage is `audit`, not passed.
 
 ## Drift Notes
 

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"math"
+	"slices"
+	"time"
 )
 
 // Config is the project-owned Code Health configuration (schema version 1).
@@ -15,10 +17,14 @@ type Config struct {
 }
 
 // CapabilityConfig configures one provider instance. The instance key is the
-// capability and provider together.
+// capability, provider, and optional name together, so a monorepo can run one
+// provider over several scopes. Required marks an instance whose failure the
+// project will not tolerate; it defaults to optional.
 type CapabilityConfig struct {
 	Capability     Capability  `json:"capability"`
 	Provider       ProviderKey `json:"provider"`
+	Name           string      `json:"name,omitempty"`
+	Required       bool        `json:"required,omitempty"`
 	Executable     string      `json:"executable,omitempty"`
 	Args           []string    `json:"args,omitempty"`
 	Report         string      `json:"report,omitempty"`
@@ -50,22 +56,78 @@ func (c Config) Validate() error {
 		if err := cc.validate(field); err != nil {
 			return err
 		}
-		key := instanceKey{cc.Capability, cc.Provider}
+		key := instanceKey{cc.Capability, cc.Provider, cc.Name}
 		if seen[key] {
-			return fieldError(ErrDuplicateInstance, field, "%s via %s is configured more than once", cc.Capability, cc.Provider)
+			return fieldError(ErrDuplicateInstance, field, "%s via %s named %q is configured more than once", cc.Capability, cc.Provider, cc.Name)
 		}
 		seen[key] = true
+	}
+	return c.validateSharedProviders()
+}
+
+// instanceKey identifies one configured instance, or one result of it.
+type instanceKey struct {
+	capability Capability
+	provider   ProviderKey
+	name       string
+}
+
+// validateSharedProviders requires every instance that shares a capability and
+// provider to be named and to cover a different scope, so two copies of a tool
+// never measure the same files twice or get confused for one another.
+func (c Config) validateSharedProviders() error {
+	type pair struct {
+		capability Capability
+		provider   ProviderKey
+	}
+	groups := make(map[pair][]int)
+	for i, cc := range c.Capabilities {
+		p := pair{cc.Capability, cc.Provider}
+		groups[p] = append(groups[p], i)
+	}
+	for _, idx := range groups {
+		if len(idx) < 2 {
+			continue
+		}
+		for n, i := range idx {
+			cc := c.Capabilities[i]
+			field := indexed("capabilities", i)
+			if cc.Name == "" {
+				return fieldError(ErrInvalidConfig, field+".name", "%s via %s is configured %d times; each instance needs a name", cc.Capability, cc.Provider, len(idx))
+			}
+			for _, j := range idx[n+1:] {
+				if sameScope(cc.Scope, c.Capabilities[j].Scope) {
+					return fieldError(ErrInvalidConfig, indexed("capabilities", j)+".scope", "instances %q and %q of %s via %s cover the same scope", cc.Name, c.Capabilities[j].Name, cc.Capability, cc.Provider)
+				}
+			}
+		}
 	}
 	return nil
 }
 
-type instanceKey struct {
-	capability Capability
-	provider   ProviderKey
+// sameScope compares scopes as sets, since order carries no meaning.
+func sameScope(a, b []string) bool {
+	return slices.Equal(sortedCopy(a), sortedCopy(b))
+}
+
+// EffectiveTimeout returns the project override when set, else the provider's
+// default. The second result is false when neither exists, which is the case
+// for report-only providers that are never executed.
+func (cc CapabilityConfig) EffectiveTimeout() (time.Duration, bool) {
+	if cc.TimeoutSeconds > 0 {
+		return time.Duration(cc.TimeoutSeconds) * time.Second, true
+	}
+	if s, ok := DefaultTimeoutSeconds(cc.Provider); ok {
+		return time.Duration(s) * time.Second, true
+	}
+	return 0, false
 }
 
 func (cc CapabilityConfig) validate(field string) error {
 	if err := validateCapabilityProvider(field, cc.Capability, cc.Provider); err != nil {
+		return err
+	}
+	if err := validateToken(field+".name", cc.Name, false); err != nil {
 		return err
 	}
 	if err := cc.validateExecution(field); err != nil {

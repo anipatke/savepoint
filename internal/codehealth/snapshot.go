@@ -90,6 +90,7 @@ type EvidenceRef struct {
 // CapabilityResult is the scoped result for one configured instance.
 type CapabilityResult struct {
 	Capability   Capability    `json:"capability"`
+	Name         string        `json:"name,omitempty"`
 	Outcome      Outcome       `json:"outcome"`
 	Freshness    Freshness     `json:"freshness"`
 	CollectedAt  string        `json:"collected_at"`
@@ -113,6 +114,7 @@ type Summary struct {
 type CapabilitySummary struct {
 	Capability     Capability     `json:"capability"`
 	Provider       ProviderKey    `json:"provider,omitempty"`
+	Name           string         `json:"name,omitempty"`
 	Classification Classification `json:"classification"`
 	Explanation    string         `json:"explanation,omitempty"`
 }
@@ -184,13 +186,18 @@ func (s Snapshot) validateResults() error {
 		if err := r.validate(field); err != nil {
 			return err
 		}
-		key := instanceKey{r.Capability, r.Provenance.Provider}
+		key := r.key()
 		if seen[key] {
-			return fieldError(ErrDuplicateInstance, field, "%s via %q appears more than once", r.Capability, r.Provenance.Provider)
+			return fieldError(ErrDuplicateInstance, field, "%s via %q named %q appears more than once", r.Capability, r.Provenance.Provider, r.Name)
 		}
 		seen[key] = true
 	}
 	return nil
+}
+
+// key is the instance this result belongs to.
+func (r CapabilityResult) key() instanceKey {
+	return instanceKey{r.Capability, r.Provenance.Provider, r.Name}
 }
 
 func (r CapabilityResult) validate(field string) error {
@@ -199,6 +206,9 @@ func (r CapabilityResult) validate(field string) error {
 	}
 	if !slices.Contains(Outcomes(), r.Outcome) {
 		return fieldError(ErrInvalidOutcome, field+".outcome", "%q", r.Outcome)
+	}
+	if err := validateToken(field+".name", r.Name, false); err != nil {
+		return err
 	}
 	if err := r.validateFreshness(field); err != nil {
 		return err
@@ -239,8 +249,8 @@ func (r CapabilityResult) validateFreshness(field string) error {
 func (r CapabilityResult) validateProvenance(field string) error {
 	p := r.Provenance
 	if r.Outcome == OutcomeNotConfigured {
-		if p != (Provenance{}) || r.ConfigDigest != "" {
-			return fieldError(ErrInvalidOutcome, field, "a not_configured result has no provider or configuration")
+		if p != (Provenance{}) || r.ConfigDigest != "" || r.Name != "" {
+			return fieldError(ErrInvalidOutcome, field, "a not_configured result has no provider, name, or configuration")
 		}
 		return nil
 	}
@@ -383,15 +393,15 @@ func (s Summary) validate(field string, results []CapabilityResult) error {
 	}
 	byKey := make(map[instanceKey]CapabilityResult, len(results))
 	for _, r := range results {
-		byKey[instanceKey{r.Capability, r.Provenance.Provider}] = r
+		byKey[r.key()] = r
 	}
 	seen := make(map[instanceKey]bool, len(results))
 	for i, cs := range s.Capabilities {
 		f := indexed(field+".capabilities", i)
-		key := instanceKey{cs.Capability, cs.Provider}
+		key := instanceKey{cs.Capability, cs.Provider, cs.Name}
 		r, ok := byKey[key]
 		if !ok || seen[key] {
-			return fieldError(ErrInvalidSummary, f, "%s via %q does not match exactly one result", cs.Capability, cs.Provider)
+			return fieldError(ErrInvalidSummary, f, "%s via %q named %q does not match exactly one result", cs.Capability, cs.Provider, cs.Name)
 		}
 		seen[key] = true
 		if err := validateClassification(f+".classification", cs.Classification); err != nil {

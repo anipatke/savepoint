@@ -45,6 +45,7 @@ type HistoryEntry struct {
 type Assessment struct {
 	Capability     Capability
 	Provider       ProviderKey
+	Name           string
 	Classification Classification
 	Explanation    string
 	Trend          Trend
@@ -55,6 +56,7 @@ func (a Assessment) Summary() CapabilitySummary {
 	return CapabilitySummary{
 		Capability:     a.Capability,
 		Provider:       a.Provider,
+		Name:           a.Name,
 		Classification: a.Classification,
 		Explanation:    a.Explanation,
 	}
@@ -69,6 +71,7 @@ func Assess(origin Origin, current CapabilityResult, configured *Threshold, hist
 	a := Assessment{
 		Capability:     current.Capability,
 		Provider:       current.Provenance.Provider,
+		Name:           current.Name,
 		Classification: ClassificationUnknown,
 	}
 	if reason, ok := unmeasuredReason(current); ok {

@@ -148,6 +148,22 @@ var providerCapability = map[ProviderKey]Capability{
 	ProviderOSVScannerJSON: CapabilityDependencyVulnerability,
 }
 
+// providerTimeoutSeconds is the default execution timeout of each provider that
+// Savepoint runs. Report-only providers are absent: nothing is executed for
+// them, so they have no timeout.
+var providerTimeoutSeconds = map[ProviderKey]int{
+	ProviderLizardCSV:      60,
+	ProviderJscpdJSON:      60,
+	ProviderOSVScannerJSON: 120,
+}
+
+// DefaultTimeoutSeconds returns the provider's default execution timeout, and
+// false for a report-only provider that is never executed.
+func DefaultTimeoutSeconds(p ProviderKey) (int, bool) {
+	s, ok := providerTimeoutSeconds[p]
+	return s, ok
+}
+
 // Bounds on persisted records, so history stays compact and reviewable.
 const (
 	MaxReasonLen     = 200
@@ -160,5 +176,5 @@ const (
 	MaxResults       = 32
 	MaxArgs          = 64
 	MaxArgLen        = 512
-	MaxTimeoutSecond = 120
+	MaxTimeoutSecond = 600
 )
