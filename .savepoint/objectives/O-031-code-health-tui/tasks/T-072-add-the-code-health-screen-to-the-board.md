@@ -2,13 +2,21 @@
 id: T-072
 title: Add the Code Health screen to the board
 objective: O-031
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-070, requires: clear}, {task: T-071, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o031-20261002}
 complexity_tier: high
 complexity_reason: New full-screen board surface with async load, Git comparison, refresh progress, and cancellation, all through explicit commands.
+check_waiver:
+    task: T-072
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T20:34:50Z"
 ---
 
 # Add the Code Health screen to the board

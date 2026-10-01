@@ -350,7 +350,7 @@ func (m Model) detailUnderCursor() (RecordDetail, bool) {
 		return RecordDetail{}, false
 	}
 	if m.SidebarFocused {
-		return newObjectiveDetail(m.State.Index, m.Objectives[m.ObjectiveCursor].ID())
+		return newObjectiveDetail(m.State.Index, m.State.Health, m.Objectives[m.ObjectiveCursor].ID())
 	}
 	cards := m.Cards[m.FocusedColumn]
 	return newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
@@ -401,7 +401,7 @@ func (m *Model) refreshDetail() {
 	if m.Detail == nil {
 		return
 	}
-	detail, ok := reopenDetail(m.State.Index, *m.Detail)
+	detail, ok := reopenDetail(m.State.Index, m.State.Health, *m.Detail)
 	if !ok {
 		m.closeDetail()
 		return

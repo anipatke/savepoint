@@ -511,3 +511,20 @@ func TestDashboardWordingTableHasNoBannedClaims(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotLabelsNameEachStoredSnapshotAndTolerateMissingStorage(t *testing.T) {
+	store, root := dashProject(t)
+	if got := SnapshotLabels(root); got != nil {
+		t.Fatalf("SnapshotLabels() without a health directory = %v, want none", got)
+	}
+	cfg := dashConfig(t, store, allCapabilities()...)
+	snap := saveDash(t, store, cfg, OriginOfficial, 1, goodResults(cfg, nil), dashRepo(1))
+
+	got := SnapshotLabels(root)[snap.ID]
+	if want := classificationText[snap.Summary.Overall]; got.Label != want {
+		t.Errorf("Label = %q, want %q", got.Label, want)
+	}
+	if want := strings.TrimPrefix(snap.ID, digestPrefix)[:shortIDLength]; got.ShortID != want {
+		t.Errorf("ShortID = %q, want %q", got.ShortID, want)
+	}
+}

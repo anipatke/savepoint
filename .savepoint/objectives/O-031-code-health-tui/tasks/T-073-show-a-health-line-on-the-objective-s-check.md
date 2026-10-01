@@ -2,7 +2,8 @@
 id: T-073
 title: Show a health line on the Objective's Check
 objective: O-031
-status: planned
+status: in_progress
+stage: audit
 depends_on: [{task: T-072, requires: clear}]
 owner_validation: {required: false}
 planned_by: {role: planner, session: planning-o031-20261002}
@@ -57,7 +58,18 @@ No full health rendering in the detail, no change to Check records or doctor.
 
 ## Technical Evidence
 
-Pending execution.
+Commands: `make build && make test-fast` — passed, no failures (2026-10-02).
+
+Per criterion:
+- Stored snapshot: Objective detail CHECKS shows `Health: Watch (snapshot <8 hex>) — press H for details` — `TestObjectiveDetailShowsTheHealthLineForAStoredSnapshot`.
+- Missing snapshot reads `Health: snapshot not found — run savepoint doctor`; no field shows no line; Task detail unchanged — `TestObjectiveDetailReportsAMissingHealthSnapshot`, `...WithoutAHealthSnapshotFieldShowsNoHealthLine`, `TestTaskDetailNeverShowsAHealthLine`.
+- Lookup is `codehealth.SnapshotLabels`, read in `loadProject` only when some Check names a snapshot, carried as `ProjectState.Health`; the board imports no snapshot type. Missing/unreadable health storage yields no labels and no error — `TestMissingHealthDirectoryIsNotABoardError`, `TestSnapshotLabelsNameEachStoredSnapshotAndTolerateMissingStorage`.
+- Badges, Next, clearance, and the plain table are untouched (no edits to those paths; existing tests pass).
+
+Files read: Context Files plus `internal/doctor/health_snapshot_refs.go` and its test, `internal/codehealth/storage.go`, `internal/board/v2/update.go` (extra reads, to mirror doctor's store path and update the detail call sites).
+Files changed: `internal/codehealth/dashboard.go`, `internal/board/v2/{load,detail,detail_view,update}.go`, plus tests in `dashboard_test.go` and `detail_test.go`.
+
+Limitations: the lookup does not check snapshot origin (doctor owns that); not run in a live TTY; `make test-full` not run.
 
 ## Drift Notes
 

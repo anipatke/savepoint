@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // DashboardState says which of the three screens the board should show.
@@ -174,6 +175,36 @@ func LoadDashboard(root string) (Dashboard, error) {
 		})
 	}
 	return d, nil
+}
+
+// SnapshotLabel is what a screen needs to point at one stored snapshot: its
+// overall label in the dashboard's words and a short form of its identity.
+type SnapshotLabel struct {
+	Label   string
+	ShortID string
+}
+
+// shortIDLength is how many digest characters ShortID keeps.
+const shortIDLength = 8
+
+// SnapshotLabels maps each stored snapshot ID to its SnapshotLabel. It reads
+// files only. Storage that is absent or cannot be read yields no labels and no
+// error: a screen that only decorates a Check with a health line must not fail
+// because health is unavailable, and doctor reports the damage.
+func SnapshotLabels(projectPath string) map[string]SnapshotLabel {
+	snaps, err := NewStore(projectPath).LoadSnapshots()
+	if err != nil || len(snaps) == 0 {
+		return nil
+	}
+	out := make(map[string]SnapshotLabel, len(snaps))
+	for _, s := range snaps {
+		short := strings.TrimPrefix(s.ID, digestPrefix)
+		if len(short) > shortIDLength {
+			short = short[:shortIDLength]
+		}
+		out[s.ID] = SnapshotLabel{Label: classificationText[s.Summary.Overall], ShortID: short}
+	}
+	return out
 }
 
 // dashboardHistory groups earlier results the way Collect does, so trends

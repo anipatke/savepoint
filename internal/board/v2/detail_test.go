@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -577,5 +578,78 @@ func TestTheDetailKeyOverAnEmptyProjectOpensNothing(t *testing.T) {
 	pressed := press(t, model, "enter", "left", "v")
 	if pressed.Detail != nil {
 		t.Error("the detail key opened an overlay over a project with no records")
+	}
+}
+
+// saveHealthSnapshot stores an official snapshot under the project the
+// .savepoint root belongs to and returns its ID.
+func saveHealthSnapshot(t *testing.T, root string) string {
+	t.Helper()
+	snapshot := codehealth.Snapshot{
+		Version:    codehealth.SnapshotVersion,
+		Origin:     codehealth.OriginOfficial,
+		Retention:  codehealth.RetentionPermanent,
+		CreatedAt:  "2026-10-01T10:00:00Z",
+		Repository: codehealth.RepositoryIdentity{Dirty: true, InputFingerprint: "sha256:" + strings.Repeat("a", 64)},
+		Summary:    codehealth.Summary{Overall: codehealth.ClassificationWatch},
+	}
+	snapshot.ID = snapshot.ComputeID()
+	if _, err := codehealth.NewStore(filepath.Dir(root)).SaveSnapshot(snapshot); err != nil {
+		t.Fatalf("SaveSnapshot() error = %v", err)
+	}
+	return snapshot.ID
+}
+
+func objectiveHealthDetail(t *testing.T, extra func(root string) string) string {
+	t.Helper()
+	root := writeValidProject(t)
+	field := ""
+	if extra != nil {
+		field = extra(root)
+	}
+	writeCheckExtra(t, root, "C-001", "objective", "O-001", "CLEAR", field)
+	return screen(openObjectiveDetail(t, root, "O-001"))
+}
+
+func TestObjectiveDetailShowsTheHealthLineForAStoredSnapshot(t *testing.T) {
+	var id string
+	got := objectiveHealthDetail(t, func(root string) string {
+		id = saveHealthSnapshot(t, root)
+		return "health_snapshot: " + id + "\n"
+	})
+	short := strings.TrimPrefix(id, "sha256:")[:8]
+	requireContains(t, got, "Health: Watch (snapshot "+short+") — press H for details")
+}
+
+func TestObjectiveDetailReportsAMissingHealthSnapshot(t *testing.T) {
+	got := objectiveHealthDetail(t, func(root string) string {
+		saveHealthSnapshot(t, root)
+		return "health_snapshot: sha256:" + strings.Repeat("b", 64) + "\n"
+	})
+	requireContains(t, got, "Health: snapshot not found — run savepoint doctor")
+}
+
+func TestObjectiveDetailWithoutAHealthSnapshotFieldShowsNoHealthLine(t *testing.T) {
+	got := objectiveHealthDetail(t, nil)
+	if strings.Contains(got, "Health:") {
+		t.Errorf("detail shows a Health line for a Check without the field:\n%s", got)
+	}
+}
+
+func TestMissingHealthDirectoryIsNotABoardError(t *testing.T) {
+	root := writeValidProject(t)
+	writeCheckExtra(t, root, "C-001", "objective", "O-001", "CLEAR", "health_snapshot: sha256:"+strings.Repeat("c", 64)+"\n")
+	if loaded := loadProject(root); loaded.Failed() {
+		t.Fatalf("loadProject() failed without a health directory: %s", loaded.Diagnostic)
+	}
+	requireContains(t, screen(openObjectiveDetail(t, root, "O-001")), "Health: snapshot not found")
+}
+
+func TestTaskDetailNeverShowsAHealthLine(t *testing.T) {
+	root := writeValidProject(t)
+	id := saveHealthSnapshot(t, root)
+	writeCheckExtra(t, root, "C-001", "task", "T-001", "CLEAR", "health_snapshot: "+id+"\n")
+	if got := screen(openTaskDetail(t, root, "T-001")); strings.Contains(got, "Health:") {
+		t.Errorf("Task detail shows a Health line:\n%s", got)
 	}
 }
