@@ -64,15 +64,83 @@ func focusedTestArgs(args []string) ([]string, error) {
 	return append(goArgs, packages...), nil
 }
 
+// Report file names match the conventional paths Code Health discovers.
+const (
+	goTestReportName   = "go-test.json"
+	goCoverReportName  = "coverage.out"
+	writeReportsOption = "-reports"
+)
+
 func runGoTest(args []string, output io.Writer) error {
+	reports := len(args) > 0 && args[0] == writeReportsOption
+	if reports {
+		args = args[1:]
+	}
 	if len(args) == 0 {
 		return errors.New("go test arguments are required")
+	}
+	if reports {
+		return runGoTestWithReports(".", args, output)
 	}
 	commandArgs := append([]string{"test"}, args...)
 	return runGoTestCommand(exec.Command("go", commandArgs...), output)
 }
 
+// runGoTestWithReports runs go test, teeing the raw JSON stream and a coverage
+// profile into dir. Each report is written to a temp file and renamed into place
+// after go test exits, pass or fail, so a report is never half written.
+func runGoTestWithReports(dir string, args []string, output io.Writer) error {
+	jsonTmp, err := os.CreateTemp(dir, "."+goTestReportName+".*")
+	if err != nil {
+		return fmt.Errorf("create go test report: %w", err)
+	}
+	defer os.Remove(jsonTmp.Name())
+	coverTmp, err := os.CreateTemp(dir, "."+goCoverReportName+".*")
+	if err != nil {
+		jsonTmp.Close()
+		return fmt.Errorf("create coverage report: %w", err)
+	}
+	coverTmp.Close()
+	defer os.Remove(coverTmp.Name())
+
+	commandArgs := append([]string{"test", "-coverprofile=" + coverTmp.Name()}, args...)
+	runErr := runGoTestStream(exec.Command("go", commandArgs...), output, jsonTmp)
+	if err := jsonTmp.Close(); err != nil {
+		return errors.Join(runErr, fmt.Errorf("close go test report: %w", err))
+	}
+	// A killed or unreadable child leaves a partial stream; keep the previous
+	// complete reports rather than replacing them with it.
+	if !goTestRunCompleted(runErr) {
+		return runErr
+	}
+	if err := os.Rename(jsonTmp.Name(), filepath.Join(dir, goTestReportName)); err != nil {
+		return errors.Join(runErr, fmt.Errorf("save go test report: %w", err))
+	}
+	// A build failure leaves no profile; keep the previous complete one then.
+	if info, err := os.Stat(coverTmp.Name()); err == nil && info.Size() > 0 {
+		if err := os.Rename(coverTmp.Name(), filepath.Join(dir, goCoverReportName)); err != nil {
+			return errors.Join(runErr, fmt.Errorf("save coverage report: %w", err))
+		}
+	}
+	return runErr
+}
+
+// goTestRunCompleted reports whether go test ran to its own exit: success, or
+// a failing exit such as failed tests or a build error. A signal, a start
+// failure, or an unreadable stream means the event stream may be incomplete.
+func goTestRunCompleted(runErr error) bool {
+	if runErr == nil {
+		return true
+	}
+	var exitErr *exec.ExitError
+	return errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0
+}
+
 func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
+	return runGoTestStream(cmd, output, nil)
+}
+
+func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("open go test output: %w", err)
@@ -88,10 +156,16 @@ func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
 	var skipped []string
 	var failedPackages []string
 	packageOutput := make(map[string]*strings.Builder)
+	var scanErr error
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 	for scanner.Scan() {
 		line := append([]byte(nil), scanner.Bytes()...)
+		if tee != nil {
+			if _, err := tee.Write(append(line[:len(line):len(line)], '\n')); err != nil && scanErr == nil {
+				scanErr = fmt.Errorf("write go test report: %w", err)
+			}
+		}
 		var event goTestEvent
 		if err := json.Unmarshal(line, &event); err != nil {
 			fmt.Fprintln(output, string(line))
@@ -122,7 +196,9 @@ func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
 			}
 		}
 	}
-	scanErr := scanner.Err()
+	if err := scanner.Err(); err != nil && scanErr == nil {
+		scanErr = err
+	}
 	waitErr := cmd.Wait()
 	sort.Strings(failedPackages)
 	previousPackage := ""

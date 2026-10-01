@@ -411,3 +411,130 @@ func fakeDistribution(t *testing.T) (string, string) {
 	}
 	return dir, release
 }
+
+func TestRunGoTestWithReportsWritesReportsOnPass(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureModule(t, dir, "package fixture\n\nfunc F() int { return 1 }\n", "package fixture\n\nimport \"testing\"\n\nfunc TestF(t *testing.T) { _ = F() }\n")
+	var output bytes.Buffer
+	t.Chdir(dir)
+	if err := runGoTestWithReports(dir, []string{"-json", "-count=1", "./..."}, &output); err != nil {
+		t.Fatalf("runGoTestWithReports() error = %v\n%s", err, output.String())
+	}
+	assertReports(t, dir, true)
+	if !strings.Contains(output.String(), "Go test timing summary") {
+		t.Errorf("summary missing:\n%s", output.String())
+	}
+}
+
+func TestRunGoTestWithReportsWritesReportsOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureModule(t, dir, "package fixture\n\nfunc F() int { return 1 }\n", "package fixture\n\nimport \"testing\"\n\nfunc TestF(t *testing.T) { _ = F(); t.Fatal(\"boom\") }\n")
+	var output bytes.Buffer
+	t.Chdir(dir)
+	err := runGoTestWithReports(dir, []string{"-json", "-count=1", "./..."}, &output)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %v, want child exit error", err)
+	}
+	assertReports(t, dir, true)
+	data, _ := os.ReadFile(filepath.Join(dir, goTestReportName))
+	if !strings.Contains(string(data), `"Action":"fail"`) {
+		t.Errorf("report lacks failure event:\n%s", data)
+	}
+	if !strings.Contains(output.String(), "Go test timing summary") {
+		t.Errorf("summary missing:\n%s", output.String())
+	}
+}
+
+func TestRunGoTestFocusedWritesNoReports(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureModule(t, dir, "package fixture\n\nfunc F() int { return 1 }\n", "package fixture\n\nimport \"testing\"\n\nfunc TestF(t *testing.T) { _ = F() }\n")
+	t.Chdir(dir)
+	var output bytes.Buffer
+	args, err := focusedTestArgs([]string{"TestF"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runGoTest(args, &output); err != nil {
+		t.Fatalf("runGoTest() error = %v\n%s", err, output.String())
+	}
+	assertReports(t, dir, false)
+}
+
+func TestRunGoTestWithReportsLeavesNoTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureModule(t, dir, "package fixture\n", "package fixture\n\nimport \"testing\"\n\nfunc TestF(t *testing.T) {}\n")
+	t.Chdir(dir)
+	var output bytes.Buffer
+	_ = runGoTestWithReports(dir, []string{"-json", "-count=1", "./..."}, &output)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			t.Errorf("temp file left behind: %s", entry.Name())
+		}
+	}
+}
+
+func writeFixtureModule(t *testing.T, dir, source, test string) {
+	t.Helper()
+	for name, content := range map[string]string{
+		"go.mod":          "module fixture\n\ngo 1.21\n",
+		"fixture.go":      source,
+		"fixture_test.go": test,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func assertReports(t *testing.T, dir string, want bool) {
+	t.Helper()
+	for _, name := range []string{goTestReportName, goCoverReportName} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if want && (err != nil || info.Size() == 0) {
+			t.Errorf("%s missing or empty: %v", name, err)
+		}
+		if !want && err == nil {
+			t.Errorf("%s written, want none", name)
+		}
+	}
+}
+
+func TestRunGoTestWithReportsKeepsCompleteReportsWhenInterrupted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a fake go command")
+	}
+	dir := t.TempDir()
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho '{\"Action\":\"start\",\"Package\":\"fixture\"}'\nkill -TERM $$\n"
+	if err := os.WriteFile(filepath.Join(bin, "go"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	previous := map[string]string{goTestReportName: "complete test stream\n", goCoverReportName: "mode: set\n"}
+	for name, content := range previous {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var output bytes.Buffer
+	if err := runGoTestWithReports(dir, []string{"-json", "./..."}, &output); err == nil {
+		t.Fatal("an interrupted run must return an error")
+	}
+	for name, want := range previous {
+		got, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(got) != want {
+			t.Errorf("%s = %q (%v), want the previous complete report %q", name, got, err, want)
+		}
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			t.Errorf("temp file left behind: %s", entry.Name())
+		}
+	}
+}
