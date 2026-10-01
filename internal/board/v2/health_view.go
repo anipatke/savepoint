@@ -99,7 +99,8 @@ func refreshLine(r *healthRefresh) string {
 	return fmt.Sprintf(textHealthRefreshing, p.Position, p.Total, signal, p.Provider)
 }
 
-// healthBody is the scrolling content and the line the cursor is on.
+// healthBody is the scrolling content and the line the cursor is on, or
+// noCursorLine when the reader has scrolled freely.
 func (m Model) healthBody(width int) (lines []string, cursorLine int) {
 	h := m.Health
 	if !h.Loaded {
@@ -116,10 +117,18 @@ func (m Model) healthBody(width int) (lines []string, cursorLine int) {
 		return plainLines(healthFirstRunLines, width), 0
 	}
 	if h.Detail && h.Cursor < len(d.Rows) {
-		return healthDetailLines(*d, d.Rows[h.Cursor], width), 0
+		// A detail has no cursor, so the offset is the reader's own scroll.
+		return healthDetailLines(*d, d.Rows[h.Cursor], width), noCursorLine
 	}
-	return healthOverviewLines(h, width)
+	lines, cursorLine = healthOverviewLines(h, width)
+	if h.Scrolled {
+		cursorLine = noCursorLine
+	}
+	return lines, cursorLine
 }
+
+// noCursorLine tells healthWindow not to pull the window back to a cursor.
+const noCursorLine = -1
 
 func plainLines(text []string, width int) []string {
 	var out []string
@@ -222,14 +231,17 @@ func evidenceText(ref codehealth.EvidenceRef) string {
 }
 
 // healthWindow is the first body line shown: the stored offset, moved just far
-// enough to keep the cursor in view and clamped inside the content.
+// enough to keep the cursor in view (when there is one) and clamped inside the
+// content.
 func healthWindow(total, cursorLine, offset, height int) int {
 	height = max(height, 1)
-	if cursorLine < offset {
-		offset = cursorLine
-	}
-	if cursorLine >= offset+height {
-		offset = cursorLine - height + 1
+	if cursorLine >= 0 {
+		if cursorLine < offset {
+			offset = cursorLine
+		}
+		if cursorLine >= offset+height {
+			offset = cursorLine - height + 1
+		}
 	}
 	return min(max(offset, 0), max(total-height, 0))
 }
@@ -237,6 +249,19 @@ func healthWindow(total, cursorLine, offset, height int) int {
 // healthBodyHeight is what is left for the body under the pinned lines.
 func (m Model) healthBodyHeight(width, height int) int {
 	return max(columnBodyHeight(height)-len(m.healthPinned(width)), 1)
+}
+
+// healthGeometry is the body's line count, the lines that fit, and the line
+// the selected signal starts on, at the current size. The signal's line is
+// reported even while the reader has scrolled past it.
+func (m Model) healthGeometry() (total, room, cursorLine int) {
+	w, height := m.detailViewport()
+	width := columnTextWidth(w)
+	lines, cursorLine := m.healthBody(width)
+	if cursorLine == noCursorLine && !m.Health.Detail {
+		_, cursorLine = healthOverviewLines(m.Health, width)
+	}
+	return len(lines), m.healthBodyHeight(width, height), cursorLine
 }
 
 func (m *Model) syncHealthScroll() {

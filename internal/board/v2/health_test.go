@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -407,6 +408,32 @@ func TestHealthQuitDuringRefreshCancelsBeforeQuitting(t *testing.T) {
 	}
 }
 
+func TestHealthCtrlCFromHelpDuringRefreshCancelsBeforeQuitting(t *testing.T) {
+	cancelled := make(chan struct{})
+	f := &fakeHealth{dashboard: measuredDashboard(fiveSignals())}
+	f.refresh = func(ctx context.Context, _ func(codehealth.Progress)) error {
+		<-ctx.Done()
+		close(cancelled)
+		return codehealth.ErrCollectionCancelled
+	}
+	m := openHealthScreen(t, f)
+	m, _ = startRefresh(t, m)
+	m = press(t, m, "?")
+	if !m.Help {
+		t.Fatal("? did not open Help during the refresh")
+	}
+	_, cmd := sendKey(t, m, "ctrl+c")
+
+	if cmd == nil {
+		t.Fatalf("ctrl+c from Help did not quit")
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("quitting from Help did not cancel the refresh")
+	}
+}
+
 func TestHealthEscRestoresTheBoardCursor(t *testing.T) {
 	f := &fakeHealth{dashboard: measuredDashboard(fiveSignals())}
 	m := healthBoard(t, f, 120, 40)
@@ -476,4 +503,55 @@ func TestHealthKeepsTheCursorRowOnScreenInAShortTerminal(t *testing.T) {
 
 	requireContains(t, screen(m), "▸")
 	requireContains(t, screen(m), "Dependency vulnerabilities")
+}
+
+// Every field of a detail and every history entry must be reachable by
+// scrolling, at the supported terminal heights.
+func TestHealthScrollReachesAllDetailAndHistoryContent(t *testing.T) {
+	rows := fiveSignals()
+	rows[2].Explanation = strings.Repeat("A long explanation that wraps over several lines. ", 4)
+	rows[2].Evidence = nil
+	for i := 0; i < 12; i++ {
+		rows[2].Evidence = append(rows[2].Evidence, codehealth.EvidenceRef{Path: fmt.Sprintf("internal/pkg%02d/file.go", i), Line: i + 1, Note: "complex function"})
+	}
+	f := &fakeHealth{dashboard: measuredDashboard(rows)}
+
+	for _, height := range []int{20, 24, 40} {
+		m := openHealthScreenAt(t, f, 80, height)
+		down := make([]string, 60)
+		for i := range down {
+			down[i] = "down"
+		}
+
+		overview := press(t, m, down...)
+		requireContains(t, screen(overview), "Manual refresh")
+		up := make([]string, 60)
+		for i := range up {
+			up[i] = "up"
+		}
+		back := press(t, overview, up...)
+		if back.Health.Cursor != 0 || back.Health.Scrolled {
+			t.Errorf("height %d: scrolling back up left cursor %d scrolled %v, want the first signal", height, back.Health.Cursor, back.Health.Scrolled)
+		}
+
+		detail := press(t, m, "down", "down", "enter")
+		seen := screen(detail)
+		for i := 0; i < 60; i++ {
+			detail = press(t, detail, "down")
+			seen += "\n" + screen(detail)
+		}
+		for _, want := range []string{"Required: required", "Provider: go_test_json", "Snapshot:", "AFFECTED AREAS", "internal/pkg00/file.go", "internal/pkg11/file.go"} {
+			if !strings.Contains(seen, want) {
+				t.Errorf("height %d: scrolling the detail never showed %q", height, want)
+			}
+		}
+		if got := strings.Count(screen(detail), "\n") + 1; got > height {
+			t.Errorf("height %d: scrolled detail is %d lines", height, got)
+		}
+		closed := press(t, detail, "esc")
+		if closed.Health.Detail {
+			t.Errorf("height %d: esc left the detail open", height)
+		}
+		requireContains(t, screen(closed), "▸")
+	}
 }

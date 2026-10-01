@@ -35,11 +35,14 @@ type HealthOverlay struct {
 	Loaded    bool
 	Freshness *codehealth.CodeFreshness
 
-	Cursor  int
-	Detail  bool
-	Offset  int
-	Notice  string
-	Refresh *healthRefresh
+	Cursor int
+	Detail bool
+	Offset int
+	// Scrolled is set when the reader has scrolled the overview past the last
+	// signal to reach the history, so the window stops following the cursor.
+	Scrolled bool
+	Notice   string
+	Refresh  *healthRefresh
 }
 
 // healthRefresh is a manual refresh in flight. Cancel is held here so Esc and
@@ -139,6 +142,7 @@ func (m *Model) handleHealthKey(key string) tea.Cmd {
 		case h.Detail:
 			h.Detail = false
 			h.Offset = 0
+			h.Scrolled = false
 		default:
 			m.closeHealth()
 		}
@@ -150,6 +154,7 @@ func (m *Model) handleHealthKey(key string) tea.Cmd {
 		if !h.Detail && h.Cursor < len(h.rows()) {
 			h.Detail = true
 			h.Offset = 0
+			h.Scrolled = false
 		}
 	case "R":
 		if h.canRefresh() {
@@ -166,7 +171,23 @@ func (m *Model) moveHealth(delta int) {
 		h.Offset = max(h.Offset+delta, 0)
 		return
 	}
-	h.Cursor = min(max(h.Cursor+delta, 0), max(len(h.rows())-1, 0))
+	last := max(len(h.rows())-1, 0)
+	total, room, cursorLine := m.healthGeometry()
+	switch {
+	case delta > 0 && h.Cursor == last:
+		// Past the last signal the keys scroll on into the history.
+		if next := healthWindow(total, noCursorLine, h.Offset+1, room); next > h.Offset {
+			h.Offset, h.Scrolled = next, true
+		}
+	case delta < 0 && h.Scrolled:
+		h.Offset = max(h.Offset-1, 0)
+		if h.Offset <= cursorLine {
+			h.Scrolled = false
+		}
+	default:
+		h.Cursor = min(max(h.Cursor+delta, 0), last)
+		h.Scrolled = false
+	}
 }
 
 func (m *Model) startHealthRefresh() tea.Cmd {

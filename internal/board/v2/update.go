@@ -85,7 +85,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// A status message shares the footer with the key hints. The next key
 	// dismisses it so the hints return; an action's own result replaces it.
 	m.StatusMessage = ""
-	if m.Help {
+	if m.Help && key != "ctrl+c" {
 		if key == "esc" || key == "q" || key == "?" {
 			m.Help = false
 		}
