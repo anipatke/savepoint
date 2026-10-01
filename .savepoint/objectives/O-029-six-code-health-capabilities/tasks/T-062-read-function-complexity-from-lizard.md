@@ -1,0 +1,64 @@
+---
+id: T-062
+title: Read function complexity from Lizard
+objective: O-029
+status: planned
+depends_on: [{task: T-059, requires: clear}]
+owner_validation: {required: false}
+planned_by: {role: planner, session: planning-o029-20261001}
+complexity_tier: low
+complexity_reason: One headerless CSV format with fixed columns.
+---
+
+# Read function complexity from Lizard
+
+## Outcome
+
+Lizard's CSV report becomes the highest function complexity in the configured scope, with the most complex functions named and their files and lines given.
+
+## User Check
+
+None beyond the Full Objective Check.
+
+## Done When
+
+- The headerless Lizard CSV columns (NLOC, CCN, token, PARAM, length, location, file, function, long name, start, end) are read by position with `encoding/csv`; a row with the wrong column count or a non-numeric CCN is a reader error.
+- The value is the maximum CCN. Details: `functions`, `average_ccn`, and `functions_over_10` and `functions_over_20` (the O-027 Good/Watch defaults).
+- Affected items are the most complex functions, bounded, with file, start line, and a note naming the function and its CCN.
+- A report with no functions is available with value 0 only when the reason says no functions were found. Rows for files outside the root are dropped and make the result partial.
+- Lizard reports no version in its CSV, so provenance version is `unknown` and the reason says so.
+- Fixtures under `testdata/readers/complexity/`: Go, Python, and TypeScript in one report; empty; malformed row; a row outside the root.
+
+## Context Files
+
+`.savepoint/objectives/O-029-six-code-health-capabilities/Objective.md`; `internal/codehealth/collect.go`; `internal/codehealth/model.go`; `internal/codehealth/snapshot.go`; `internal/codehealth/reader_paths.go`; new `internal/codehealth/reader_lizard.go`, `internal/codehealth/reader_lizard_test.go`, `internal/codehealth/testdata/readers/complexity/` fixtures.
+
+## Design References
+
+O-026 Selected Provider Catalogue "Complexity"; O-027 classification rules.
+
+## Guardrails
+
+FS-05, ARCH-04, DEP-01, DEP-02, STYLE-06, STYLE-07, TEST-01, TEST-02, TEST-04, TEST-07, TEST-08.
+
+## Implementation Plan
+
+1. Confirm `ReportInput.Root` and the path helpers exist; return REPLAN REQUIRED if they do not.
+2. Implement the reader and ranking.
+3. Fixture-driven table tests.
+
+## Boundaries
+
+No complexity analysis inside Savepoint and no cognitive-complexity claims.
+
+## Technical Verification
+
+Focused tests while iterating; `make build && make test-fast` at handoff.
+
+## Technical Evidence
+
+Pending execution.
+
+## Drift Notes
+
+None expected.
