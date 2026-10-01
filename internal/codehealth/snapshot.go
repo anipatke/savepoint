@@ -200,6 +200,13 @@ func (r CapabilityResult) key() instanceKey {
 	return instanceKey{r.Capability, r.Provenance.Provider, r.Name}
 }
 
+// historyKey is key without the name: a rename is not a new series.
+func (r CapabilityResult) historyKey() instanceKey {
+	k := r.key()
+	k.name = ""
+	return k
+}
+
 func (r CapabilityResult) validate(field string) error {
 	if _, ok := capabilityUnits[r.Capability]; !ok {
 		return fieldError(ErrUnknownCapability, field+".capability", "%q", r.Capability)

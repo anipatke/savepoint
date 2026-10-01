@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -159,9 +158,6 @@ func TestExecRunnerStopsOnDeadlineAndCancel(t *testing.T) {
 		}
 	})
 	t.Run("children die with the tool", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("process groups are Unix-only; Windows relies on WaitDelay")
-		}
 		pidFile := filepath.Join(dir, "child.pid")
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {

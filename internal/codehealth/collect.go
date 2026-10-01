@@ -148,7 +148,7 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	var assessments []Assessment
 	for _, col := range collected {
 		r := col.Result
-		a := Assess(req.Origin, r, thresholds[r.key()], history[r.key()])
+		a := Assess(req.Origin, r, thresholds[r.key()], history[r.historyKey()])
 		assessments = append(assessments, a)
 		snap.Results = append(snap.Results, r)
 		snap.Summary.Capabilities = append(snap.Summary.Capabilities, a.Summary())
@@ -170,7 +170,9 @@ type collector struct {
 
 func (c *collector) now() string { return c.req.Clock().UTC().Format(timestampLayout) }
 
-// history groups earlier results by instance, oldest first. A damaged history
+// history groups earlier results by capability and provider, oldest first.
+// The instance name is left out so a rename keeps its history; Assess then
+// narrows to the comparison series, which separates scopes and configurations. A damaged history
 // fails collection before any tool runs: the store never repairs itself, and
 // classifying without it would quietly lose baselines.
 func (c *collector) history() (map[instanceKey][]HistoryEntry, error) {
@@ -181,7 +183,7 @@ func (c *collector) history() (map[instanceKey][]HistoryEntry, error) {
 	out := make(map[instanceKey][]HistoryEntry)
 	for _, s := range snaps {
 		for _, r := range s.Results {
-			out[r.key()] = append(out[r.key()], HistoryEntry{Origin: s.Origin, Result: r})
+			out[r.historyKey()] = append(out[r.historyKey()], HistoryEntry{Origin: s.Origin, Result: r})
 		}
 	}
 	return out, nil
@@ -287,6 +289,9 @@ func (c *collector) execute(ctx context.Context, cc CapabilityConfig) (data []by
 		return nil, false, fail(OutcomeFailed, "cannot prepare a temporary report file: %s", sanitizeLine(err.Error()))
 	}
 	defer cleanup()
+	if reportFile == "" {
+		defer c.discardOwnReport(cc)()
+	}
 
 	res, err := c.req.Runner.Run(ictx, ToolSpec{Dir: c.req.Root, Executable: cc.Executable, Args: args})
 	switch {
@@ -306,8 +311,18 @@ func (c *collector) execute(ctx context.Context, cc CapabilityConfig) (data []by
 		}
 		return nil, false, fail(OutcomeFailed, "%s", reason)
 	}
-	if reportFile == "" {
+	switch {
+	case reportFile == "" && cc.Report == "":
 		return res.Stdout, res.Truncated, nil
+	case reportFile == "":
+		// The tool writes the report to the path setup chose, not to stdout.
+		reportFile, f = c.resolveReport(cc)
+		if f != nil && f.outcome == OutcomeAbsent {
+			f = fail(OutcomeFailed, "%s exited cleanly but wrote no report", filepath.Base(cc.Executable))
+		}
+		if f != nil {
+			return nil, false, f
+		}
 	}
 	data, truncated, _, rf := readBounded(reportFile)
 	if rf != nil && rf.outcome == OutcomeAbsent {
@@ -348,17 +363,9 @@ func (c *collector) readReportFile(ctx context.Context, cc CapabilityConfig) (da
 	if cc.Report == "" {
 		return nil, false, FreshnessUnknown, fail(OutcomeUnavailable, "no report path is configured")
 	}
-	full := filepath.Join(c.req.Root, filepath.FromSlash(cc.Report))
-	resolved, err := filepath.EvalSymlinks(full)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, false, FreshnessUnknown, fail(OutcomeAbsent, "no report at %s", cc.Report)
-	case err != nil:
-		return nil, false, FreshnessUnknown, fail(OutcomeFailed, "report at %s cannot be read", cc.Report)
-	}
-	root, err := filepath.EvalSymlinks(c.req.Root)
-	if err != nil || !inside(root, resolved) {
-		return nil, false, FreshnessUnknown, fail(OutcomeFailed, "report at %s resolves outside the project", cc.Report)
+	resolved, f := c.resolveReport(cc)
+	if f != nil {
+		return nil, false, FreshnessUnknown, f
 	}
 	data, truncated, mtime, f := readBounded(resolved)
 	if f != nil {
@@ -379,6 +386,39 @@ func (c *collector) readReportFile(ctx context.Context, cc CapabilityConfig) (da
 		return data, truncated, FreshnessStale, nil
 	}
 	return data, truncated, FreshnessFresh, nil
+}
+
+// resolveReport finds the configured report inside the project, refusing a
+// link that leads out of it.
+func (c *collector) resolveReport(cc CapabilityConfig) (string, *failure) {
+	full := filepath.Join(c.req.Root, filepath.FromSlash(cc.Report))
+	resolved, err := filepath.EvalSymlinks(full)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "", fail(OutcomeAbsent, "no report at %s", cc.Report)
+	case err != nil:
+		return "", fail(OutcomeFailed, "report at %s cannot be read", cc.Report)
+	}
+	root, err := filepath.EvalSymlinks(c.req.Root)
+	if err != nil || !inside(root, resolved) {
+		return "", fail(OutcomeFailed, "report at %s resolves outside the project", cc.Report)
+	}
+	return resolved, nil
+}
+
+// discardOwnReport clears a report a tool wrote into Savepoint's own reports
+// directory, now so an old one is never mistaken for this run's and again
+// when the returned func runs. It also makes sure the directory exists. A report path elsewhere belongs to the project
+// and is left alone.
+func (c *collector) discardOwnReport(cc CapabilityConfig) func() {
+	if !strings.HasPrefix(cc.Report, reportsDir+"/") {
+		return func() {}
+	}
+	full := filepath.Join(c.req.Root, filepath.FromSlash(cc.Report))
+	clear := func() { os.Remove(full) }
+	clear()
+	os.MkdirAll(filepath.Dir(full), 0o755) // the tool does not create its own output directory
+	return clear
 }
 
 // readBounded reads a regular file up to MaxReportBytes. For a missing file it

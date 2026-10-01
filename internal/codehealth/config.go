@@ -47,8 +47,8 @@ func (c Config) Validate() error {
 	if c.Version != ConfigVersion {
 		return fieldError(ErrUnsupportedVersion, "version", "got %d, want %d", c.Version, ConfigVersion)
 	}
-	if len(c.Capabilities) > MaxResults {
-		return fieldError(ErrUnboundedDetail, "capabilities", "has %d entries; at most %d", len(c.Capabilities), MaxResults)
+	if n := c.resultCount(); n > MaxResults {
+		return fieldError(ErrUnboundedDetail, "capabilities", "has %d entries, which with a placeholder for each unconfigured capability makes %d results; at most %d", len(c.Capabilities), n, MaxResults)
 	}
 	seen := make(map[instanceKey]bool, len(c.Capabilities))
 	for i, cc := range c.Capabilities {
@@ -63,6 +63,16 @@ func (c Config) Validate() error {
 		seen[key] = true
 	}
 	return c.validateSharedProviders()
+}
+
+// resultCount is how many results a snapshot of this configuration holds: one
+// per instance and one not_configured placeholder per capability with none.
+func (c Config) resultCount() int {
+	configured := make(map[Capability]bool)
+	for _, cc := range c.Capabilities {
+		configured[cc.Capability] = true
+	}
+	return len(c.Capabilities) + len(Capabilities()) - len(configured)
 }
 
 // instanceKey identifies one configured instance, or one result of it.
