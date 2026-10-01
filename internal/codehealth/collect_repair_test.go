@@ -143,8 +143,14 @@ func TestCollectKeepsTwoScopedInstancesSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range snaps[len(snaps)-1].Summary.Capabilities {
-		if c.Capability == CapabilityComplexity && c.Name == "api" && strings.Contains(c.Explanation, "Not enough comparable") {
-			t.Errorf("api lost its own history: %s", c.Explanation)
+		if c.Capability != CapabilityComplexity {
+			continue
+		}
+		if strings.Contains(c.Explanation, "Not enough comparable") {
+			t.Errorf("%s lost its own history: %s", c.Name, c.Explanation)
+		}
+		if strings.Contains(c.Explanation, "not compared") {
+			t.Errorf("%s counted its sibling's results: %s", c.Name, c.Explanation)
 		}
 	}
 }

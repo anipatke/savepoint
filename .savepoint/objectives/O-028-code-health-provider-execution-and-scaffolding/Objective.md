@@ -1,7 +1,7 @@
 ---
 id: O-028
 title: Configure and run project-owned health tools safely
-status: in_progress
+status: done
 depends_on: [O-026, O-027]
 release: R-007
 priority: high

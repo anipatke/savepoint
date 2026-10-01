@@ -148,7 +148,7 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	var assessments []Assessment
 	for _, col := range collected {
 		r := col.Result
-		a := Assess(req.Origin, r, thresholds[r.key()], history[r.historyKey()])
+		a := Assess(req.Origin, r, thresholds[r.key()], ownHistory(r, history[r.historyKey()]))
 		assessments = append(assessments, a)
 		snap.Results = append(snap.Results, r)
 		snap.Summary.Capabilities = append(snap.Summary.Capabilities, a.Summary())
@@ -163,6 +163,21 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	return Collection{SnapshotID: snap.ID, Created: created, Results: collected}, nil
 }
 
+// ownHistory keeps the earlier results that belong to r's instance: those
+// under its name, which Assess reports as not compared when the scope or
+// configuration changed, and those in its comparison series, which is how a
+// renamed instance finds its past. A sibling instance is neither.
+func ownHistory(r CapabilityResult, entries []HistoryEntry) []HistoryEntry {
+	id := r.SeriesID()
+	var own []HistoryEntry
+	for _, e := range entries {
+		if e.Result.Name == r.Name || e.Result.SeriesID() == id {
+			own = append(own, e)
+		}
+	}
+	return own
+}
+
 type collector struct {
 	req   CollectRequest
 	store Store
@@ -171,8 +186,8 @@ type collector struct {
 func (c *collector) now() string { return c.req.Clock().UTC().Format(timestampLayout) }
 
 // history groups earlier results by capability and provider, oldest first.
-// The instance name is left out so a rename keeps its history; Assess then
-// narrows to the comparison series, which separates scopes and configurations. A damaged history
+// The instance name is left out so a rename keeps its history; ownHistory then
+// picks what belongs to one instance. A damaged history
 // fails collection before any tool runs: the store never repairs itself, and
 // classifying without it would quietly lose baselines.
 func (c *collector) history() (map[instanceKey][]HistoryEntry, error) {

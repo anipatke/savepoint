@@ -2,21 +2,36 @@
 id: I-096
 title: Code Health map still denies implemented collection
 type: drift
-status: open
+status: resolved
 source:
   kind: check
   check: C-941
   actor: {role: checker, session: o028-check-20261001}
   at: '2026-10-01T08:38:18Z'
 tasks: [T-057, T-058]
-checks: [C-941]
+checks: [C-941, C-942, C-943]
 guardrail_ids: [ARCH-04, TPL-02]
+resolution:
+  disposition: verified
+  check: C-943
+  actor: {role: checker, session: o028-recheck-20261001}
+  at: '2026-10-01T08:58:32Z'
 history:
   - at: '2026-10-01T08:50:00Z'
     actor: {role: executor, session: o028-repair-20261001}
     kind: repair_attempted
     note: "AGENTS.md Code Health map now describes Collect (runs tools, readers, one snapshot) and says production readers and a collection command are not shipped. No template carries the sentence. Gates: make build, make test-fast, make test-full (go1.26.2 linux/amd64) pass; awaiting a checker."
     check: C-941
+  - at: '2026-10-01T08:53:46Z'
+    actor: {role: checker, session: o028-recheck-20261001}
+    kind: rechecked
+    note: "C-942: AGENTS.md map now describes Collect and says production readers and a collection command are not shipped. Closed by evidence; verified resolution awaits a CLEAR Check."
+    check: C-942
+  - at: '2026-10-01T08:58:32Z'
+    actor: {role: checker, session: o028-recheck-20261001}
+    kind: rechecked
+    note: "C-943 CLEAR: repair verified against the frozen C-941 scope lock with a fresh make test-full."
+    check: C-943
 ---
 
 # I-096: Code Health map still denies implemented collection

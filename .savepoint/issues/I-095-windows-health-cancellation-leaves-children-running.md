@@ -2,21 +2,36 @@
 id: I-095
 title: Windows health cancellation leaves child processes running
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-941
   actor: {role: checker, session: o028-check-20261001}
   at: '2026-10-01T08:38:18Z'
 tasks: [T-057]
-checks: [C-941]
+checks: [C-941, C-942, C-943]
 guardrail_ids: [CFG-02, CFG-03, TEST-01, TEST-02]
+resolution:
+  disposition: verified
+  check: C-943
+  actor: {role: checker, session: o028-recheck-20261001}
+  at: '2026-10-01T08:58:32Z'
 history:
   - at: '2026-10-01T08:50:00Z'
     actor: {role: executor, session: o028-repair-20261001}
     kind: repair_attempted
     note: "Windows cancel and deadline now run taskkill /T /F on the tool's tree before Process.Kill; real Windows liveness check added and the skip removed. Verified natively on Windows: children test passes with the fix and fails (child survives) with the old runner. Gates: make build, make test-fast, make test-full (go1.26.2 linux/amd64) pass; awaiting a checker."
     check: C-941
+  - at: '2026-10-01T08:53:46Z'
+    actor: {role: checker, session: o028-recheck-20261001}
+    kind: rechecked
+    note: "C-942 native Windows/amd64: cancel and deadline probes both end the child (wait=0); the un-skipped children test, ExecRunner and Collect tests pass natively. Closed by evidence; verified resolution awaits a CLEAR Check."
+    check: C-942
+  - at: '2026-10-01T08:58:32Z'
+    actor: {role: checker, session: o028-recheck-20261001}
+    kind: rechecked
+    note: "C-943 CLEAR: repair verified against the frozen C-941 scope lock with a fresh make test-full."
+    check: C-943
 ---
 
 # I-095: Windows health cancellation leaves child processes running
