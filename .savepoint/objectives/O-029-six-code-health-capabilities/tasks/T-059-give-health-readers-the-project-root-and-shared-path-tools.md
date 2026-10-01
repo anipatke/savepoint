@@ -2,13 +2,21 @@
 id: T-059
 title: Give health readers the project root and shared path tools
 objective: O-029
-status: in_progress
-stage: audit
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o029-20261001}
 complexity_tier: low
 complexity_reason: Small seam change plus pure helpers; no provider formats.
+check_waiver:
+    task: T-059
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T09:09:08Z"
 ---
 
 # Give health readers the project root and shared path tools

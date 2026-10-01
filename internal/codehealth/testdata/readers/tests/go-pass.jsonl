@@ -1,0 +1,4 @@
+{"Action":"start","Package":"example.com/m/a"}
+{"Action":"run","Package":"example.com/m/a","Test":"TestOne"}
+{"Action":"pass","Package":"example.com/m/a","Test":"TestOne"}
+{"Action":"pass","Package":"example.com/m/a"}

@@ -1,0 +1,6 @@
+{"Action":"run","Package":"example.com/one/a","Test":"TestA"}
+{"Action":"fail","Package":"example.com/one/a","Test":"TestA"}
+{"Action":"fail","Package":"example.com/one/a"}
+{"Action":"run","Package":"example.com/two/svc/b","Test":"TestB"}
+{"Action":"fail","Package":"example.com/two/svc/b","Test":"TestB"}
+{"Action":"fail","Package":"example.com/two/svc/b"}

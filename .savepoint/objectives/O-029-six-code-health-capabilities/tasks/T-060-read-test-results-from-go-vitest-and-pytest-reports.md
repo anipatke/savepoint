@@ -2,12 +2,21 @@
 id: T-060
 title: Read test results from Go, Vitest, and pytest reports
 objective: O-029
-status: planned
+status: done
 depends_on: [{task: T-059, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o029-20261001}
 complexity_tier: medium
 complexity_reason: Two report formats (event stream and JUnit XML) with build-error and empty-suite edge cases.
+check_waiver:
+    task: T-060
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T09:11:30Z"
 ---
 
 # Read test results from Go, Vitest, and pytest reports
@@ -57,7 +66,19 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Commands run: `go test ./internal/codehealth -run 'TestGoTest|TestJUnit'` (pass); `make build && make test-fast` (both pass, no failures).
+
+Per-criterion outcomes:
+- Go test JSON: `GoTestReader` decodes per line; value = failed tests + one per package that failed with no failing test (build failure); details `total_tests`, `passed_tests`, `skipped_tests`, `build_failures`; evidence is the package directory via `LoadGoModules`/`Resolve` with the test name in the note, no raw output read. A stream with started tests and no package result is partial with a reason. `TestGoTestReader` (pass, fail+skip, build failure, empty, truncated), `TestGoTestReaderMonorepoResolvesEachModule`, `TestGoTestReaderKeepsFailureCountWhenPackageUnresolved`.
+- JUnit: one `JUnitReader` for Vitest and pytest; value = failures + errors; details `total_tests`, `skipped_tests`, `errors`; evidence from the `file` attribute, else the class name (pytest dotted module path, trailing test classes dropped); hostname and system-out ignored (`TestJUnitReader` checks no leak). `TestJUnitReaderHonoursScope`.
+- Empty suite: value 0, `total_tests` 0, reason "no tests ran" (both readers). Malformed, empty, or non-JUnit input is an error: `TestGoTestReaderRejectsUnusableReports`, `TestJUnitReaderRejectsUnusableReports`.
+- Provenance: neither format carries a runner version, so `provider_version` is `unknown`.
+- Fixtures: `testdata/readers/tests/` has passing, failing, build failure, skips, empty, truncated, malformed, and monorepo Go reports, plus Vitest/pytest failing, passing, empty, and malformed JUnit.
+
+Files changed: new `internal/codehealth/reader_tests.go`, `reader_junit.go`, `reader_tests_test.go`, fixtures under `testdata/readers/tests/`; status/stage edits to this Task and `.savepoint/router.md`.
+Files read: only the Context Files, plus `AGENTS.md` and `agent-skills/savepoint-task/SKILL.md` (extra reads: workflow), `snapshot.go` was a listed Context File.
+
+Limitations: the readers are not yet registered in `Readers` (T-065). Go subtests count as tests in their own right, so a failing subtest and its parent both count. A Go package that failed to build is detected as a package `fail` with no failing test; the newer `build-fail` event is not read. No real Go/Vitest/pytest output was generated; fixtures are hand-written to the documented formats. `gofmt -l` lists three files outside this Task that were already unformatted.
 
 ## Drift Notes
 
