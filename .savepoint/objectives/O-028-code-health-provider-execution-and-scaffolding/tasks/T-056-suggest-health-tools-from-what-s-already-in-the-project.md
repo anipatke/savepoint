@@ -2,7 +2,8 @@
 id: T-056
 title: Suggest health tools from what's already in the project
 objective: O-028
-status: planned
+status: in_progress
+stage: audit
 depends_on: [{task: T-055, requires: clear}]
 owner_validation: {required: false}
 planned_by: {role: planner, session: planning-o028-20261001}
@@ -59,7 +60,33 @@ Focused runs while iterating; `make build && make test-fast` at handoff. Discove
 
 ## Technical Evidence
 
-Pending execution.
+Executed 2026-10-01. Handoff is ready for the owner's choice of an optional Task Check or a waiver; this is not a pass or clearance.
+
+**Per-criterion outcomes**
+
+- `Discover(ctx, root, lookPath)` deterministic, every config valid: `discovery.go`; `TestDiscoverIsDeterministic` (5 reruns equal) and the `discover` test helper validating every proposal. Proposals carry capability, provider, name, scope, exclusions, executable, args, report, reason and gap through `Proposal` and `CapabilityConfig`.
+- Detected inputs: Go (`TestDiscoverGoOnly`), Vitest + V8 and missing V8 (`TestDiscoverVitestWith*`), pytest + coverage.py (`TestDiscoverPytestWithCoveragePy`), Python without pytest, JS without Vitest, unsupported stack (`TestDiscoverUnsupportedStack`), lockfiles including pnpm, existing reports (`TestDiscoverExistingReportClearsGap`). Limitation: `package.json` scripts are matched by the substring "vitest"; TOML/INI are line scans, not parsers.
+- Executed tools: `TestDiscoverExecutedToolArgsTranslateExclusions` checks report output plus exclusion translation for all three tools; the OSV-Scanner reason names OSV.dev (`TestDiscoverGoOnly`); `TestDiscoverMissingExecutableIsProposedNotInstalled`.
+- Report-only providers: gate flag and report path asserted (`TestDiscoverGoOnly`, monorepo test with `cd <dir> &&` prefix). Savepoint edits no scripts.
+- Default exclusions come from the `defaultExclusions` table; `TestDiscoverDefaultExclusions` shows directory patterns only when the directory exists and suffix patterns always.
+- Monorepos: `TestDiscoverMonorepoNamesAndScopes` (distinct names and scopes, no root aggregate, `node_modules` unsearched, combined `Config.Validate()` passes). `TestDiscoverSearchDepthIsBounded` for depth 3.
+- Bounds: oversized, malformed, escaping-symlink, read-limit and unrepresentable-name cases each become a named gap (`TestDiscoverOversizedManifestIsAGap`, `...MalformedManifest...`, `...EscapingSymlink`, `...ReadLimitIsAGap`, `...UnrepresentableNameBecomesNote`).
+- No process or write: `TestDiscoverIsReadOnly` (tree bytes, sizes and mtimes unchanged; `lookPath` only asked about `lizard`, `jscpd`, `osv-scanner`). The package imports no `os/exec` or `net`.
+
+**Commands run:** `make build && make test-fast` (pass); fresh `make test-full` (exit 0, includes linux/darwin/windows cross-builds); `GOOS=windows go vet ./internal/codehealth/` (pass). Focused `go test ./internal/codehealth/ -run 'Discover|Lizard'` while iterating.
+
+**Files read:** `AGENTS.md`, `agent-skills/savepoint-task/SKILL.md`, the Task, O-028 and O-026 (catalogue sections), `model.go`, `config.go`, `primitives.go`. Extra reads: `.savepoint/router.md` and the T-055 frontmatter (to confirm the selection and the dependency), `errors.go` and a grep of `Guardrails.md` (error helpers and rule text), `go.mod` version line. WebFetch of OSV-Scanner docs to check flags (see limitations).
+
+**Files changed:** new `internal/codehealth/discovery.go`, `discovery_catalogue.go`, `discovery_test.go`; `AGENTS.md` Codebase Map entry (drift note).
+
+**Limitations**
+
+- Windows: only `go vet` for `GOOS=windows` and the cross-build ran here; the tests were not run natively on Windows. Paths use `filepath` for disk access and slash form in records. The symlink test skips when symlinks cannot be created.
+- OSV-Scanner `scan source -r --format json --output-file` matches its docs. The exclude flag `--experimental-exclude g:<glob>` could not be confirmed from the docs and is from memory; T-057 or the Check must verify it. Lizard `-x`/`-o` and jscpd `--ignore`/`--output`/`--workers` come from memory of the tools' CLIs and are not verified against installed versions.
+- Fixtures are built in temporary directories inside the tests, not committed under `testdata/discovery/`, as Test guardrail TEST-04 prefers; the plan listed `testdata`.
+- A component nested inside another (root plus sub-packages) gets its own scope while the root keeps an empty scope, so their scopes can overlap in practice; not proposed away here.
+- `.lizardrc` is a guess at a Lizard config name and only affects the reason text.
+- Added gaps beyond the four named: `unreadable_file`, `oversized_file`, `read_limit_reached`.
 
 ## Drift Notes
 
