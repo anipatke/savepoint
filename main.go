@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/doctor"
+	"github.com/opencode/savepoint/internal/healthcheck"
 	savepointinit "github.com/opencode/savepoint/internal/init"
 	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
@@ -88,7 +90,11 @@ func main() {
 			}
 			os.Exit(code)
 		case "health":
-			if err := cmd.RunHealth(context.Background(), args[1:], os.Stdout, healthSetupRunner); err != nil {
+			// Ctrl-C cancels collection through the context so a running tool is stopped.
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			err := cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner})
+			stop()
+			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
@@ -121,6 +127,7 @@ Commands:
   doctor                                Check project health
   resume [dir]                           Print the next V2 action
   health setup [dir] [--apply]           Preview or save suggested health tools
+  health check O-### [dir]               Collect an official health snapshot for an Objective
   migrate [dir] [--apply]                Convert a legacy project to V2
   upgrade-assets [dir]                   Refresh assets in an existing V2 project
 
@@ -337,6 +344,12 @@ func healthSetupRunner(ctx context.Context, opts cmd.HealthSetupOptions) error {
 	}
 	_, err = fmt.Fprint(os.Stdout, plan.Applied(changed))
 	return err
+}
+
+// healthCheckRunner is the production wiring for `health check`; the
+// collection itself lives in internal/healthcheck.
+func healthCheckRunner(ctx context.Context, opts cmd.HealthCheckOptions) error {
+	return healthcheck.Run(ctx, healthcheck.Request{Dir: opts.Dir, Objective: opts.Objective}, os.Stdout)
 }
 
 // previewHealthSetup prints what setup would suggest without writing anything.

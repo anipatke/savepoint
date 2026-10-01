@@ -2,12 +2,21 @@
 id: T-068
 title: Let a checker collect official health with one command
 objective: O-030
-status: planned
+status: done
 depends_on: [{task: T-066, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o030-20261001}
 complexity_tier: medium
 complexity_reason: New CLI subcommand that runs external tools through existing collection and must stay thin and platform-safe.
+check_waiver:
+    task: T-068
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T19:57:40Z"
 ---
 
 # Let a checker collect official health with one command
@@ -60,7 +69,28 @@ It runs external processes and handles paths, so it is platform-sensitive: fresh
 
 ## Technical Evidence
 
-Pending execution.
+Per-criterion outcomes:
+
+- Parsing: `health check` needs one `O-###` and an optional directory; missing/malformed ID, extra arguments, and unknown flags (including `--manual`) are named errors; `health --help` and `health check --help` list both subcommands. `cmd/health_test.go` (`TestParseHealthCheckArgs`, `TestParseHealthArgsRejectsBadInput`, `TestRunHealthHelpDoesNotRun`) and `main_health_test.go`.
+- Objective validation first: `internal/healthcheck.Run` strict-loads the V2 index and rejects an unknown Objective before reading config or running any tool. `TestRun_unknownObjectiveRunsNothing`.
+- Not configured: prints that Code Health is not configured, saves nothing, creates no health directory, returns nil (exit 0). `TestRun_notConfiguredSavesNothing`.
+- Configured: `codehealth.Collect` with `OriginOfficial` and `DefaultReaders()`, then prints Objective, snapshot ID, created/already-stored, and `Verdict.Render()`. A blocking verdict returns nil; only a no-snapshot failure returns an error (exit 1). `TestRun_blockingVerdictStillSucceeds`, `TestRun_nonBlockingVerdict`, `TestRun_collectionErrorSavesNothing`.
+- No manual path: `Request` and `HealthCheckOptions` have no origin or manual field; `TestRun_neverProducesManualSnapshot`.
+- Ctrl-C: `main.go` runs `health` under `signal.NotifyContext(os.Interrupt)`, and Collect honours the context; `TestRun_cancelledContextSavesNothing` covers a cancelled context. Real signal delivery is not exercised by a test.
+- Fake runner and temporary Git projects: every test asserts the only executed tool is `lizard`, so the go-test and coverage instances read existing reports and no test tool runs.
+- Thin main: `main.go` only dispatches (`healthCheckRunner` is one call); behaviour is in `internal/healthcheck`. Help lists the command (`TestMainHelpListsHealthCheck`).
+
+Commands run: `go test ./cmd ./internal/healthcheck`, `make build`, `make test-full` (fresh, platform-sensitive handoff; all passed, including linux/darwin/windows cross-builds).
+
+Files changed: `cmd/health.go`, `cmd/health_test.go`, `main.go`, `main_health_test.go`, new `internal/healthcheck/healthcheck.go`, `internal/healthcheck/healthcheck_test.go`.
+
+Deviation and extra reads, recorded for transparency:
+
+- ARCH-01 (and the `cmd` import test that allows only context/errors/fmt/io) forbids behaviour in `cmd` or `main.go`, so the collection logic lives in a new package `internal/healthcheck` that is not in the Context Files. The plan's "production runner in main.go" is a one-line wrapper. The Codebase Map needs a line for it in the skill-and-docs Task (ARCH-04).
+- `RunHealth` now takes a `HealthRunners` struct (Setup and Check) instead of one function, and `ParseHealthArgs` returns a `HealthInvocation`; the existing setup tests were adapted, with unchanged setup behaviour.
+- Extra reads: `internal/codehealth/runner.go`, `config.go`, `collect_test.go`, `repository_test.go`, `testdata/readers/*` fixtures, `cmd/resume_test.go` (import rule), `internal/doctor/checks_test.go` (project fixture shape), `internal/data/project.go` (`LoadV2Index`).
+
+Limitations: the not-configured and collection-error paths use real temporary Git repos but no real tools. A repeated run's "already stored" label is not tested because timestamps make each snapshot distinct. No Task Check requested and no owner waiver recorded.
 
 ## Drift Notes
 

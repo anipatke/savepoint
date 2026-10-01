@@ -149,3 +149,31 @@ func TestMainHealthRequiresSetupSubcommand(t *testing.T) {
 		t.Fatal("bare health succeeded")
 	}
 }
+
+func TestMainHelpListsHealthCheck(t *testing.T) {
+	result := runMainForTest(t, []string{"--help"}, "")
+	if !strings.Contains(result.stdout, "health check O-### [dir]") {
+		t.Fatalf("help = %q", result.stdout)
+	}
+	result = runMainForTest(t, []string{"health", "--help"}, "")
+	if result.err != nil || !strings.Contains(result.stdout, "health setup") || !strings.Contains(result.stdout, "health check O-### [dir]") {
+		t.Fatalf("health --help = %q, %v", result.stdout, result.err)
+	}
+}
+
+func TestMainHealthCheckRefusesBadInputAndUnconfiguredProjects(t *testing.T) {
+	dir := initGoProject(t)
+	for name, args := range map[string][]string{
+		"missing ID":        {"health", "check"},
+		"malformed ID":      {"health", "check", "T-001"},
+		"unknown flag":      {"health", "check", "O-001", "--manual"},
+		"unknown Objective": {"health", "check", "O-999", dir},
+	} {
+		if result := runMainForTest(t, args, ""); result.err == nil {
+			t.Errorf("%s: health check succeeded, want a failure", name)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".savepoint", "health", "snapshots")); err == nil {
+		t.Fatal("a refused health check saved a snapshot")
+	}
+}
