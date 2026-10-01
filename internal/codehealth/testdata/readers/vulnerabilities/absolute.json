@@ -1,0 +1,59 @@
+{
+ "database_snapshot": "2026-09-30",
+ "results": [
+  {
+   "source": {
+    "path": "/work/proj/go.mod",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "a",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "A-1"
+       ],
+       "max_severity": "7.5"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "source": {
+    "path": "/elsewhere/go.mod",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "b",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "B-1"
+       ],
+       "max_severity": "5.0"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+{
+ "results": [
+  {
+   "source": {
+    "path": "/work/proj/requirements.txt",
+    "type": "manifest"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "requests",
+      "version": ""
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "PYSEC-9"
+       ],
+       "max_severity": "6.1"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

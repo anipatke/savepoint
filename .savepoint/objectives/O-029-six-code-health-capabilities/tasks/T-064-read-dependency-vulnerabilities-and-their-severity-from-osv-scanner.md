@@ -2,12 +2,21 @@
 id: T-064
 title: Read dependency vulnerabilities and their severity from OSV-Scanner
 objective: O-029
-status: planned
+status: done
 depends_on: [{task: T-059, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o029-20261001}
 complexity_tier: medium
 complexity_reason: Severity bucketing plus a small change to the severity rules in the model and classification.
+check_waiver:
+    task: T-064
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T09:21:49Z"
 ---
 
 # Read dependency vulnerabilities and their severity from OSV-Scanner
@@ -57,7 +66,21 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+**Per-criterion outcomes**
+
+1. Value is the number of groups across `results[].packages[].groups`; `max_severity` buckets 9.0+ critical, 7.0+ high, 4.0+ medium, above 0 low, missing/unparsable unknown; five detail counts sum to the total: met (`TestOSVScannerReaderValue`, `all-severities.json` covers each boundary and checks the sum). Decisions beyond the text: a score of 0 or above 10 is unknown, since "above 0 low" leaves 0 without a bucket; a source outside the instance scope is excluded from the count, while a source outside the root is counted but has no affected item.
+2. Model admits `medium`, `low`, `unknown`; `validateSeverity` checks all five; `unknown` above zero is a hard blocker; medium and low never block; the "total above zero with severity missing" rule is kept: met (`TestVulnerabilitySeverityCountsAreValidated`, `TestAssessCurrentValueThresholds`, `TestOSVScannerUnknownSeverityBlocks`). Existing `high`/`critical` constant names kept; added `vulnerabilitySeverityKeys`.
+3. Affected items point at each lockfile or manifest, repository-relative, with a note naming package, version, and up to three advisory IDs (`+N more`), worst severity first, bounded: met (`TestOSVScannerEvidenceIsWorstFirstAndBounded`). Decision: an unknown group ranks with high (7.0), since it blocks the same way.
+4. Empty `results` is value 0; unresolved versions or a scanner error makes the result partial with a reason; provenance records the scanner version when present; the reason states the database was queried at collection time with snapshot `unknown` unless the report gives one: met (`none.json`, `unresolved.json`, `scanner-error.json`). Assumptions: a top-level `version` and `database_snapshot`, a `results[].error` or `packages[].error` string, and an empty package `version` are how the report says these; the plan did not name the fields. Beyond the text: packages with `vulnerabilities` but no `groups` also make the reading partial, so they are not silently undercounted. The database statement is in the reason of every reading, partial or not, within the 200-character bound.
+5. Fixtures under `testdata/readers/vulnerabilities/`: met. `multi-ecosystem.json` (Go, npm, Python), `none.json`, `all-severities.json`, `missing-severity.json`, `unresolved.json`, `malformed.json`, `absolute.json`, plus `scanner-error.json`, `ungrouped.json`, `no-results.json`.
+
+**Commands**: `make test-focused TEST=OSVScanner` passed; `make build && make test-fast` exited 0.
+
+**Files read**: Task, `model.go`, `snapshot.go`, `reader_paths.go`, `classification.go`, `collect.go` (lines 1-150, 275-300), `AGENTS.md`, savepoint-task skill, `router.md`.
+**Extra reads (logged)**: `reader_jscpd.go` and `reader_jscpd_test.go` to match reader and test conventions; a grep of `internal/codehealth` for `skippedFilesReason`, `unknownVersion`, `sanitizeLine`, `boundText`, `detailMap`, `equalRefs`, `vitestRoot`; `classification_test.go` and `model_test.go` severity cases (also edited).
+**Files changed**: `classification.go`, `snapshot.go`, `classification_test.go`, `model_test.go`; new `reader_osv.go`, `reader_osv_test.go`, `testdata/readers/vulnerabilities/*.json`; this Task file.
+
+**Limitations**: the reader is not registered in `Readers`; registration and the end-to-end containment test belong to T-065. No real OSV-Scanner run was made; fixtures follow its documented JSON shape (`results[].source.path`, `packages[].groups[].max_severity`). The version, database-snapshot, and error fields above are assumptions that real reports probably lack, so real reports will read `unknown` and rarely show a scanner error. `max_severity` is read as a numeric CVSS score only; a vector string is unknown. No Task Check was requested and no waiver was recorded.
 
 ## Drift Notes
 

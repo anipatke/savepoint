@@ -2,12 +2,21 @@
 id: T-065
 title: Switch on the real health readers and prove failures stay contained
 objective: O-029
-status: planned
+status: done
 depends_on: [{task: T-060, requires: clear}, {task: T-061, requires: clear}, {task: T-062, requires: clear}, {task: T-063, requires: clear}, {task: T-064, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o029-20261001}
 complexity_tier: medium
 complexity_reason: Cross-reader integration over real fixtures plus Design and Codebase Map reconciliation.
+check_waiver:
+    task: T-065
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T09:24:22Z"
 ---
 
 # Switch on the real health readers and prove failures stay contained
@@ -56,7 +65,19 @@ Process and path handling make this platform-sensitive: fresh `make test-full` a
 
 ## Technical Evidence
 
-Pending execution.
+Executed 2026-10-01 (Go toolchain as installed locally). Ready for an optional Task Check or the Full Objective Check; not claimed as passed.
+
+Per-criterion:
+- `DefaultReaders()` registry: `internal/codehealth/readers.go`; `TestDefaultReadersCoverTheWholeCatalogue` fails if any `providerCapability` key lacks a reader (and if a reader is registered outside the catalogue).
+- End-to-end: `TestCollectWithRealReadersKeepsEveryMeasureTruthful` configures all nine providers over a temporary Git project with fixture reports and a fake runner, two-plus instances of lizard, plus in the same run a malformed report (failed), a timed-out tool (timed_out), an unavailable executable (unavailable) and an absent report (absent). Valid instances assert a measured outcome, a value and details; failed ones assert their own outcome, no value, and an `unknown` classification.
+- Round trip: the same test reloads the snapshot through `Store.LoadSnapshots`, checks the ID matches and `Validate()` passes.
+- Docs: AGENTS.md Codebase Map entry for `internal/codehealth` and a new Code Health readers bullet in Design.md section 1 say production readers exist and the collection command is still to come.
+
+Commands: `go test ./internal/codehealth -run 'DefaultReaders|WithRealReaders'` ok; `make build` ok; `make test-full` exit 0, no FAIL lines.
+
+Files changed: `internal/codehealth/readers.go`, `internal/codehealth/readers_integration_test.go` (new); `AGENTS.md`, `.savepoint/Design.md`. No extra reads beyond Context Files except `config.go`, `classification.go`, `repository_test.go` and reader tests to reuse helpers and fixtures.
+
+Limitations: the integration test rewrites the `/work/proj` path in two coverage fixtures to the temp root; valid-instance details are asserted as present, not value-by-value (per-reader tests own exact values). The uncommitted T-064 work was present in the tree when this started and is included in the gate run.
 
 ## Drift Notes
 

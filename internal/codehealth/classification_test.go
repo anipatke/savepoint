@@ -94,6 +94,10 @@ func TestAssessCurrentValueThresholds(t *testing.T) {
 		{"zero total with critical", vulnResult(0, sev(0, 1)...), nil, ClassificationNeedsAttention},
 		{"zero total with zero severity", vulnResult(0, sev(0, 0)...), nil, ClassificationGood},
 		{"high count missing", vulnResult(2, Detail{Key: "critical", Number: 0}), nil, ClassificationNeedsAttention},
+		{"medium and low never block", vulnResult(4, append(sev(0, 0), Detail{Key: "medium", Number: 2}, Detail{Key: "low", Number: 2})...), nil, ClassificationWatch},
+		{"one unknown blocks", vulnResult(2, append(sev(0, 0), Detail{Key: "unknown", Number: 1})...), nil, ClassificationNeedsAttention},
+		{"zero unknown does not block", vulnResult(2, append(sev(0, 0), Detail{Key: "unknown", Number: 0})...), nil, ClassificationWatch},
+		{"unknown blocks despite guidance", vulnResult(2, append(sev(0, 0), Detail{Key: "unknown", Number: 1})...), &Threshold{Good: 10, Watch: 10}, ClassificationNeedsAttention},
 		// Configured guidance replaces the defaults...
 		{"stricter coverage guidance", result(CapabilityCoverage, 85), &Threshold{Good: 90, Watch: 70}, ClassificationWatch},
 		{"looser complexity guidance", result(CapabilityComplexity, 15), &Threshold{Good: 15, Watch: 30}, ClassificationGood},

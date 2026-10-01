@@ -404,6 +404,10 @@ func TestVulnerabilitySeverityCountsAreValidated(t *testing.T) {
 		{"severity exceeds total", 1, sev(1, 1), false},
 		{"negative count", 3, sev(-1, 0), false},
 		{"fractional count", 3, sev(0.5, 0), false},
+		{"all five buckets sum to total", 5, append(sev(1, 1), Detail{Key: "medium", Number: 1}, Detail{Key: "low", Number: 1}, Detail{Key: "unknown", Number: 1}), true},
+		{"medium and low count toward the total", 2, append(sev(1, 0), Detail{Key: "medium", Number: 1}, Detail{Key: "low", Number: 1}), false},
+		{"negative unknown", 3, []Detail{{Key: "unknown", Number: -1}}, false},
+		{"fractional low", 3, []Detail{{Key: "low", Number: 0.5}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

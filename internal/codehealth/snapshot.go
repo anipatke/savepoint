@@ -327,7 +327,7 @@ func (r CapabilityResult) validateSeverity(field string) error {
 	}
 	var sum float64
 	for i, d := range r.Details {
-		if d.Key != DetailHighVulnerabilities && d.Key != DetailCriticalVulnerabilities {
+		if !slices.Contains(vulnerabilitySeverityKeys, d.Key) {
 			continue
 		}
 		if d.Number < 0 || d.Number != math.Trunc(d.Number) {

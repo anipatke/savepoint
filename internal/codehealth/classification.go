@@ -8,9 +8,21 @@ import (
 // Detail keys that carry dependency-vulnerability severity counts alongside the
 // total value.
 const (
-	DetailHighVulnerabilities     = "high"
 	DetailCriticalVulnerabilities = "critical"
+	DetailHighVulnerabilities     = "high"
+	DetailMediumVulnerabilities   = "medium"
+	DetailLowVulnerabilities      = "low"
+	DetailUnknownVulnerabilities  = "unknown"
 )
+
+// vulnerabilitySeverityKeys lists every severity count a result may carry.
+var vulnerabilitySeverityKeys = []string{
+	DetailCriticalVulnerabilities,
+	DetailHighVulnerabilities,
+	DetailMediumVulnerabilities,
+	DetailLowVulnerabilities,
+	DetailUnknownVulnerabilities,
+}
 
 // Minimum movement against the recent baseline that counts as material. Smaller
 // movement is noise. Counts move by whole units, so any change is material.
@@ -235,8 +247,7 @@ func classifyValue(r CapabilityResult, t Threshold) (Classification, bool, strin
 }
 
 // hardBlocker reports the confirmed rules that configuration cannot weaken:
-// failing tests, and high or critical vulnerabilities, including findings whose
-// severity is unknown.
+// failing tests, and high, critical, or unknown-severity vulnerabilities.
 func hardBlocker(r CapabilityResult) (bool, string) {
 	switch r.Capability {
 	case CapabilityTests:
@@ -248,7 +259,10 @@ func hardBlocker(r CapabilityResult) (bool, string) {
 		// total beside a positive high or critical count) still blocks.
 		high, hasHigh := detail(r, DetailHighVulnerabilities)
 		critical, hasCritical := detail(r, DetailCriticalVulnerabilities)
+		unknown, _ := detail(r, DetailUnknownVulnerabilities)
 		switch {
+		case unknown > 0:
+			return true, fmt.Sprintf("%s vulnerabilities have unknown severity, so they are treated as blocking.", formatPlain(unknown))
 		case high > 0 || critical > 0:
 			return true, fmt.Sprintf("%s high and %s critical vulnerabilities; these always need attention.", formatPlain(high), formatPlain(critical))
 		case r.Value.Number > 0 && (!hasHigh || !hasCritical):
