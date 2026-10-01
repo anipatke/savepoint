@@ -1,7 +1,7 @@
 ---
 id: O-030
 title: Measure health during Full Objective Checks
-status: planned
+status: in_progress
 depends_on: [O-027, O-028, O-029]
 release: R-007
 priority: high

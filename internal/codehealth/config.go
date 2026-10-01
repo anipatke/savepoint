@@ -19,12 +19,15 @@ type Config struct {
 // CapabilityConfig configures one provider instance. The instance key is the
 // capability, provider, and optional name together, so a monorepo can run one
 // provider over several scopes. Required marks an instance whose failure the
-// project will not tolerate; it defaults to optional.
+// project will not tolerate; it defaults to optional. Blocking opts a coverage,
+// complexity, or duplication instance into blocking clearance when it needs
+// attention. It is policy, not measurement, so it is not part of Digest.
 type CapabilityConfig struct {
 	Capability     Capability  `json:"capability"`
 	Provider       ProviderKey `json:"provider"`
 	Name           string      `json:"name,omitempty"`
 	Required       bool        `json:"required,omitempty"`
+	Blocking       bool        `json:"blocking,omitempty"`
 	Executable     string      `json:"executable,omitempty"`
 	Args           []string    `json:"args,omitempty"`
 	Report         string      `json:"report,omitempty"`
@@ -140,6 +143,9 @@ func (cc CapabilityConfig) validate(field string) error {
 	if err := validateToken(field+".name", cc.Name, false); err != nil {
 		return err
 	}
+	if err := cc.validateBlocking(field); err != nil {
+		return err
+	}
 	if err := cc.validateExecution(field); err != nil {
 		return err
 	}
@@ -151,6 +157,14 @@ func (cc CapabilityConfig) validate(field string) error {
 	}
 	if cc.Thresholds != nil {
 		return cc.Thresholds.validate(field+".thresholds", cc.Capability)
+	}
+	return nil
+}
+
+// validateBlocking rejects the flag where blocking is already the default.
+func (cc CapabilityConfig) validateBlocking(field string) error {
+	if cc.Blocking && !slices.Contains(optInBlockingCapabilities, cc.Capability) {
+		return fieldError(ErrBlockingNotAllowed, field+".blocking", "%s already blocks by default and does not take the flag", cc.Capability)
 	}
 	return nil
 }

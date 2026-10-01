@@ -2,12 +2,21 @@
 id: T-066
 title: Decide which health results block an Objective Check
 objective: O-030
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o030-20261001}
 complexity_tier: medium
 complexity_reason: Pure policy over existing snapshot types plus one strict config field; many distinct states to keep separate.
+check_waiver:
+    task: T-066
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T19:47:15Z"
 ---
 
 # Decide which health results block an Objective Check
@@ -59,7 +68,18 @@ Focused `make test-focused TEST=./internal/codehealth/...` while iterating; `mak
 
 ## Technical Evidence
 
-Pending execution.
+Gate: `make build && make test-fast` passed (2026-10-02, after gofmt/go vet clean).
+
+Per criterion:
+- `blocking` flag: `CapabilityConfig.Blocking` added; rejected on tests/vulnerabilities with `ErrBlockingNotAllowed` (`TestBlockingFlagValidation`). Configs without it decode unchanged and `Digest()` ignores it, so series are not reset (`TestBlockingFlagDoesNotChangeDigest`). Decision: setting it does not change the digest (policy, not measurement).
+- Pure evaluation: `Evaluate` in `gate.go`; every rule is a case in `TestEvaluateRules` (failing optional tests block, failed optional coverage reported, stale required tests block, unknown severity reported, partial blocks only via default/opt-in, Watch never blocks).
+- Manual snapshot refused with `ErrManualSnapshot` (`TestEvaluateRefusesManualSnapshot`).
+- Each line names its kind; headlines are only "blocks clearance" / "does not block clearance"; test asserts no "healthy"/"clear" wording.
+- Deterministic renderer: `TestRenderGolden`.
+
+Files changed: `internal/codehealth/{config.go,errors.go,gate.go,gate_test.go}`. No extra reads beyond Context Files (read `classification.go`/`reader_osv.go` listed or adjacent; `collect.go` only).
+
+Limitations: `Evaluate` trusts a validated snapshot and does not re-validate it; a configured instance with no result is treated as a collection failure; no Task Check requested or waived.
 
 ## Drift Notes
 

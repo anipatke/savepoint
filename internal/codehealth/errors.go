@@ -28,6 +28,8 @@ var (
 	ErrInvalidOrigin      = errors.New("invalid origin or retention")
 	ErrInvalidRepository  = errors.New("invalid repository identity")
 	ErrInvalidSummary     = errors.New("invalid summary")
+	ErrBlockingNotAllowed = errors.New("blocking flag not allowed for capability")
+	ErrManualSnapshot     = errors.New("manual snapshot cannot be evaluated")
 	ErrMalformedRecord    = errors.New("malformed record")
 )
 
