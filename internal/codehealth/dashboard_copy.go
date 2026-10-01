@@ -14,6 +14,7 @@ import (
 type signalWords struct {
 	Question string
 	Value    string
+	Figure   string
 	Aim      string
 	Meaning  string
 	NextStep string
@@ -104,6 +105,7 @@ const (
 
 const (
 	textNotMeasured     = "not measured"
+	textNoFigure        = "—"
 	textNoTestsRan      = "no tests ran"
 	textNoneFailing     = "none failing"
 	textNone            = "none"
@@ -172,11 +174,11 @@ func measuredWords(configured *Threshold, r CapabilityResult, label Classificati
 		Where:    whereText(r.Evidence),
 	}
 	if r.Value == nil || !r.Outcome.Measured() {
-		w.Value = textNotMeasured
+		w.Value, w.Figure = textNotMeasured, textNoFigure
 		w.Meaning, w.NextStep = unknownCopy.Meaning, unknownCopy.NextStep
 		return w
 	}
-	w.Value = valueText(r)
+	w.Value, w.Figure = valueText(r), figureText(r)
 	entry := meaningText[r.Capability][label]
 	w.Meaning, w.NextStep = entry.Meaning, entry.NextStep
 	if label == ClassificationNeedsAttention {
@@ -225,7 +227,7 @@ func unmeasuredWords(c Capability, configured *Threshold, notConfigured bool) si
 		entry = notConfiguredCopy
 	}
 	return signalWords{
-		Question: questionText[c], Value: textNotMeasured, Aim: aimText(c, configured),
+		Question: questionText[c], Value: textNotMeasured, Figure: textNoFigure, Aim: aimText(c, configured),
 		Meaning: entry.Meaning, NextStep: entry.NextStep,
 	}
 }
@@ -246,6 +248,25 @@ func valueText(r CapabilityResult) string {
 		return vulnerabilityValue(r)
 	}
 	return formatValue(r)
+}
+
+// figureText is just the number a row shows beside the signal's name: failing
+// tests, coverage, the hardest function's score, copy-pasted share, or the
+// vulnerabilities found. The full wording stays in Value.
+func figureText(r CapabilityResult) string {
+	n := r.Value.Number
+	switch r.Capability {
+	case CapabilityTests:
+		return groupDigits(n)
+	case CapabilityComplexity:
+		return formatPlain(n)
+	case CapabilityDependencyVulnerability:
+		if n <= 0 {
+			return textNone
+		}
+		return formatPlain(n)
+	}
+	return formatNumber(n, r)
 }
 
 func testsValue(r CapabilityResult) string {

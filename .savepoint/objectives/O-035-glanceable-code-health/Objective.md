@@ -1,7 +1,7 @@
 ---
 id: O-035
 title: Make Code Health glanceable
-status: in_progress
+status: done
 depends_on: [O-031]
 release: R-007
 priority: medium

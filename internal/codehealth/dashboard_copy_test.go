@@ -326,3 +326,24 @@ func TestMeaningNamesTheCauseOfTheLabel(t *testing.T) {
 		})
 	}
 }
+
+func TestFigureIsTheNumberAlone(t *testing.T) {
+	tests := []struct {
+		r    CapabilityResult
+		want string
+	}{
+		{wordsResult(CapabilityTests, 0, Detail{Key: "total_tests", Number: 3045}), "0"},
+		{wordsResult(CapabilityTests, 2, Detail{Key: "total_tests", Number: 3045}), "2"},
+		{wordsResult(CapabilityCoverage, 86.3), "86.3%"},
+		{wordsResult(CapabilityComplexity, 46), "46"},
+		{wordsResult(CapabilityDuplication, 9), "9%"},
+		{wordsResult(CapabilityDependencyVulnerability, 0), "none"},
+		{wordsResult(CapabilityDependencyVulnerability, 3, Detail{Key: DetailHighVulnerabilities, Number: 1}, Detail{Key: DetailLowVulnerabilities, Number: 2}), "3"},
+		{unmeasured(wordsResult(CapabilityCoverage, 0), OutcomeFailed), "—"},
+	}
+	for _, tt := range tests {
+		if got := measuredWords(nil, tt.r, ClassificationGood).Figure; got != tt.want {
+			t.Errorf("%s figure = %q, want %q", tt.r.Capability, got, tt.want)
+		}
+	}
+}

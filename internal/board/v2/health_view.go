@@ -20,7 +20,7 @@ const (
 	healthRows            = 5
 	healthRowMarkWidth    = 4
 	healthRowGap          = 2
-	healthRowNameCap      = 14
+	healthRowNameCap      = 16
 	healthRowValueMin     = 8
 	healthDetailLines     = 5
 )
@@ -45,6 +45,8 @@ const (
 	textHealthHistoryTitle   = "  last checks, newest first"
 	textHealthNoHistory      = "No checks yet."
 	textHealthDetailJoin     = " · "
+	textHealthValueJoin      = " · "
+	textHealthBlocking       = "!"
 	textHealthInstances      = "%s ×%d"
 	textHealthWorstOf        = " (worst of %d: %s)"
 	textHealthWorstOfUnnamed = " (worst of %d)"
@@ -52,6 +54,22 @@ const (
 	textHealthHistoryNote    = "History: %s"
 	textHealthManualNote     = "Dimmed rows are manual refreshes; they do not feed the sparklines."
 )
+
+// healthRowLabel renames a signal where the number beside it counts something
+// other than the signal's own name.
+var healthRowLabel = map[codehealth.Capability]string{
+	codehealth.CapabilityTests: "Tests failing",
+}
+
+// healthSignalName is the row's name: the signal's own, or its row label with
+// any "×N" the grouping added.
+func healthSignalName(row codehealth.DashboardRow) string {
+	label, ok := healthRowLabel[row.Capability]
+	if !ok {
+		return row.CapabilityText
+	}
+	return label + strings.TrimPrefix(row.CapabilityText, codehealth.CapabilityText(row.Capability))
+}
 
 // healthShortName stands in for a signal name too long for a row.
 var healthShortName = map[codehealth.Capability]string{
@@ -236,7 +254,7 @@ func healthSignalRows(h *HealthOverlay, width int) []string {
 	var nameW, valueW, sparkW, aimW int
 	for i, row := range shown {
 		names[i] = healthRowName(row)
-		values[i] = row.Value + older
+		values[i] = healthFigure(row) + older
 		sparks[i] = healthSpark(row, healthLabelStyle(row.Label))
 		nameW = max(nameW, lipgloss.Width(names[i]))
 		valueW = max(valueW, lipgloss.Width(values[i]))
@@ -269,10 +287,23 @@ func healthSignalRows(h *HealthOverlay, width int) []string {
 	return out
 }
 
+// healthFigure is the value column: the number alone, with ! when a
+// vulnerability finding blocks sign-off. Rows without a figure show their value.
+func healthFigure(row codehealth.DashboardRow) string {
+	figure := row.Figure
+	if figure == "" {
+		figure = row.Value
+	}
+	if row.Capability == codehealth.CapabilityDependencyVulnerability && row.BlocksSignOff() {
+		figure += textHealthBlocking
+	}
+	return figure
+}
+
 // healthRowName is the signal's name, with the instance name when one signal
 // has several.
 func healthRowName(row codehealth.DashboardRow) string {
-	name := row.CapabilityText
+	name := healthSignalName(row)
 	if short, ok := healthShortName[row.Capability]; ok && row.Name == "" && row.CapabilityText == codehealth.CapabilityText(row.Capability) && lipgloss.Width(name) > healthRowNameCap {
 		name = short
 	}
@@ -349,6 +380,9 @@ func healthSelectedLines(h *HealthOverlay) []string {
 	question := row.Question
 	if healthOlderMark(h) != "" {
 		question += textHealthOlderNote
+	}
+	if row.Value != "" {
+		question += textHealthValueJoin + row.Value
 	}
 	lines := []string{styles.HealthAccent.Render(question), row.Meaning}
 	if row.SparkNote != "" {

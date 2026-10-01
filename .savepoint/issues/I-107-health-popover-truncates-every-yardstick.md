@@ -36,6 +36,10 @@ history:
     kind: rechecked
     check: C-954
     note: 'Repair verified by independent CLEAR Check C-954 against C-952 frozen scope; all original cases and admitted adjacent repair cases pass.'
+  - at: '2026-10-01T23:40:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: "Owner-directed follow-up: the row's value column is now the number alone (new DashboardRow.Figure; Value keeps the full wording and appears on the selected detail's question line). Tests rows are labelled Tests failing and show the failing count; Dependencies show the total, with ! when blocking; unmeasured shows an em dash. Frees room so name, ten-block spark and aim fit at 72 columns."
 ---
 
 # I-107: Health popover truncates every yardstick

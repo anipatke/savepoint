@@ -81,6 +81,8 @@ type DashboardRow struct {
 	// when there is no evidence.
 	Question string
 	Value    string
+	// Figure is the number alone, for the popover's value column.
+	Figure   string
 	Aim      string
 	Meaning  string
 	NextStep string
@@ -325,7 +327,7 @@ func (row DashboardRow) BlocksSignOff() bool { return row.SignOff == textSignOff
 
 // withWords copies a signal's plain-language reading onto its row.
 func (row DashboardRow) withWords(w signalWords) DashboardRow {
-	row.Question, row.Value, row.Aim = w.Question, w.Value, w.Aim
+	row.Question, row.Value, row.Figure, row.Aim = w.Question, w.Value, w.Figure, w.Aim
 	row.Meaning, row.NextStep, row.Where = w.Meaning, w.NextStep, w.Where
 	return row
 }
