@@ -2,7 +2,8 @@
 id: T-072
 title: Add the Code Health screen to the board
 objective: O-031
-status: planned
+status: in_progress
+stage: audit
 depends_on: [{task: T-070, requires: clear}, {task: T-071, requires: clear}]
 owner_validation: {required: true}
 planned_by: {role: planner, session: planning-o031-20261002}
@@ -63,7 +64,23 @@ Focused board tests while iterating; `make build && make test-fast` for handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Commands run: `go test -race -count=3 ./internal/board/v2 -run Health` (pass); `make build && make test-fast` (pass, exit 0, no FAIL lines). Owner validation (User Check in a real terminal) has not been done by the executor.
+
+Per criterion:
+- `H` opens a full-screen view, Esc restores the cursor, exclusive with detail/Issues/Goal/help: `openHealth` guards every other overlay; `TestHealthEscRestoresTheBoardCursor`, `TestHealthIsExclusiveWithTheOtherOverlays`.
+- Open dispatches `LoadDashboard`, then `DashboardFreshness`; no IO in rendering: `healthLoadCmd`/`healthFreshnessCmd` in `io.go`, injectable via `HealthFuncs`; `TestHealthShowsResultsBeforeFreshnessArrives`, `TestHealthStaleFreshnessForAnOlderSnapshotIsIgnored`. Board uses only `codehealth.Dashboard`, `CodeFreshness`, `Progress`, and the opaque `RepositoryIdentity` it hands back; no snapshot or provider-reader type.
+- Not configured / first run: `TestHealthNotConfiguredExplainsAndRefreshDoesNothing`, `TestHealthFirstRunOffersRefresh`.
+- Measured: overall, time and origin, freshness, rows with label/reason/trend, glyph plus word, no number, Atari-Noir tokens (`styles.Health*`): `TestHealthShowsFiveSignalsWithLabelsReasonsAndTrends`, `TestHealthNonGoodRowsAreNeverShownAsGood`.
+- Details and history: `TestHealthDetailsExplainTheLabelAndEscReturnsToTheList`; history is listed under the rows as "RECENT CHECKS".
+- Refresh: progress text in order, Esc cancels with the exact cancelled line, second R ignored, completion reloads, q/ctrl+c cancels first: `TestHealthRefreshReportsProgressInOrderAndReloadsOnCompletion`, `TestHealthEscCancelsARefreshAndKeepsThePreviousResult`, `TestHealthQuitDuringRefreshCancelsBeforeQuitting`.
+- Errors are status lines: `TestHealthLoadErrorKeepsThePreviousView`, `TestHealthLoadErrorOnFirstOpenIsAStatusLineNotACrash`, `TestHealthRefreshErrorIsAStatusLine`.
+- Help: `TestHealthHelpListsTheKeys`. Width at the board's minimum: `TestHealthFitsTheBoardsMinimumWidth`.
+
+Files changed: `internal/board/v2/{health.go,health_view.go,health_test.go,io.go,model.go,update.go,view.go,help.go}`, `internal/styles/styles.go` (Health* styles), `internal/codehealth/dashboard.go` (exported `CapabilityText`).
+
+Extra reads/edits beyond Context Files: `internal/styles/styles.go` (read and edited, to add the Atari-Noir label styles the plan requires; `visual-identity.md` names the tokens but the board reaches colors only through `styles`), `internal/board/v2/boundary_test.go` (read, to learn the badge-vocabulary rule that forced `styles.Health*`), `internal/healthcheck/healthcheck.go` and `cmd`-side wiring (read, to copy how a collection is invoked), `internal/codehealth/classification.go` (read, to confirm a private capability label was not the display text).
+
+Limitations: terminal behavior (colors, real refresh with real tools, real Git freshness) is unverified until the owner runs the User Check. A cancelled refresh relies on T-071's process-group kill; on `q` the program exits right after cancelling, so a tool process is stopped by that cancellation, not waited for. The "reset" trend wording is shown as `codehealth` words it; the test uses injected text.
 
 ## Drift Notes
 

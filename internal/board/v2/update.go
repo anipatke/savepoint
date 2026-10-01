@@ -32,7 +32,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// leave it scrolled past its own end.
 		m.clampDetailScroll()
 		m.clampIssueScroll()
+		m.syncHealthScroll()
 		return m, nil
+	case healthLoadedMsg, healthFreshnessMsg, healthProgressMsg, healthRefreshDoneMsg:
+		return m.applyHealth(msg)
 	case projectLoadedMsg:
 		return m.applyLoad(msg)
 	case v2FileChangeMsg:
@@ -96,12 +99,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if key == "q" || key == "ctrl+c" {
+		m.cancelHealthRefresh()
 		if m.Watcher != nil {
 			_ = m.Watcher.Close()
 		}
 		return m, tea.Quit
 	}
 
+	if m.Health != nil {
+		return m, m.handleHealthKey(key)
+	}
 	if m.Detail != nil {
 		if action, ok := m.actionForKey(key); ok {
 			return m, m.runAction(action)
@@ -114,6 +121,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if action, ok := m.actionForKey(key); ok {
 		return m, m.runAction(action)
+	}
+	if key == healthKey {
+		return m, m.openHealth()
 	}
 	if key == goalSelectorKey || key == goalSelectorAlias {
 		m.openReleaseSelector()
@@ -957,6 +967,12 @@ func (m *Model) restoreOverlayOrigins() {
 		m.DetailOrigin.ObjectiveCursor = m.ObjectiveCursor
 		m.DetailOrigin.FocusedColumn = m.FocusedColumn
 		m.DetailOrigin.FocusedCard = m.FocusedCard
+	}
+	if m.Health != nil {
+		m.Health.Origin.SidebarFocused = m.SidebarFocused
+		m.Health.Origin.ObjectiveCursor = m.ObjectiveCursor
+		m.Health.Origin.FocusedColumn = m.FocusedColumn
+		m.Health.Origin.FocusedCard = m.FocusedCard
 	}
 	if m.Issues != nil {
 		m.Issues.Origin.SidebarFocused = m.SidebarFocused

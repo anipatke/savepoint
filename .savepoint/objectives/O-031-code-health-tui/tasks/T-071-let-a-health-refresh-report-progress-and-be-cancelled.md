@@ -2,12 +2,21 @@
 id: T-071
 title: Let a health refresh report progress and be cancelled
 objective: O-031
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o031-20261002}
 complexity_tier: medium
 complexity_reason: Small collector API change, but cancellation crosses process-group handling on Unix and Windows.
+check_waiver:
+    task: T-071
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T20:27:49Z"
 ---
 
 # Let a health refresh report progress and be cancelled
@@ -58,7 +67,16 @@ Cancellation is platform-sensitive: fresh `make test-full` before handoff. Later
 
 ## Technical Evidence
 
-Pending execution.
+Commands: `make build && make test-full` (fresh, linux; cross-builds for darwin/windows compiled) passed; `go vet` clean on both packages.
+
+Per criterion:
+- Progress callback: `CollectRequest.Progress func(Progress)` called before each configured instance in order with position, total, capability, provider, name; nil is a no-op. `TestCollectReportsProgressInOrder`.
+- Cancel saves nothing: `Collect` returns `ErrCollectionCancelled` when the context is done after observation or before save. `TestCollectCancelledSavesNothing` compares store file listings (before first instance, mid tool, after last instance before save) and checks an uncancelled run still saves. The old test expecting a snapshot of cancelled outcomes was replaced.
+- `health check`: `healthcheck.Run` returns "health check: cancelled; no snapshot was saved: ..." (non-zero via returned error); `TestRun_cancelledContextSavesNothing` tightened. Interrupt already cancels via `signal.NotifyContext` in main.go.
+- Tool stop on cancel: existing `ExecRunner` process-group kill (unix `Setpgid`, windows `Cancel`) reused unchanged; `TestExecRunnerStopsOnDeadlineAndCancel` (children die) and `TestCollectCancelledRealProcessLeavesNoTemporaryFiles` (now expects `ErrCollectionCancelled`).
+- Tests listed all present.
+
+Extra reads: `main.go` (health check wiring/signal handling) to confirm interrupt reaches the context. Limitation: Windows kill path not executed here (compiled only).
 
 ## Drift Notes
 

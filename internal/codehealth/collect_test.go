@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -248,30 +249,115 @@ func TestCollectReaderProblemsAreContained(t *testing.T) {
 	}
 }
 
-func TestCollectCancellationStopsRemainingInstances(t *testing.T) {
-	dir := project(t)
-	ctx, cancel := context.WithCancel(context.Background())
+// storeFiles lists the store's snapshot directory so a test can prove a run
+// left it unchanged.
+func storeFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	var names []string
+	filepath.WalkDir(filepath.Join(dir, ".savepoint", "health"), func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			names = append(names, p)
+		}
+		return nil
+	})
+	return names
+}
+
+func threeTools(t *testing.T, second func(context.Context, ToolSpec) (ToolResult, error)) (*fakeTools, Config) {
 	tools := &fakeTools{t: t, behavior: map[string]func(context.Context, ToolSpec) (ToolResult, error){
-		"first":  stdout("x"),
-		"second": func(ctx context.Context, _ ToolSpec) (ToolResult, error) { cancel(); return ToolResult{}, ctx.Err() },
-		"third":  stdout("x"),
+		"first": stdout("x"), "second": second, "third": stdout("x"),
 	}}
-	cfg := cfgOf(lizardInstance("a", "first", "a/**"), lizardInstance("b", "second", "b/**"), lizardInstance("c", "third", "c/**"))
-	got, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfg, Readers: Readers{ProviderLizardCSV: okReader(1, UnitCCN)}, Runner: tools, Clock: testClock})
+	return tools, cfgOf(lizardInstance("a", "first", "a/**"), lizardInstance("b", "second", "b/**"), lizardInstance("c", "third", "c/**"))
+}
+
+func TestCollectReportsProgressInOrder(t *testing.T) {
+	dir := project(t)
+	tools, cfg := threeTools(t, stdout("x"))
+	var seen []Progress
+	_, err := Collect(context.Background(), CollectRequest{Root: dir, Origin: OriginManual, Config: cfg, Readers: Readers{ProviderLizardCSV: okReader(1, UnitCCN)}, Runner: tools, Clock: testClock,
+		Progress: func(p Progress) {
+			seen = append(seen, p)
+			if len(tools.calls) != p.Position-1 {
+				t.Errorf("progress %d came after %d tools ran", p.Position, len(tools.calls))
+			}
+		}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.calls) != 2 {
-		t.Fatalf("third instance ran after cancellation: %+v", tools.calls)
+	want := []Progress{
+		{1, 3, CapabilityComplexity, ProviderLizardCSV, "a"},
+		{2, 3, CapabilityComplexity, ProviderLizardCSV, "b"},
+		{3, 3, CapabilityComplexity, ProviderLizardCSV, "c"},
 	}
-	for name, want := range map[string]Outcome{"a": OutcomeAvailable, "b": OutcomeCancelled, "c": OutcomeCancelled} {
-		if r := collectedFor(t, got, CapabilityComplexity, name).Result; r.Outcome != want {
-			t.Errorf("%s = %s, want %s", name, r.Outcome, want)
+	if len(seen) != len(want) {
+		t.Fatalf("progress = %+v", seen)
+	}
+	for i := range want {
+		if seen[i] != want[i] {
+			t.Errorf("progress[%d] = %+v, want %+v", i, seen[i], want[i])
 		}
 	}
-	if snaps, _ := NewStore(dir).LoadSnapshots(); len(snaps) != 1 {
-		t.Fatalf("a cancelled run still saves its snapshot; got %d", len(snaps))
-	}
+}
+
+func TestCollectCancelledSavesNothing(t *testing.T) {
+	readers := Readers{ProviderLizardCSV: okReader(1, UnitCCN)}
+	t.Run("before the first instance", func(t *testing.T) {
+		dir := project(t)
+		tools, cfg := threeTools(t, stdout("x"))
+		before := storeFiles(t, dir)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfg, Readers: readers, Runner: tools, Clock: testClock})
+		if !errors.Is(err, ErrCollectionCancelled) || len(tools.calls) != 0 {
+			t.Fatalf("err = %v, tools = %+v", err, tools.calls)
+		}
+		if !slices.Equal(before, storeFiles(t, dir)) {
+			t.Errorf("store changed: %v -> %v", before, storeFiles(t, dir))
+		}
+	})
+	t.Run("mid tool", func(t *testing.T) {
+		dir := project(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		tools, cfg := threeTools(t, func(ctx context.Context, _ ToolSpec) (ToolResult, error) { cancel(); return ToolResult{}, ctx.Err() })
+		before := storeFiles(t, dir)
+		_, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfg, Readers: readers, Runner: tools, Clock: testClock})
+		if !errors.Is(err, ErrCollectionCancelled) {
+			t.Fatalf("err = %v", err)
+		}
+		if len(tools.calls) != 2 {
+			t.Errorf("third instance ran after cancellation: %+v", tools.calls)
+		}
+		if !slices.Equal(before, storeFiles(t, dir)) {
+			t.Errorf("store changed: %v -> %v", before, storeFiles(t, dir))
+		}
+	})
+	t.Run("after the last instance before save", func(t *testing.T) {
+		dir := project(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		tools, cfg := threeTools(t, stdout("x"))
+		before := storeFiles(t, dir)
+		reader := readerFunc(func(context.Context, ReportInput) (Reading, error) {
+			cancel() // the last reader finishes, then the context is already done
+			return goodReading(1, UnitCCN), nil
+		})
+		var last int
+		_, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfg, Readers: Readers{ProviderLizardCSV: reader}, Runner: tools, Clock: testClock,
+			Progress: func(p Progress) { last = p.Position }})
+		if !errors.Is(err, ErrCollectionCancelled) || last != 3 {
+			t.Fatalf("err = %v, last progress = %d", err, last)
+		}
+		if !slices.Equal(before, storeFiles(t, dir)) {
+			t.Errorf("store changed: %v -> %v", before, storeFiles(t, dir))
+		}
+	})
+	t.Run("uncancelled run still saves", func(t *testing.T) {
+		dir := project(t)
+		tools, cfg := threeTools(t, stdout("x"))
+		got := collect(t, dir, cfg, readers, tools)
+		if got.SnapshotID == "" || len(storeFiles(t, dir)) == 0 {
+			t.Fatalf("no snapshot saved: %+v", got)
+		}
+	})
 }
 
 func TestCollectReportOnlyNeverRunsATool(t *testing.T) {
@@ -420,12 +506,9 @@ func TestCollectCancelledRealProcessLeavesNoTemporaryFiles(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(300 * time.Millisecond); cancel() }()
 	start := time.Now()
-	got, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfgOf(cc), Readers: Readers{ProviderLizardCSV: okReader(1, UnitCCN)}, Clock: testClock})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r := collectedFor(t, got, CapabilityComplexity, "").Result; r.Outcome != OutcomeCancelled || time.Since(start) > 10*time.Second {
-		t.Fatalf("got %s after %s", r.Outcome, time.Since(start))
+	_, err := Collect(ctx, CollectRequest{Root: dir, Origin: OriginManual, Config: cfgOf(cc), Readers: Readers{ProviderLizardCSV: okReader(1, UnitCCN)}, Clock: testClock})
+	if !errors.Is(err, ErrCollectionCancelled) || time.Since(start) > 10*time.Second {
+		t.Fatalf("got %v after %s", err, time.Since(start))
 	}
 	if entries, _ := os.ReadDir(tmp); len(entries) != 0 {
 		t.Errorf("temporary files left behind: %v", entries)

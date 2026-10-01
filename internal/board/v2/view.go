@@ -206,6 +206,9 @@ func (m Model) renderBody(w, height int) string {
 	if m.Help {
 		return renderHelp(m, w, height)
 	}
+	if m.Health != nil {
+		return renderHealth(m, w, height)
+	}
 	if m.Issues != nil {
 		if m.Issues.Detail != nil {
 			return renderIssueDetail(*m.Issues.Detail, w, height, m.Issues.DetailOffset)
@@ -403,6 +406,12 @@ func (m Model) hints() string {
 		return "esc/q:close"
 	case m.ReleaseOverlay:
 		return "↑↓ / j k:Goal  enter:select  v:detail  esc/q:cancel"
+	case m.Health != nil && m.Health.Refresh != nil:
+		return "esc:cancel refresh  ?:help  q:cancel and quit"
+	case m.Health != nil && m.Health.Detail:
+		return "↑↓:scroll  esc:back  ?:help  q:quit"
+	case m.Health != nil:
+		return joinHints("↑↓:signal  enter:details", m.healthRefreshHint(), "esc:close  ?:help  q:quit")
 	case m.Issues != nil && m.Issues.Detail != nil:
 		if m.Issues.Detail.DuplicateTarget != nil {
 			return "↑↓:scroll  enter:canonical  esc:back  q:quit"
@@ -413,11 +422,11 @@ func (m Model) hints() string {
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  →:cards", m.releaseHint(), m.detailHint("v:detail"), "i:issues", m.clearObjectiveHint(), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  →:cards", m.releaseHint(), m.detailHint("v:detail"), "i:issues", "H:health", m.clearObjectiveHint(), m.focusedActionText(), "?:help  q:quit")
 	default:
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
 	}
 }
 

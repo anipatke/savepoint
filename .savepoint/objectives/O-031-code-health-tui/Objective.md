@@ -1,7 +1,7 @@
 ---
 id: O-031
 title: Explain Code Health in the TUI
-status: planned
+status: in_progress
 depends_on: [O-027, O-028, O-029, O-030]
 release: R-007
 priority: medium

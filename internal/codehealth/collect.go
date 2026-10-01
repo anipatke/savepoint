@@ -57,16 +57,28 @@ var findingsExitCodes = map[ProviderKey][]int{
 	ProviderOSVScannerJSON: {1},
 }
 
+// Progress names the configured instance about to run: Position counts from 1
+// out of Total, in configuration order.
+type Progress struct {
+	Position   int
+	Total      int
+	Capability Capability
+	Provider   ProviderKey
+	Name       string
+}
+
 // CollectRequest is everything Collect needs. Runner and Git default to the
-// real process runners; Clock defaults to time.Now.
+// real process runners; Clock defaults to time.Now. Progress, when set, is
+// called once before each configured instance runs.
 type CollectRequest struct {
-	Root    string
-	Origin  Origin
-	Config  Config
-	Readers Readers
-	Runner  ToolRunner
-	Git     CommandRunner
-	Clock   func() time.Time
+	Root     string
+	Origin   Origin
+	Config   Config
+	Readers  Readers
+	Runner   ToolRunner
+	Git      CommandRunner
+	Clock    func() time.Time
+	Progress func(Progress)
 }
 
 // Collected is one instance's result and whether the project marked it
@@ -89,7 +101,8 @@ type Collection struct {
 // each, classifies them, and saves a single immutable snapshot. Executed tools
 // run without a shell; tests and coverage only read reports that already exist.
 // One instance's failure never changes another's result, and nothing is pruned.
-// An error means no snapshot was saved.
+// An error means no snapshot was saved; a context cancelled before the save
+// returns ErrCollectionCancelled and leaves the store unchanged.
 func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	retention, ok := map[Origin]Retention{OriginOfficial: RetentionPermanent, OriginManual: RetentionPrunable}[req.Origin]
 	if !ok {
@@ -114,14 +127,21 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 		return Collection{}, err
 	}
 	obs, err := ObserveRepository(ctx, c.req.Git, req.Root, InputScope{})
+	if ctx.Err() != nil {
+		return Collection{}, ErrCollectionCancelled
+	}
 	if err != nil {
 		return Collection{}, err
 	}
 
 	var collected []Collected
 	configured := map[Capability]bool{}
-	for _, cc := range req.Config.Capabilities {
+	total := len(req.Config.Capabilities)
+	for i, cc := range req.Config.Capabilities {
 		configured[cc.Capability] = true
+		if req.Progress != nil {
+			req.Progress(Progress{Position: i + 1, Total: total, Capability: cc.Capability, Provider: cc.Provider, Name: cc.Name})
+		}
 		collected = append(collected, Collected{Result: c.instance(ctx, cc), Required: cc.Required})
 	}
 	for _, capability := range Capabilities() {
@@ -157,6 +177,9 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	snap.Summary.Overall = Overall(assessments)
 	snap.ID = snap.ComputeID()
 
+	if ctx.Err() != nil {
+		return Collection{}, ErrCollectionCancelled
+	}
 	created, err := c.store.SaveSnapshot(snap)
 	if err != nil {
 		return Collection{}, err

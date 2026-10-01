@@ -241,8 +241,11 @@ func TestRun_cancelledContextSavesNothing(t *testing.T) {
 
 	var out bytes.Buffer
 	err := Run(ctx, Request{Dir: root, Objective: "O-001", Runner: runner, Git: codehealth.GitRunner{}}, &out)
-	if err == nil && len(snapshots(t, root)) == 0 {
-		t.Fatal("Run() succeeded without saving a snapshot")
+	if err == nil || !errors.Is(err, codehealth.ErrCollectionCancelled) || !strings.Contains(err.Error(), "cancelled; no snapshot was saved") {
+		t.Fatalf("Run() error = %v, want a cancelled no-snapshot error", err)
+	}
+	if len(snapshots(t, root)) != 0 {
+		t.Error("a cancelled run saved a snapshot")
 	}
 	for _, call := range runner.calls {
 		t.Errorf("tool %q ran after cancellation", call.Executable)

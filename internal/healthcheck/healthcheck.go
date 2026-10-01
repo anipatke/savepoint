@@ -72,6 +72,9 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 		Runner:  req.Runner,
 		Git:     req.Git,
 	})
+	if errors.Is(err, codehealth.ErrCollectionCancelled) {
+		return fmt.Errorf("health check: cancelled; no snapshot was saved: %w", err)
+	}
 	if err != nil {
 		return fmt.Errorf("health check: no snapshot was saved: %w", err)
 	}

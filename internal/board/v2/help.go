@@ -34,8 +34,17 @@ func renderHelp(model Model, width, height int) string {
 	lines = append(lines,
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
+		helpRow(healthKey, "open Code Health"),
 		helpRow("?", "close this help"),
 	)
+	if model.Health != nil {
+		lines = append(lines,
+			helpRow("↑↓", "in Code Health: choose a signal, or scroll its details"),
+			helpRow("enter / v", "in Code Health: open the signal's details"),
+			helpRow("R", "in Code Health: refresh now; esc cancels it"),
+			helpRow("esc", "in Code Health: back, then close"),
+		)
+	}
 	if model.Issues != nil && model.Issues.Detail == nil {
 		lines = append(lines,
 			helpRow("space", "advance the selected Issue"),

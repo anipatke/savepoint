@@ -31,6 +31,9 @@ var (
 	ErrBlockingNotAllowed = errors.New("blocking flag not allowed for capability")
 	ErrManualSnapshot     = errors.New("manual snapshot cannot be evaluated")
 	ErrMalformedRecord    = errors.New("malformed record")
+	// ErrCollectionCancelled means the run was cancelled before its snapshot
+	// was saved, so the store is unchanged.
+	ErrCollectionCancelled = errors.New("collection cancelled")
 )
 
 // fieldError wraps a sentinel with the field it was raised for.

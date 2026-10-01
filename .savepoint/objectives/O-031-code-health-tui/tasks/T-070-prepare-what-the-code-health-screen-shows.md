@@ -2,12 +2,21 @@
 id: T-070
 title: Prepare what the Code Health screen shows
 objective: O-031
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o031-20261002}
 complexity_tier: medium
 complexity_reason: New read-only projection over existing classification, trend, and repository-relation logic; no new policy.
+check_waiver:
+    task: T-070
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T20:25:50Z"
 ---
 
 # Prepare what the Code Health screen shows
@@ -60,7 +69,25 @@ Focused `make test-focused TEST=./internal/codehealth/...` while iterating; `mak
 
 ## Technical Evidence
 
-Pending execution.
+Executor evidence (claims for a Check to verify; not a Check, not clearance).
+
+Per criterion:
+- `LoadDashboard(root)`: reads config and snapshots through `Store` only; no runner is involved. Three states covered by `TestLoadDashboardNotConfigured`, `...FirstRun`, `TestDashboardAllFiveSignalsMeasured`; damaged storage returns the storage error (`...ReportsDamagedStorage`).
+- Measured dashboard: origin text, one row per configured instance plus not-configured placeholder rows, canonical order, all listed fields (`dashboard.go` `DashboardRow`). Covered by the all-five, placeholder, multi-instance, and missing-instance tests.
+- Labels/explanations/overall are the persisted summary's (`TestDashboardLabelsComeFromThePersistedSummary`); trend and basis reuse `selectSeries`/`buildTrend`, history grouped like `Collect`. No new rule. Partial and failed optional rows stay visible (`...PartialSupport...`, `...FailuresStayDistinct...`).
+- History: `MaxDashboardHistory` = 10, newest first, with origin and overall (`...HistoryIsBoundedAndNewestFirst`).
+- `DashboardFreshness(ctx, root, git, recorded)`: states matches / moved on (commit count when known) / other branch / unknown plus `WorkingTreeDiffers`; Git failure or cancellation yields unknown (`TestDashboardFreshness`, `...CancelledIsUnknown`).
+- Banned phrases: a test asserts over every produced text and over the wording tables.
+- Test coverage list: not configured, first run, five signals, partial, required/optional failures, manual over official, comparable and reset trends, same commit, behind, diverged, ahead, dirty, Git unavailable: all present.
+
+Deviation to verify: the plan's `DashboardFreshness(ctx, root, git, snapshot)` takes the `RepositoryIdentity` exposed as `Dashboard.Recorded` instead of a snapshot, keeping `Snapshot` out of the exported surface as plan step 2 requires.
+
+Commands run: `make build` (ok); `make test-fast` (ok); focused `make test-focused TEST=Dashboard PKGS=./internal/codehealth` (ok); `go vet` and `gofmt -l` clean on the package.
+
+Files read: Context Files only, plus `internal/codehealth/collect.go` (extra read: to mirror how `Collect` groups history and calls `Assess`), `internal/codehealth/identity.go` (extra read: `SeriesID`/`Digest` for test fixtures), `internal/codehealth/config.go` (extra read: instance validation for test configs), existing `_test.go` helpers (`newProject`, `mustSave`, `writeFile`).
+Files changed: new `dashboard.go`, `dashboard_test.go`, `dashboard_freshness.go`, `dashboard_freshness_test.go`; `AGENTS.md` Codebase Map entry (ARCH-04).
+
+Limitations: `make test-full` not run (not migration-sensitive). Freshness tests use a scripted Git runner, not real Git. A configured instance whose result is absent from the snapshot shows as Unknown with a refresh pointer; the plan did not specify this case.
 
 ## Drift Notes
 
