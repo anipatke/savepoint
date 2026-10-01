@@ -2,12 +2,21 @@
 id: T-069
 title: Teach the checker to measure health and record the snapshot
 objective: O-030
-status: planned
+status: done
 depends_on: [{task: T-067, requires: clear}, {task: T-068, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o030-20261001}
 complexity_tier: medium
 complexity_reason: Workflow wording across mirrored skill, method, and guide files that must stay byte-identical and match shipped behavior.
+check_waiver:
+    task: T-069
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T19:59:30Z"
 ---
 
 # Teach the checker to measure health and record the snapshot
@@ -63,7 +72,21 @@ No code changes beyond test expectations that assert guidance text. No Task Chec
 
 ## Technical Evidence
 
-Pending execution.
+Gate: `make build && make test-fast` passed (2026-10-02). `agent_skills_test.go` and the template tests ran inside it and passed.
+
+Per criterion:
+- Skill and method wording: `savepoint-check/SKILL.md` gains a Code Health Evidence section and a Workflow step 3 note; `check-method.md` gains a Full-only "Collect Code Health Evidence" section. Together they say: full gate first, then `savepoint health check O-### [dir]`; record `health_snapshot`; a blocking verdict prevents `CLEAR`; "Code Health not configured" is not a finding; optional failures and warnings go through Issue-capture judgment; Task Checks and other activity never collect; manual snapshots never count.
+- Check template: shows optional `health_snapshot` with a one-line explanation.
+- CLI Rules: `AGENTS.md` and `templates/project-v2/AGENTS.md` add the narrow `savepoint health check` exception, Full Objective Checks only; `health setup` stays human-only.
+- Design.md: section 1 no longer says collection is to come; section 6 lists the command and the agent rule; section 7 describes Code Health as supporting evidence.
+- Codebase Map (`AGENTS.md`): `internal/codehealth` (gate and verdict), `internal/doctor` (snapshot-reference diagnostic), new `internal/healthcheck` row (T-068 drift), and `cmd` now lists health check.
+- Byte-identity (TPL-01): `diff -r agent-skills templates/project-v2/agent-skills` shows only the live-only `bubbletea-tui-design`, as before.
+
+Behavior confirmed against shipped Tasks T-066/T-067/T-068 evidence and Objective decisions; no REPLAN needed. Files changed: the two skill/method files and their template copies, both AGENTS.md files, `.savepoint/Design.md`, this Task. No code changes.
+
+Extra reads: none beyond Context Files except the T-066/T-067/T-068 Task files (to confirm shipped behavior, as plan step 1 requires).
+
+Limitations: the template AGENTS.md has no Codebase Map for this repo's packages, so only its CLI Rules changed. The `savepoint health check` wording was checked against Task evidence, not re-run. No Task Check requested or waived; `owner_validation.required` is true, so the owner must read the updated steps (User Check).
 
 ## Drift Notes
 

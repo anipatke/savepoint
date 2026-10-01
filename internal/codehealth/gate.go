@@ -144,9 +144,16 @@ func failureDisposition(required bool) Disposition {
 	return DispositionReported
 }
 
+// statement is one thing the verdict says about a result.
+type statement struct {
+	kind   Kind
+	reason string
+}
+
 // judge decides one measured or unmeasured result. A default or opt-in
-// unhealthy-measurement rule wins over the evidence-quality statements, so
-// failing tests are never softened by being optional, stale, or partial.
+// unhealthy-measurement rule wins as the primary statement, so failing tests are
+// never softened by being optional, stale, or partial. Evidence-quality and
+// review statements that also apply are kept after it, never dropped.
 func judge(r CapabilityResult, cc CapabilityConfig, class Classification) ResultVerdict {
 	rv := ResultVerdict{
 		Capability: r.Capability, Provider: r.Provenance.Provider, Name: r.Name,
@@ -158,26 +165,39 @@ func judge(r CapabilityResult, cc CapabilityConfig, class Classification) Result
 		rv.Disposition = failureDisposition(cc.Required)
 		return rv
 	}
+	var statements []statement
 	if reason, blocks := defaultBlocker(r); blocks {
-		rv.Disposition, rv.Kind, rv.Reason = DispositionBlocks, KindUnhealthy, reason
-		return rv
+		rv.Disposition = DispositionBlocks
+		statements = append(statements, statement{KindUnhealthy, reason})
+	} else if cc.Blocking && r.Freshness == FreshnessFresh && class == ClassificationNeedsAttention {
+		rv.Disposition = DispositionBlocks
+		statements = append(statements, statement{KindUnhealthy, textNeedsAttn})
 	}
-	if cc.Blocking && r.Freshness == FreshnessFresh && class == ClassificationNeedsAttention {
-		rv.Disposition, rv.Kind, rv.Reason = DispositionBlocks, KindUnhealthy, textNeedsAttn
-		return rv
-	}
-	switch {
-	case r.Freshness == FreshnessStale:
-		rv.Kind, rv.Reason, rv.Disposition = KindStale, textStale, failureDisposition(cc.Required)
-	case r.Outcome == OutcomePartial:
-		rv.Kind, rv.Reason = KindIncomplete, textIncomplete
-		if r.Reason != "" {
-			rv.Reason += ": " + r.Reason
+	if r.Freshness == FreshnessStale {
+		if rv.Disposition != DispositionBlocks {
+			rv.Disposition = failureDisposition(cc.Required)
 		}
+		statements = append(statements, statement{KindStale, textStale})
 	}
-	if n := detailNumber(r, DetailUnknownVulnerabilities); n > 0 && r.Capability == CapabilityDependencyVulnerability && rv.Kind == KindNoFinding {
-		rv.Kind, rv.Reason = KindUnhealthy, fmt.Sprintf(textNeedsReview, count(n))
+	if r.Outcome == OutcomePartial {
+		reason := textIncomplete
+		if r.Reason != "" {
+			reason += ": " + r.Reason
+		}
+		statements = append(statements, statement{KindIncomplete, reason})
 	}
+	if n := detailNumber(r, DetailUnknownVulnerabilities); n > 0 && r.Capability == CapabilityDependencyVulnerability {
+		statements = append(statements, statement{KindUnhealthy, fmt.Sprintf(textNeedsReview, count(n))})
+	}
+	if len(statements) == 0 {
+		return rv
+	}
+	rv.Kind = statements[0].kind
+	reasons := make([]string, len(statements))
+	for i, st := range statements {
+		reasons[i] = st.reason
+	}
+	rv.Reason = strings.Join(reasons, "; ")
 	return rv
 }
 

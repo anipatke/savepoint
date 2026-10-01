@@ -192,3 +192,55 @@ func TestRenderGolden(t *testing.T) {
 		t.Errorf("empty render = %q", Verdict{}.Render())
 	}
 }
+
+// A blocking finding must not hide that the evidence is also stale or incomplete.
+func TestEvaluateKeepsEvidenceLimitations(t *testing.T) {
+	testCfg := CapabilityConfig{Capability: CapabilityTests, Provider: ProviderGoTestJSON, Required: true}
+	covCfg := CapabilityConfig{Capability: CapabilityCoverage, Provider: ProviderGoCoverProfile, Blocking: true}
+	vulnCfg := CapabilityConfig{Capability: CapabilityDependencyVulnerability, Provider: ProviderOSVScannerJSON}
+	vuln := func(o Outcome, f Freshness, details ...Detail) CapabilityResult {
+		r := gateResult(CapabilityDependencyVulnerability, ProviderOSVScannerJSON, o, f, 1)
+		r.Details = details
+		return r
+	}
+	partialTests := func(f Freshness) CapabilityResult {
+		r := gateResult(CapabilityTests, ProviderGoTestJSON, OutcomePartial, f, 1)
+		r.Reason = "package example/missing has no terminal event"
+		return r
+	}
+	tests := []struct {
+		name  string
+		cfg   CapabilityConfig
+		res   CapabilityResult
+		class Classification
+		want  string
+		kind  Kind
+	}{
+		{"fresh partial failing tests", testCfg, partialTests(FreshnessFresh), ClassificationNeedsAttention,
+			"1 failing; the evidence is incomplete: package example/missing has no terminal event", KindUnhealthy},
+		{"stale partial failing tests", testCfg, partialTests(FreshnessStale), ClassificationNeedsAttention,
+			"1 failing; the evidence is stale; the evidence is incomplete: package example/missing has no terminal event", KindUnhealthy},
+		{"stale failing tests", testCfg, gateResult(CapabilityTests, ProviderGoTestJSON, OutcomeAvailable, FreshnessStale, 3), ClassificationNeedsAttention,
+			"3 failing; the evidence is stale", KindUnhealthy},
+		{"partial opt-in coverage needs attention", covCfg, gateResult(CapabilityCoverage, ProviderGoCoverProfile, OutcomePartial, FreshnessFresh, 30), ClassificationNeedsAttention,
+			"needs attention and this instance is set to block; the evidence is incomplete: two packages missing", KindUnhealthy},
+		{"severe vulnerability on partial evidence", vulnCfg, vuln(OutcomePartial, FreshnessFresh, Detail{Key: DetailCriticalVulnerabilities, Number: 1}), ClassificationNeedsAttention,
+			"1 known critical or high severity; the evidence is incomplete: two packages missing", KindUnhealthy},
+		{"severe and unknown vulnerabilities, stale", vulnCfg, vuln(OutcomeAvailable, FreshnessStale, Detail{Key: DetailHighVulnerabilities, Number: 1}, Detail{Key: DetailUnknownVulnerabilities, Number: 2}), ClassificationNeedsAttention,
+			"1 known critical or high severity; the evidence is stale; 2 of unknown severity need review", KindUnhealthy},
+		{"unknown severity on partial evidence keeps review wording", vulnCfg, vuln(OutcomePartial, FreshnessFresh, Detail{Key: DetailUnknownVulnerabilities, Number: 2}), ClassificationWatch,
+			"the evidence is incomplete: two packages missing; 2 of unknown severity need review", KindIncomplete},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := Evaluate(gateSnapshot(tc.class, tc.res), gateConfig(tc.cfg))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := v.Results[0]
+			if got.Reason != tc.want || got.Kind != tc.kind {
+				t.Errorf("got %s: %q, want %s: %q", got.Kind, got.Reason, tc.kind, tc.want)
+			}
+		})
+	}
+}

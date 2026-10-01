@@ -3,6 +3,7 @@ package healthcheck
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,5 +246,42 @@ func TestRun_cancelledContextSavesNothing(t *testing.T) {
 	}
 	for _, call := range runner.calls {
 		t.Errorf("tool %q ran after cancellation", call.Executable)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("output sink failed") }
+
+// A saved snapshot is a successful collection even when the report cannot be
+// written; the problem is noted on stderr with the saved identity.
+func TestRun_outputFailureAfterSaveSucceeds(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+	var stderr bytes.Buffer
+
+	err := Run(context.Background(), Request{Dir: root, Objective: "O-001", Runner: runner, Git: codehealth.GitRunner{}, Stderr: &stderr}, failingWriter{})
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil after the snapshot was saved", err)
+	}
+	saved := snapshots(t, root)
+	if len(saved) != 1 || saved[0].Origin != codehealth.OriginOfficial {
+		t.Fatalf("snapshots = %+v, want one official snapshot", saved)
+	}
+	for _, want := range []string{saved[0].ID, "was saved", "output sink failed"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("stderr = %q, want it to contain %q", stderr.String(), want)
+		}
+	}
+}
+
+// Without a stderr writer the note is discarded, still not an error.
+func TestRun_outputFailureWithoutStderr(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+	if err := Run(context.Background(), Request{Dir: root, Objective: "O-001", Runner: runner, Git: codehealth.GitRunner{}}, failingWriter{}); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
 	}
 }

@@ -20,13 +20,13 @@ Users should understand engineering signals without learning provider jargon or 
 
 ## Success Conditions
 
-- A dedicated top-level view follows existing visual, navigation, overlay, progress, and cancellation conventions. Objective Check shows only a compact summary and route to it.
+- A dedicated top-level view follows existing visual, navigation, and overlay conventions, and introduces the board's first progress and cancellation display. Objective Check shows only a compact summary and route to it.
 - Opening the dashboard is instant, reads persisted data, and never scans. First run explains the feature and offers explicit refresh.
 - `[R] Refresh` invokes the Code Health service directly for confirmed providers, displays sequential progress, supports cancellation, and persists a manual result without AI.
 - The overview uses plain-language Good, Watch, Needs Attention, partial, unknown, and stale states with no overall number.
 - Details explain classification, trend, affected areas, provider outcome and provenance, component scope, and comparison basis.
 - Healthy is reserved for complete successful required data. Partial support and optional failures remain visible, and no wording claims proof of correctness, safety, maintainability, or production readiness.
-- Tests cover first run, six signals, partial support, failures, dirty/stale/divergent states, comparable and reset trends, refresh progress, and cancellation.
+- Tests cover first run, the five signals, partial support, failures, dirty/stale/divergent states, comparable and reset trends, refresh progress, and cancellation.
 
 ## Architectural Considerations
 
@@ -41,3 +41,12 @@ The board consumes a read-only dashboard model and sends explicit collection com
 ## Confirmed Design Decisions
 
 The owner chose a dedicated main-board view, direct deterministic refresh, no implicit scanning, complete-data Healthy semantics, and narrow UI integration on 2026-09-26.
+
+On 2026-10-02 the owner confirmed the screen's shape in chat:
+
+- **Five signals.** Tests, coverage, complexity, duplication, and dependency vulnerabilities; change hotspots were de-scoped in O-029 on 2026-09-27.
+- **Navigation.** `H` on the board opens a full-screen Code Health view; Esc returns to the board where the owner was, like the Issues view. Enter on a signal opens its details; a short history lists earlier snapshots with origin and overall label.
+- **Opening.** The view appears from saved configuration and snapshots only. Without configuration it explains the feature and points to `savepoint health setup`; with configuration and no snapshot it offers `R`. A quick Git comparison then runs as an explicit board command and marks results whose code has moved on or come from another branch. Opening never runs health tools.
+- **Refresh.** `R` runs `Collect` with origin `manual` over the confirmed configuration and shows sequential progress (for example "2 of 5: coverage"). Savepoint does not run tests: test and coverage instances re-read existing reports, and a report older than the code shows as stale with "run your tests, then refresh".
+- **Cancel.** Esc during refresh cancels it and saves nothing; the view keeps the last saved result.
+- **Check summary.** An Objective detail whose Check names a `health_snapshot` shows one Health line with that snapshot's overall label and a pointer to `H`.

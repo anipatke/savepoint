@@ -349,7 +349,7 @@ func healthSetupRunner(ctx context.Context, opts cmd.HealthSetupOptions) error {
 // healthCheckRunner is the production wiring for `health check`; the
 // collection itself lives in internal/healthcheck.
 func healthCheckRunner(ctx context.Context, opts cmd.HealthCheckOptions) error {
-	return healthcheck.Run(ctx, healthcheck.Request{Dir: opts.Dir, Objective: opts.Objective}, os.Stdout)
+	return healthcheck.Run(ctx, healthcheck.Request{Dir: opts.Dir, Objective: opts.Objective, Stderr: os.Stderr}, os.Stdout)
 }
 
 // previewHealthSetup prints what setup would suggest without writing anything.

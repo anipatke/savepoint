@@ -22,12 +22,16 @@ type Request struct {
 	Objective string
 	Runner    codehealth.ToolRunner
 	Git       codehealth.CommandRunner
+	// Stderr receives a note when the report cannot be written after the
+	// snapshot was saved. Nil discards it.
+	Stderr io.Writer
 }
 
 // Run collects one official snapshot and writes the Objective, snapshot ID,
 // whether it was newly created, and the rendered verdict to stdout. It returns
 // an error only when no snapshot was saved: a blocking verdict is still a
-// successful collection. Without health configuration it says so and saves
+// successful collection, and so is a report that cannot be written afterwards;
+// that is noted on req.Stderr instead. Without health configuration it says so and saves
 // nothing.
 func Run(ctx context.Context, req Request, stdout io.Writer) error {
 	root, err := data.ResolveTarget(req.Dir)
@@ -95,6 +99,8 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 	if !collection.Created {
 		stored = "already stored"
 	}
-	_, err = fmt.Fprintf(stdout, "Objective: %s\nSnapshot: %s (%s)\n%s", req.Objective, collection.SnapshotID, stored, verdict.Render())
-	return err
+	if _, err := fmt.Fprintf(stdout, "Objective: %s\nSnapshot: %s (%s)\n%s", req.Objective, collection.SnapshotID, stored, verdict.Render()); err != nil && req.Stderr != nil {
+		fmt.Fprintf(req.Stderr, "health check: snapshot %s was saved, but the report could not be written: %v\n", collection.SnapshotID, err)
+	}
+	return nil
 }
