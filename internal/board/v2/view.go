@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/styles"
 )
@@ -76,6 +77,9 @@ func (m Model) View() string {
 		content = m.renderBoard(w, h)
 		if m.ReleaseOverlay {
 			content = m.renderReleaseOverlay(content, w, h)
+		}
+		if m.Health != nil && !m.Help {
+			content = m.renderHealthOverlay(content, w, h)
 		}
 	}
 	return boardMargin.Render(content)
@@ -206,9 +210,6 @@ func (m Model) renderBody(w, height int) string {
 	if m.Help {
 		return renderHelp(m, w, height)
 	}
-	if m.Health != nil {
-		return renderHealth(m, w, height)
-	}
 	if m.Issues != nil {
 		if m.Issues.Detail != nil {
 			return renderIssueDetail(*m.Issues.Detail, w, height, m.Issues.DetailOffset)
@@ -247,7 +248,7 @@ func (m Model) renderHeader(w int) string {
 	objectivesDone, objectives := m.State.objectiveCounts()
 	tasksDone, tasks := m.State.taskCounts()
 	issuesResolved, issues := m.State.issueCounts()
-	right := strings.Join([]string{
+	counts := strings.Join([]string{
 		headerCount(styles.HeaderObjectiveIcon, glyphAudit, objectivesDone, objectives, "Objectives"),
 		headerCount(styles.HeaderTaskIcon, glyphBuild, tasksDone, tasks, "Tasks"),
 		headerCount(styles.HeaderIssueIcon, glyphIssueCross, issuesResolved, issues, "Issues"),
@@ -257,11 +258,64 @@ func (m Model) renderHeader(w int) string {
 	if inner < 1 {
 		return fitLine(left, w)
 	}
+	// The chip gives way before anything else: words first, then the chip, so
+	// the counts and the title are never shortened for it.
+	right := counts
+	for _, chip := range headerChipForms(m.State.HealthChip) {
+		candidate := chip + "  " + counts
+		if lipgloss.Width(left)+1+lipgloss.Width(candidate) <= inner {
+			right = candidate
+			break
+		}
+	}
 	gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		return styles.HeaderFrame.Width(w).Render(truncateCells(left, inner))
 	}
 	return styles.HeaderFrame.Width(w).Render(left + strings.Repeat(" ", gap) + right)
+}
+
+// Header chip wording.
+const (
+	chipHeart       = "♥"
+	chipNoCheckText = "Health: no check yet"
+	chipNotSetUp    = "Health: not set up"
+)
+
+// headerChipForms lists the chip's renderings from fullest to shortest. A chip
+// with no measurement has one form and is dropped whole when it does not fit.
+func headerChipForms(chip codehealth.Chip) []string {
+	style := chipStyle(chip)
+	switch chip.State {
+	case codehealth.ChipMeasured:
+		ratio := fmt.Sprintf("%d/%d", chip.Good, chip.Signals)
+		return []string{
+			style.Render(chipHeart + " Health " + ratio),
+			style.Render(chipHeart + " " + ratio),
+		}
+	case codehealth.ChipNoCheck:
+		return []string{style.Render(chipHeart + " " + chipNoCheckText)}
+	case codehealth.ChipNotSetUp:
+		return []string{style.Render(chipHeart + " " + chipNotSetUp)}
+	}
+	return nil
+}
+
+// chipStyle colours a measured chip by its overall label; every other chip is
+// dim.
+func chipStyle(chip codehealth.Chip) lipgloss.Style {
+	if chip.State != codehealth.ChipMeasured {
+		return styles.HealthUnknown
+	}
+	switch chip.Overall {
+	case codehealth.ClassificationGood:
+		return styles.HealthGood
+	case codehealth.ClassificationWatch:
+		return styles.HealthWatch
+	case codehealth.ClassificationNeedsAttention:
+		return styles.HealthNeedsAttention
+	}
+	return styles.HealthUnknown
 }
 
 // headerCount renders one header count: its icon in the record's accent,
@@ -408,10 +462,11 @@ func (m Model) hints() string {
 		return "↑↓ / j k:Goal  enter:select  v:detail  esc/q:cancel"
 	case m.Health != nil && m.Health.Refresh != nil:
 		return "esc:cancel refresh  ?:help  q:cancel and quit"
-	case m.Health != nil && m.Health.Detail:
-		return "↑↓:scroll  esc:back  ?:help  q:quit"
 	case m.Health != nil:
-		return joinHints("↑↓:signal  enter:details", m.healthRefreshHint(), "esc:close  ?:help  q:quit")
+		if m.Health.History {
+			return joinHints("h/esc:signals", m.healthRefreshHint(), "?:help  q:quit")
+		}
+		return joinHints("↑↓:signal", "h:history", m.healthRefreshHint(), "esc:close  ?:help  q:quit")
 	case m.Issues != nil && m.Issues.Detail != nil:
 		if m.Issues.Detail.DuplicateTarget != nil {
 			return "↑↓:scroll  enter:canonical  esc:back  q:quit"

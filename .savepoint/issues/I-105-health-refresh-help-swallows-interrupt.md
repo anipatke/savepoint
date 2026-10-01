@@ -2,15 +2,21 @@
 id: I-105
 title: Code Health refresh Help swallows Ctrl+C cancellation
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-948
   actor: {role: checker, session: check-o031-20261002-independent}
   at: '2026-10-01T20:47:19Z'
 tasks: [T-072]
-checks: [C-948]
+checks: [C-948, C-951]
 guardrail_ids: [TEST-01, TEST-02]
+resolution:
+  disposition: verified
+  check: C-951
+  actor: {role: checker, session: recheck-o031-final-repair-20261002-independent}
+  at: '2026-10-01T21:56:44Z'
+  reason: Original frozen-scope repair proof passed; C-951 records current independent CLEAR.
 history:
   - at: '2026-10-01T20:47:19Z'
     actor: {role: checker, session: check-o031-20261002-independent}
@@ -21,6 +27,11 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'Ctrl+C now bypasses the Help handler in handleKey so it cancels the active refresh and quits. Added TestHealthCtrlCFromHelpDuringRefreshCancelsBeforeQuitting.'
+  - at: '2026-10-01T21:56:44Z'
+    actor: {role: checker, session: recheck-o031-final-repair-20261002-independent}
+    kind: rechecked
+    check: C-951
+    note: Frozen Ctrl+C-from-Help reproduction and native/full active-refresh tests pass; cancellation occurs before quit.
 ---
 
 # I-105: Code Health refresh Help swallows Ctrl+C cancellation

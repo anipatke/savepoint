@@ -3,7 +3,7 @@ package v2
 import (
 	"context"
 	"errors"
-	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,7 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/opencode/savepoint/internal/codehealth"
+	"github.com/opencode/savepoint/internal/styles"
+	"github.com/opencode/savepoint/internal/testutil"
 )
 
 // fakeHealth stands in for codehealth: every call is counted and every result
@@ -48,6 +51,8 @@ func healthRow(c codehealth.Capability, text string, label codehealth.Classifica
 	return codehealth.DashboardRow{
 		Capability: c, CapabilityText: text, Label: label, LabelText: labelText,
 		Explanation: reason, Trend: trend, Basis: "Compared with 3 earlier comparable official checks.",
+		Question: text + "?", Value: "42", Aim: "aim: 80 or more", Meaning: reason, NextStep: "Do the next thing.",
+		Spark: "▁▃▅▇", SparkWord: "better", SignOff: "Advisory only", Where: "internal/foo/foo.go",
 		Outcome: codehealth.OutcomeAvailable, OutcomeText: "measured",
 		Required: true, RequiredText: "required",
 		Provider: "go_test_json", ProviderVersion: "1.2", Scope: []string{"./..."},
@@ -71,7 +76,7 @@ func measuredDashboard(rows []codehealth.DashboardRow) codehealth.Dashboard {
 	return codehealth.Dashboard{
 		State: codehealth.DashboardMeasured, Overall: codehealth.ClassificationWatch, OverallText: "Watch",
 		Origin: codehealth.OriginOfficial, OriginText: "Official check", SnapshotID: "snap-1",
-		MeasuredAt: "2026-10-02T09:00:00Z", Rows: rows,
+		MeasuredAt: "2026-10-02T09:00:00Z", MeasuredText: "2 Oct 2026", Headline: "2 signals need a look.", SignOff: "Doesn't block sign-off", Rows: rows,
 		History: []codehealth.DashboardHistoryEntry{
 			{CreatedAt: "2026-10-02T09:00:00Z", OriginText: "Official check", OverallText: "Watch"},
 			{CreatedAt: "2026-10-01T09:00:00Z", OriginText: "Manual refresh", OverallText: "Good"},
@@ -175,49 +180,6 @@ func TestHealthFirstRunOffersRefresh(t *testing.T) {
 	requireContains(t, screen(m), "Nothing has been measured yet", "Press R", "R:refresh")
 }
 
-func TestHealthShowsFiveSignalsWithLabelsReasonsAndTrends(t *testing.T) {
-	f := &fakeHealth{dashboard: measuredDashboard(fiveSignals()), fresh: codehealth.CodeFreshness{State: codehealth.CodeMatches, Text: "Your code matches what was measured."}}
-	m := openHealthScreen(t, f)
-	got := screen(m)
-
-	requireContains(t, got,
-		"Watch  overall", "Official check", "Your code matches what was measured.",
-		"Tests", "Coverage", "Complexity", "Duplication", "Dependency vulnerabilities",
-		"Coverage is 61%, down from 68%.", "Declining over 4 official checks",
-		"Needs Attention", "Unknown", "RECENT CHECKS", "Manual refresh",
-	)
-	if strings.Contains(got, "Overall score") || strings.Contains(got, "/100") {
-		t.Errorf("screen shows an overall number:\n%s", got)
-	}
-}
-
-func TestHealthNonGoodRowsAreNeverShownAsGood(t *testing.T) {
-	rows := fiveSignals()
-	rows[0] = healthRow(codehealth.CapabilityTests, "Tests", codehealth.ClassificationUnknown, "Unknown", "Only part of the tests ran.", "No trend yet")
-	rows[0].Outcome, rows[0].OutcomeText = codehealth.OutcomePartial, "partial"
-	rows[1].Label, rows[1].LabelText, rows[1].Explanation = codehealth.ClassificationNeedsAttention, "Needs Attention", "A required tool failed."
-	rows[1].Outcome, rows[1].OutcomeText = codehealth.OutcomeFailed, "failed"
-	rows[3].Required, rows[3].RequiredText, rows[3].Outcome, rows[3].OutcomeText = false, "optional", codehealth.OutcomeUnavailable, "unavailable: the tool could not be used"
-	rows[4] = codehealth.DashboardRow{
-		Capability: codehealth.CapabilityDependencyVulnerability, CapabilityText: "Dependency vulnerabilities", NotConfigured: true,
-		Label: codehealth.ClassificationUnknown, LabelText: "Unknown", Explanation: "Not configured, so health for this signal is unknown.",
-		Outcome: codehealth.OutcomeNotConfigured, OutcomeText: "not configured", RequiredText: "optional",
-	}
-	d := measuredDashboard(rows)
-	d.Overall, d.OverallText = codehealth.ClassificationUnknown, "Unknown"
-	d.History[1].OverallText = "Watch"
-	m := openHealthScreen(t, &fakeHealth{dashboard: d})
-	got := screen(m)
-
-	if strings.Contains(got, "Good") {
-		t.Errorf("a partial, failed, unavailable, or not-configured row reads as Good:\n%s", got)
-	}
-	requireContains(t, got, "Only part of the tests ran.", "A required tool failed.", "Not configured, so health")
-
-	m = press(t, m, "down", "down", "down", "enter")
-	requireContains(t, screen(m), "Outcome: unavailable", "Required: optional")
-}
-
 func TestHealthFreshnessLineSaysWhyResultsMayBeOld(t *testing.T) {
 	for name, text := range map[string]string{
 		"stale":    "Your code has moved on by 3 commits since this was measured.",
@@ -255,37 +217,6 @@ func TestHealthStaleFreshnessForAnOlderSnapshotIsIgnored(t *testing.T) {
 	}
 }
 
-func TestHealthComparableAndResetTrendsAreShownAsWorded(t *testing.T) {
-	rows := fiveSignals()
-	rows[1].Trend, rows[1].Basis = "Improving over 4 official checks, 55% to 68%", "Compared with 3 earlier comparable official checks."
-	rows[2].Trend, rows[2].Basis = "No trend yet", "No comparable official history yet. 2 earlier official results not compared."
-	m := openHealthScreen(t, &fakeHealth{dashboard: measuredDashboard(rows)})
-
-	requireContains(t, screen(m), "Improving over 4 official checks, 55% to 68%")
-	m = press(t, m, "down", "down", "enter")
-	requireContains(t, screen(m), "No comparable official history yet. 2 earlier official results not compared.")
-}
-
-func TestHealthDetailsExplainTheLabelAndEscReturnsToTheList(t *testing.T) {
-	m := openHealthScreen(t, &fakeHealth{dashboard: measuredDashboard(fiveSignals())})
-	m = press(t, m, "down", "enter")
-	got := screen(m)
-
-	requireContains(t, got,
-		"SIGNAL DETAIL", "Coverage", "Coverage is 61%, down from 68%.",
-		"Trend: Declining over 4 official checks", "Compared with: Compared with 3 earlier",
-		"Outcome: measured", "Required: required", "Provider: go_test_json 1.2", "Scope: ./...",
-		"Measured: 2026-10-02T09:00:00Z", "AFFECTED AREAS", "internal/foo/foo.go:12 — complex function",
-	)
-	m = press(t, m, "esc")
-	if m.Health == nil || m.Health.Detail {
-		t.Fatalf("esc in details did not return to the list")
-	}
-	requireContains(t, screen(m), "RECENT CHECKS")
-	m = press(t, m, "v")
-	requireContains(t, screen(m), "SIGNAL DETAIL")
-}
-
 func TestHealthLoadErrorKeepsThePreviousView(t *testing.T) {
 	f := &fakeHealth{dashboard: measuredDashboard(fiveSignals())}
 	m := openHealthScreen(t, f)
@@ -293,7 +224,7 @@ func TestHealthLoadErrorKeepsThePreviousView(t *testing.T) {
 	m = settle(t, m, healthLoadCmd(f.funcs(), m.Root))
 	got := screen(m)
 
-	requireContains(t, got, "history is damaged", "Coverage is 61%")
+	requireContains(t, got, "history is damaged", "Tests", "Coverage")
 }
 
 func TestHealthLoadErrorOnFirstOpenIsAStatusLineNotACrash(t *testing.T) {
@@ -314,7 +245,7 @@ func TestHealthRefreshReportsProgressInOrderAndReloadsOnCompletion(t *testing.T)
 	loadsBefore := f.loads
 	m, next := startRefresh(t, m)
 
-	for _, want := range []string{"Refreshing 1 of 2: Tests (go_test_json)", "Refreshing 2 of 2: Coverage (go_cover)"} {
+	for _, want := range []string{"Refreshing 1 of 2: Tests", "Refreshing 2 of 2: Coverage"} {
 		updated, cmd := m.Update(next())
 		m = updated.(Model)
 		requireContains(t, screen(m), want, "Esc to cancel")
@@ -365,7 +296,7 @@ func TestHealthEscCancelsARefreshAndKeepsThePreviousResult(t *testing.T) {
 
 	m = feed(t, m, next())
 	got := screen(m)
-	requireContains(t, got, "Refresh cancelled; nothing was saved.", "Coverage is 61%")
+	requireContains(t, got, "Refresh cancelled; nothing was saved.", "Coverage")
 	if m.Health.Refresh != nil || f.loads != loadsBefore || f.saved != 0 {
 		t.Errorf("a cancelled refresh left state behind: running=%v loads=%d saved=%d", m.Health.Refresh != nil, f.loads, f.saved)
 	}
@@ -383,7 +314,7 @@ func TestHealthRefreshErrorIsAStatusLine(t *testing.T) {
 	m, next := startRefresh(t, m)
 	m = feed(t, m, next())
 
-	requireContains(t, screen(m), "Refresh failed; nothing was saved: disk is full", "Coverage is 61%")
+	requireContains(t, screen(m), "Refresh failed; nothing was saved: disk is full", "Coverage")
 }
 
 func TestHealthQuitDuringRefreshCancelsBeforeQuitting(t *testing.T) {
@@ -476,82 +407,147 @@ func TestHealthHelpListsTheKeys(t *testing.T) {
 	}
 }
 
-func TestHealthFitsTheBoardsMinimumWidth(t *testing.T) {
-	rows := fiveSignals()
-	rows[2].Explanation = strings.Repeat("A very long explanation that must wrap rather than widen the screen. ", 3)
-	rows[2].Evidence = []codehealth.EvidenceRef{{Path: "internal/a/very/long/path/that/keeps/going/and/going/file.go", Line: 99, Note: "note"}}
-	f := &fakeHealth{dashboard: measuredDashboard(rows), fresh: codehealth.CodeFreshness{Text: strings.Repeat("Your code has moved on. ", 4)}}
-
-	for _, width := range []int{compactBoardBreakpoint - 1, compactBoardBreakpoint, 80} {
-		m := openHealthScreenAt(t, f, width, 24)
-		for step, view := range []string{screen(m), screen(press(t, m, "down", "down", "enter"))} {
-			for _, line := range strings.Split(view, "\n") {
-				if lipgloss.Width(line) > width {
-					t.Errorf("width %d, view %d: line is %d cells: %q", width, step, lipgloss.Width(line), line)
-				}
-			}
-			if got := strings.Count(view, "\n") + 1; got > 24 {
-				t.Errorf("width %d, view %d: %d lines overflow a 24-line terminal", width, step, got)
-			}
+// headerLine is the header's content row, the one carrying the title.
+func headerLine(m Model) string {
+	for _, line := range strings.Split(screen(m), "\n") {
+		if strings.Contains(line, "S A V E P O I N T") {
+			return line
 		}
+	}
+	return ""
+}
+
+func withChip(t *testing.T, width int, chip codehealth.Chip) Model {
+	t.Helper()
+	m := openSizedBoard(t, writeValidProject(t), width, 24)
+	m.State.HealthChip = chip
+	return m
+}
+
+var measuredChip = codehealth.Chip{State: codehealth.ChipMeasured, Overall: codehealth.ClassificationWatch, Label: "Watch", Good: 3, Signals: 5}
+
+func TestHeaderChipStatesAndWording(t *testing.T) {
+	tests := []struct {
+		name string
+		chip codehealth.Chip
+		want string
+	}{
+		{"measured", measuredChip, "♥ Health 3/5"},
+		{"no check", codehealth.Chip{State: codehealth.ChipNoCheck}, "♥ Health: no check yet"},
+		{"not set up", codehealth.Chip{State: codehealth.ChipNotSetUp}, "♥ Health: not set up"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := headerLine(withChip(t, 120, tc.chip))
+			requireContains(t, got, tc.want, "Objectives", "Tasks", "Issues")
+		})
 	}
 }
 
-func TestHealthKeepsTheCursorRowOnScreenInAShortTerminal(t *testing.T) {
-	m := openHealthScreenAt(t, &fakeHealth{dashboard: measuredDashboard(fiveSignals())}, 100, 20)
-	m = press(t, m, "down", "down", "down", "down")
-
-	requireContains(t, screen(m), "▸")
-	requireContains(t, screen(m), "Dependency vulnerabilities")
+func TestHeaderChipColourFollowsOverallLabel(t *testing.T) {
+	bad := codehealth.ClassificationNeedsAttention
+	tests := []struct {
+		chip codehealth.Chip
+		want lipgloss.TerminalColor
+	}{
+		{codehealth.Chip{State: codehealth.ChipMeasured, Overall: codehealth.ClassificationGood}, styles.HealthGood.GetForeground()},
+		{codehealth.Chip{State: codehealth.ChipMeasured, Overall: codehealth.ClassificationWatch}, styles.HealthWatch.GetForeground()},
+		{codehealth.Chip{State: codehealth.ChipMeasured, Overall: bad}, styles.HealthNeedsAttention.GetForeground()},
+		{codehealth.Chip{State: codehealth.ChipMeasured, Overall: codehealth.ClassificationUnknown}, styles.HealthUnknown.GetForeground()},
+		{codehealth.Chip{State: codehealth.ChipNoCheck}, styles.HealthUnknown.GetForeground()},
+		{codehealth.Chip{State: codehealth.ChipNotSetUp}, styles.HealthUnknown.GetForeground()},
+	}
+	for _, tc := range tests {
+		if got := chipStyle(tc.chip).GetForeground(); got != tc.want {
+			t.Errorf("chipStyle(%+v) foreground = %v, want %v", tc.chip, got, tc.want)
+		}
+	}
+	if styles.HealthGood.GetForeground() == styles.HealthWatch.GetForeground() || styles.HealthWatch.GetForeground() == styles.HealthNeedsAttention.GetForeground() {
+		t.Fatal("overall colours are not distinct")
+	}
 }
 
-// Every field of a detail and every history entry must be reachable by
-// scrolling, at the supported terminal heights.
-func TestHealthScrollReachesAllDetailAndHistoryContent(t *testing.T) {
-	rows := fiveSignals()
-	rows[2].Explanation = strings.Repeat("A long explanation that wraps over several lines. ", 4)
-	rows[2].Evidence = nil
-	for i := 0; i < 12; i++ {
-		rows[2].Evidence = append(rows[2].Evidence, codehealth.EvidenceRef{Path: fmt.Sprintf("internal/pkg%02d/file.go", i), Line: i + 1, Note: "complex function"})
+func TestHeaderChipStaysOneRowAt80AndDegradesBeforeCounts(t *testing.T) {
+	for _, width := range []int{80, 100, 70, 60, 50} {
+		m := withChip(t, width, measuredChip)
+		inner := m.terminalWidth()
+		header := m.renderHeader(inner)
+		bare := withChip(t, width, codehealth.Chip{})
+		if got, want := lipgloss.Height(header), lipgloss.Height(bare.renderHeader(inner)); got != want {
+			t.Fatalf("width %d: header is %d rows with the chip, %d without:\n%s", width, got, want, header)
+		}
+		line := xansi.Strip(header)
+		if lipgloss.Width(line) > inner {
+			t.Errorf("width %d: header is %d cells, terminal content is %d", width, lipgloss.Width(line), inner)
+		}
+		if strings.Contains(line, "♥") && !strings.Contains(line, "Issues") {
+			t.Errorf("width %d: chip kept while a count was dropped: %q", width, line)
+		}
 	}
-	f := &fakeHealth{dashboard: measuredDashboard(rows)}
+	wide := xansi.Strip(withChip(t, 100, measuredChip).renderHeader(96))
+	requireContains(t, wide, "♥ Health 3/5")
 
-	for _, height := range []int{20, 24, 40} {
-		m := openHealthScreenAt(t, f, 80, height)
-		down := make([]string, 60)
-		for i := range down {
-			down[i] = "down"
-		}
-
-		overview := press(t, m, down...)
-		requireContains(t, screen(overview), "Manual refresh")
-		up := make([]string, 60)
-		for i := range up {
-			up[i] = "up"
-		}
-		back := press(t, overview, up...)
-		if back.Health.Cursor != 0 || back.Health.Scrolled {
-			t.Errorf("height %d: scrolling back up left cursor %d scrolled %v, want the first signal", height, back.Health.Cursor, back.Health.Scrolled)
-		}
-
-		detail := press(t, m, "down", "down", "enter")
-		seen := screen(detail)
-		for i := 0; i < 60; i++ {
-			detail = press(t, detail, "down")
-			seen += "\n" + screen(detail)
-		}
-		for _, want := range []string{"Required: required", "Provider: go_test_json", "Snapshot:", "AFFECTED AREAS", "internal/pkg00/file.go", "internal/pkg11/file.go"} {
-			if !strings.Contains(seen, want) {
-				t.Errorf("height %d: scrolling the detail never showed %q", height, want)
+	// Words go first, then the chip; the counts keep their text throughout.
+	var sawShort, sawGone bool
+	for width := 100; width >= 50; width-- {
+		m := withChip(t, width, measuredChip)
+		line := xansi.Strip(m.renderHeader(m.terminalWidth()))
+		switch {
+		case strings.Contains(line, "♥ Health 3/5"):
+			if sawShort || sawGone {
+				t.Fatalf("width %d: full chip returned after it shortened", width)
 			}
+		case strings.Contains(line, "♥ 3/5"):
+			sawShort = true
+			if sawGone {
+				t.Fatalf("width %d: short chip returned after it vanished", width)
+			}
+		default:
+			sawGone = true
 		}
-		if got := strings.Count(screen(detail), "\n") + 1; got > height {
-			t.Errorf("height %d: scrolled detail is %d lines", height, got)
+	}
+	if !sawShort || !sawGone {
+		t.Errorf("chip never passed through short form and disappearance (short=%v gone=%v)", sawShort, sawGone)
+	}
+}
+
+func TestHeaderChipUnreadableStorageIsNotABoardError(t *testing.T) {
+	root := writeValidProject(t)
+	testutil.WriteFile(t, filepath.Join(root, "health", "snapshots", "junk.json"), "{")
+	testutil.WriteFile(t, filepath.Join(root, "health", "config.json"), "not json")
+	msg := loadProject(root)
+	if msg.Failed() {
+		t.Fatalf("loadProject failed on damaged health storage: %s", msg.Diagnostic)
+	}
+	if got := msg.State.HealthChip.State; got != codehealth.ChipNotSetUp {
+		t.Errorf("chip state = %v, want not set up", got)
+	}
+}
+
+func TestHeaderChipRefreshesAfterRefreshResult(t *testing.T) {
+	f := &fakeHealth{dashboard: codehealth.Dashboard{State: codehealth.DashboardFirstRun}}
+	m := openHealthScreen(t, f)
+	m.State.HealthChip = codehealth.Chip{State: codehealth.ChipNoCheck}
+
+	measured := measuredDashboard(fiveSignals())
+	f.mu.Lock()
+	f.dashboard = measured
+	f.mu.Unlock()
+	f.refresh = func(context.Context, func(codehealth.Progress)) error { return nil }
+
+	m, wait := startRefresh(t, m)
+	for done := false; !done; {
+		msg := wait()
+		next, cmd := m.Update(msg)
+		m = next.(Model)
+		if _, done = msg.(healthRefreshDoneMsg); done {
+			m = settle(t, m, cmd)
 		}
-		closed := press(t, detail, "esc")
-		if closed.Health.Detail {
-			t.Errorf("height %d: esc left the detail open", height)
-		}
-		requireContains(t, screen(closed), "▸")
+	}
+	if got, want := m.State.HealthChip, measured.Chip(); got != want {
+		t.Fatalf("chip after refresh = %+v, want %+v", got, want)
+	}
+	if got := m.State.HealthChip.State; got != codehealth.ChipMeasured {
+		t.Fatalf("chip state = %v, want measured", got)
 	}
 }

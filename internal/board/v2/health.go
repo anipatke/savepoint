@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/charmbracelet/lipgloss"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/opencode/savepoint/internal/codehealth"
 )
 
-// healthKey opens the Code Health screen from the board.
+// healthKey opens the Code Health popover from the board.
 const healthKey = "H"
 
 // HealthFuncs are the three things the Code Health screen asks of the outside
@@ -24,7 +26,7 @@ type HealthFuncs struct {
 	Refresh func(ctx context.Context, root string, progress func(codehealth.Progress)) error
 }
 
-// HealthOverlay is the full-screen Code Health view. It is mutually exclusive
+// HealthOverlay is the Code Health popover. It is mutually exclusive
 // with every other overlay and restores the board cursor it replaced.
 type HealthOverlay struct {
 	Origin detailOrigin
@@ -36,13 +38,13 @@ type HealthOverlay struct {
 	Freshness *codehealth.CodeFreshness
 
 	Cursor int
-	Detail bool
-	Offset int
-	// Scrolled is set when the reader has scrolled the overview past the last
-	// signal to reach the history, so the window stops following the cursor.
-	Scrolled bool
-	Notice   string
-	Refresh  *healthRefresh
+	// History shows the last checks in place of the signals.
+	History bool
+	Notice  string
+	// Rerun is the official-check command to copy, built when the popover
+	// opens so rendering never looks anything up.
+	Rerun   string
+	Refresh *healthRefresh
 }
 
 // healthRefresh is a manual refresh in flight. Cancel is held here so Esc and
@@ -88,7 +90,7 @@ func (m *Model) openHealth() tea.Cmd {
 	if m.Health != nil || m.Detail != nil || m.Issues != nil || m.ReleaseOverlay || m.Help || !m.Loaded {
 		return nil
 	}
-	m.Health = &HealthOverlay{Origin: detailOrigin{
+	m.Health = &HealthOverlay{Rerun: m.healthRerunCommand(), Origin: detailOrigin{
 		SidebarFocused:  m.SidebarFocused,
 		ObjectiveCursor: m.ObjectiveCursor,
 		FocusedColumn:   m.FocusedColumn,
@@ -121,11 +123,64 @@ func (m *Model) cancelHealthRefresh() bool {
 	return true
 }
 
+// rows is the five signals the popover shows, one each. A signal with several
+// configured instances is one row standing for its worst instance, so the frame
+// never grows or scrolls.
 func (h *HealthOverlay) rows() []codehealth.DashboardRow {
 	if h.Dashboard == nil {
 		return nil
 	}
-	return h.Dashboard.Rows
+	var out []codehealth.DashboardRow
+	index := map[codehealth.Capability]int{}
+	count := map[codehealth.Capability]int{}
+	for _, row := range h.Dashboard.Rows {
+		count[row.Capability]++
+		at, seen := index[row.Capability]
+		switch {
+		case !seen:
+			index[row.Capability] = len(out)
+			out = append(out, row)
+		case worseInstance(row, out[at]):
+			out[at] = row
+		}
+	}
+	for i, row := range out {
+		if n := count[row.Capability]; n > 1 {
+			out[i] = groupedRow(row, n)
+		}
+	}
+	return out
+}
+
+// worseInstance orders instances of one signal: blocking first, then by label.
+func worseInstance(a, b codehealth.DashboardRow) bool {
+	if a.BlocksSignOff() != b.BlocksSignOff() {
+		return a.BlocksSignOff()
+	}
+	return healthSeverity[a.Label] > healthSeverity[b.Label]
+}
+
+var healthSeverity = map[codehealth.Classification]int{
+	codehealth.ClassificationGood:           0,
+	codehealth.ClassificationWatch:          1,
+	codehealth.ClassificationUnknown:        2,
+	codehealth.ClassificationNeedsAttention: 3,
+}
+
+// groupedRow labels the worst of n instances as such.
+func groupedRow(row codehealth.DashboardRow, n int) codehealth.DashboardRow {
+	name := row.CapabilityText
+	if short, ok := healthShortName[row.Capability]; ok && lipgloss.Width(name) > healthRowNameCap {
+		name = short
+	}
+	row.CapabilityText = fmt.Sprintf(textHealthInstances, name, n)
+	if row.Name != "" {
+		row.Question += fmt.Sprintf(textHealthWorstOf, n, row.Name)
+		row.Name = ""
+	} else {
+		row.Question += fmt.Sprintf(textHealthWorstOfUnnamed, n)
+	}
+	return row
 }
 
 // canRefresh is true once the screen knows the project is configured.
@@ -139,55 +194,34 @@ func (m *Model) handleHealthKey(key string) tea.Cmd {
 	case "esc":
 		switch {
 		case m.cancelHealthRefresh():
-		case h.Detail:
-			h.Detail = false
-			h.Offset = 0
-			h.Scrolled = false
+		case h.History:
+			h.History = false
 		default:
 			m.closeHealth()
 		}
+	case "h":
+		if h.Loaded && h.Dashboard != nil {
+			h.History = !h.History
+		}
 	case "up", "k":
-		m.moveHealth(-1)
+		if !h.History {
+			m.moveHealth(-1)
+		}
 	case "down", "j":
-		m.moveHealth(1)
-	case "enter", "v":
-		if !h.Detail && h.Cursor < len(h.rows()) {
-			h.Detail = true
-			h.Offset = 0
-			h.Scrolled = false
+		if !h.History {
+			m.moveHealth(1)
 		}
 	case "R":
 		if h.canRefresh() {
 			return m.startHealthRefresh()
 		}
 	}
-	m.syncHealthScroll()
 	return nil
 }
 
 func (m *Model) moveHealth(delta int) {
 	h := m.Health
-	if h.Detail {
-		h.Offset = max(h.Offset+delta, 0)
-		return
-	}
-	last := max(len(h.rows())-1, 0)
-	total, room, cursorLine := m.healthGeometry()
-	switch {
-	case delta > 0 && h.Cursor == last:
-		// Past the last signal the keys scroll on into the history.
-		if next := healthWindow(total, noCursorLine, h.Offset+1, room); next > h.Offset {
-			h.Offset, h.Scrolled = next, true
-		}
-	case delta < 0 && h.Scrolled:
-		h.Offset = max(h.Offset-1, 0)
-		if h.Offset <= cursorLine {
-			h.Scrolled = false
-		}
-	default:
-		h.Cursor = min(max(h.Cursor+delta, 0), last)
-		h.Scrolled = false
-	}
+	h.Cursor = min(max(h.Cursor+delta, 0), max(len(h.rows())-1, 0))
 }
 
 func (m *Model) startHealthRefresh() tea.Cmd {
@@ -201,6 +235,11 @@ func (m *Model) startHealthRefresh() tea.Cmd {
 // applyHealth folds one Code Health message into the overlay. A message that
 // arrives after the overlay closed is dropped.
 func (m Model) applyHealth(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// The header chip follows every good load, whether or not the screen is
+	// still open to show it.
+	if loaded, ok := msg.(healthLoadedMsg); ok && loaded.Err == nil {
+		m.State.HealthChip = loaded.Dashboard.Chip()
+	}
 	h := m.Health
 	if h == nil {
 		return m, nil
@@ -217,9 +256,6 @@ func (m Model) applyHealth(msg tea.Msg) (tea.Model, tea.Cmd) {
 		dashboard := msg.Dashboard
 		h.Dashboard = &dashboard
 		h.Cursor = min(h.Cursor, max(len(dashboard.Rows)-1, 0))
-		if h.Detail && h.Cursor >= len(dashboard.Rows) {
-			h.Detail = false
-		}
 		if dashboard.State == codehealth.DashboardMeasured {
 			h.Freshness = nil
 			cmd = healthFreshnessCmd(m.healthFuncs(), m.Root, dashboard)
@@ -245,7 +281,6 @@ func (m Model) applyHealth(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = healthLoadCmd(m.healthFuncs(), m.Root)
 		}
 	}
-	m.syncHealthScroll()
 	return m, cmd
 }
 
@@ -255,4 +290,17 @@ func (m Model) healthRefreshHint() string {
 		return "R:refresh"
 	}
 	return ""
+}
+
+// healthRerunCommand is the line that re-runs the official check: for the
+// Objective the sidebar is on, else the router's, else a placeholder.
+func (m Model) healthRerunCommand() string {
+	id := "O-###"
+	switch {
+	case m.ObjectiveCursor >= 0 && m.ObjectiveCursor < len(m.Objectives):
+		id = m.Objectives[m.ObjectiveCursor].ID()
+	case m.State.Router != nil && m.State.Router.Objective != "":
+		id = m.State.Router.Objective
+	}
+	return fmt.Sprintf(textHealthRerun, id)
 }

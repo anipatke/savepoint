@@ -25,7 +25,10 @@ type ProjectState struct {
 	// per load, only when some Check names a snapshot, so rendering never
 	// touches the filesystem and a project without health reads nothing.
 	Health map[string]codehealth.SnapshotLabel
-	Next   data.Next
+	// HealthChip is the header's glance at overall health, read once per load
+	// from saved data, so rendering never touches the filesystem.
+	HealthChip codehealth.Chip
+	Next       data.Next
 }
 
 // objectiveCount and taskCount report what the load put into the index. A nil
@@ -159,6 +162,7 @@ func loadProject(root string) projectLoadedMsg {
 		RouterMtime: routerInfo.ModTime(),
 		Issues:      issueCatalog(index),
 		Health:      loadHealthLabels(root, index),
+		HealthChip:  codehealth.LoadChip(filepath.Dir(root)),
 		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
 	}}
 }

@@ -631,9 +631,21 @@ func TestObjectiveDetailReportsAMissingHealthSnapshot(t *testing.T) {
 
 func TestObjectiveDetailWithoutAHealthSnapshotFieldShowsNoHealthLine(t *testing.T) {
 	got := objectiveHealthDetail(t, nil)
-	if strings.Contains(got, "Health:") {
+	if strings.Contains(withoutHeaderChip(got), "Health:") {
 		t.Errorf("detail shows a Health line for a Check without the field:\n%s", got)
 	}
+}
+
+// withoutHeaderChip drops the header's own "♥ Health: ..." chip, which shares
+// the "Health:" wording with the detail's Check line.
+func withoutHeaderChip(screen string) string {
+	var kept []string
+	for _, line := range strings.Split(screen, "\n") {
+		if !strings.Contains(line, "♥") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 func TestMissingHealthDirectoryIsNotABoardError(t *testing.T) {
@@ -649,7 +661,7 @@ func TestTaskDetailNeverShowsAHealthLine(t *testing.T) {
 	root := writeValidProject(t)
 	id := saveHealthSnapshot(t, root)
 	writeCheckExtra(t, root, "C-001", "task", "T-001", "CLEAR", "health_snapshot: "+id+"\n")
-	if got := screen(openTaskDetail(t, root, "T-001")); strings.Contains(got, "Health:") {
+	if got := screen(openTaskDetail(t, root, "T-001")); strings.Contains(withoutHeaderChip(got), "Health:") {
 		t.Errorf("Task detail shows a Health line:\n%s", got)
 	}
 }

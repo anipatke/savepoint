@@ -110,7 +110,7 @@ func runGoTestWithReports(dir string, args []string, output io.Writer) error {
 	}
 	// A killed or unreadable child leaves a partial stream; keep the previous
 	// complete reports rather than replacing them with it.
-	if !goTestRunCompleted(runErr) {
+	if !goTestRunCompleted(runErr) || !goTestStreamComplete(jsonTmp.Name(), runErr == nil) {
 		return runErr
 	}
 	if err := os.Rename(jsonTmp.Name(), filepath.Join(dir, goTestReportName)); err != nil {
@@ -134,6 +134,37 @@ func goTestRunCompleted(runErr error) bool {
 	}
 	var exitErr *exec.ExitError
 	return errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0
+}
+
+// goTestStreamComplete reports whether every package that started in the JSON
+// stream also reported a result. Windows gives a terminated child a normal
+// exit code, so the exit code alone cannot tell an interrupted run from a
+// failing one. An empty stream counts only after a successful run.
+func goTestStreamComplete(path string, emptyOK bool) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	open := make(map[string]bool)
+	seen := false
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		var event goTestEvent
+		if json.Unmarshal(scanner.Bytes(), &event) != nil || event.Test != "" {
+			continue
+		}
+		switch event.Action {
+		case "start":
+			open[event.Package] = true
+			seen = true
+		case "pass", "fail", "skip":
+			delete(open, event.Package)
+			seen = true
+		}
+	}
+	return scanner.Err() == nil && len(open) == 0 && (seen || emptyOK)
 }
 
 func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {

@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "capabilities": [
+    {
+      "capability": "tests",
+      "provider": "go-test-json",
+      "report": "go-test.json",
+      "exclusions": [
+        "dist/**",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/*.min.js"
+      ]
+    },
+    {
+      "capability": "coverage",
+      "provider": "go-cover-profile",
+      "report": "coverage.out",
+      "exclusions": [
+        "dist/**",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/*.min.js"
+      ]
+    },
+    {
+      "capability": "complexity",
+      "provider": "lizard-csv",
+      "executable": "lizard",
+      "args": [
+        "--csv",
+        "-o",
+        ".savepoint/health/reports/root-lizard.csv",
+        "-x",
+        "*/dist/*",
+        "-x",
+        "*.pb.go",
+        "-x",
+        "*_generated.*",
+        "-x",
+        "*.min.js",
+        "."
+      ],
+      "report": ".savepoint/health/reports/root-lizard.csv",
+      "exclusions": [
+        "dist/**",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/*.min.js"
+      ]
+    },
+    {
+      "capability": "duplication",
+      "provider": "jscpd-json",
+      "executable": "jscpd",
+      "args": [
+        "--reporters",
+        "json",
+        "--output",
+        ".savepoint/health/reports/root",
+        "--workers",
+        "1",
+        "--ignore",
+        "dist/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/.git/**",
+        "."
+      ],
+      "report": ".savepoint/health/reports/root/jscpd-report.json",
+      "exclusions": [
+        "dist/**",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/*.min.js"
+      ]
+    },
+    {
+      "capability": "dependency_vulnerabilities",
+      "provider": "osv-scanner-json",
+      "executable": "osv-scanner",
+      "args": [
+        "scan",
+        "source",
+        "-r",
+        "--format",
+        "json",
+        "--output-file",
+        ".savepoint/health/reports/root-osv.json",
+        "--experimental-exclude",
+        "g:dist/**",
+        "--experimental-exclude",
+        "g:**/*.pb.go",
+        "--experimental-exclude",
+        "g:**/*_generated.*",
+        "--experimental-exclude",
+        "g:**/*.min.js",
+        "."
+      ],
+      "report": ".savepoint/health/reports/root-osv.json",
+      "exclusions": [
+        "dist/**",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/*.min.js"
+      ]
+    }
+  ]
+}

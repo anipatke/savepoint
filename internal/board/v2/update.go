@@ -32,7 +32,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// leave it scrolled past its own end.
 		m.clampDetailScroll()
 		m.clampIssueScroll()
-		m.syncHealthScroll()
 		return m, nil
 	case healthLoadedMsg, healthFreshnessMsg, healthProgressMsg, healthRefreshDoneMsg:
 		return m.applyHealth(msg)

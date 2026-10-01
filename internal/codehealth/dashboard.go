@@ -32,6 +32,13 @@ type Dashboard struct {
 	OriginText  string
 	SnapshotID  string
 	MeasuredAt  string
+	// MeasuredText is MeasuredAt in the friendly fixed UTC form.
+	MeasuredText string
+	// Headline is one sentence on how many signals need a look. SignOff says
+	// whether the result blocks sign-off, from the same Evaluate as the
+	// health check command.
+	Headline string
+	SignOff  string
 	// Recorded is the repository state the snapshot was measured at. Pass it
 	// to DashboardFreshness; it is not the snapshot.
 	Recorded RepositoryIdentity
@@ -42,15 +49,21 @@ type Dashboard struct {
 // DashboardRow describes one configured instance, or the placeholder for a
 // capability that has none.
 type DashboardRow struct {
-	Capability      Capability
-	CapabilityText  string
-	Name            string
-	NotConfigured   bool
-	Label           Classification
-	LabelText       string
-	Explanation     string
-	Trend           string
-	Basis           string
+	Capability     Capability
+	CapabilityText string
+	Name           string
+	NotConfigured  bool
+	Label          Classification
+	LabelText      string
+	Explanation    string
+	Trend          string
+	Basis          string
+	// Spark draws the last official checks, oldest first, one block each; it
+	// is empty below three points. SparkWord is better, worse or steady, empty
+	// when there is no trend. SparkNote says when history is thin or restarted.
+	Spark           string
+	SparkWord       string
+	SparkNote       string
 	Outcome         Outcome
 	OutcomeText     string
 	FreshnessText   string
@@ -61,11 +74,23 @@ type DashboardRow struct {
 	Scope           []string
 	CollectedAt     string
 	Evidence        []EvidenceRef
+	// SignOff is empty for a manual snapshot and for a signal nobody set up.
+	SignOff string
+
+	// Plain-language reading of the signal. All plain strings; Where is empty
+	// when there is no evidence.
+	Question string
+	Value    string
+	Aim      string
+	Meaning  string
+	NextStep string
+	Where    string
 }
 
 // DashboardHistoryEntry is one earlier snapshot, newest first.
 type DashboardHistoryEntry struct {
 	CreatedAt   string
+	WhenText    string
 	Origin      Origin
 	OriginText  string
 	Overall     Classification
@@ -167,14 +192,53 @@ func LoadDashboard(root string) (Dashboard, error) {
 		Recorded:    newest.Repository,
 		Rows:        dashboardRows(cfg, newest, dashboardHistory(snaps[:len(snaps)-1])),
 	}
+	d.MeasuredText = whenText(newest.CreatedAt)
+	d.Headline = headlineText(d.Rows)
+	d.applySignOff(cfg, newest, hasOfficial(snaps))
 	for i := len(snaps) - 1; i >= 0 && len(d.History) < MaxDashboardHistory; i-- {
 		s := snaps[i]
 		d.History = append(d.History, DashboardHistoryEntry{
-			CreatedAt: s.CreatedAt, Origin: s.Origin, OriginText: originText[s.Origin],
+			CreatedAt: s.CreatedAt, WhenText: whenText(s.CreatedAt), Origin: s.Origin, OriginText: originText[s.Origin],
 			Overall: s.Summary.Overall, OverallText: classificationText[s.Summary.Overall],
 		})
 	}
 	return d, nil
+}
+
+func hasOfficial(snaps []Snapshot) bool {
+	return slices.ContainsFunc(snaps, func(s Snapshot) bool { return s.Origin == OriginOfficial })
+}
+
+// applySignOff says what the newest snapshot means for sign-off. Only an
+// official snapshot is evaluated, with the gate the health check command
+// uses; a failed evaluation is said plainly and the rest still loads.
+func (d *Dashboard) applySignOff(cfg Config, newest Snapshot, anyOfficial bool) {
+	if newest.Origin != OriginOfficial {
+		d.SignOff = textSignOffManual
+		if !anyOfficial {
+			d.SignOff = textSignOffNoOfficial
+		}
+		return
+	}
+	verdict, err := Evaluate(newest, cfg)
+	if err != nil {
+		d.SignOff = textSignOffUnavailable
+		for i := range d.Rows {
+			d.Rows[i].SignOff = textSignOffUnavailable
+		}
+		return
+	}
+	d.SignOff = textSignOffClear
+	if verdict.Blocks() {
+		d.SignOff = textSignOffBlocks
+	}
+	byKey := make(map[instanceKey]Disposition, len(verdict.Results))
+	for _, rv := range verdict.Results {
+		byKey[instanceKey{rv.Capability, rv.Provider, rv.Name}] = rv.Disposition
+	}
+	for i, row := range d.Rows {
+		d.Rows[i].SignOff = rowSignOff[byKey[instanceKey{row.Capability, row.Provider, row.Name}]]
+	}
 }
 
 // SnapshotLabel is what a screen needs to point at one stored snapshot: its
@@ -256,6 +320,16 @@ func dashboardRows(cfg Config, snap Snapshot, history map[instanceKey][]HistoryE
 	return rows
 }
 
+// BlocksSignOff is true when the gate says this signal blocks sign-off.
+func (row DashboardRow) BlocksSignOff() bool { return row.SignOff == textSignOffBlocks }
+
+// withWords copies a signal's plain-language reading onto its row.
+func (row DashboardRow) withWords(w signalWords) DashboardRow {
+	row.Question, row.Value, row.Aim = w.Question, w.Value, w.Aim
+	row.Meaning, row.NextStep, row.Where = w.Meaning, w.NextStep, w.Where
+	return row
+}
+
 func notConfiguredRow(c Capability) DashboardRow {
 	return DashboardRow{
 		Capability: c, CapabilityText: capabilityText[c], NotConfigured: true,
@@ -263,7 +337,7 @@ func notConfiguredRow(c Capability) DashboardRow {
 		Explanation: textNotConfiguredRow,
 		Outcome:     OutcomeNotConfigured, OutcomeText: outcomeText[OutcomeNotConfigured],
 		RequiredText: textOptional,
-	}
+	}.withWords(unmeasuredWords(c, nil, true))
 }
 
 // noResultRow covers an instance configured after the snapshot was taken.
@@ -275,7 +349,7 @@ func noResultRow(cc CapabilityConfig) DashboardRow {
 		Outcome:     OutcomeNotConfigured, OutcomeText: outcomeText[OutcomeNotConfigured],
 		Required: cc.Required, RequiredText: requiredText(cc.Required),
 		Provider: cc.Provider, Scope: slices.Clone(cc.Scope),
-	}
+	}.withWords(unmeasuredWords(cc.Capability, cc.Thresholds, false))
 }
 
 func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs CapabilitySummary, history []HistoryEntry) DashboardRow {
@@ -292,8 +366,13 @@ func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs Capa
 		Scope: slices.Clone(r.Scope), CollectedAt: r.CollectedAt,
 		Evidence: slices.Clone(r.Evidence),
 	}
+	row.Spark, row.SparkWord, row.SparkNote = sparkline(r.Capability, sparkValues(r, origin, s), trend.Direction, s.incompatible > 0)
 	if r.Outcome.Measured() {
 		row.FreshnessText = freshnessText[r.Freshness]
+	}
+	row = row.withWords(measuredWords(cc.Thresholds, r, cs.Classification))
+	if why, ok := whyLabel(cc.Thresholds, r, cs.Classification, s, trend); ok {
+		row.Meaning, row.NextStep = why.Meaning, why.NextStep
 	}
 	return row
 }

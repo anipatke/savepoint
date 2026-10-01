@@ -39,10 +39,10 @@ func renderHelp(model Model, width, height int) string {
 	)
 	if model.Health != nil {
 		lines = append(lines,
-			helpRow("↑↓", "in Code Health: choose a signal, or scroll its details"),
-			helpRow("enter / v", "in Code Health: open the signal's details"),
-			helpRow("R", "in Code Health: refresh now; esc cancels it"),
-			helpRow("esc", "in Code Health: back, then close"),
+			helpRow("↑↓", "in Code Health: choose a signal"),
+			helpRow("h", "in Code Health: show the last ten checks; h or esc goes back"),
+			helpRow("R", "in Code Health: refresh now (a manual refresh is not an official check); esc cancels it"),
+			helpRow("esc", "in Code Health: close, back to where you were"),
 		)
 	}
 	if model.Issues != nil && model.Issues.Detail == nil {

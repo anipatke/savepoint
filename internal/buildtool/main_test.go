@@ -538,3 +538,72 @@ func TestRunGoTestWithReportsKeepsCompleteReportsWhenInterrupted(t *testing.T) {
 		}
 	}
 }
+
+// TestMain lets the test binary stand in for the go command: copied onto PATH
+// as go, it prints a start event and exits nonzero without a package result,
+// like a Windows child ended by TerminateProcess.
+func TestMain(m *testing.M) {
+	if os.Getenv("BUILDTOOL_FAKE_GO_INTERRUPTED") == "1" {
+		fmt.Println(`{"Action":"start","Package":"fixture"}`)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
+func TestRunGoTestWithReportsKeepsCompleteReportsWhenChildExitsEarly(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	name := "go"
+	if runtime.GOOS == "windows" {
+		name = "go.exe"
+	}
+	if err := os.WriteFile(filepath.Join(bin, name), data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("BUILDTOOL_FAKE_GO_INTERRUPTED", "1")
+	dir := t.TempDir()
+	for _, report := range []string{goTestReportName, goCoverReportName} {
+		if err := os.WriteFile(filepath.Join(dir, report), []byte("previous\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runGoTestWithReports(dir, []string{"-json", "./..."}, io.Discard); err == nil {
+		t.Fatal("an early-exiting run must return an error")
+	}
+	for _, report := range []string{goTestReportName, goCoverReportName} {
+		if got, _ := os.ReadFile(filepath.Join(dir, report)); string(got) != "previous\n" {
+			t.Errorf("%s = %q, want the previous report", report, got)
+		}
+	}
+}
+
+func TestGoTestStreamComplete(t *testing.T) {
+	cases := []struct {
+		name, stream  string
+		emptyOK, want bool
+	}{
+		{"finished package", `{"Action":"start","Package":"a"}` + "\n" + `{"Action":"fail","Package":"a"}` + "\n", false, true},
+		{"start only", `{"Action":"start","Package":"a"}` + "\n", false, false},
+		{"one package unfinished", `{"Action":"start","Package":"a"}` + "\n" + `{"Action":"start","Package":"b"}` + "\n" + `{"Action":"pass","Package":"a"}` + "\n", true, false},
+		{"test result is not a package result", `{"Action":"start","Package":"a"}` + "\n" + `{"Action":"pass","Package":"a","Test":"T"}` + "\n", false, false},
+		{"empty after failure", "", false, false},
+		{"empty after success", "", true, true},
+	}
+	for _, c := range cases {
+		path := filepath.Join(t.TempDir(), "stream")
+		if err := os.WriteFile(path, []byte(c.stream), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := goTestStreamComplete(path, c.emptyOK); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}

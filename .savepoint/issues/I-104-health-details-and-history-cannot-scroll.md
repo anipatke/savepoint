@@ -2,15 +2,21 @@
 id: I-104
 title: Code Health details and history cannot scroll to all content
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-948
   actor: {role: checker, session: check-o031-20261002-independent}
   at: '2026-10-01T20:47:19Z'
 tasks: [T-072]
-checks: [C-948]
+checks: [C-948, C-951]
 guardrail_ids: [TEST-01, TEST-02]
+resolution:
+  disposition: verified
+  check: C-951
+  actor: {role: checker, session: recheck-o031-final-repair-20261002-independent}
+  at: '2026-10-01T21:56:44Z'
+  reason: Original frozen-scope repair proof passed; C-951 records current independent CLEAR.
 history:
   - at: '2026-10-01T20:47:19Z'
     actor: {role: checker, session: check-o031-20261002-independent}
@@ -21,6 +27,11 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'Health overview and detail now scroll freely: detail has no cursor pin (noCursorLine) and Down past the last signal scrolls into history (Model.moveHealth, healthWindow). Added TestHealthScrollReachesAllDetailAndHistoryContent at 80x20, 80x24, 80x40.'
+  - at: '2026-10-01T21:56:44Z'
+    actor: {role: checker, session: recheck-o031-final-repair-20261002-independent}
+    kind: rechecked
+    check: C-951
+    note: Frozen viewport and text matrix rechecked at all sizes; every detail field, evidence reference and history entry is reachable.
 ---
 
 # I-104: Code Health details and history cannot scroll to all content
