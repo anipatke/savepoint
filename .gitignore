@@ -4,6 +4,7 @@ savepoint.exe
 *.zip
 node_modules/
 coverage/
+!internal/codehealth/testdata/readers/coverage/
 .DS_Store
 Thumbs.db
 .env

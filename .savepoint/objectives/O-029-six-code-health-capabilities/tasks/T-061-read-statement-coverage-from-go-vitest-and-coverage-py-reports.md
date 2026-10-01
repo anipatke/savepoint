@@ -2,12 +2,21 @@
 id: T-061
 title: Read statement coverage from Go, Vitest, and coverage.py reports
 objective: O-029
-status: planned
+status: done
 depends_on: [{task: T-059, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o029-20261001}
 complexity_tier: medium
 complexity_reason: Three formats; Go profiles need import-path mapping and duplicate-block merging.
+check_waiver:
+    task: T-061
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T09:14:40Z"
 ---
 
 # Read statement coverage from Go, Vitest, and coverage.py reports
@@ -56,7 +65,30 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+### Per-criterion outcomes (2026-10-01, executor session)
+
+- **Go cover profile:** met. `mode:` required (`go missing mode` rejected); rows merged by block (`go-merged.out`: same block from two runs counts once, covered if any run covered it); import paths resolved through `LoadGoModules`/`Resolve` (monorepo test maps two modules); unresolvable rows make the result partial with a reason (`go-unresolvable.out`). Files outside the instance scope are dropped quietly, not partial (resolution runs scope-free, scope applied after).
+- **Vitest V8:** met. Statements from `s`; `covered/total_functions` from `f`; `covered/total_branches` from `b` (each arm counted). Absolute keys become repo-relative via `RelPath`; a key outside the root makes the result partial.
+- **coverage.py:** met. Value from `totals.covered_lines`/`num_statements`; branch details only when `meta.branch_coverage` is true; `meta.version` recorded as provider version.
+- **Shared:** met. All readers add `covered_statements`/`total_statements`; zero statements is an error for all three; affected items are the least-covered files via `WorstEvidence` (bounded); every reading passes `validateBounded`.
+- **Fixtures:** met. `testdata/readers/coverage/` holds populated, fully covered, zero, malformed, Go unresolvable, and Go monorepo cases (plus merged, branches, outside-root, no-totals).
+
+### Commands
+
+- `go test ./internal/codehealth -run 'Coverage|GoCover'`: pass.
+- `make build && make test-fast`: both exit 0.
+
+### Files
+
+- Read: Objective.md, collect.go, model.go, reader_paths.go, plus reader_tests.go and reader_tests_test.go as the pattern.
+- Extra reads (pattern only, not in Context Files): `reader_tests.go`, `reader_tests_test.go`; `snapshot.go` (Detail/validateBounded) was a listed Context File.
+- Changed: new `reader_coverage.go`, `reader_coverage_test.go`, fixtures under `testdata/readers/coverage/`; `.gitignore` (extra edit outside Context Files: added `!internal/codehealth/testdata/readers/coverage/` because the existing `coverage/` rule ignored the mandated fixture directory).
+
+### Limitations
+
+- coverage.py headline uses the report's own `totals`, so instance scope/exclusions do not change the value (they only filter affected items).
+- Readers are not registered; registration is T-065.
+- No `make test-full` run; not required for ordinary handoff.
 
 ## Drift Notes
 
