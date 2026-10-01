@@ -2,7 +2,7 @@
 id: I-101
 title: Unparsed complexity files lack verification
 type: verification
-status: open
+status: resolved
 source:
   kind: check
   check: C-944
@@ -18,6 +18,19 @@ history:
     kind: observed
     check: C-944
     note: Initial Full O-029 Check; see C-944 frozen matrix and embedded independent harness.
+  - at: '2026-10-01T10:30:00Z'
+    actor: {role: executor, session: o029-issue-repair-20261001}
+    kind: deferred
+    note: "Not repaired in code. Lizard's headerless CSV lists only function rows, so it cannot tell 'no functions' from 'file not parsed'; any fix needs either a different provider signal or a change to O-029's unparsed-files requirement. Per the Issue's own guidance this is routed to the owner/planner for a decision rather than reinterpreting an unparsed file as an outside-root row."
+  - at: '2026-10-01T11:00:00Z'
+    actor: {role: owner, session: o029-issue-repair-20261001}
+    kind: owner_decision
+    note: Owner accepted the Lizard limitation. The no-functions reason now states that the CSV cannot show unparsed files, and the O-029 complexity requirement was reworded to match.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: o029-issue-repair-20261001}
+  at: '2026-10-01T11:00:00Z'
+  reason: Owner accepted the limitation that Lizard's CSV cannot report unparsed files.
 ---
 
 # I-101: Unparsed complexity files lack verification

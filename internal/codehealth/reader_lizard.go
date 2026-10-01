@@ -62,7 +62,7 @@ func (LizardReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 			return Reading{Partial: true, Reason: reason, Provenance: prov}, nil
 		}
 		return Reading{
-			Reason:     "Lizard reported no functions; Lizard's CSV does not state its version",
+			Reason:     "Lizard reported no functions; its CSV cannot show whether any file failed to parse, and does not state its version",
 			Value:      &Value{Number: 0, Unit: UnitCCN},
 			Provenance: prov,
 			Details:    complexityDetails(nil),

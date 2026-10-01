@@ -1,7 +1,7 @@
 ---
 id: O-029
 title: Measure all five Code Health signals
-status: in_progress
+status: done
 depends_on: [O-026, O-027, O-028]
 release: R-007
 priority: high
@@ -22,7 +22,7 @@ The v2.1 promise requires every in-scope measure to have a real supported implem
 
 - Tests read Go test JSON, Vitest JUnit, and pytest JUnit. The value is the failed-test count; totals, skips, and errors are supporting details; failing tests are named as affected items. A Go package that fails to build counts as one failure with a note naming it. No structured report is `absent`, never a pass.
 - Coverage reads Go cover profiles, Vitest V8 `coverage-final.json`, and coverage.py JSON. The headline value is statement coverage on every stack; branch and function counts are supporting details where the report has them. The least-covered files are the affected items.
-- Complexity reads Lizard CSV. The value is the highest function cyclomatic complexity; the most complex functions are the affected items. Unparsed files are reported as partial, never as complexity zero.
+- Complexity reads Lizard CSV. The value is the highest function cyclomatic complexity; the most complex functions are the affected items. Files outside the project are reported as partial, never as complexity zero. Lizard's CSV lists only functions, so it cannot reveal a file it failed to parse; the reading says so (owner decision on I-101).
 - Duplication reads jscpd JSON. The value is the duplicated-lines share; the largest clones are the affected items. jscpd's own health score, complexity, and dead-code output are ignored.
 - Dependency vulnerabilities read OSV-Scanner JSON. The value is the total; critical, high, medium, low, and unknown counts are recorded. Only high, critical, and unknown severity block (O-027 rule). The scanner database freshness and partial scans (manifests without resolved versions) stay explicit.
 - Every reader returns repository-relative paths only, bounded details and affected items, and provider/version provenance where the report exposes it, and preserves the instance scope. Each reader has fixtures for a valid report, an empty one, a malformed one, a partial one, an unsupported variant, and a mixed-language project.

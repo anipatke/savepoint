@@ -192,7 +192,7 @@ func TestJUnitReaderHonoursScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rd.Value.Number != 1 || len(rd.Evidence) != 0 {
-		t.Errorf("value %v evidence %v", rd.Value.Number, rd.Evidence)
+	if rd.Value.Number != 0 || len(rd.Evidence) != 0 || detailMap(rd)["total_tests"] != 0 {
+		t.Errorf("value %v evidence %v details %v, want the excluded failure left out of every count", rd.Value.Number, rd.Evidence, detailMap(rd))
 	}
 }

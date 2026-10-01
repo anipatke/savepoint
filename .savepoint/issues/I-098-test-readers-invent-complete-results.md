@@ -2,14 +2,14 @@
 id: I-098
 title: Test readers invent complete results from unusable reports
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-944
   actor: {role: checker, session: o029-full-check-20261001}
   at: '2026-10-01T09:35:25Z'
 tasks: [T-060]
-checks: [C-944]
+checks: [C-944, C-945]
 guardrail_ids: [TEST-01, TEST-02]
 severity: high
 history:
@@ -18,6 +18,21 @@ history:
     kind: observed
     check: C-944
     note: Initial Full O-029 Check; see C-944 frozen matrix and embedded independent harness.
+  - at: '2026-10-01T10:30:00Z'
+    actor: {role: executor, session: o029-issue-repair-20261001}
+    kind: repair_attempted
+    note: "Go reader now requires an event action on every line (null/unrelated JSON is an error) and marks the reading partial when a package that started or ran tests has no final package result. JUnit reader rejects multiple document roots and non-numeric declared counts, and reports partial when a suite's declared tests differ from its cases; genuine empty suites keep 'no tests ran'. Collect test shows null Go report fails with no value and classifies unknown. make build && make test-fast pass. Awaiting independent recheck."
+  - at: '2026-10-01T10:42:32Z'
+    actor: {role: checker, session: o029-independent-recheck-20261001}
+    kind: rechecked
+    check: C-945
+    note: Original reproduction and admitted adjacent frozen cells pass; see C-945 for independent evidence and successful fresh full gate.
+resolution:
+  disposition: verified
+  check: C-945
+  actor: {role: checker, session: o029-independent-recheck-20261001}
+  at: '2026-10-01T10:42:32Z'
+  reason: Independent Full Objective recheck proved the repair within C-944 frozen scope.
 ---
 
 # I-098: Test readers invent complete results from unusable reports

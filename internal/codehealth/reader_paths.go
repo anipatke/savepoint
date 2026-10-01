@@ -151,24 +151,33 @@ func readModulePath(file string) string {
 // path no module owns, such as the standard library or a dependency, and for a
 // directory outside the instance scope; it never guesses.
 func (m GoModules) Resolve(importPath string) (string, bool) {
+	dir, owned, inScope := m.Locate(importPath)
+	return dir, owned && inScope
+}
+
+// Locate is Resolve with the two reasons for failing kept apart: owned says a
+// module holds the import path, and inScope says its directory is inside the
+// instance scope. A caller counting results drops an owned path outside the
+// scope but keeps one nothing owns, since that one cannot be judged.
+func (m GoModules) Locate(importPath string) (dir string, owned, inScope bool) {
 	best, bestDir := "", ""
-	for mod, dir := range m.dirs {
+	for mod, d := range m.dirs {
 		if (importPath == mod || strings.HasPrefix(importPath, mod+"/")) && len(mod) > len(best) {
-			best, bestDir = mod, dir
+			best, bestDir = mod, d
 		}
 	}
 	if best == "" {
-		return "", false
+		return "", false, false
 	}
 	rel := path.Join(bestDir, strings.TrimPrefix(strings.TrimPrefix(importPath, best), "/"))
 	if rel == "." {
 		// The repository root has no path of its own; scope is judged by go.mod.
-		return rel, m.scope.relevant(goModFile)
+		return rel, true, m.scope.relevant(goModFile)
 	}
-	if _, ok := RelPath("/r", "/r/"+rel); !ok || !m.scope.relevant(rel) {
-		return "", false
+	if _, ok := RelPath("/r", "/r/"+rel); !ok {
+		return "", true, false
 	}
-	return rel, true
+	return rel, true, m.scope.relevant(rel)
 }
 
 // RankedEvidence is an affected item with how bad it is; a larger Rank is worse.

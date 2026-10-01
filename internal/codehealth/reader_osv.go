@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -107,7 +108,16 @@ func (OSVScannerReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 			if len(p.Groups) == 0 && len(p.Vulnerabilities) > 0 {
 				tally.ungrouped++
 			}
+			seen := map[string]bool{}
 			for _, g := range p.Groups {
+				// A group repeated within a package, even with its IDs reordered,
+				// is one vulnerability group, not two.
+				if key := osvGroupKey(g.IDs); key != "" {
+					if seen[key] {
+						continue
+					}
+					seen[key] = true
+				}
 				bucket, rank := osvBucket(g.MaxSeverity)
 				counts[bucket]++
 				total++
@@ -144,6 +154,14 @@ func (OSVScannerReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 		Details:    details,
 		Evidence:   WorstEvidence(evidence),
 	}, nil
+}
+
+// osvGroupKey identifies a group by its advisory IDs regardless of order, or
+// "" for a group that names none and so cannot be told from another.
+func osvGroupKey(ids []string) string {
+	sorted := slices.Clone(ids)
+	slices.Sort(sorted)
+	return strings.Join(slices.Compact(sorted), "\x00")
 }
 
 func (t osvTally) reasons() []string {

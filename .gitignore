@@ -18,3 +18,6 @@ pnpm-debug.log*
 
 # Windows download metadata streams copied through WSL; ":" is invalid in Windows paths
 *:Zone.Identifier
+
+# Claude Code local settings
+.claude/settings.local.json

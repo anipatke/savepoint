@@ -35,6 +35,7 @@ type goPackageRun struct {
 	started map[string]bool   // tests that began
 	results map[string]string // test -> pass, fail, or skip
 	final   string            // the package's own pass, fail, or skip action
+	begun   bool              // the package's start action was seen
 }
 
 // Read implements Reader.
@@ -47,14 +48,23 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 
 	var total, passed, skipped, failed, buildFailures int
 	var evidence []RankedEvidence
-	unfinished := 0
-	note := func(pkg, text string) {
-		if dir, ok := modules.Resolve(pkg); ok {
-			evidence = append(evidence, RankedEvidence{Ref: EvidenceRef{Path: dir, Note: text}, Rank: 1})
-		}
-	}
+	unfinished, unterminated := 0, 0
 	for _, name := range order {
 		p := packages[name]
+		// A package a module owns but the instance scope excludes is not this
+		// instance's to count. One no module owns cannot be judged, so it counts.
+		dir, owned, inScope := modules.Locate(name)
+		if owned && !inScope {
+			continue
+		}
+		note := func(text string) {
+			if owned {
+				evidence = append(evidence, RankedEvidence{Ref: EvidenceRef{Path: dir, Note: text}, Rank: 1})
+			}
+		}
+		if p.final == "" && (len(p.started) > 0 || p.begun) {
+			unterminated++
+		}
 		pkgFailed := 0
 		tests := make([]string, 0, len(p.started))
 		for t := range p.started {
@@ -73,7 +83,7 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 				total++
 				failed++
 				pkgFailed++
-				note(name, "test "+t+" failed")
+				note("test " + t + " failed")
 			default:
 				// Started but never finished: a cut-off stream, or a panic or
 				// timeout that killed the package.
@@ -83,7 +93,7 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 				} else {
 					failed++
 					pkgFailed++
-					note(name, "test "+t+" did not finish")
+					note("test " + t + " did not finish")
 				}
 			}
 		}
@@ -93,7 +103,7 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		case p.final == "fail" && pkgFailed == 0:
 			buildFailures++
 			failed++
-			note(name, "package "+name+" failed to build")
+			note("package " + name + " failed to build")
 		}
 	}
 
@@ -112,6 +122,9 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	case unfinished > 0:
 		rd.Partial = true
 		rd.Reason = fmt.Sprintf("the test stream ended before %d started test(s) finished", unfinished)
+	case unterminated > 0:
+		rd.Partial = true
+		rd.Reason = fmt.Sprintf("the test stream ended before %d package(s) reported a final result", unterminated)
 	case total == 0 && buildFailures == 0:
 		rd.Reason = noTestsRanReason
 	}
@@ -146,12 +159,18 @@ func decodeGoTestEvents(ctx context.Context, data []byte) (map[string]*goPackage
 		if err := json.Unmarshal(line, &ev); err != nil {
 			return nil, nil, fmt.Errorf("go test JSON line %d is not an event: %w", lines+1, err)
 		}
+		if ev.Action == "" {
+			// Valid JSON that is null or some other document is not a report.
+			return nil, nil, fmt.Errorf("go test JSON line %d has no event action", lines+1)
+		}
 		lines++
 		if ev.Package == "" {
 			continue
 		}
 		p := pkg(ev.Package)
 		switch ev.Action {
+		case "start":
+			p.begun = true
 		case "run":
 			if ev.Test != "" {
 				p.started[ev.Test] = true

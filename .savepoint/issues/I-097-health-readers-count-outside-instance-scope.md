@@ -2,14 +2,14 @@
 id: I-097
 title: Health readers count outside the instance scope
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-944
   actor: {role: checker, session: o029-full-check-20261001}
   at: '2026-10-01T09:35:25Z'
 tasks: [T-060, T-061, T-063]
-checks: [C-944]
+checks: [C-944, C-945]
 guardrail_ids: [TEST-01, TEST-02]
 severity: high
 history:
@@ -18,6 +18,21 @@ history:
     kind: observed
     check: C-944
     note: Initial Full O-029 Check; see C-944 frozen matrix and embedded independent harness.
+  - at: '2026-10-01T10:30:00Z'
+    actor: {role: executor, session: o029-issue-repair-20261001}
+    kind: repair_attempted
+    note: 'Go and JUnit readers now count only tests inside the instance scope (owned-but-excluded packages and mapped-but-excluded cases are dropped; unplaceable ones still count). coverage.py rebuilds its headline and branch details from in-scope per-file summaries when a scope is set. jscpd rebuilds totals from per-file format sources, withholds the value as partial when a scoped report has none, and keeps clone evidence on an in-scope file. Regression tests in reader_repair_test.go; make build && make test-fast pass. Awaiting independent recheck.'
+  - at: '2026-10-01T10:42:32Z'
+    actor: {role: checker, session: o029-independent-recheck-20261001}
+    kind: rechecked
+    check: C-945
+    note: Original reproduction and admitted adjacent frozen cells pass; see C-945 for independent evidence and successful fresh full gate.
+resolution:
+  disposition: verified
+  check: C-945
+  actor: {role: checker, session: o029-independent-recheck-20261001}
+  at: '2026-10-01T10:42:32Z'
+  reason: Independent Full Objective recheck proved the repair within C-944 frozen scope.
 ---
 
 # I-097: Health readers count outside the instance scope

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +31,12 @@ const (
 	DetailCoveredBranches   = "covered_branches"
 	DetailTotalBranches     = "total_branches"
 )
+
+// goCoverModes are the modes `go test -covermode` can write.
+var goCoverModes = map[string]bool{"set": true, "count": true, "atomic": true}
+
+// goBlockSpan is the line.column,line.column part of a profile row.
+var goBlockSpan = regexp.MustCompile(`^\d+\.\d+,\d+\.\d+$`)
 
 // stmtCount is how many statements a file has and how many ran.
 type stmtCount struct{ covered, total int }
@@ -149,6 +156,9 @@ func decodeGoProfile(ctx context.Context, data []byte) ([]goBlock, error) {
 			if !strings.HasPrefix(line, goProfileMode) {
 				return nil, errors.New("go cover profile must start with a mode: line")
 			}
+			if mode := strings.TrimSpace(strings.TrimPrefix(line, goProfileMode)); !goCoverModes[mode] {
+				return nil, fmt.Errorf("go cover profile mode %q is not set, count, or atomic", mode)
+			}
 			seenMode = true
 			continue
 		}
@@ -159,7 +169,7 @@ func decodeGoProfile(ctx context.Context, data []byte) ([]goBlock, error) {
 		colon := strings.LastIndex(fields[0], ":")
 		stmts, err1 := strconv.Atoi(fields[1])
 		count, err2 := strconv.ParseInt(fields[2], 10, 64)
-		if colon <= 0 || !strings.Contains(fields[0][colon:], ",") || err1 != nil || err2 != nil || stmts < 0 || count < 0 {
+		if colon <= 0 || !goBlockSpan.MatchString(fields[0][colon+1:]) || err1 != nil || err2 != nil || stmts < 0 || count < 0 {
 			return nil, fmt.Errorf("go cover profile line %d is not a coverage block", n)
 		}
 		if i, dup := index[fields[0]]; dup {
@@ -181,10 +191,34 @@ func decodeGoProfile(ctx context.Context, data []byte) ([]goBlock, error) {
 // VitestCoverageReader reads Vitest V8 coverage-final.json (Istanbul format).
 type VitestCoverageReader struct{}
 
+// Counters are pointers so a null one is told apart from a zero one.
 type istanbulFile struct {
-	S map[string]int64   `json:"s"`
-	F map[string]int64   `json:"f"`
-	B map[string][]int64 `json:"b"`
+	S map[string]*int64   `json:"s"`
+	F map[string]*int64   `json:"f"`
+	B map[string][]*int64 `json:"b"`
+}
+
+// valid reports whether every execution counter is a non-negative number.
+func (f istanbulFile) valid() bool {
+	ok := func(n *int64) bool { return n != nil && *n >= 0 }
+	for _, n := range f.S {
+		if !ok(n) {
+			return false
+		}
+	}
+	for _, n := range f.F {
+		if !ok(n) {
+			return false
+		}
+	}
+	for _, arms := range f.B {
+		for _, n := range arms {
+			if !ok(n) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Read implements Reader.
@@ -194,7 +228,10 @@ func (VitestCoverageReader) Read(ctx context.Context, in ReportInput) (Reading, 
 		return Reading{}, fmt.Errorf("vitest coverage JSON is not a coverage-final.json report: %w", err)
 	}
 	names := make([]string, 0, len(report))
-	for name := range report {
+	for name, f := range report {
+		if !f.valid() {
+			return Reading{}, fmt.Errorf("vitest coverage JSON has a missing or negative execution count for %s", sanitizeLine(name))
+		}
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -217,21 +254,21 @@ func (VitestCoverageReader) Read(ctx context.Context, in ReportInput) (Reading, 
 		sc := files[rel]
 		for _, n := range f.S {
 			sc.total++
-			if n > 0 {
+			if *n > 0 {
 				sc.covered++
 			}
 		}
 		files[rel] = sc
 		for _, n := range f.F {
 			totalFns++
-			if n > 0 {
+			if *n > 0 {
 				coveredFns++
 			}
 		}
 		for _, arms := range f.B {
 			for _, n := range arms {
 				totalBranches++
-				if n > 0 {
+				if *n > 0 {
 					coveredBranches++
 				}
 			}
@@ -284,7 +321,16 @@ func (CoveragePyReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 		return Reading{}, errors.New("coverage.py JSON totals are inconsistent")
 	}
 
-	// The files only rank the affected items; they never change the headline.
+	version := report.Meta.Version
+	if version == "" {
+		version = unknownVersion
+	}
+	if scope := in.inputScope(); len(scope.Include) > 0 || len(scope.Exclude) > 0 {
+		return scopedCoveragePy(ctx, in, report, version)
+	}
+
+	// With no scope the report's own totals are the headline, and the files only
+	// rank the affected items.
 	files := map[string]stmtCount{}
 	for name, f := range report.Files {
 		if f.Summary.CoveredLines == nil || f.Summary.NumStatements == nil {
@@ -293,10 +339,6 @@ func (CoveragePyReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 		if rel, ok := in.Path(name); ok {
 			files[rel] = stmtCount{covered: *f.Summary.CoveredLines, total: *f.Summary.NumStatements}
 		}
-	}
-	version := report.Meta.Version
-	if version == "" {
-		version = unknownVersion
 	}
 	rd := Reading{
 		Value:      &Value{Number: percent(*t.CoveredLines, *t.NumStatements), Unit: UnitPercent},
@@ -313,4 +355,54 @@ func (CoveragePyReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 			Detail{Key: DetailTotalBranches, Number: float64(t.NumBranches)})
 	}
 	return rd, nil
+}
+
+// scopedCoveragePy builds the headline from the per-file summaries of files
+// inside the instance scope, because the report's totals cover every file it
+// holds. A file without statement counts cannot be placed in the total and
+// makes the reading partial.
+func scopedCoveragePy(ctx context.Context, in ReportInput, report coveragePyReport, version string) (Reading, error) {
+	names := make([]string, 0, len(report.Files))
+	for name := range report.Files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	files := map[string]stmtCount{}
+	var coveredBranches, totalBranches, unmapped, uncounted int
+	for _, name := range names {
+		if err := ctx.Err(); err != nil {
+			return Reading{}, err
+		}
+		rel, ok := RelPath(in.Root, name)
+		if !ok {
+			unmapped++
+			continue
+		}
+		if !in.inputScope().relevant(rel) {
+			continue
+		}
+		sum := report.Files[name].Summary
+		if sum.CoveredLines == nil || sum.NumStatements == nil || *sum.CoveredLines < 0 || *sum.CoveredLines > *sum.NumStatements {
+			uncounted++
+			continue
+		}
+		files[rel] = stmtCount{covered: *sum.CoveredLines, total: *sum.NumStatements}
+		coveredBranches += sum.CoveredBranches
+		totalBranches += sum.NumBranches
+	}
+	reason := skippedFilesReason(unmapped, "report file(s)")
+	if uncounted > 0 {
+		if reason != "" {
+			reason += "; "
+		}
+		reason += fmt.Sprintf("%d in-scope report file(s) lack valid statement counts", uncounted)
+	}
+	var extra []Detail
+	if report.Meta.BranchCoverage {
+		extra = []Detail{
+			{Key: DetailCoveredBranches, Number: float64(coveredBranches)},
+			{Key: DetailTotalBranches, Number: float64(totalBranches)},
+		}
+	}
+	return statementReading(files, version, reason, extra)
 }

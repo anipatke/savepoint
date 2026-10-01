@@ -1,6 +1,11 @@
 {
   "statistics": {
-    "total": {"lines": 1000, "tokens": 9000, "sources": 12, "clones": 3, "duplicatedLines": 100, "duplicatedTokens": 900, "percentage": 10, "percentageTokens": 10, "newDuplicatedLines": 0, "newClones": 0}
+    "total": {"lines": 1000, "tokens": 9000, "sources": 12, "clones": 3, "duplicatedLines": 100, "duplicatedTokens": 900, "percentage": 10, "percentageTokens": 10, "newDuplicatedLines": 0, "newClones": 0},
+    "formats": {
+      "go": {"sources": {"pkg/a.go": {"lines": 300, "duplicatedLines": 10}, "pkg/b.go": {"lines": 300, "duplicatedLines": 10}}},
+      "typescript": {"sources": {"web/src/x.ts": {"lines": 100, "duplicatedLines": 25}, "web/src/y.ts": {"lines": 100, "duplicatedLines": 25}}},
+      "python": {"sources": {"app/p.py": {"lines": 100, "duplicatedLines": 15}, "app/q.py": {"lines": 100, "duplicatedLines": 15}}}
+    }
   },
   "duplicates": [
     {"format": "go", "lines": 20, "tokens": 150, "firstFile": {"name": "pkg/a.go", "start": 10, "end": 30}, "secondFile": {"name": "pkg/b.go", "start": 40, "end": 60}},

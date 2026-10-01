@@ -60,7 +60,7 @@ func TestCollectWithRealReadersKeepsEveryMeasureTruthful(t *testing.T) {
 		CapabilityConfig{Capability: CapabilityComplexity, Provider: ProviderLizardCSV, Name: "all", Executable: "lizard-all"},
 		CapabilityConfig{Capability: CapabilityComplexity, Provider: ProviderLizardCSV, Name: "app", Executable: "lizard-app", Scope: []string{"app/**"}},
 		CapabilityConfig{Capability: CapabilityComplexity, Provider: ProviderLizardCSV, Name: "slow", Executable: "lizard-slow", Scope: []string{"slow/**"}},
-		CapabilityConfig{Capability: CapabilityDuplication, Provider: ProviderJscpdJSON, Name: "ok", Executable: "jscpd", Scope: []string{"src/**"}},
+		CapabilityConfig{Capability: CapabilityDuplication, Provider: ProviderJscpdJSON, Name: "ok", Executable: "jscpd", Scope: []string{"web/**"}},
 		CapabilityConfig{Capability: CapabilityDuplication, Provider: ProviderJscpdJSON, Name: "missing", Executable: "jscpd-missing", Scope: []string{"missing/**"}},
 		CapabilityConfig{Capability: CapabilityDependencyVulnerability, Provider: ProviderOSVScannerJSON, Executable: "osv-scanner"},
 	)

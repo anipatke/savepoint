@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -25,12 +26,24 @@ type junitCase struct {
 	Skipped   *struct{} `xml:"skipped"`
 }
 
-// Read implements Reader.
+// junitSuite tracks one suite element: how many test cases it holds against
+// the count it declares, when it declares one.
+type junitSuite struct {
+	declared int // -1 when the suite states no count
+	seen     int
+}
+
+// Read implements Reader. Test cases the instance scope excludes are not
+// counted; a case whose file cannot be placed in the repository cannot be
+// judged, so it is. A report with several document roots is unusable, and one
+// whose suites declare more or fewer tests than they hold is partial.
 func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	dec := xml.NewDecoder(bytes.NewReader(in.Data))
-	var total, skipped, failures, errs int
+	var total, skipped, failures, errs, mismatched int
 	var evidence []RankedEvidence
-	sawRoot := false
+	var suites []*junitSuite
+	depth, roots := 0, 0
+	sawSuite := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return Reading{}, err
@@ -42,32 +55,59 @@ func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		if err != nil {
 			return Reading{}, fmt.Errorf("JUnit XML could not be read: %w", err)
 		}
-		start, ok := tok.(xml.StartElement)
-		if !ok {
-			continue
-		}
-		switch start.Name.Local {
-		case "testsuites", "testsuite":
-			sawRoot = true
-		case "testcase":
-			var c junitCase
-			if err := dec.DecodeElement(&c, &start); err != nil {
-				return Reading{}, fmt.Errorf("JUnit XML could not be read: %w", err)
+		switch el := tok.(type) {
+		case xml.EndElement:
+			depth--
+			if n := len(suites); n > 0 && (el.Name.Local == "testsuites" || el.Name.Local == "testsuite") {
+				if s := suites[n-1]; s.declared >= 0 && s.declared != s.seen {
+					mismatched++
+				}
+				suites = suites[:n-1]
 			}
-			total++
-			switch {
-			case c.Error != nil:
-				errs++
-				evidence = appendJUnitEvidence(evidence, in, c, "errored")
-			case c.Failure != nil:
-				failures++
-				evidence = appendJUnitEvidence(evidence, in, c, "failed")
-			case c.Skipped != nil:
-				skipped++
+		case xml.StartElement:
+			if depth == 0 {
+				if roots++; roots > 1 {
+					return Reading{}, errors.New("JUnit XML has more than one document root")
+				}
+			}
+			depth++
+			switch el.Name.Local {
+			case "testsuites", "testsuite":
+				sawSuite = true
+				declared, err := declaredTests(el)
+				if err != nil {
+					return Reading{}, err
+				}
+				suites = append(suites, &junitSuite{declared: declared})
+			case "testcase":
+				depth--
+				var c junitCase
+				if err := dec.DecodeElement(&c, &el); err != nil {
+					return Reading{}, fmt.Errorf("JUnit XML could not be read: %w", err)
+				}
+				for _, s := range suites {
+					s.seen++
+				}
+				rel, known := RelPath(in.Root, junitCasePath(in.Provider, c))
+				mapped := known && in.inputScope().relevant(rel)
+				if known && !mapped {
+					continue
+				}
+				total++
+				switch {
+				case c.Error != nil:
+					errs++
+					evidence = appendJUnitEvidence(evidence, rel, mapped, c, "errored")
+				case c.Failure != nil:
+					failures++
+					evidence = appendJUnitEvidence(evidence, rel, mapped, c, "failed")
+				case c.Skipped != nil:
+					skipped++
+				}
 			}
 		}
 	}
-	if !sawRoot {
+	if !sawSuite {
 		return Reading{}, errors.New("JUnit XML has no testsuite element")
 	}
 
@@ -81,15 +121,33 @@ func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		},
 		Evidence: WorstEvidence(evidence),
 	}
-	if total == 0 {
+	switch {
+	case mismatched > 0:
+		rd.Partial = true
+		rd.Reason = fmt.Sprintf("%d suite(s) declare a test count that does not match the test cases reported", mismatched)
+	case total == 0:
 		rd.Reason = noTestsRanReason
 	}
 	return rd, nil
 }
 
-func appendJUnitEvidence(items []RankedEvidence, in ReportInput, c junitCase, verb string) []RankedEvidence {
-	p, ok := in.Path(junitCasePath(in.Provider, c))
-	if !ok {
+// declaredTests is the test count a suite states, or -1 when it states none.
+func declaredTests(el xml.StartElement) (int, error) {
+	for _, a := range el.Attr {
+		if a.Name.Local != "tests" {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(a.Value))
+		if err != nil || n < 0 {
+			return 0, fmt.Errorf("JUnit XML declares %q tests, which is not a count", a.Value)
+		}
+		return n, nil
+	}
+	return -1, nil
+}
+
+func appendJUnitEvidence(items []RankedEvidence, p string, mapped bool, c junitCase, verb string) []RankedEvidence {
+	if !mapped {
 		return items
 	}
 	name := c.Name
