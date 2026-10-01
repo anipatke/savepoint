@@ -2,13 +2,21 @@
 id: T-073
 title: Show a health line on the Objective's Check
 objective: O-031
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-072, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o031-20261002}
 complexity_tier: low
 complexity_reason: One read-only line in an existing overlay, sourced from one snapshot lookup.
+check_waiver:
+    task: T-073
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T20:37:01Z"
 ---
 
 # Show a health line on the Objective's Check

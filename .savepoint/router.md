@@ -19,7 +19,7 @@ selection; the command does not write project files.
 state: task
 release: R-007
 objective: O-031
-task: T-073
+task: none
 issue: none
 ```
 
