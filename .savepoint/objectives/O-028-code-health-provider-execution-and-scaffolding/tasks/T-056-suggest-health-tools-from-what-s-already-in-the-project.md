@@ -2,11 +2,19 @@
 id: T-056
 title: Suggest health tools from what's already in the project
 objective: O-028
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-055, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o028-20261001}
+check_waiver:
+    task: T-056
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-01T07:51:00Z"
 ---
 
 # Suggest health tools from what's already in the project

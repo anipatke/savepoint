@@ -166,6 +166,9 @@ func matchSegments(pat, segs []string) bool {
 type Observation struct {
 	Identity RepositoryIdentity
 	Shallow  bool
+	// Newest is the latest modification time among the relevant inputs, and
+	// zero when there are none. Report freshness compares against it.
+	Newest time.Time
 }
 
 // Unborn reports a repository with no useful commit.
@@ -200,7 +203,7 @@ func ObserveRepository(ctx context.Context, runner CommandRunner, root string, s
 	if err != nil {
 		return Observation{}, err
 	}
-	fingerprint, err := fingerprintInputs(ctx, root, slices.Concat(tracked, untracked))
+	fingerprint, newest, err := fingerprintNewest(ctx, root, slices.Concat(tracked, untracked))
 	if err != nil {
 		return Observation{}, err
 	}
@@ -214,6 +217,7 @@ func ObserveRepository(ctx context.Context, runner CommandRunner, root string, s
 	return Observation{
 		Identity: RepositoryIdentity{Commit: commit, Dirty: dirty, InputFingerprint: fingerprint},
 		Shallow:  shallow,
+		Newest:   newest,
 	}, nil
 }
 
@@ -344,23 +348,35 @@ func safeRelative(goos, p string) bool {
 // neither enumeration order nor unusual filenames change the result. Only
 // digests are kept; content and link targets are never retained.
 func fingerprintInputs(ctx context.Context, root string, files []string) (string, error) {
+	fp, _, err := fingerprintNewest(ctx, root, files)
+	return fp, err
+}
+
+// fingerprintNewest also reports the latest modification time of the listed
+// files that exist, so freshness needs no second pass over the tree.
+func fingerprintNewest(ctx context.Context, root string, files []string) (string, time.Time, error) {
+	var newest time.Time
 	sorted := slices.Compact(slices.Sorted(slices.Values(files)))
 	h := sha256.New()
 	h.Write([]byte("codehealth-inputs-v1\x00"))
 	for _, p := range sorted {
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return "", time.Time{}, err
 		}
-		kind, digest, err := inputDigest(filepath.Join(root, filepath.FromSlash(p)))
+		full := filepath.Join(root, filepath.FromSlash(p))
+		kind, digest, err := inputDigest(full)
 		if err != nil {
-			return "", fieldError(ErrInputUnreadable, "input", "%s", p)
+			return "", time.Time{}, fieldError(ErrInputUnreadable, "input", "%s", p)
 		}
 		if kind == "" {
 			continue
 		}
+		if info, err := os.Lstat(full); err == nil && info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
 		h.Write([]byte(kind + "\x00" + strconv.Itoa(len(p)) + "\x00" + p + "\x00" + digest + "\x00"))
 	}
-	return digestPrefix + hex.EncodeToString(h.Sum(nil)), nil
+	return digestPrefix + hex.EncodeToString(h.Sum(nil)), newest, nil
 }
 
 // inputDigest returns the entry kind and content digest of one path, without
