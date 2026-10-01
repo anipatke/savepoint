@@ -2,7 +2,8 @@
 id: T-059
 title: Give health readers the project root and shared path tools
 objective: O-029
-status: planned
+status: in_progress
+stage: audit
 depends_on: []
 owner_validation: {required: false}
 planned_by: {role: planner, session: planning-o029-20261001}
@@ -56,7 +57,19 @@ Focused tests while iterating; `make build && make test-fast` at handoff.
 
 ## Technical Evidence
 
-Pending execution.
+Commands run: `make test-focused TEST='TestRelPath|TestReportInputPath|TestGoModules|TestWorstEvidence|TestCollectHandsReadersTheRoot' PKGS=./internal/codehealth` (pass); `make build && make test-fast` (both pass, no failures).
+
+Per-criterion outcomes:
+- `ReportInput` carries the root, and `Collect` passes it: `ReportInput.Root` set in `collector.measure`; `TestCollectHandsReadersTheRoot`.
+- Report path helper: `RelPath` and `ReportInput.Path` (also applies instance scope/exclusions). `TestRelPath` covers relative, `./`, backslash, absolute inside, Windows drive (backslash and forward), outside root, sibling-prefix root, traversal, URL, sensitive, empty, and control-character inputs, which are rejected.
+- Go import helper: `LoadGoModules` / `GoModules.Resolve` use the longest matching module, nested modules included, scope-limited, and report unresolved import paths as `false`. `TestGoModulesResolve`, `TestGoModulesResolveKeepsToScope`.
+- Worst-N helper: `WorstEvidence` caps at `MaxEvidence`, orders worst first then by path/line/note, bounds notes via `sanitizeLine`, drops items that fail evidence validation. `TestWorstEvidence`, `TestWorstEvidenceBoundsNotesAndDropsUnsafeItems`.
+- Tests cover Windows-style and absolute inputs, outside-root paths, nested module, unresolvable import: yes, as above.
+
+Files changed: `internal/codehealth/collect.go`; new `reader_paths.go`, `reader_paths_test.go`. Also status/stage edits to this Task and O-029 `Objective.md`.
+Files read: only the Context Files, plus `internal/codehealth/runner.go` (extra read: to reuse `sanitizeLine`), `repository.go` (extra read: scope matching via `InputScope.relevant`), `model.go` (extra read: bound constants), `collect_test.go`/`storage_test.go` (extra read: existing test helpers).
+
+Limitations: path mapping is lexical (no symlink resolution); a Windows drive-letter path is matched case-sensitively against the root; module discovery skips hidden, vendor, node_modules, and testdata directories and stops after 20000 directories; `.git`-style sensitive paths are dropped rather than reported.
 
 ## Drift Notes
 

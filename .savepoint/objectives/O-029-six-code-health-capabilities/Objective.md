@@ -1,7 +1,7 @@
 ---
 id: O-029
 title: Measure all five Code Health signals
-status: planned
+status: in_progress
 depends_on: [O-026, O-027, O-028]
 release: R-007
 priority: high

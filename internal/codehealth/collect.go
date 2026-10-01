@@ -26,10 +26,11 @@ type Reading struct {
 	Evidence   []EvidenceRef
 }
 
-// ReportInput is the report bytes handed to a Reader, with the scope the
-// instance is configured to measure.
+// ReportInput is the report bytes handed to a Reader, with the project root and
+// the scope the instance is configured to measure.
 type ReportInput struct {
 	Provider   ProviderKey
+	Root       string
 	Data       []byte
 	Scope      []string
 	Exclusions []string
@@ -267,7 +268,7 @@ func (c *collector) measure(ctx context.Context, cc CapabilityConfig) Capability
 		r.Reason = fmt.Sprintf("report exceeded %d MiB and was not read", MaxReportBytes>>20)
 		return r
 	}
-	reading, err := reader.Read(ctx, ReportInput{Provider: cc.Provider, Data: data, Scope: cc.Scope, Exclusions: cc.Exclusions})
+	reading, err := reader.Read(ctx, ReportInput{Provider: cc.Provider, Root: c.req.Root, Data: data, Scope: cc.Scope, Exclusions: cc.Exclusions})
 	switch {
 	case ctx.Err() != nil:
 		return apply(fail(OutcomeCancelled, "collection was cancelled while reading the report"))
