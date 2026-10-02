@@ -40,12 +40,6 @@ func TestCollectWithRealReadersKeepsEveryMeasureTruthful(t *testing.T) {
 		return rel
 	}
 
-	type want struct {
-		capability Capability
-		provider   ProviderKey
-		name       string
-		outcome    Outcome // zero means any measured outcome
-	}
 	cfg := cfgOf(
 		// Report-only providers, each with a valid report.
 		CapabilityConfig{Capability: CapabilityTests, Provider: ProviderGoTestJSON, Report: report("reports/go-test.jsonl", "tests", "go-fail.jsonl")},
@@ -64,7 +58,7 @@ func TestCollectWithRealReadersKeepsEveryMeasureTruthful(t *testing.T) {
 		CapabilityConfig{Capability: CapabilityDuplication, Provider: ProviderJscpdJSON, Name: "missing", Executable: "jscpd-missing", Scope: []string{"missing/**"}},
 		CapabilityConfig{Capability: CapabilityDependencyVulnerability, Provider: ProviderOSVScannerJSON, Executable: "osv-scanner"},
 	)
-	wants := []want{
+	wants := []realReaderWant{
 		{CapabilityTests, ProviderGoTestJSON, "", ""},
 		{CapabilityTests, ProviderVitestJUnit, "ok", ""},
 		{CapabilityTests, ProviderVitestJUnit, "broken", OutcomeFailed},
@@ -97,6 +91,20 @@ func TestCollectWithRealReadersKeepsEveryMeasureTruthful(t *testing.T) {
 
 	got := collect(t, root, cfg, DefaultReaders(), tools)
 
+	assertRealReaderResults(t, got, wants)
+	assertRealReaderSnapshot(t, root, got, wants)
+}
+
+// realReaderWant is the outcome one instance must end with.
+type realReaderWant struct {
+	capability Capability
+	provider   ProviderKey
+	name       string
+	outcome    Outcome // zero means any measured outcome
+}
+
+func assertRealReaderResults(t *testing.T, got Collection, wants []realReaderWant) {
+	t.Helper()
 	for _, w := range wants {
 		var r CapabilityResult
 		for _, c := range got.Results {
@@ -118,7 +126,10 @@ func TestCollectWithRealReadersKeepsEveryMeasureTruthful(t *testing.T) {
 			t.Errorf("%s %q = %s value %v details %d (%s), want a measured value with details", w.provider, w.name, r.Outcome, r.Value, len(r.Details), r.Reason)
 		}
 	}
+}
 
+func assertRealReaderSnapshot(t *testing.T, root string, got Collection, wants []realReaderWant) {
+	t.Helper()
 	snaps, err := NewStore(root).LoadSnapshots()
 	if err != nil || len(snaps) != 1 {
 		t.Fatalf("LoadSnapshots = %d snapshots, %v", len(snaps), err)

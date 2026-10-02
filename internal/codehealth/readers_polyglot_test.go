@@ -154,8 +154,37 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 	root := stackProject(t)
 	got := collectAt(t, root, OriginOfficial, cfg, stackTools(t, root), testClock())
 
-	// Every instance, run alone in a fresh project, must read exactly what it
-	// read beside the others: a failed tool changes nobody else's result.
+	assertStacksReadAloneAsBesideOthers(t, cfg, got)
+	assertStackOutcomes(t, got)
+	assertScopedJscpdKeepsReportTotals(t, got)
+
+	official := loadOfficialSnapshot(t, root)
+	assertSnapshotClassifications(t, official)
+	assertStackVerdicts(t, official, cfg)
+	assertOnlyOfficialSnapshotsHaveStanding(t, root, cfg)
+}
+
+// stackWantOutcome is the outcome each configured instance must end with.
+var stackWantOutcome = map[string]Outcome{
+	string(ProviderGoTestJSON) + "/go":     OutcomeAvailable,
+	string(ProviderVitestJUnit) + "/js":    OutcomeFailed,
+	string(ProviderPytestJUnit) + "/py":    OutcomeAvailable,
+	string(ProviderGoCoverProfile) + "/go": OutcomeAvailable,
+	string(ProviderVitestV8) + "/js":       OutcomeAbsent,
+	string(ProviderCoveragePyJSON) + "/py": OutcomeFailed,
+	string(ProviderLizardCSV) + "/go":      OutcomeAvailable,
+	string(ProviderLizardCSV) + "/js":      OutcomeUnavailable,
+	string(ProviderLizardCSV) + "/py":      OutcomePartial,
+	string(ProviderJscpdJSON) + "/js":      OutcomeAvailable,
+	string(ProviderJscpdJSON) + "/py":      OutcomeAvailable,
+	string(ProviderOSVScannerJSON) + "/":   OutcomePartial,
+}
+
+// assertStacksReadAloneAsBesideOthers checks that every instance, run alone in
+// a fresh project, reads exactly what it read beside the others: a failed tool
+// changes nobody else's result.
+func assertStacksReadAloneAsBesideOthers(t *testing.T, cfg Config, got Collection) {
+	t.Helper()
 	for _, cc := range cfg.Capabilities {
 		soloRoot := stackProject(t)
 		solo := collectAt(t, soloRoot, OriginManual, cfgOf(cc), stackTools(t, soloRoot), testClock())
@@ -165,28 +194,17 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 				cc.Provider, cc.Name, have.Outcome, have.Value, have.Details, want.Outcome, want.Value, want.Details)
 		}
 	}
+}
 
-	wantOutcome := map[string]Outcome{
-		string(ProviderGoTestJSON) + "/go":     OutcomeAvailable,
-		string(ProviderVitestJUnit) + "/js":    OutcomeFailed,
-		string(ProviderPytestJUnit) + "/py":    OutcomeAvailable,
-		string(ProviderGoCoverProfile) + "/go": OutcomeAvailable,
-		string(ProviderVitestV8) + "/js":       OutcomeAbsent,
-		string(ProviderCoveragePyJSON) + "/py": OutcomeFailed,
-		string(ProviderLizardCSV) + "/go":      OutcomeAvailable,
-		string(ProviderLizardCSV) + "/js":      OutcomeUnavailable,
-		string(ProviderLizardCSV) + "/py":      OutcomePartial,
-		string(ProviderJscpdJSON) + "/js":      OutcomeAvailable,
-		string(ProviderJscpdJSON) + "/py":      OutcomeAvailable,
-		string(ProviderOSVScannerJSON) + "/":   OutcomePartial,
-	}
+func assertStackOutcomes(t *testing.T, got Collection) {
+	t.Helper()
 	for _, col := range got.Results {
 		r := col.Result
 		if r.Outcome == OutcomeNotConfigured {
 			continue
 		}
 		key := string(r.Provenance.Provider) + "/" + r.Name
-		want, ok := wantOutcome[key]
+		want, ok := stackWantOutcome[key]
 		if !ok {
 			t.Errorf("unexpected result %s", key)
 			continue
@@ -194,18 +212,27 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 		if r.Outcome != want {
 			t.Errorf("%s = %s (%s), want %s", key, r.Outcome, r.Reason, want)
 		}
-		// Whatever did not measure carries no number, so it can never read as
-		// a healthy zero.
-		if !r.Outcome.Measured() && (r.Value != nil || len(r.Details) > 0 || len(r.Evidence) > 0) {
-			t.Errorf("%s is %s but carries value %v details %v evidence %v", key, r.Outcome, r.Value, r.Details, r.Evidence)
-		}
-		if r.Outcome.Measured() && r.Value == nil {
-			t.Errorf("%s is %s without a value", key, r.Outcome)
-		}
+		assertValueMatchesOutcome(t, key, r)
 	}
+}
 
-	// Duplication: jscpd 5 has no per-file counts, so each scoped instance
-	// keeps the report's own whole-run totals and invents no scoped figure.
+// assertValueMatchesOutcome checks that whatever did not measure carries no
+// number, so it can never read as a healthy zero.
+func assertValueMatchesOutcome(t *testing.T, key string, r CapabilityResult) {
+	t.Helper()
+	if !r.Outcome.Measured() && (r.Value != nil || len(r.Details) > 0 || len(r.Evidence) > 0) {
+		t.Errorf("%s is %s but carries value %v details %v evidence %v", key, r.Outcome, r.Value, r.Details, r.Evidence)
+	}
+	if r.Outcome.Measured() && r.Value == nil {
+		t.Errorf("%s is %s without a value", key, r.Outcome)
+	}
+}
+
+// assertScopedJscpdKeepsReportTotals checks duplication: jscpd 5 has no
+// per-file counts, so each scoped instance keeps the report's own whole-run
+// totals and invents no scoped figure.
+func assertScopedJscpdKeepsReportTotals(t *testing.T, got Collection) {
+	t.Helper()
 	for _, name := range []string{"js", "py"} {
 		r := stackResult(t, got, ProviderJscpdJSON, name)
 		lines := 0.0
@@ -218,17 +245,24 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 			t.Errorf("jscpd %s = %v with %v total lines, want the report's 3.33%% of 600", name, r.Value, lines)
 		}
 	}
+}
 
+func loadOfficialSnapshot(t *testing.T, root string) Snapshot {
+	t.Helper()
 	snaps, err := NewStore(root).LoadSnapshots()
 	if err != nil || len(snaps) != 1 {
 		t.Fatalf("LoadSnapshots = %d snapshots, %v", len(snaps), err)
 	}
-	official := snaps[0]
-	if err := official.Validate(); err != nil {
+	if err := snaps[0].Validate(); err != nil {
 		t.Fatalf("snapshot is invalid: %v", err)
 	}
+	return snaps[0]
+}
+
+func assertSnapshotClassifications(t *testing.T, official Snapshot) {
+	t.Helper()
 	for _, s := range official.Summary.Capabilities {
-		switch wantOutcome[string(s.Provider)+"/"+s.Name] {
+		switch stackWantOutcome[string(s.Provider)+"/"+s.Name] {
 		case OutcomeAvailable:
 		case OutcomePartial:
 			if s.Classification == ClassificationGood {
@@ -240,8 +274,12 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 			}
 		}
 	}
+}
 
-	// The verdict keeps the stacks apart too.
+// assertStackVerdicts checks that the verdict keeps the stacks apart too, and
+// that required versus optional only changes the absent coverage report.
+func assertStackVerdicts(t *testing.T, official Snapshot, cfg Config) {
+	t.Helper()
 	verdict, err := Evaluate(official, cfg)
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
@@ -274,9 +312,8 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 		t.Errorf("verdict claims health:\n%s", verdict.Render())
 	}
 
-	// Required versus optional: the absent JavaScript coverage report blocks
-	// only while the instance is required. The passing Go and Python tests'
-	// failures block either way, so Blocks() alone cannot show the difference.
+	// The passing Go and Python tests' failures block either way, so Blocks()
+	// alone cannot show the difference.
 	optional, err := Evaluate(official, stackConfig(false))
 	if err != nil {
 		t.Fatalf("Evaluate optional: %v", err)
@@ -284,8 +321,12 @@ func TestPolyglotReadersKeepEachStackIndependent(t *testing.T) {
 	if rv := verdictFor(t, optional, ProviderVitestV8, "js"); rv.Disposition != DispositionReported || rv.Kind != KindCollectionFailure {
 		t.Errorf("optional absent coverage = %s/%s, want reported collection failure", rv.Disposition, rv.Kind)
 	}
+}
 
-	// A manual snapshot has no standing as Check evidence.
+// assertOnlyOfficialSnapshotsHaveStanding checks that a manual snapshot has no
+// standing as Check evidence.
+func assertOnlyOfficialSnapshotsHaveStanding(t *testing.T, root string, cfg Config) {
+	t.Helper()
 	manual := collectAt(t, root, OriginManual, cfg, stackTools(t, root), testClock().Add(time.Minute))
 	all, err := NewStore(root).LoadSnapshots()
 	if err != nil || len(all) != 2 {

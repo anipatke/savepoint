@@ -224,24 +224,28 @@ func TestDashboardAllFiveSignalsMeasured(t *testing.T) {
 		t.Fatalf("rows = %d, want 5", len(d.Rows))
 	}
 	for i, c := range Capabilities() {
-		r := d.Rows[i]
-		if r.Capability != c || r.Label != ClassificationGood || r.LabelText != "Good" {
-			t.Errorf("row %d = %s %s, want %s Good", i, r.Capability, r.Label, c)
-		}
-		if r.Outcome != OutcomeAvailable || r.OutcomeText != "measured" || r.FreshnessText != "fresh" {
-			t.Errorf("%s outcome = %q, %q", c, r.OutcomeText, r.FreshnessText)
-		}
-		if r.Provider != dashProviders[c] || r.ProviderVersion != "1.0" || r.CollectedAt == "" || len(r.Scope) != 1 || len(r.Evidence) != 1 {
-			t.Errorf("%s provenance/scope/evidence = %+v", c, r)
-		}
-		if r.RequiredText != "optional" || r.Required {
-			t.Errorf("%s required = %v %q", c, r.Required, r.RequiredText)
-		}
-		if !strings.HasPrefix(r.Trend, "Steady over 3 official checks") || !strings.Contains(r.Basis, "2 earlier comparable official checks") {
-			t.Errorf("%s trend/basis = %q / %q", c, r.Trend, r.Basis)
-		}
+		assertMeasuredGoodRow(t, i, c, d.Rows[i])
 	}
 	assertNoBannedClaims(t, "all measured", dashboardText(d))
+}
+
+func assertMeasuredGoodRow(t *testing.T, i int, c Capability, r DashboardRow) {
+	t.Helper()
+	if r.Capability != c || r.Label != ClassificationGood || r.LabelText != "Good" {
+		t.Errorf("row %d = %s %s, want %s Good", i, r.Capability, r.Label, c)
+	}
+	if r.Outcome != OutcomeAvailable || r.OutcomeText != "measured" || r.FreshnessText != "fresh" {
+		t.Errorf("%s outcome = %q, %q", c, r.OutcomeText, r.FreshnessText)
+	}
+	if r.Provider != dashProviders[c] || r.ProviderVersion != "1.0" || r.CollectedAt == "" || len(r.Scope) != 1 || len(r.Evidence) != 1 {
+		t.Errorf("%s provenance/scope/evidence = %+v", c, r)
+	}
+	if r.RequiredText != "optional" || r.Required {
+		t.Errorf("%s required = %v %q", c, r.Required, r.RequiredText)
+	}
+	if !strings.HasPrefix(r.Trend, "Steady over 3 official checks") || !strings.Contains(r.Basis, "2 earlier comparable official checks") {
+		t.Errorf("%s trend/basis = %q / %q", c, r.Trend, r.Basis)
+	}
 }
 
 func TestDashboardLabelsComeFromThePersistedSummary(t *testing.T) {

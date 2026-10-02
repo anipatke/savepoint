@@ -25,60 +25,72 @@ func TestHelperProcess(t *testing.T) {
 			break
 		}
 	}
-	switch args[0] {
-	case "ok":
-		os.Stdout.WriteString("report-bytes")
-	case "env":
+	if behave, ok := helperBehaviors[args[0]]; ok {
+		behave(args)
+	}
+	os.Exit(0)
+}
+
+// helperBehaviors is what the stand-in analysis tool does for each argument.
+var helperBehaviors = map[string]func(args []string){
+	"ok": func([]string) { os.Stdout.WriteString("report-bytes") },
+	"env": func([]string) {
 		os.Stdout.WriteString(os.Getenv("CI") + "|" + os.Getenv("NO_COLOR") + "|" + os.Getenv("GIT_TERMINAL_PROMPT"))
-	case "exit":
+	},
+	"exit": func(args []string) {
 		code, _ := strconv.Atoi(args[1])
 		os.Stderr.WriteString("bad\x1b[31m thing\nsecond line " + strings.Repeat("x", 500))
 		os.Exit(code)
-	case "noisy-fail":
+	},
+	"noisy-fail": func([]string) {
 		os.Stderr.WriteString(strings.Repeat("Scanned file and found 28 packages\n", 40) + "Error during extraction: connection refused\n")
 		os.Exit(127)
-	case "huge":
+	},
+	"huge": func([]string) {
 		chunk := bytes.Repeat([]byte("a"), 1<<20)
 		for i := 0; i < MaxReportBytes>>20+2; i++ {
 			os.Stdout.Write(chunk)
 		}
-	case "stdout-size":
+	},
+	"stdout-size": func(args []string) {
 		n, _ := strconv.Atoi(args[1])
 		os.Stdout.Write(bytes.Repeat([]byte("a"), n))
-	case "stderr-tail":
-		// n bytes of progress noise ending in "END", then a failing exit.
+	},
+	// n bytes of progress noise ending in "END", then a failing exit.
+	"stderr-tail": func(args []string) {
 		n, _ := strconv.Atoi(args[1])
 		os.Stderr.WriteString(strings.Repeat("p", n-len("END")) + "END")
 		os.Exit(127)
-	case "args":
+	},
+	"args": func(args []string) {
 		wd, _ := os.Getwd()
 		os.Stdout.WriteString(wd + "\x00" + strings.Join(args[1:], "\x00"))
-	case "orphan":
-		// Leave a grandchild holding this process's output pipes after exiting.
+	},
+	// Leave a grandchild holding this process's output pipes after exiting.
+	"orphan": func(args []string) {
 		child := helperCommand("hang")
 		child.Stdout, child.Stderr = os.Stdout, os.Stderr
 		if err := child.Start(); err != nil {
 			os.Exit(3)
 		}
 		os.WriteFile(args[1], []byte(strconv.Itoa(child.Process.Pid)), 0o644)
-	case "hang":
-		time.Sleep(time.Minute)
-	case "child":
-		// Start a grandchild that also hangs and record its pid.
+	},
+	"hang": func([]string) { time.Sleep(time.Minute) },
+	// Start a grandchild that also hangs and record its pid.
+	"child": func(args []string) {
 		child := helperCommand("hang")
 		if err := child.Start(); err != nil {
 			os.Exit(3)
 		}
 		os.WriteFile(args[1], []byte(strconv.Itoa(child.Process.Pid)), 0o644)
 		time.Sleep(time.Minute)
-	case "report":
-		os.WriteFile(args[1], []byte("file-report"), 0o644)
-	case "report-then-exit":
+	},
+	"report": func(args []string) { os.WriteFile(args[1], []byte("file-report"), 0o644) },
+	"report-then-exit": func(args []string) {
 		os.WriteFile(args[1], []byte("file-report"), 0o644)
 		os.Exit(1)
-	case "silent":
-	}
-	os.Exit(0)
+	},
+	"silent": func([]string) {},
 }
 
 func helperSpec(dir string, args ...string) ToolSpec {

@@ -115,6 +115,13 @@ func TestCollectRunsInstancesSequentiallyInConfigOrderAndSaves(t *testing.T) {
 			t.Errorf("%s = %s/%s, want not_configured/unknown", c, r.Outcome, r.Freshness)
 		}
 	}
+	assertSavedManualCollection(t, dir, got, web)
+}
+
+// assertSavedManualCollection checks the one prunable manual snapshot the
+// collection saved, and the web instance's result inside it.
+func assertSavedManualCollection(t *testing.T, dir string, got Collection, web CapabilityConfig) {
+	t.Helper()
 	snaps, err := NewStore(dir).LoadSnapshots()
 	if err != nil || len(snaps) != 1 {
 		t.Fatalf("snapshots = %d, err %v", len(snaps), err)
