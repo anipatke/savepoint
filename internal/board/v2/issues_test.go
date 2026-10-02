@@ -462,13 +462,7 @@ func TestIssuesSpaceAndBackspaceMoveSelectedIssueAndRetainFocus(t *testing.T) {
 		if !action.reload || action.issueSelectedID != issueID {
 			t.Fatalf("transition %d action = %#v, want reload and selected Issue %s", i+1, action, issueID)
 		}
-		if model.Issues == nil || model.Issues.SelectedID != issueID || model.Issues.FocusedStatus != wantStatuses[i] {
-			t.Fatalf("transition %d focus = %#v, want %s selected in %s", i+1, model.Issues, issueID, wantStatuses[i])
-		}
-		rows := model.focusedIssueRows()
-		if model.Issues.Cursor < 0 || model.Issues.Cursor >= len(rows) || rows[model.Issues.Cursor].Issue.ID != issueID {
-			t.Fatalf("transition %d cursor %d does not select %s in %s", i+1, model.Issues.Cursor, issueID, wantStatuses[i])
-		}
+		assertIssueFocus(t, i+1, model, issueID, wantStatuses[i])
 	}
 
 	index, err := data.LoadV2Index(root)
@@ -479,6 +473,22 @@ func TestIssuesSpaceAndBackspaceMoveSelectedIssueAndRetainFocus(t *testing.T) {
 	if issue.Status != data.IssueStatusOpen || issue.Resolution != nil {
 		t.Fatalf("Issue after four moves = status %s, resolution %#v; want open with no resolution", issue.Status, issue.Resolution)
 	}
+	assertFourMoveHistory(t, issue)
+}
+
+func assertIssueFocus(t *testing.T, n int, model Model, issueID string, want data.IssueStatus) {
+	t.Helper()
+	if model.Issues == nil || model.Issues.SelectedID != issueID || model.Issues.FocusedStatus != want {
+		t.Fatalf("transition %d focus = %#v, want %s selected in %s", n, model.Issues, issueID, want)
+	}
+	rows := model.focusedIssueRows()
+	if model.Issues.Cursor < 0 || model.Issues.Cursor >= len(rows) || rows[model.Issues.Cursor].Issue.ID != issueID {
+		t.Fatalf("transition %d cursor %d does not select %s in %s", n, model.Issues.Cursor, issueID, want)
+	}
+}
+
+func assertFourMoveHistory(t *testing.T, issue *data.IssueV2) {
+	t.Helper()
 	wantKinds := []string{"owner_decision", "owner_decision", "reopened", "owner_decision"}
 	if len(issue.History) < len(wantKinds) {
 		t.Fatalf("Issue history has %d entries, want at least %d", len(issue.History), len(wantKinds))

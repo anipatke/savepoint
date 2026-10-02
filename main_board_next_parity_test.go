@@ -111,31 +111,8 @@ func TestDoneTaskSelectionWarningIsSharedAcrossSurfaces(t *testing.T) {
 }
 
 func TestRouterSelectedIssueFlowsAcrossBoardAndResume(t *testing.T) {
-	var dir string
-	var selected data.Next
-	for _, test := range resumeMatrixCases() {
-		candidateDir := t.TempDir()
-		test.build(t, candidateDir)
-		candidate := resolveNextFromDisk(t, candidateDir)
-		if candidate.Task != nil {
-			dir = candidateDir
-			selected = candidate
-			break
-		}
-	}
-	if dir == "" || selected.Task == nil {
-		t.Fatal("resume matrix has no selected Task fixture for the Issue context case")
-	}
-
-	issue := &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusOpen}
-	issuePath := filepath.Join(dir, ".savepoint", "issues", "I-042-router-selection.md")
-	if err := os.MkdirAll(filepath.Dir(issuePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	issueContent := "---\nid: I-042\ntitle: Repair the parser\ntype: defect\nstatus: open\nsource:\n  kind: report\n  actor:\n    role: owner\n    session: parity-test\n  at: \"2026-09-24T07:00:00Z\"\n---\n\nA selected Issue used as Task context.\n"
-	if err := os.WriteFile(issuePath, []byte(issueContent), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	dir, selected := selectedTaskFixture(t)
+	issue := writeSelectedIssue(t, dir)
 
 	routerPath := filepath.Join(dir, ".savepoint", "router.md")
 	routerBytes, err := os.ReadFile(routerPath)
@@ -183,6 +160,35 @@ func TestRouterSelectedIssueFlowsAcrossBoardAndResume(t *testing.T) {
 	assertResumeReportsTheProjection(t, dir, issueNext)
 	assertBoardLine(t, dir, expectedBoardLine(issueNext))
 	assertTUILine(t, dir, expectedBoardLine(issueNext))
+}
+
+// selectedTaskFixture builds the first resume-matrix project that selects a
+// Task, so an Issue can be added as context for it.
+func selectedTaskFixture(t *testing.T) (string, data.Next) {
+	t.Helper()
+	for _, test := range resumeMatrixCases() {
+		dir := t.TempDir()
+		test.build(t, dir)
+		if next := resolveNextFromDisk(t, dir); next.Task != nil {
+			return dir, next
+		}
+	}
+	t.Fatal("resume matrix has no selected Task fixture for the Issue context case")
+	return "", data.Next{}
+}
+
+func writeSelectedIssue(t *testing.T, dir string) *data.IssueV2 {
+	t.Helper()
+	issue := &data.IssueV2{ID: "I-042", Title: "Repair the parser", Status: data.IssueStatusOpen}
+	issuePath := filepath.Join(dir, ".savepoint", "issues", "I-042-router-selection.md")
+	if err := os.MkdirAll(filepath.Dir(issuePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	issueContent := "---\nid: I-042\ntitle: Repair the parser\ntype: defect\nstatus: open\nsource:\n  kind: report\n  actor:\n    role: owner\n    session: parity-test\n  at: \"2026-09-24T07:00:00Z\"\n---\n\nA selected Issue used as Task context.\n"
+	if err := os.WriteFile(issuePath, []byte(issueContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return issue
 }
 
 func TestMigratedReleaseFlowsThroughDoctorBoardSelectorPlainAndResume(t *testing.T) {

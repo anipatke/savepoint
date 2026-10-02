@@ -334,101 +334,132 @@ func TestEndToEnd_migratedProjectLoadsCleanThroughLoadV2Index(t *testing.T) {
 func TestEndToEnd_routerFallbackCasesMigrateToLiveGoal(t *testing.T) {
 	t.Parallel()
 	for _, tc := range routerGoalFallbackCases {
-		t.Run(tc.name, func(t *testing.T) {
-			root, plan := prepareRouterGoalFallbackCase(t, tc)
-			if plan.GoalSelection.Generated != tc.wantGenerated || plan.GoalSelection.GoalID == "" {
-				t.Fatalf("GoalSelection = %+v, want generated=%t and a live Goal", plan.GoalSelection, tc.wantGenerated)
-			}
-			v1RouterRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
-			if err != nil {
-				t.Fatalf("read V1 router before migration: %v", err)
-			}
-			v1Router, err := data.NewRouterReader().ReadState(string(v1RouterRaw))
-			if err != nil {
-				t.Fatalf("parse V1 router before migration: %v", err)
-			}
-			preview := migrate.FormatPreview(plan)
-			if !strings.Contains(preview, plan.GoalSelection.Reason) || !strings.Contains(preview, plan.GoalSelection.GoalID) {
-				t.Fatalf("preview does not explain fallback Goal selection:\n%s", preview)
-			}
-			if strings.Contains(preview, "router now selects no Release") {
-				t.Fatalf("preview retains obsolete no-Release outcome:\n%s", preview)
-			}
-			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
-				t.Fatalf("migrate --apply: %v\n%s", err, out)
-			}
+		t.Run(tc.name, func(t *testing.T) { checkRouterFallbackCase(t, tc) })
+	}
+}
 
-			index := mustIndex(t, root) // strict V2 load, including Goal references
-			if _, ok := index.Releases[plan.GoalSelection.GoalID]; !ok {
-				t.Fatalf("generated Goal %s is absent from strict V2 index", plan.GoalSelection.GoalID)
-			}
-			for _, target := range plan.Targets {
-				if target.Kind != migrate.TargetObjective {
-					continue
-				}
-				if target.ReleaseID == "" {
-					t.Errorf("Objective %s has no planned Goal reference", target.GlobalID)
-				} else if _, ok := index.Releases[target.ReleaseID]; !ok {
-					t.Errorf("Objective %s references missing Goal %s", target.GlobalID, target.ReleaseID)
-				}
-			}
+func checkRouterFallbackCase(t *testing.T, tc routerGoalFallbackCase) {
+	root, plan := prepareRouterGoalFallbackCase(t, tc)
+	if plan.GoalSelection.Generated != tc.wantGenerated || plan.GoalSelection.GoalID == "" {
+		t.Fatalf("GoalSelection = %+v, want generated=%t and a live Goal", plan.GoalSelection, tc.wantGenerated)
+	}
+	v1RouterRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+	if err != nil {
+		t.Fatalf("read V1 router before migration: %v", err)
+	}
+	v1Router, err := data.NewRouterReader().ReadState(string(v1RouterRaw))
+	if err != nil {
+		t.Fatalf("parse V1 router before migration: %v", err)
+	}
+	preview := migrate.FormatPreview(plan)
+	if !strings.Contains(preview, plan.GoalSelection.Reason) || !strings.Contains(preview, plan.GoalSelection.GoalID) {
+		t.Fatalf("preview does not explain fallback Goal selection:\n%s", preview)
+	}
+	if strings.Contains(preview, "router now selects no Release") {
+		t.Fatalf("preview retains obsolete no-Release outcome:\n%s", preview)
+	}
+	if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+		t.Fatalf("migrate --apply: %v\n%s", err, out)
+	}
 
-			routerRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
-			if err != nil {
-				t.Fatalf("read converted router: %v", err)
-			}
-			router, err := data.NewRouterReader().ReadStateV2(string(routerRaw))
-			if err != nil {
-				t.Fatalf("strictly parse converted router: %v", err)
-			}
-			if router.Release != plan.GoalSelection.GoalID {
-				t.Errorf("converted router release = %q, want selected live Goal %q", router.Release, plan.GoalSelection.GoalID)
-			}
-			next := data.ResolveNext(data.NextInput{Index: index, Router: router})
-			if next.SelectionDiagnostic != nil || next.Kind == data.NextNothingSelected {
-				t.Errorf("ResolveNext() = %+v, want an actionable migrated selection without a mismatch diagnostic", next)
-			}
-			if next.Objective == nil || next.Task == nil {
-				t.Errorf("ResolveNext() omitted the selected active Objective or Task: %+v", next)
-			}
-			selectedGoalTasks := map[string]bool{}
-			for _, objectiveID := range index.ReleaseObjectives[router.Release] {
-				for _, taskID := range index.ObjectiveTasks[objectiveID] {
-					selectedGoalTasks[taskID] = true
-				}
-			}
-			selectedEpicTasks := 0
-			for _, target := range plan.Targets {
-				if target.Kind != migrate.TargetTask || target.Legacy.Epic != v1Router.Epic {
-					continue
-				}
-				selectedEpicTasks++
-				if !selectedGoalTasks[target.GlobalID] {
-					t.Errorf("selected Goal %s omits active Task %s from V1 epic %s", router.Release, target.GlobalID, v1Router.Epic)
-				}
-			}
-			if selectedEpicTasks == 0 {
-				t.Fatalf("plan has no active Task targets for selected V1 epic %s", v1Router.Epic)
-			}
-			doctorReport := doctor.RunV2Checks(filepath.Join(root, ".savepoint"))
-			for _, problem := range doctorReport.Releases {
-				if strings.Contains(problem.Message, "[v2-release-no-objectives]") && strings.Contains(problem.Message, plan.GoalSelection.GoalID) {
-					t.Errorf("doctor reports a problem for generated Goal %s: %+v", plan.GoalSelection.GoalID, problem)
-				}
-			}
+	index := mustIndex(t, root) // strict V2 load, including Goal references
+	checkObjectivesReferenceLoadedGoals(t, plan, index)
+	router := readConvertedRouter(t, root, plan)
+	checkMigratedSelectionIsActionable(t, index, router)
+	checkSelectedGoalHoldsEpicTasks(t, plan, index, router, v1Router.Epic)
+	checkDoctorAcceptsGeneratedGoal(t, root, plan)
+	checkGeneratedTargetsAreAccountable(t, root, plan)
+}
 
-			manifest := readWrittenManifest(t, root)
-			for _, identity := range manifest.Identities {
-				if plan.GoalSelection.Generated && identity.GlobalID == plan.GoalSelection.GoalID {
-					t.Errorf("generated Goal was given a fabricated V1 identity mapping: %+v", identity)
-				}
-			}
-			for _, target := range plan.Targets {
-				if target.Generated {
-					mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
-				}
-			}
-		})
+func checkObjectivesReferenceLoadedGoals(t *testing.T, plan *migrate.ConversionPlan, index *data.V2Index) {
+	t.Helper()
+	if _, ok := index.Releases[plan.GoalSelection.GoalID]; !ok {
+		t.Fatalf("generated Goal %s is absent from strict V2 index", plan.GoalSelection.GoalID)
+	}
+	for _, target := range plan.Targets {
+		if target.Kind != migrate.TargetObjective {
+			continue
+		}
+		if target.ReleaseID == "" {
+			t.Errorf("Objective %s has no planned Goal reference", target.GlobalID)
+		} else if _, ok := index.Releases[target.ReleaseID]; !ok {
+			t.Errorf("Objective %s references missing Goal %s", target.GlobalID, target.ReleaseID)
+		}
+	}
+}
+
+func readConvertedRouter(t *testing.T, root string, plan *migrate.ConversionPlan) *data.RouterStateV2 {
+	t.Helper()
+	routerRaw, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+	if err != nil {
+		t.Fatalf("read converted router: %v", err)
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(routerRaw))
+	if err != nil {
+		t.Fatalf("strictly parse converted router: %v", err)
+	}
+	if router.Release != plan.GoalSelection.GoalID {
+		t.Errorf("converted router release = %q, want selected live Goal %q", router.Release, plan.GoalSelection.GoalID)
+	}
+	return router
+}
+
+func checkMigratedSelectionIsActionable(t *testing.T, index *data.V2Index, router *data.RouterStateV2) {
+	t.Helper()
+	next := data.ResolveNext(data.NextInput{Index: index, Router: router})
+	if next.SelectionDiagnostic != nil || next.Kind == data.NextNothingSelected {
+		t.Errorf("ResolveNext() = %+v, want an actionable migrated selection without a mismatch diagnostic", next)
+	}
+	if next.Objective == nil || next.Task == nil {
+		t.Errorf("ResolveNext() omitted the selected active Objective or Task: %+v", next)
+	}
+}
+
+func checkSelectedGoalHoldsEpicTasks(t *testing.T, plan *migrate.ConversionPlan, index *data.V2Index, router *data.RouterStateV2, epic string) {
+	t.Helper()
+	selectedGoalTasks := map[string]bool{}
+	for _, objectiveID := range index.ReleaseObjectives[router.Release] {
+		for _, taskID := range index.ObjectiveTasks[objectiveID] {
+			selectedGoalTasks[taskID] = true
+		}
+	}
+	selectedEpicTasks := 0
+	for _, target := range plan.Targets {
+		if target.Kind != migrate.TargetTask || target.Legacy.Epic != epic {
+			continue
+		}
+		selectedEpicTasks++
+		if !selectedGoalTasks[target.GlobalID] {
+			t.Errorf("selected Goal %s omits active Task %s from V1 epic %s", router.Release, target.GlobalID, epic)
+		}
+	}
+	if selectedEpicTasks == 0 {
+		t.Fatalf("plan has no active Task targets for selected V1 epic %s", epic)
+	}
+}
+
+func checkDoctorAcceptsGeneratedGoal(t *testing.T, root string, plan *migrate.ConversionPlan) {
+	t.Helper()
+	doctorReport := doctor.RunV2Checks(filepath.Join(root, ".savepoint"))
+	for _, problem := range doctorReport.Releases {
+		if strings.Contains(problem.Message, "[v2-release-no-objectives]") && strings.Contains(problem.Message, plan.GoalSelection.GoalID) {
+			t.Errorf("doctor reports a problem for generated Goal %s: %+v", plan.GoalSelection.GoalID, problem)
+		}
+	}
+}
+
+func checkGeneratedTargetsAreAccountable(t *testing.T, root string, plan *migrate.ConversionPlan) {
+	t.Helper()
+	manifest := readWrittenManifest(t, root)
+	for _, identity := range manifest.Identities {
+		if plan.GoalSelection.Generated && identity.GlobalID == plan.GoalSelection.GoalID {
+			t.Errorf("generated Goal was given a fabricated V1 identity mapping: %+v", identity)
+		}
+	}
+	for _, target := range plan.Targets {
+		if target.Generated {
+			mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+		}
 	}
 }
 
@@ -501,89 +532,105 @@ func TestEndToEnd_sharedMigratedResultsAreReadOnly(t *testing.T) {
 func TestEndToEnd_releaseRecordsAndManifestMappingsAgree(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range e2eFixtures {
-		t.Run(fixture, func(t *testing.T) {
-			root := copyFixture(t, fixture)
-			plan := planFor(t, root)
-			preview := migrate.FormatPreview(plan)
-			releaseTargets := make([]migrate.PlannedTarget, 0)
-			sourceHashes := make(map[string]string)
-			for _, source := range plan.Sources {
-				sourceHashes[source.Path] = source.SHA256
-			}
-			for _, target := range plan.Targets {
-				if target.Kind != migrate.TargetRelease {
-					continue
-				}
-				releaseTargets = append(releaseTargets, target)
-				if !strings.Contains(preview, "- release "+target.GlobalID) {
-					t.Errorf("preview omitted first-class Release %s:\n%s", target.GlobalID, preview)
-				}
-			}
-			if len(releaseTargets) == 0 {
-				t.Fatal("migration plan produced no first-class Release targets")
-			}
-
-			if _, out, err := runMigrate(t, root, "--apply"); err != nil {
-				t.Fatalf("migrate --apply: %v\n%s", err, out)
-			}
-			manifest := readWrittenManifest(t, root)
-			index := mustIndex(t, root)
-			if len(index.Releases) != len(releaseTargets) {
-				t.Fatalf("loaded Releases = %d, want %d planned Releases", len(index.Releases), len(releaseTargets))
-			}
-
-			for _, target := range releaseTargets {
-				if target.Generated {
-					for _, identity := range manifest.Identities {
-						if identity.GlobalID == target.GlobalID {
-							t.Errorf("generated Goal %s has a fabricated legacy identity mapping: %+v", target.GlobalID, identity)
-						}
-					}
-					mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
-					continue
-				}
-				var identity *migrate.ManifestIdentity
-				for i := range manifest.Identities {
-					candidate := &manifest.Identities[i]
-					if candidate.Kind == string(migrate.TargetRelease) && candidate.Path == target.Legacy.Path {
-						identity = candidate
-						break
-					}
-				}
-				if identity == nil || identity.GlobalID != target.GlobalID || identity.TargetPath != target.InstallPath() {
-					t.Errorf("Release identity for %s = %+v, want source-qualified live mapping", target.Legacy.Path, identity)
-				}
-
-				var archive *migrate.ManifestArchive
-				for i := range manifest.Archives {
-					candidate := &manifest.Archives[i]
-					if candidate.SourcePath == target.Legacy.Path {
-						archive = candidate
-						break
-					}
-				}
-				if archive == nil {
-					t.Errorf("Release source %s has no accountable archive mapping", target.Legacy.Path)
-					continue
-				}
-				if archive.SHA256 != sourceHashes[target.Legacy.Path] {
-					t.Errorf("archive hash for %s = %q, want inventory hash %q", target.Legacy.Path, archive.SHA256, sourceHashes[target.Legacy.Path])
-				}
-				mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
-				mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
-			}
-
-			if fixture == "v1-history" {
-				historical := index.Releases["R-001"]
-				if historical == nil || historical.LegacyCompletion == nil {
-					t.Fatalf("R-001 historical Release = %+v, want typed legacy completion", historical)
-				}
-				if historicalDecision := data.ResolveReleaseCompletion(index, "R-001"); !historicalDecision.AllowedByLegacyCompletion {
-					t.Fatalf("R-001 historical decision = %+v, want allowed by archived history", historicalDecision)
-				}
-			}
-		})
+		t.Run(fixture, func(t *testing.T) { checkReleaseRecordsAgree(t, fixture) })
 	}
+}
+
+func checkReleaseRecordsAgree(t *testing.T, fixture string) {
+	root := copyFixture(t, fixture)
+	plan := planFor(t, root)
+	preview := migrate.FormatPreview(plan)
+	releaseTargets := make([]migrate.PlannedTarget, 0)
+	sourceHashes := make(map[string]string)
+	for _, source := range plan.Sources {
+		sourceHashes[source.Path] = source.SHA256
+	}
+	for _, target := range plan.Targets {
+		if target.Kind != migrate.TargetRelease {
+			continue
+		}
+		releaseTargets = append(releaseTargets, target)
+		if !strings.Contains(preview, "- release "+target.GlobalID) {
+			t.Errorf("preview omitted first-class Release %s:\n%s", target.GlobalID, preview)
+		}
+	}
+	if len(releaseTargets) == 0 {
+		t.Fatal("migration plan produced no first-class Release targets")
+	}
+
+	if _, out, err := runMigrate(t, root, "--apply"); err != nil {
+		t.Fatalf("migrate --apply: %v\n%s", err, out)
+	}
+	manifest := readWrittenManifest(t, root)
+	index := mustIndex(t, root)
+	if len(index.Releases) != len(releaseTargets) {
+		t.Fatalf("loaded Releases = %d, want %d planned Releases", len(index.Releases), len(releaseTargets))
+	}
+
+	for _, target := range releaseTargets {
+		if target.Generated {
+			checkGeneratedReleaseHasNoLegacyIdentity(t, root, manifest, target)
+			continue
+		}
+		checkLiveReleaseIdentity(t, manifest, target)
+		checkReleaseArchive(t, root, manifest, target, sourceHashes[target.Legacy.Path])
+		mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+	}
+
+	if fixture == "v1-history" {
+		historical := index.Releases["R-001"]
+		if historical == nil || historical.LegacyCompletion == nil {
+			t.Fatalf("R-001 historical Release = %+v, want typed legacy completion", historical)
+		}
+		if historicalDecision := data.ResolveReleaseCompletion(index, "R-001"); !historicalDecision.AllowedByLegacyCompletion {
+			t.Fatalf("R-001 historical decision = %+v, want allowed by archived history", historicalDecision)
+		}
+	}
+}
+
+func checkGeneratedReleaseHasNoLegacyIdentity(t *testing.T, root string, manifest *migrate.ManifestV1ToV2, target migrate.PlannedTarget) {
+	t.Helper()
+	for _, identity := range manifest.Identities {
+		if identity.GlobalID == target.GlobalID {
+			t.Errorf("generated Goal %s has a fabricated legacy identity mapping: %+v", target.GlobalID, identity)
+		}
+	}
+	mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(target.InstallPath())))
+}
+
+func checkLiveReleaseIdentity(t *testing.T, manifest *migrate.ManifestV1ToV2, target migrate.PlannedTarget) {
+	t.Helper()
+	var identity *migrate.ManifestIdentity
+	for i := range manifest.Identities {
+		candidate := &manifest.Identities[i]
+		if candidate.Kind == string(migrate.TargetRelease) && candidate.Path == target.Legacy.Path {
+			identity = candidate
+			break
+		}
+	}
+	if identity == nil || identity.GlobalID != target.GlobalID || identity.TargetPath != target.InstallPath() {
+		t.Errorf("Release identity for %s = %+v, want source-qualified live mapping", target.Legacy.Path, identity)
+	}
+}
+
+func checkReleaseArchive(t *testing.T, root string, manifest *migrate.ManifestV1ToV2, target migrate.PlannedTarget, wantHash string) {
+	t.Helper()
+	var archive *migrate.ManifestArchive
+	for i := range manifest.Archives {
+		candidate := &manifest.Archives[i]
+		if candidate.SourcePath == target.Legacy.Path {
+			archive = candidate
+			break
+		}
+	}
+	if archive == nil {
+		t.Errorf("Release source %s has no accountable archive mapping", target.Legacy.Path)
+		return
+	}
+	if archive.SHA256 != wantHash {
+		t.Errorf("archive hash for %s = %q, want inventory hash %q", target.Legacy.Path, archive.SHA256, wantHash)
+	}
+	mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
 }
 
 func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *testing.T) {
@@ -596,7 +643,25 @@ func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *te
 	}
 	assertUnchanged(t, beforePreview, snapshot(t, root), "repository-copy preview")
 
-	plan := planFor(t, root)
+	plannedReleases := plannedRepositoryCopyReleases(t, planFor(t, root))
+
+	code, output, err := runMigrate(t, root, "--apply")
+	if err != nil || code != 0 {
+		t.Fatalf("repository-copy apply: code = %d, err = %v\n%s", code, err, output)
+	}
+	index := mustIndex(t, root)
+	if len(index.Releases) != len(plannedReleases) {
+		t.Fatalf("repository-copy Releases = %d, want %d planned Releases", len(index.Releases), len(plannedReleases))
+	}
+	manifest := readWrittenManifest(t, root)
+	for _, target := range plannedReleases {
+		checkRepositoryCopyReleaseMapped(t, root, manifest, target)
+	}
+	checkSecondApplyIsNoOp(t, root)
+}
+
+func plannedRepositoryCopyReleases(t *testing.T, plan *migrate.ConversionPlan) []migrate.PlannedTarget {
+	t.Helper()
 	if !plan.Appliable {
 		t.Fatalf("repository-copy plan is not appliable: ambiguities = %+v", plan.Ambiguities)
 	}
@@ -614,44 +679,41 @@ func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *te
 	if len(plannedReleases) == 0 {
 		t.Fatal("repository-copy plan produced no first-class Release")
 	}
+	return plannedReleases
+}
 
-	code, output, err := runMigrate(t, root, "--apply")
-	if err != nil || code != 0 {
-		t.Fatalf("repository-copy apply: code = %d, err = %v\n%s", code, err, output)
-	}
-	index := mustIndex(t, root)
-	if len(index.Releases) != len(plannedReleases) {
-		t.Fatalf("repository-copy Releases = %d, want %d planned Releases", len(index.Releases), len(plannedReleases))
-	}
-	manifest := readWrittenManifest(t, root)
-	for _, target := range plannedReleases {
-		foundLive := false
-		for _, identity := range manifest.Identities {
-			if identity.Kind == string(migrate.TargetRelease) && identity.Path == target.Legacy.Path && identity.GlobalID == target.GlobalID {
-				foundLive = true
-				mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(identity.TargetPath)))
-				break
-			}
-		}
-		if !foundLive {
-			t.Errorf("repository-copy Release %s has no manifest/live identity for %s", target.GlobalID, target.Legacy.Path)
-		}
-
-		foundArchive := false
-		for _, archive := range manifest.Archives {
-			if archive.SourcePath == target.Legacy.Path {
-				foundArchive = true
-				mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
-				break
-			}
-		}
-		if !foundArchive {
-			t.Errorf("repository-copy Release %s has no archived source mapping for %s", target.GlobalID, target.Legacy.Path)
+func checkRepositoryCopyReleaseMapped(t *testing.T, root string, manifest *migrate.ManifestV1ToV2, target migrate.PlannedTarget) {
+	t.Helper()
+	foundLive := false
+	for _, identity := range manifest.Identities {
+		if identity.Kind == string(migrate.TargetRelease) && identity.Path == target.Legacy.Path && identity.GlobalID == target.GlobalID {
+			foundLive = true
+			mustExistAt(t, filepath.Join(root, ".savepoint", filepath.FromSlash(identity.TargetPath)))
+			break
 		}
 	}
+	if !foundLive {
+		t.Errorf("repository-copy Release %s has no manifest/live identity for %s", target.GlobalID, target.Legacy.Path)
+	}
 
-	// A second unchanged migration is the real command's no-op path: it must
-	// not rewrite the index, router selection, evidence, archive, or mtimes.
+	foundArchive := false
+	for _, archive := range manifest.Archives {
+		if archive.SourcePath == target.Legacy.Path {
+			foundArchive = true
+			mustExistAt(t, filepath.Join(root, filepath.FromSlash(archive.ArchivePath)))
+			break
+		}
+	}
+	if !foundArchive {
+		t.Errorf("repository-copy Release %s has no archived source mapping for %s", target.GlobalID, target.Legacy.Path)
+	}
+}
+
+// checkSecondApplyIsNoOp runs a second unchanged migration, the real command's
+// no-op path: it must not rewrite the index, router selection, evidence,
+// archive, or mtimes.
+func checkSecondApplyIsNoOp(t *testing.T, root string) {
+	t.Helper()
 	beforeSecond := snapshot(t, root)
 	idsBefore := recordIDs(t, root)
 	manifestPath := filepath.Join(root, ".savepoint", "migrations", "v1-to-v2.yml")
@@ -659,7 +721,7 @@ func TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability(t *te
 	if err != nil {
 		t.Fatalf("read repository-copy migration manifest: %v", err)
 	}
-	code, output, err = runMigrate(t, root, "--apply")
+	code, output, err := runMigrate(t, root, "--apply")
 	if err != nil || code != 0 {
 		t.Fatalf("repository-copy second apply: code = %d, err = %v\n%s", code, err, output)
 	}
