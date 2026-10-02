@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-090, T-091]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [CFG-03, CFG-02, TEST-02]
 severity: medium
 history:
@@ -22,6 +22,11 @@ history:
     actor: {role: executor, session: repair-o032-20261002}
     kind: repair_attempted
     note: 'Removed the blanket Windows skip; the test now accepts a named Windows refusal (access denied or sharing violation) and still checks complete old/new bytes and no temp files. Cross-vets for windows; no native run yet (see I-115).'
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "Replacement test has no blanket Windows skip, native full suite passes on run 36971878006 exact d00543d; Linux full and scoped race checks pass. Technically proven, open pending CLEAR Check proof."
 ---
 
 # I-116: Health replacement concurrency test skips a supported Windows case

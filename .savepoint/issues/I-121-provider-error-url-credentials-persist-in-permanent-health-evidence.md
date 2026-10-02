@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-085, T-091]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [TEST-02, TEST-05]
 severity: high
 history:
@@ -22,6 +22,15 @@ history:
     actor: {role: executor, session: repair-o032-20261002}
     kind: repair_attempted
     note: 'cleanLine drops URL userinfo before bounding; Collect also sanitizes runner stderr. Added TestFailureReasonsDropURLCredentials (ExecRunner-style sanitizers and Collect). A credential cut off from its scheme by the stderr tail limit is not detected. T-085 follow-up line removed from CHANGELOG.'
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "Normal URI credentials redact, but actual ExecRunner plus Collect at 65548 stderr bytes truncates the scheme before sanitization and persists synthetic URI credential in result reason and immutable snapshot. Below/exact 64KiB cases pass. Same oversized-stderr proof cell; remains material and open. Harness and output in C-958."
+  - at: '2026-10-02T06:21:27Z'
+    actor: {role: executor, session: repair-o032-20261002b}
+    kind: repair_attempted
+    note: "Targeted repair for C-958: when ExecRunner's stderr tail dropped earlier bytes, tailBuffer.Text removes a leading user:password@ fragment (scheme cut away) before sanitizing. Added TestExecRunnerDropsCredentialsWhoseSchemeWasTruncated, sweeping cut positions. make test-full passed locally."
 ---
 
 # I-121: Provider error URL credentials persist in permanent health evidence

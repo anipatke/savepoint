@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-091, T-095]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [CFG-03, CFG-02, TEST-08]
 severity: medium
 history:
@@ -18,6 +18,11 @@ history:
     kind: observed
     check: C-957
     note: Initial independent Full O-032 Check; frozen scope and reproducible harness in C-957.
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "Native current-head Windows full suite and Linux make ci success verified from https://github.com/anipatke/savepoint/actions/runs/36971878006 on d00543d5252fc5557aeba067995427236da2823f, go1.26.8. Evidence gap filled; remains open pending CLEAR Check proof."
 ---
 
 # I-115: Native Windows release evidence is missing

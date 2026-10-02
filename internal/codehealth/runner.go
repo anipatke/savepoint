@@ -82,7 +82,7 @@ func (ExecRunner) Run(ctx context.Context, spec ToolSpec) (ToolResult, error) {
 	if ctx.Err() != nil {
 		return ToolResult{}, ctx.Err()
 	}
-	res := ToolResult{Stdout: out.Bytes(), Truncated: out.truncated, Stderr: sanitizeTail(errOut.String())}
+	res := ToolResult{Stdout: out.Bytes(), Truncated: out.truncated, Stderr: sanitizeTail(errOut.Text())}
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
@@ -122,17 +122,33 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 // error a tool prints last survives however much progress came first. Like
 // limitedBuffer it always accepts writes.
 type tailBuffer struct {
-	buf   []byte
-	limit int
+	buf     []byte
+	limit   int
+	dropped bool
 }
 
 func (b *tailBuffer) Write(p []byte) (int, error) {
 	b.buf = append(b.buf, p...)
 	// Trim in batches so a chatty tool costs amortized constant time per byte.
 	if len(b.buf) > 2*b.limit {
+		b.dropped = true
 		b.buf = append(b.buf[:0], b.buf[len(b.buf)-b.limit:]...)
 	}
 	return len(p), nil
+}
+
+// cutUserinfo matches the start of text that may be the end of a URL whose
+// "scheme://" was cut away: some "user:password@".
+var cutUserinfo = regexp.MustCompile(`^[^\s/?#@]*[:/]*[^\s/?#@]*@`)
+
+// Text is the kept tail as stderr text. When earlier bytes were dropped it
+// starts mid-word, so a leading "user:password@" fragment is removed.
+func (b *tailBuffer) Text() string {
+	s := b.String()
+	if b.dropped || len(b.buf) > b.limit {
+		s = cutUserinfo.ReplaceAllString(s, "")
+	}
+	return s
 }
 
 func (b *tailBuffer) String() string {

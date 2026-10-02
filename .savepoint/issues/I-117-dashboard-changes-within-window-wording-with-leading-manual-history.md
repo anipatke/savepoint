@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-098]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [TEST-01, TEST-02]
 severity: low
 history:
@@ -22,6 +22,11 @@ history:
     actor: {role: executor, session: repair-o032-20261002}
     kind: repair_attempted
     note: 'windowStart now loads the whole history when no official snapshot precedes the tenth newest. Added TestLoadDashboardIsUnchangedWithLeadingManualHistory (leading, manual-only, trailing, interleaved, ten-official cases).'
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "All 36 original official/manual count scenarios pass after windowStart repair. Technically proven, open pending CLEAR Check proof."
 ---
 
 # I-117: Dashboard changes within-window wording with leading manual history

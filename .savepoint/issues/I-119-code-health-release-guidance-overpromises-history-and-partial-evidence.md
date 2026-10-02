@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-096, T-098]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [TPL-02]
 severity: medium
 history:
@@ -22,6 +22,11 @@ history:
     actor: {role: executor, session: repair-o032-20261002}
     kind: repair_attempted
     note: 'README and CHANGELOG now qualify trend equivalence for series added or removed within older history, and describe partial evidence as incomplete (may carry a value, never Good). Classification unchanged. Design.md not edited.'
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "Release copy now qualifies sparse-series trend and partial measured values; original sparse fixture matches approved limit. Technically proven, open pending CLEAR Check proof."
 ---
 
 # I-119: Code Health release guidance overpromises history and partial evidence

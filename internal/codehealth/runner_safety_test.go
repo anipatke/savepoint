@@ -292,3 +292,29 @@ func TestFailureReasonsDropURLCredentials(t *testing.T) {
 		t.Errorf("collected reason = %q", r.Reason)
 	}
 }
+
+// Stderr larger than the kept tail can cut a URL's scheme away, leaving its
+// credentials as the first word; they must not survive.
+func TestExecRunnerDropsCredentialsWhoseSchemeWasTruncated(t *testing.T) {
+	const secret = "o032-secret-for-probe"
+	b := &tailBuffer{limit: 100}
+	b.Write([]byte("start https://alice:" + secret + "@proxy.example.invalid failed: "))
+	b.Write([]byte(strings.Repeat("x ", 80)))
+	b.Write([]byte("end"))
+	got := sanitizeTail(b.Text())
+	if strings.Contains(got, secret) || !strings.HasSuffix(got, "end") {
+		t.Errorf("tail = %q", got)
+	}
+	// A cut that lands inside the userinfo itself.
+	b = &tailBuffer{limit: 60}
+	b.Write([]byte("https://alice:" + secret + "@proxy.example.invalid down"))
+	b.Write([]byte(strings.Repeat(" ", 1)))
+	b.Write([]byte(strings.Repeat("y", 10)))
+	for cut := 0; cut < 40; cut++ {
+		c := &tailBuffer{limit: 60 - cut%3}
+		c.Write([]byte(strings.Repeat("p", cut) + " https://alice:" + secret + "@proxy.example.invalid down " + strings.Repeat("z", 30)))
+		if got := sanitizeTail(c.Text()); strings.Contains(got, secret) {
+			t.Fatalf("cut %d kept the credential: %q", cut, got)
+		}
+	}
+}

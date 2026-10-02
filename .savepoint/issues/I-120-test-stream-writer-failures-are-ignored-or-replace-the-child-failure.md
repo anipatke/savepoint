@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-088]
-checks: [C-957]
+checks: [C-957, C-958]
 guardrail_ids: [TEST-01, TEST-02]
 severity: medium
 history:
@@ -22,6 +22,11 @@ history:
     actor: {role: executor, session: repair-o032-20261002}
     kind: repair_attempted
     note: 'runGoTestStream wraps output in a first-error recorder, runs every output step, and joins the child ExitError with read and output failures. Added broken-sink tests for passing child, failing child and malformed passthrough.'
+  - at: '2026-10-02T06:19:18Z'
+    actor: {role: checker, session: recheck-o032-20261002-independent}
+    kind: rechecked
+    check: C-958
+    note: "Original broken output sink reproductions pass, child ExitError remains discoverable; fresh full stream tests pass. Technically proven, open pending CLEAR Check proof."
 ---
 
 # I-120: Test-stream writer failures are ignored or replace the child failure
