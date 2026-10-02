@@ -2,11 +2,20 @@
 id: T-087
 title: Simplify diagnostic repair rules
 objective: O-032
-status: planned
+status: done
 complexity_tier: high
 complexity_reason: Ordered predicates and many diagnostic mappings require exact behavior preservation.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-087
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T03:55:28Z"
 ---
 
 # Simplify diagnostic repair rules
@@ -57,7 +66,21 @@ For before/after complexity evidence, the owner-confirmed scope authorizes a dir
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Executed 2026-10-02 by the executor on go1.26.2 linux/amd64.
+
+**Per-criterion outcomes**
+
+1. V2ProblemRepair / v2DiagnosticName: before refactor a throwaway golden dump (1003 lines, not committed) recorded every output; after refactor it was byte-identical (`cmp`). It covered every exact name plus empty/unknown input, every sentinel wrapped plain and with "release id", "Goal id" and "scope names missing release" wording, and the generic fallback. New permanent tests: `TestV2ProblemRepair_everyNamedMappingIsDistinctFromDefault`, `TestV2DiagnosticName_specialCases`.
+2. SuggestRepair: the same golden dump covered all message terms individually, pairwise overlaps, the four typed sentinels wrapped with message wording, and `errors.Join` chains; identical. Legacy V1 guidance is unchanged. New permanent tests: `TestSuggestRepair_typedSentinelBeatsMessageWording`, `TestSuggestRepair_firstMatchingMessageRuleWins`.
+3. Exact mappings are now the typed `v2ProblemRepairs` map and the ordered `v2DiagnosticRules` / `typedRepairRules` / `messageRepairRules` slices. No new vocabulary or duplicated policy.
+4. Lizard (direct invocation over `internal/doctor/repairs.go` and `checks.go`, output in scratchpad; no Savepoint health command run): SuggestRepair CCN 46 -> 5, V2ProblemRepair 46 -> 2, v2DiagnosticName 44 -> 4. New helpers are all <=3 CCN. `releaseDiagnosticsForIndex` (CCN 14, untouched) is out of scope and unchanged. No residual above 20.
+
+**Commands:** `make build && make test-fast` passed at 2026-10-02T03:54Z; `go test ./internal/doctor -count=1` passed.
+
+**Files read:** the five Context Files that exist were read in part (repairs.go, repairs_test.go, checks.go, checks_test.go); `v2_runtime_test.go` was not needed. Extra read: `internal/doctor/v2_runtime.go` was only grepped to confirm the v2DiagnosticName call site, and `agent-skills/savepoint-task/SKILL.md` and the O-032 Objective were read for workflow.
+**Files changed:** `internal/doctor/repairs.go`, `internal/doctor/checks.go`, `internal/doctor/repairs_test.go`, router selection (T-086 -> T-087), this Task.
+
+**Limitations:** The golden dump was a temporary equivalence proof, not kept as a test; permanent tests are narrower. V2ConsistencyRepair and GateSuggestion were left as is (already low CCN). No Task Check requested and no waiver recorded.
 
 ## Drift Notes
 
