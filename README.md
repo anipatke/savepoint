@@ -43,11 +43,11 @@ Savepoint makes those boundaries explicit:
   Objective is complete. Goals do not publish, deploy, tag, or generate
   changelogs.
 
-Existing V2 projects keep the compatibility storage names: stable `R-###`
-identities under `.savepoint/releases/` as `Release.md`, Objective `release:`
-references, and router `release:` selections. The V2 board presents these
-records as Goals. `savepoint init` creates and selects
-R-001, titled after the project. `savepoint migrate` retains the V1 router's
+Goals are stored under `.savepoint/releases/` as `Release.md`, and Objectives
+and the router select them through a `release:` field. New Goals use `G-###`
+identities; existing projects keep their stable `R-###` identities. The V2
+board presents these records as Goals. `savepoint init` creates and selects
+G-001, titled after the project. `savepoint migrate` retains the V1 router's
 live Goal and, on an unresolved selection, reuses a uniquely identifiable
 existing live Goal for the active work when possible. If selected work belongs
 only to a historical Goal, migration creates a continuation Goal and moves
@@ -150,7 +150,7 @@ teammate pick up where the last one stopped.
 | `savepoint health setup [dir] [--apply]` | Previews suggested Code Health tools; `--apply` writes the health config. See [Code Health](#code-health). |
 | `savepoint health check O-### [dir]` | Collects an official Code Health snapshot during a Full Objective Check. |
 | `savepoint health report [dir]` | Rewrites the Code Health report from the newest saved snapshot. |
-| `savepoint upgrade-assets [dir]` | Refreshes shipped skills and templates in an existing project. |
+| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refreshes shipped skills and templates in an existing project. `--dry-run` lists what would change; a skill you edited is kept and the new text is offered beside it unless you pass `--force`. |
 
 Run `savepoint --help` for the command list or `savepoint <command> --help` for
 command-specific options. The package is also available through `npx` for
@@ -178,7 +178,7 @@ project:
 - **Goal context** is required: the board shows the router-selected Goal and
   only its Objectives and Tasks. Press `g` to switch Goals (`r` remains an
   undisplayed compatibility alias); membership comes from each Objective's
-  `release: R-###` field. With no valid Goal selected, the board shows
+  `release:` field. With no valid Goal selected, the board shows
   `Choose a Goal` and no project-wide work.
 - **Router priority** lets you focus the next task without rewriting the
   history of the project.
@@ -314,7 +314,10 @@ Everything else is advisory; the checker may turn a warning into an Issue.
 `.savepoint/health/report.md` is written for an agent. It lists each signal
 that is not Good, blocking ones first, with the question, label, number, aim,
 meaning, next step, trend and affected files, followed by the instruction to investigate,
-propose a fix, apply it and re-run the official check. Give the file to your
+propose a fix, apply it and re-run the official check. Complexity has an aim
+(10 or less) and a watch line (20 or less); the shipped skills tell an agent to
+bring a signal back to the watch line, not chase the aim, and to report what
+remains. Give the file to your
 agent, or point it at the signal you care about. The agent does not run
 `setup` or `report`; it re-runs `savepoint health check O-###` only inside a
 Full Objective Check.
@@ -358,16 +361,17 @@ Savepoint uses Markdown and YAML as its source of truth:
 ```text
 .savepoint/
 ├── config.yml             # Project settings and quality gates
-├── router.md              # Current workflow state and next action
+├── router.md              # Current workflow state and selection
 ├── Idea.md                # Intent, user, scope, and success criteria
 ├── Design.md              # Architecture and verified technical state
 ├── Guardrails.md          # Durable engineering policy
+├── health/                # Code Health config, snapshots, and report
 ├── objectives/            # Outcomes and their bounded Tasks
 │   └── O-001-example/
 │       ├── Objective.md
 │       └── tasks/
-├── releases/               # Compatibility storage for required V2 Goals (R-###)
-│   └── R-001-example/Release.md
+├── releases/              # Storage for required V2 Goals (G-###, or R-### if migrated)
+│   └── G-001-example/Release.md
 ├── checks/                # Independent verification evidence
 └── issues/                # Durable follow-up and discovered problems
 
@@ -379,8 +383,8 @@ The files are intentionally ordinary. You can read them in an editor, review
 them in a pull request, diff them with Git, or recover from them without a
 Savepoint server.
 
-The board calls these delivery contexts Goals. Existing record filenames and
-fields remain Release-compatible (`Release.md`, `R-###`, and `release:`).
+The board calls these delivery contexts Goals. Record filenames and fields
+stay Release-compatible (`Release.md` and `release:`).
 
 ## Safe migration
 
@@ -429,8 +433,9 @@ legacy V1 project; after it is converted to V2, use `upgrade-assets` to refresh
 the managed skills and templates. `upgrade-assets` does not perform a
 migration.
 
-User-authored project files remain outside the managed asset region. Repeated
-updates are designed to be safe and reviewable.
+User-authored project files remain outside the managed asset region. A skill
+you have edited is never overwritten without `--force`, and repeated updates
+are designed to be safe and reviewable.
 
 ## Built for agent work
 

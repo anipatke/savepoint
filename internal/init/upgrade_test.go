@@ -1550,3 +1550,54 @@ func mustReadFile(t *testing.T, path string) []byte {
 	}
 	return data
 }
+
+// realTaskSkill is the packaged savepoint-task skill, as a project would receive it.
+const realTaskSkill = "agent-skills/savepoint-task/SKILL.md"
+
+// oldTaskSkillProject installs prior package text for the task skill, tracked
+// in the manifest, with the on-disk bytes optionally edited by the owner.
+func oldTaskSkillProject(t *testing.T, onDisk string) string {
+	t.Helper()
+	dir := savepointProject(t)
+	const recorded = "# savepoint-task before the review"
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)), onDisk)
+	manifest := NewManifest()
+	manifest.Record(realTaskSkill, []byte(recorded))
+	if err := manifest.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestUpgradeDeliversRevisedSkillsToUneditedProjects(t *testing.T) {
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	dir := oldTaskSkillProject(t, "# savepoint-task before the review")
+
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if got := upgradeActionFor(t, report, realTaskSkill); got != ActionUpdated {
+		t.Fatalf("action = %v, want updated", got)
+	}
+	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)))), "## Acting On A Code Health Report")
+}
+
+func TestUpgradeKeepsAnEditedSkillAndOffersTheRevision(t *testing.T) {
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	const edited = "# savepoint-task with my own edits"
+	dir := oldTaskSkillProject(t, edited)
+
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if got := upgradeActionFor(t, report, realTaskSkill); got != ActionConflict {
+		t.Fatalf("action = %v, want conflict", got)
+	}
+	if got := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)))); got != edited {
+		t.Errorf("edited skill bytes changed: %q", got)
+	}
+	incoming := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill))+incomingSuffix))
+	assertContains(t, incoming, "## Acting On A Code Health Report")
+}

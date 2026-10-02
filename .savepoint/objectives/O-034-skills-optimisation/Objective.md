@@ -1,7 +1,7 @@
 ---
 id: O-034
 title: Skills optimisation
-status: planned
+status: in_progress
 depends_on: [O-032]
 release: R-007
 priority: low
@@ -32,7 +32,17 @@ Planning, execution, and independent Checks reveal repeated instructions, unnece
 
 Skill instructions remain the canonical workflow source; shared references hold shared procedures, and AGENTS.md owns routing and repository rules. Changes must respect those boundaries and avoid duplicating policy. Goal membership continues to derive from Objective records.
 
-The exact recurring review mechanism and scenario verification approach will be settled when this Objective is ready for Task planning. Detailed Tasks wait until the preceding work has supplied its lessons.
+The recurring review mechanism and scenario verification approach are settled in Confirmed Design below.
+
+## Confirmed Design
+
+Owner-confirmed on 2026-10-03 (planning session plan-o034-20261003), after O-032 closed CLEAR (C-960):
+
+- **Review scope.** The four workflow skills (`savepoint-idea`, `savepoint-design`, `savepoint-task`, `savepoint-check`), the three shared references, AGENTS.md routing guidance, and the scaffolded project documents (template `Design.md`, `Guardrails.md`, `Idea.md`, `config.yml`, `router.md`, Goal `Release.md`, `AGENTS.md`; extended by the owner on 2026-10-03). `bubbletea-tui-design` is out of scope. Evidence comes from R-007's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks and their rechecks, Issues I-084..I-121, and Lessons Carried In.
+- **Recurrence.** Shipped `savepoint-design` guidance tells the planner to add a final workflow-retrospective Objective to each Goal once its other Objectives are planned. The planner owns it, and its outcome is recorded in that Objective. There are no new fields, states, commands, or Goal-level Check, and Goal completion semantics are unchanged.
+- **Downstream behaviour.** In a project that receives the skills from the package, the retrospective tunes project-owned files (Guardrails, project rules in AGENTS.md, configured gates) and records suggestions for the packaged skills as Issues, rather than editing package-owned skills. In this repository the review edits the canonical skills directly.
+- **Scenario verification.** Written scenario walkthroughs are checked against the revised text (at least: Next → skill routing, REPLAN REQUIRED re-entry, a waived Task Check reaching the Full Objective Check, an issue-only repair, and acting on an advisory Code Health report). Go content tests pin the key rules and live/scaffold byte parity. Live agent runs are not required.
+- **Code Health advice.** `savepoint-task` and `savepoint-check` gain a short rule for acting on an advisory Code Health report: fix to the watch line, not the aim; prefer production code that is risky or often changed; leave flat dispatch tables alone; report what remains; treat narrowing the measured scope as an owner decision. A change to the generated report's next-step wording is product work, recorded as a follow-up Issue rather than applied here.
 
 ## Lessons Carried In
 

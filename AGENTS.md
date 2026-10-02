@@ -99,7 +99,7 @@ changelogs.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation, and its owning Objective from `planned` to `in_progress` at the same time. That is the only Objective status change an agent makes.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel with Space and reopen any resolved Issue with Backspace. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
+- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel and reopen a resolved one. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
@@ -107,7 +107,7 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 - Issues live at `.savepoint/issues/I-###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` with Space or reopen a resolved Issue with Backspace from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
+- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
 
 ## Implementation
 
@@ -201,31 +201,3 @@ In this repository the command is built from source: if `savepoint` is not on `P
 ## Reporting to the Owner
 
 The Context Log stays technical and precise — it's the record a Check session verifies later. Chat replies to the owner are a different audience: a few plain sentences, no jargon, no file/function dumps unless asked. Say what happened and what's next; leave the mechanism in the Context Log.
-
-## V2 Routing
-
-This section records the V2 routing contract for a project whose `config.yml` declares `schema_version: 2`. It is active in this migrated repository; in a legacy V1 scaffold it is not active until migration, while this repository's active table is the four-state table above.
-
-| Router `state` | Skill |
-|-----------------|-------|
-| idea | savepoint-idea |
-| design | savepoint-design |
-| task | savepoint-task |
-| check | savepoint-check |
-
-`REPLAN REQUIRED`, returned by an executor that hits a materially invalid plan, routes back into `savepoint-design`. It is not a fifth router state — the state stays `design` while the planner resolves what broke.
-
-Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
-
-`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. The V1 scaffold and its skills are gone (O-021); they remain only as byte-preserved history.
-
-## Legacy V1 compatibility (not active)
-
-The following contract is retained only for reading archived V1 projects and this repository's own historical records; it is not an active route in this schema-2 repository, and the V1 scaffold that once shipped it is gone (O-021).
-
-| task-building | savepoint-build-task |
-| audit-pending | savepoint-audit-epic |
-
-An explicit request uses `savepoint-audit-task` while `state` stays `task-building`; that is not a router state and not a new state here.
-
-Task `stage` (build/test/audit): **required** when `status: in_progress` — Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance. Only the user may set a task to `status: done`.

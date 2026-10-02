@@ -994,7 +994,7 @@ func TestSharedIssueCaptureLiveAndTemplateMatch(t *testing.T) {
 // entry describes that skill's own write boundary rather than the shared
 // reference's identical role-boundary prose.
 var issueCaptureEntrySkills = map[string]string{
-	"savepoint-design": "owner may resolve it as `accepted` with Space or reopen any resolved Issue",
+	"savepoint-design": "owner may resolve it as `accepted` or reopen a resolved one",
 	"savepoint-task":   "may add evidence to an Issue; it may record an explicit owner\n`accepted` closure",
 	"savepoint-check":  "may close an Issue as\n`verified` after verifying Check proof",
 }
@@ -1302,4 +1302,69 @@ func TestV2SkillRoleMatrixPartitionsSensitiveWrites(t *testing.T) {
 			}
 		}
 	}
+}
+
+// skillTextCases pins behavioural rules added by the O-034 skills review. Each
+// rule has a present phrase and, where the rule narrows older text, a stale
+// phrase that must be gone, so a revert fails here rather than passing quietly.
+var skillTextCases = []struct {
+	name, file string
+	want       []string
+	stale      []string
+}{
+	{"task trigger names the Next line", "savepoint-task/SKILL.md",
+		[]string{"`Next` line starts with `Start`, `Build`, or `Test`", "A pasted `Next` line is the selection"}, nil},
+	{"check trigger names the Next line", "savepoint-check/SKILL.md",
+		[]string{"`Next` line starts with `Check`", "A pasted `Next` line is the selection"}, nil},
+	{"design trigger names the Next line", "savepoint-design/SKILL.md",
+		[]string{"`Next` line starts with `Plan` or `Replan`", "A pasted `Next` line is the selection"}, nil},
+	{"task read section lists the free reads", "savepoint-task/SKILL.md",
+		[]string{"are not extra reads", "Guardrail IDs the Task names", "Before reading or editing anything outside the Context Files"},
+		[]string{"Before editing anything outside the Context Files"}},
+	{"task acts on an advisory Code Health report", "savepoint-task/SKILL.md",
+		[]string{"## Acting On A Code Health Report", "Bring a signal that Needs Attention back to the watch line", "The aim is not a target",
+			"leave flat dispatch tables alone", "what remains above the watch line", "is the owner's decision"}, nil},
+	{"check keeps aim-to-watch signals non-blocking", "savepoint-check/SKILL.md",
+		[]string{"between the aim and the watch line", "never an Issue and never a reason for `NEEDS WORK`", "list what remains in the Check body"}, nil},
+	{"design names platform evidence for the Full Check", "savepoint-design/SKILL.md",
+		[]string{"name in its Technical Verification the platform evidence the Full Check needs", "who produces it"}, nil},
+	{"repair reruns Proof Needed before recording", "references/issue-capture.md",
+		[]string{"Before recording `repair_attempted`, re-run the Issue's Proof Needed scenario", "mark any platform or case you could not run as unverified", "never claims `verified`"}, nil},
+	{"working skills carry no board key names", "savepoint-task/SKILL.md", nil, []string{"Space", "Backspace"}},
+	{"check skill carries no board key names", "savepoint-check/SKILL.md", nil, []string{"Space", "Backspace"}},
+	{"design skill carries no board key names", "savepoint-design/SKILL.md", nil, []string{"Space", "Backspace"}},
+}
+
+func TestSkillReviewRulesArePinned(t *testing.T) {
+	for _, tc := range skillTextCases {
+		t.Run(tc.name, func(t *testing.T) {
+			forEachSkillFile(t, func(root string) string { return filepath.Join(root, filepath.FromSlash(tc.file)) }, func(tree, path, content string) {
+				for _, phrase := range tc.want {
+					if !strings.Contains(content, phrase) {
+						t.Errorf("%s: %s missing %q", tree, path, phrase)
+					}
+				}
+				for _, phrase := range tc.stale {
+					if strings.Contains(content, phrase) {
+						t.Errorf("%s: %s still contains %q", tree, path, phrase)
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestSkillReviewRulesCiteGuardrailsInsteadOfRestatingThem(t *testing.T) {
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
+		body, found := sectionBody(content, "## Acting On A Code Health Report")
+		if !found {
+			t.Fatalf("%s: %s missing the Code Health section", tree, path)
+		}
+		if !strings.Contains(body, "cite its ID rather than restating it") {
+			t.Errorf("%s: %s Code Health section does not cite Guardrails by ID", tree, path)
+		}
+		if strings.Contains(body, "STYLE-") {
+			t.Errorf("%s: %s Code Health section restates STYLE rule IDs", tree, path)
+		}
+	})
 }

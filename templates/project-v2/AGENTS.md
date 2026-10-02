@@ -97,7 +97,7 @@ changelogs.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation, and its owning Objective from `planned` to `in_progress` at the same time. That is the only Objective status change an agent makes.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel with Space and reopen any resolved Issue with Backspace. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
+- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel and reopen a resolved one. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
@@ -105,7 +105,7 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 - Issues live at `.savepoint/issues/I-###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, the search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` with Space or reopen a resolved Issue with Backspace from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
+- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
 
 ## Implementation
 
