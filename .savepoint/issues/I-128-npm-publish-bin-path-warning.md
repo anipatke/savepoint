@@ -1,0 +1,28 @@
+---
+id: I-128
+title: Every npm publish warns that the bin script name was invalid and removed
+type: other
+status: open
+source:
+  kind: report
+  actor: {role: owner, session: deep-time-migration-2026-10-03}
+  at: '2026-10-03T00:00:00Z'
+history:
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: executor, session: user-request}
+    kind: observed
+    note: 'Observed in the 2.1.1 and 2.1.2 Publish Package logs. Registry metadata checked: bin is intact (savepoint -> bin/savepoint.js). Not repaired; deferred by owner.'
+---
+# I-128: Every npm publish warns that the bin script name was invalid and removed
+
+## Summary
+
+`package.json` declares `"bin": {"savepoint": "./bin/savepoint.js"}`. On each publish npm prints `npm warn publish "bin[savepoint]" script name bin/savepoint.js was invalid and removed` and asks for `npm pkg fix`. The published package is fine, so this is noise, but it reads like a broken release and will hide a real warning.
+
+## Evidence
+
+Publish logs of runs 37074490185 (2.1.1) and 37078265982 (2.1.2) show the warning. `https://registry.npmjs.org/savepoint/2.1.2` reports `bin: {savepoint: bin/savepoint.js}`, and `npx savepoint@2.1.2 --version` prints `v2.1.2`.
+
+## Proof Needed
+
+`npm pkg fix` (or editing the path to `bin/savepoint.js`) leaves `package.json` valid, and `npm publish --dry-run` prints no `publish errors corrected` warning. `bin/savepoint.test.js` and `make ci` still pass, and `npx savepoint` still resolves the wrapper after a real publish. Do this with the next release; it needs no release of its own.
