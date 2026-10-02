@@ -2,13 +2,21 @@
 id: T-086
 title: Measure duplication in maintained code
 objective: O-032
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-085, requires: clear}]
 complexity_tier: spike
 complexity_reason: A global duplicate percentage cannot establish the maintained-code baseline or safe refactoring scope.
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-086
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T03:52:59Z"
 ---
 
 # Measure duplication in maintained code
@@ -137,4 +145,6 @@ Percentages depend on jscpd 5.4.0 defaults (min tokens/lines) and on my file lis
 
 ## Drift Notes
 
-Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check. If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
+Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check. Parked by owner 2026-10-02: the remaining test-setup duplication (maintained scope 4.51%, under the 5% watch line; 3% is an aim) is not scheduled. The bounded repairs are listed in the decision report above; re-measure at the Full Objective Check and plan them in a later Objective if the number drifts.
+
+If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
