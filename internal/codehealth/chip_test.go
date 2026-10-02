@@ -99,11 +99,36 @@ func TestDashboardChipMatchesStates(t *testing.T) {
 		t.Errorf("first run chip = %+v", got)
 	}
 	d := Dashboard{State: DashboardMeasured, Overall: ClassificationWatch, OverallText: "Watch", Rows: []DashboardRow{
-		{Label: ClassificationGood}, {Label: ClassificationGood}, {Label: ClassificationWatch}, {Label: ClassificationUnknown}, {Label: ClassificationGood},
+		{Capability: CapabilityTests, Label: ClassificationGood}, {Capability: CapabilityCoverage, Label: ClassificationGood},
+		{Capability: CapabilityComplexity, Label: ClassificationWatch}, {Capability: CapabilityDuplication, Label: ClassificationUnknown},
+		{Capability: CapabilityDependencyVulnerability, Label: ClassificationGood},
 	}}
 	want := Chip{State: ChipMeasured, Overall: ClassificationWatch, Label: "Watch", Good: 3, Signals: 5}
 	if got := d.Chip(); got != want {
 		t.Errorf("measured chip = %+v, want %+v", got, want)
+	}
+}
+
+func TestDashboardChipCountsSignalsNotInstances(t *testing.T) {
+	rows := func(second Classification) []DashboardRow {
+		return []DashboardRow{
+			{Capability: CapabilityTests, Label: ClassificationGood}, {Capability: CapabilityTests, Label: second},
+			{Capability: CapabilityCoverage, Label: ClassificationGood}, {Capability: CapabilityComplexity, Label: ClassificationGood},
+			{Capability: CapabilityDuplication, Label: ClassificationGood}, {Capability: CapabilityDependencyVulnerability, Label: ClassificationGood},
+		}
+	}
+	for _, tc := range []struct {
+		name   string
+		second Classification
+		good   int
+	}{
+		{"every instance good", ClassificationGood, 5},
+		{"worst instance not good", ClassificationNeedsAttention, 4},
+	} {
+		d := Dashboard{State: DashboardMeasured, Rows: rows(tc.second)}
+		if got := d.Chip(); got.Signals != 5 || got.Good != tc.good {
+			t.Errorf("%s: chip = %d/%d, want %d/5", tc.name, got.Good, got.Signals, tc.good)
+		}
 	}
 }
 

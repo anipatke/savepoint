@@ -146,7 +146,7 @@ func (h *HealthOverlay) rows() []codehealth.DashboardRow {
 		case !seen:
 			index[row.Capability] = len(out)
 			out = append(out, row)
-		case worseInstance(row, out[at]):
+		case codehealth.WorseInstance(row, out[at]):
 			out[at] = row
 		}
 	}
@@ -156,21 +156,6 @@ func (h *HealthOverlay) rows() []codehealth.DashboardRow {
 		}
 	}
 	return out
-}
-
-// worseInstance orders instances of one signal: blocking first, then by label.
-func worseInstance(a, b codehealth.DashboardRow) bool {
-	if a.BlocksSignOff() != b.BlocksSignOff() {
-		return a.BlocksSignOff()
-	}
-	return healthSeverity[a.Label] > healthSeverity[b.Label]
-}
-
-var healthSeverity = map[codehealth.Classification]int{
-	codehealth.ClassificationGood:           0,
-	codehealth.ClassificationWatch:          1,
-	codehealth.ClassificationUnknown:        2,
-	codehealth.ClassificationNeedsAttention: 3,
 }
 
 // groupedRow labels the worst of n instances as such.

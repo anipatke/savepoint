@@ -16,7 +16,8 @@ const (
 )
 
 // Chip is the small glance at overall health: the newest saved snapshot's
-// overall label and how many of the signals are Good. Counts are set only when
+// overall label and how many of the signals are Good, one count per signal
+// however many instances it has. Counts are set only when
 // State is ChipMeasured.
 type Chip struct {
 	State   ChipState
@@ -47,13 +48,42 @@ func (d Dashboard) Chip() Chip {
 	case DashboardFirstRun:
 		return Chip{State: ChipNoCheck}
 	}
-	c := Chip{State: ChipMeasured, Overall: d.Overall, Label: d.OverallText, Signals: len(d.Rows)}
+	c := Chip{State: ChipMeasured, Overall: d.Overall, Label: d.OverallText}
+	worst := map[Capability]DashboardRow{}
+	var order []Capability
 	for _, row := range d.Rows {
-		if row.shownLabel() == ClassificationGood {
+		at, seen := worst[row.Capability]
+		if !seen {
+			order = append(order, row.Capability)
+		}
+		if !seen || WorseInstance(row, at) {
+			worst[row.Capability] = row
+		}
+	}
+	c.Signals = len(order)
+	for _, capability := range order {
+		if worst[capability].shownLabel() == ClassificationGood {
 			c.Good++
 		}
 	}
 	return c
+}
+
+// WorseInstance orders instances of one signal: blocking first, then by label
+// severity. A signal with several instances stands for its worst one, on the
+// chip and in the popover alike.
+func WorseInstance(a, b DashboardRow) bool {
+	if a.BlocksSignOff() != b.BlocksSignOff() {
+		return a.BlocksSignOff()
+	}
+	return instanceSeverity[a.Label] > instanceSeverity[b.Label]
+}
+
+var instanceSeverity = map[Classification]int{
+	ClassificationGood:           0,
+	ClassificationWatch:          1,
+	ClassificationUnknown:        2,
+	ClassificationNeedsAttention: 3,
 }
 
 // LatestSnapshot returns the newest stored snapshot by the order LoadSnapshots
