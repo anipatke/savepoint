@@ -1,8 +1,8 @@
 # Changelog
 
-## v2.1 — Code Health
+## v2.1.0 — Code Health
 
-Not yet released. The package version is bumped when the branch merges.
+Released 2026-10-03.
 
 ### Added
 
