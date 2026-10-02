@@ -114,11 +114,12 @@ shows what would change. Skills you've edited are kept.
 
 ## FAQ
 
-**Will it save you tokens?** No goddamn idea. I don't know how to measure that.
-**Is it secure?** Sounds like a question for someone who's actually read the code.
-**Is it production ready?** What's a production?
-**What's the roadmap?** Depends how loudly you complain.
-**What does it cost?** Nothing financially. Emotionally, unclear.
+**Why a TUI?** Because it makes me feel like Crash Override from the movie *Hackers*.  
+**Will it save you tokens?** No goddamn idea. I don't know how to measure that.  
+**Is it secure?** Sounds like a question for someone who's actually read the code.  
+**Is it production ready?** What's a production?  
+**What's the roadmap?** Depends how loudly you complain.  
+**What does it cost?** Nothing financially. Emotionally, unclear.  
 
 It's fully local, with no server, no account and no telemetry. Try it, break
 it, tell me what's stupid.

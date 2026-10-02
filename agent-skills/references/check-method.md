@@ -5,54 +5,18 @@ triggerable: false
 
 # Shared Savepoint Check Method
 
-This reference is not a skill and never triggers on its own. It is loaded in
-full by `savepoint-check`, which owns the Check trigger, scope, evidence mode,
-and output contract. `savepoint-task` and `savepoint-design` reference it but
-do not run it themselves.
+This non-triggerable reference is loaded in full by `savepoint-check`, which owns the trigger, scope, mode, and record. Design and Task reference it but never run a Check themselves. Apply AGENTS.md's Verification Policy for waivers, dependencies, gates, and completion authority.
 
-Read this method completely and apply it at the Check's evidence mode:
-Quick follows the Quick Check Procedure, Full applies every section. A Task Check is
-optional and runs only when requested or selected by the owner; the Full
-Objective Check is mandatory at Objective closure.
-
-Where this method names `.savepoint/Guardrails.md` or an optional project
-verification procedure, use them when the project has them and skip the
-related step when they are absent; absence is not an Issue.
+Use Guardrails and optional project verification procedures when present; skip the related steps when absent. Absence is not an Issue.
 
 ## Task Check And Objective Check Depth
 
-A Task Check is focused and optional: one Task's outcome and evidence against
-its own acceptance criteria, plan, and scoped files. If the owner skips this
-local Check, the Task evidence must record an explicit waiver naming the Task,
-reason, actor, and time. A waiver is not technical `CLEAR` and does not waive
-an acceptance criterion or guardrail. It does satisfy a downstream Task
-dependency that requires `clear` — the owner's own completion decision
-stands in there — but never one that requires `accepted`, since there is no
-Check for the owner to have accepted.
-
-An Objective Check does everything a Task Check does, plus integration across
-the Objective's Tasks and reconciliation against Design. It is mandatory and
-must inspect every owned Task, including Tasks whose optional Task Check was
-waived. A Task-only clearance never substitutes for the Objective's own Check.
+A requested Task Check evaluates one Task's acceptance criteria, plan, evidence, and scoped files. The mandatory Objective Check additionally covers every owned Task, including waived Tasks, cross-Task integration, and Design reconciliation. Task clearance never substitutes for Objective clearance; an owner waiver never waives acceptance criteria or guardrails.
 
 ## Quick And Full Evidence Modes
 
-- **Quick** — run only when the optional Task Check is requested. Scope is the
-  one Task: its acceptance criteria, its scoped files, and directly relevant
-  `.savepoint/Guardrails.md` rules. Quick evidence is never an automatic gate
-  at every Task handoff. It follows the Quick Check Procedure below.
-- **Full** — run for the mandatory Objective Check. Scope adds every member
-  Task's outcome, cross-Task integration, and reconciliation against Design.
-  It applies every section of this method.
-
-Both modes apply `.savepoint/Guardrails.md` when the project has it and skip
-that step when it is absent. Both modes may run an optional project
-verification procedure when the project defines one and skip that step when
-it does not exist. Neither absence is an Issue; it is a skipped step.
-
-Skipping an optional Task Check is not itself an Issue when the owner waiver is
-present. The mandatory Objective Check still evaluates the Task's evidence and
-any material guardrail or integration risk.
+- **Quick** — optional, only when the owner requests or selects a Task Check. Follow the Quick Check Procedure below; never add an automatic Check to every handoff.
+- **Full** — mandatory for Objective closure; apply every section of this method.
 
 ### Quick Check Procedure
 
@@ -111,8 +75,7 @@ For every acceptance criterion:
 1. Restate it internally as a general rule, not as one example.
 2. List the inputs, state transitions, output paths, environment modes, and
    public entry points that can affect the rule.
-3. Check the normal case, boundary values, malformed input, failure behavior,
-   and at least one bypass path.
+3. Check normal, boundary, malformed-input, and failure cases, plus at least one bypass path. Full mode uses the applicable matrix axes below.
 4. Run at least one independent scenario that is not merely an existing unit
    test repeated unchanged.
 5. Record the expected result, actual result, and concrete evidence.
@@ -220,26 +183,16 @@ shrink the matrix.
 
 ## Perform The Adversarial Pass
 
-Full mode only. A Quick Task Check uses the Quick Check Procedure instead.
+Full mode only. Ask every applicable question below to challenge the completed coverage and workflow matrices:
 
-Ask every applicable question: can validation be bypassed through another
-constructor, factory, direct public API, serialization form, or environment
-path? Can state move backward, skip forward, overlap, revive after
-completion, or continue after failure? Can switching modes or
-representations bypass a monotonicity, ownership, authorization, idempotency,
-or safety check? Can redirected, no-colour, non-interactive, failure, retry,
-or timeout output lose required information or expose forbidden information?
-What happens immediately below and above every documented limit? Does a
-Unicode, parser, date/time, pagination, or numeric example cover the whole
-input class, or only the tested sample? Can duplicate, empty, missing,
-non-finite, mixed-type, or unexpected values create an impossible model or
-unhandled exception? Are tests checking an independent outcome, or reusing
-the implementation's own calculation and assumptions?
+- Can another constructor, factory, public API, serialization form, or environment path bypass validation?
+- Can backward, skipped, overlapping, revived, or post-failure transitions violate the invariant?
+- Can mode or representation changes bypass monotonicity, ownership, authorization, idempotency, or safety?
+- Can redirected, no-colour, non-interactive, failure, retry, or timeout output lose required information or expose forbidden information?
+- Do boundary, Unicode, parser, date/time, pagination, and numeric probes establish the relevant input class rather than one sample? Can duplicate, empty, missing, non-finite, mixed-type, or unexpected values create an impossible model or unhandled exception?
+- Do tests use an independent outcome, rather than the implementation's own calculation and assumptions?
 
-For state machines, structured events, parsers, renderers, auth boundaries,
-billing, persistence, jobs, or multi-step writes, build a small behavior
-matrix for relevant inputs and transitions. Do not rely on informal spot
-checks.
+For state machines, structured events, parsers, renderers, auth, billing, persistence, jobs, and multi-step writes, verify relevant inputs and transitions through the required matrices; informal spot checks do not suffice.
 
 ## Re-check After Remediation
 
@@ -315,7 +268,7 @@ collects health.
    Health is not configured"; record "Code Health not configured" in the Check
    body, omit `health_snapshot`, and do not treat it as a finding.
 4. Treat the verdict as supporting evidence, never as `CLEAR` or as proof the
-   Objective is healthy. A verdict that says "blocks clearance" prevents
+   Objective is healthy. Blockers include failing tests, high/critical vulnerabilities, required instances that failed or are stale, and opt-in `blocking` rules. A verdict that says "blocks clearance" prevents
    `CLEAR`: record the Issues behind it and result `NEEDS WORK`. A verdict that
    "does not block clearance" neither grants nor withholds `CLEAR`.
 5. Keep collection failure, incomplete coverage, stale reports, unhealthy

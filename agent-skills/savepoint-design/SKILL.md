@@ -7,9 +7,9 @@ description: Maintains Savepoint Design and Guardrails and the current Objective
 
 ## Purpose
 
-Own the project's technical shape at exactly the grain the next unit of work needs: `Design.md` describes implemented reality, `Guardrails.md` holds durable constraints, and one Objective at a time carries detailed Tasks. Everything further out stays a named outcome with Boundaries, not a plan, because detailed plans written ahead of the decisions that shape them are the thing that gets thrown away.
+Own the technical shape needed by the next unit of work: `Design.md` describes implemented reality, `Guardrails.md` holds durable constraints, and one Objective at a time carries detailed Tasks. Later Objectives stay named outcomes with Boundaries.
 
-This skill does not write production code, and it does not settle product choices that belong to the owner. Technical readiness does not require the owner to review code.
+Do not write production code. Route product choices to the owner; technical readiness does not require the owner to review code.
 
 ## Trigger
 
@@ -35,14 +35,23 @@ Read nothing else. Do not detail Tasks for any Objective beyond the next one, an
 1. Read the router, the Idea when present, Design, Guardrails, and the current Objective.
 2. Update `Design.md` to describe implemented reality, and `Guardrails.md` to hold durable project constraints; keep Objective deltas as the record of planned change until reconciliation. Describe confirmed Code Health tools (the owner's `.savepoint/health/config.json`) in `Design.md` in plain words; the exact commands stay in that file.
 3. Keep exactly one Objective active. Objectives beyond it stay named outcomes with Boundaries — no detailed Tasks.
-4. Before detailing an Objective's Tasks, inspect its stated requirements against Idea, Design, Guardrails, dependencies, and targeted evidence. Ask the owner about material product or verification choices that are missing, ambiguous, or contradictory; do not fill those gaps by assumption. Summarize the proposed outcome, success conditions, boundaries, and key technical decisions in plain language, and obtain the owner's explicit design confirmation. Record confirmed decisions in the Objective. Then apply the readiness gate below; do not detail Tasks for an unconfirmed or unready Objective.
+4. Before detailing an Objective's Tasks, inspect its stated requirements against Idea, Design, Guardrails, dependencies, and targeted evidence. Use the Objective Decision Interview below to resolve material choices that are missing, ambiguous, or contradictory; do not fill product or verification gaps by assumption. Summarize the proposed outcome, success conditions, boundaries, and key technical decisions in plain language, and obtain the owner's explicit design confirmation. Record confirmed decisions in the Objective. Then apply the readiness gate below; do not detail Tasks for an unconfirmed or unready Objective.
 5. After confirmation, detail the implementation Tasks as ID-free drafts through `savepoint create-task`, then present the plan for owner review before routing to execution. In that review, name the parallel lanes in plain words, for example "T-101 and T-102 can run side by side in worktrees; T-103 waits for both." A confirmed Objective design is not approval to implement or to mark a Task done.
 6. When the implementation approach for a piece of work is unknown, write a bounded research Task with a named decision deliverable instead of a confident plan the executor will discover is fiction.
-7. Split any Task that carries multiple unrelated outcomes or an unresolved architectural decision into separate Tasks. Where practical, shape Tasks so independent ones can run side by side in worktrees: no `depends_on` path between them and no overlapping Context Files. Keep work that genuinely shares files in one sequential lane rather than forcing a split.
+7. Split a Task that carries multiple unrelated outcomes or an unresolved architectural decision into separate Tasks. Where practical, shape Tasks so independent ones can run side by side in worktrees: no `depends_on` path between them and no overlapping Context Files. Keep work that genuinely shares files in one sequential lane rather than forcing a split.
 8. When an executor returns `REPLAN REQUIRED`, treat it as re-entry here: reassess Design, Guardrails, or the Objective as needed, then resume from step 3.
-9. Route product choices to the owner instead of inferring them. Technical readiness — settled interfaces, scoped constraints, known dependencies, a verification approach — does not require the owner to review code, but the Objective design and material requirements still require explicit owner confirmation before Task detailing.
-10. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here. When the work touches processes, paths, signals, or file replacement, also name in its Technical Verification the platform evidence the Full Check needs (for example the native Windows CI job) and who produces it, so it exists before the Check starts; the project's own gates still decide.
-11. When the next Objective's Tasks are detailed and approved, select that Objective and its first unblocked planned Task in the router, set `state: task`, and hand off to `savepoint-task`. Follow AGENTS.md's Router Selection section; do not write a free-text next action.
+9. When a Task needs a verification approach, name it and reference `agent-skills/references/check-method.md` for how it will later be evaluated; do not restate that method here. When the work touches processes, paths, signals, or file replacement, also name in its Technical Verification the platform evidence the Full Check needs (for example the native Windows CI job) and who produces it, so it exists before the Check starts; the project's own gates still decide.
+10. When the next Objective's Tasks are detailed and approved, select that Objective and its first unblocked planned Task in the router, set `state: task`, and hand off to `savepoint-task`. Follow AGENTS.md's Router Selection section; do not write a free-text next action.
+
+## Objective Decision Interview
+
+Before the design confirmation in workflow step 4, identify unresolved decisions or assumptions that could change the current Objective's outcome, success conditions, boundaries, interfaces, data ownership, dependencies, or verification. Challenge them against Idea, Design, Guardrails, and targeted evidence allowed by Read. Answer factual questions from that evidence yourself; ask the owner about material product or verification choices.
+
+Ask one material decision at a time, starting with decisions that constrain later ones, and wait for the answer. Use an available structured question tool, or plain text when none is available. Offer concrete options with their tradeoffs and recommend one when justified. Briefly state each settled decision, then follow any consequential uncertainty it exposes. Do not reopen settled choices without new evidence or changed requirements.
+
+Keep the interview scoped to the current Objective. Stop when its material choices are settled and the Readiness Gate can be applied; unknown technical feasibility or implementation approach may instead need a bounded research Task with a named decision deliverable. Do not ask the owner to establish facts that require research, or detail distant work to resolve every possible branch.
+
+Summarise the settled outcome, success conditions, boundaries, and key technical decisions for the existing explicit design confirmation; this interview adds no approval checkpoint. Record confirmed planned decisions in the Objective, keeping `Design.md` about implemented reality. On `REPLAN REQUIRED`, repeat the interview only for decisions affected by what broke, then follow the same confirmation and readiness requirements.
 
 ## Task Creation
 
@@ -58,45 +67,11 @@ For example, planners working concurrently on O-014 and O-015 each prepare an ID
 
 ## Verification Contract
 
-Apply this contract to every implementation, not only to migration work:
-
-- Every Task needs implementation evidence and configured quality-gate results.
-- A Task Check is optional. If the owner skips it, record an explicit waiver
-  in the Task evidence naming the Task, reason, actor, and time. The waiver is
-  not technical `CLEAR` and does not waive acceptance criteria or guardrails.
-  It satisfies a Task dependency that requires `clear` — the waiver stands in
-  as the owner's own completion decision — but never one that requires
-  `accepted`, since there is no Check for the owner to have accepted.
-- The Full Objective Check is mandatory before Objective closure. It reviews
-  every owned Task, including waived Tasks, cross-Task integration, and
-  reconciliation against this Design.
-- A Goal is complete when every member Objective is complete.
-- Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml`, plus any fuller gate the project's `AGENTS.md` names. Focused runs are for iteration; ordinary Task handoff runs the configured build and test gates; migration/platform-sensitive Task handoff and Full Objective Checks require the project's full gate.
-- Reuse a successful full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged. A change to any of those inputs requires a fresh full run.
+Apply AGENTS.md's Verification Policy to every implementation: per-criterion evidence and configured gates, an explicit owner waiver when a Task Check is skipped, and mandatory Full Objective integration including waived Tasks. Plan verification and owner validation accordingly; never substitute a Task-only result or waiver for Objective clearance.
 
 ## Required Goal Context
 
-Every Savepoint project must have at least one live Goal selected by the router,
-and every live Objective must name exactly one live Goal in its `release:`
-field.
-If the router Goal is missing, blank, or `none`, Next says `Choose a Goal`;
-select a live Goal with `g`. Unknown or archived router selections are
-reported as selection diagnostics; choose a live Goal with `g`. If no live
-Goal exists, `savepoint doctor` directs the owner to create one. An Objective missing
-`release:` remains loadable, but resume and the board flag it and doctor names
-the Objective and the exact `release:` repair using an `R-###` or `G-###` Goal ID. Unknown or malformed
-Objective references remain errors.
-
-`savepoint init` creates and selects G-001, titled after the project, with
-stub sections for Outcome, Why, Success Conditions, and Boundaries. Idea fills
-those sections with the owner. Projects converted by `savepoint migrate` keep
-their R-### Goal identities.
-
-Existing V2 storage remains Release-compatible: existing Goals keep their
-stable `R-###` identities, paths, and references; new Goals use stable `G-###`
-identities in `.savepoint/releases/<slug>/Release.md`. Objectives and router
-selection retain the `release:` field for compatibility. A
-Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
+Every Savepoint project must have at least one live Goal selected by the router, and every live Objective must name exactly one live Goal through `release:`. Apply AGENTS.md's Required Goal Context for identity compatibility, storage, diagnostics, and migration. `savepoint init` supplies G-001; `savepoint migrate` preserves converted R-### identities. If Next says `Choose a Goal` or `savepoint doctor` reports a missing Goal, report it to the owner; do not infer a selection.
 
 When adding another Goal:
 
@@ -104,7 +79,7 @@ When adding another Goal:
 2. Author the Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`. The outcome describes the grouped Objectives' result, not whether anything has been published or deployed.
 3. Give each member Objective the required `release:` compatibility field containing its Goal's R-### or G-### identity. Derive membership from those Objective records; do not maintain a second membership list.
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
-5. Treat Goal completion as derived from its Objectives: a Goal is complete when every member Objective is complete. It does not mean published or deployed.
+5. A Goal is complete when every member Objective is complete; completion is derived, not a publishing action.
 
 ### Goal Workflow Retrospective
 
@@ -188,23 +163,15 @@ Reopening an existing V2 project shows selected work, recorded Check freshness, 
 
 ## User Check
 
-If the owner requests a local Task Check, open a project with a Task awaiting
-that Check; invoke resume as the human; confirm Task/outcome, owner-wait
-distinction, evidence date, and next action match the board. No automatic
-command execution or newly written evidence should appear. If the owner waives
-the local Check, record the waiver in Task evidence and rely on the mandatory
-Full Objective Check for integration.
+Open a project awaiting a Check; invoke resume and compare selection, owner-wait state, evidence date, and Next with the board. Confirm no evidence collection or project writes.
 
 ## Done When
 
-Correct Task/Objective and next action; stale/unknown evidence is explicit;
-malformed/missing selection is named; file bytes and mtimes unchanged; an
-optional Task Check is either current or explicitly waived; required owner
-validation is recorded after the mandatory integration evidence.
+Correct selection and Next; explicit stale/unknown evidence; named malformed/missing selection; unchanged file bytes and mtimes. Apply the Verification Contract for Check evidence; record required owner validation after mandatory integration evidence.
 
 ## Context Files
 
-Name exact paths only — no globs, no directory-only entries: `src/commands/status.ts`, `src/commands/status.test.ts` (command pattern); `src/project/index.ts` (shared index/projection); `src/cli.ts`; `src/resume/render.ts`, `src/resume/render.test.ts`.
+Name exact paths only — no globs, no directory-only entries: `src/commands/status.ts`, `src/commands/status.test.ts`, `src/project/index.ts`, `src/cli.ts`, `src/resume/render.ts`, `src/resume/render.test.ts`.
 
 ## Design References
 
@@ -218,7 +185,7 @@ FS-01, FS-03, DATA-02, DATA-03, ARCH-01, ARCH-03, TEST-01..04, TEST-08.
 
 1. Confirm the preceding project/Next APIs exist; return REPLAN REQUIRED if they do not.
 2. Add thin resume argument handling with named errors.
-3. Add a renderer for the resolved projection: Objective/Task, outcome, implementation vs technical vs owner state, Issues, evidence basis/date, and Next.
+3. Render selection, outcome, implementation/technical/owner states, Issues, evidence basis/date, and Next.
 4. Keep presentation deterministic; no subprocess to generate evidence.
 5. Wire main dispatch through the injected runner pattern.
 6. Verify awaiting Check, awaiting owner, stale/unknown evidence, missing target, malformed router, no Task yet, and writer failure.
@@ -229,7 +196,7 @@ No new Task states, evidence collection, Objective creation, automatic model rou
 
 ## Technical Verification
 
-Focused tests during iteration; the configured build and test gates for ordinary Task handoff; the project's full gate for migration/platform-sensitive work and Full Objective Checks.
+Focused tests during iteration; handoff and Full Check gates from AGENTS.md's Verification Policy.
 
 ## Technical Evidence
 
@@ -237,12 +204,12 @@ Pending execution: named cases, results, reviewed source basis, files read/chang
 
 ## Drift Notes
 
-New module or architecture delta beyond the documented Codebase Map, reconciled through the planner before Check.
+Record architecture deltas and reconcile through the planner before Check.
 ```
 
 `title` and `objective` are separate required fields with different jobs. `title` is a short, plain-English phrase written for the task's owner; it must never be the Outcome text, a truncation of it, or a restatement of the technical objective. `objective` is always an `O-###` reference to the owning Objective, never free text, and every Task belongs to exactly one Objective. `owner_validation.required` and `planned_by` are recorded at planning time, not left as placeholders.
 
-Title readability itself — whether a generated title actually reads clearly to the owner — is evaluated by agent scenarios in E50; the checks in this repository assert only that `title` and `objective` are distinct required fields and that the no-reuse rule above is stated, not that any given title reads well.
+Evaluate title readability through owner-facing scenarios; field validation alone does not establish that a title reads clearly.
 
 ## Design Template
 
@@ -285,11 +252,4 @@ When any of these is not yet true, that gap is the thing to resolve next — eit
 
 ## Rules
 
-- Write only `Design.md`, `Guardrails.md`, the current Objective, the next Objective's detailed Tasks, and the routing handoff. Do not write production code, and do not detail backlog beyond the next Objective.
-- An unknown implementation approach becomes a bounded research Task with a named decision deliverable, not a speculative plan.
-- Split a Task that carries multiple unrelated outcomes or an unresolved architectural decision.
-- Do not create a Goal merely to fill the template, and do not add a Goal-owned Task list or a separate Goal helper document.
-- `title` must never be the Outcome text, a truncation of it, or a restatement of the technical objective; it is a short, plain-English phrase for the task's owner.
-- Route product choices to the owner; do not settle them by inference. Technical readiness does not require the owner to review code.
-- Reference `agent-skills/references/check-method.md` for verification method; do not restate it here.
-- Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
+Write only Design, Guardrails, the current Objective, the next Objective's detailed Tasks, and the routing handoff; never production code or detailed backlog beyond the next Objective. Apply AGENTS.md's lifecycle terminology, verification policy, and owner authority. Keep Task titles distinct from outcomes and Objective references as the artifact contract requires.

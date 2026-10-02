@@ -7,7 +7,7 @@ description: Runs an independent, fresh-session Check on an explicitly requested
 
 ## Purpose
 
-Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate. This is the only role that can write those verdicts or close Issues as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
+Write an independent, immutable verdict for an optional requested Task Check or mandatory Full Objective Check. Remediation goes to the planner or executor and is verified in a later run; this role cannot repair work to manufacture clearance.
 
 ## Goal Context
 
@@ -18,7 +18,7 @@ Every Savepoint project has at least one live Goal selected by the router, and e
 Use this skill when the `Next` line starts with `Check`, or router `state` is `check`, for an explicitly requested
 Task Check or for a mandatory Objective Check. A pasted `Next` line is the selection.
 
-This session must be fresh: independent from the executor's conversation that built the work under review. The same model is allowed; the same session is not. Model names are optional — nothing here authenticates identity, it only refuses to treat the executor's own session, or the owner's or planner's self-report, as an independent Check.
+This session must be fresh: independent from the executor's conversation that built the work under review. The same model is allowed; the same session is not. Model names are optional; names or owner/planner self-report do not establish independence.
 
 ## Next
 
@@ -34,39 +34,28 @@ Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is 
 - The scoped source and test files the work actually changed
 - `agent-skills/references/check-method.md` in full
 
-Load `agent-skills/references/check-method.md` completely and apply it as written. It owns scope locks, coverage matrices, the adversarial pass, materiality, and re-audit convergence; this skill does not restate that method.
+Load `agent-skills/references/check-method.md` in full and apply its selected mode; this skill does not restate that method.
 
 ## Workflow
 
-1. Confirm the session is fresh. If this session built the work under review, state that limitation; do not proceed as an independent Check unless the user explicitly asks to continue anyway.
+1. Confirm the session is fresh. If this session built the work under review, stop and hand off to a fresh session. An owner-requested self-review may provide observations, but never writes a Check record or satisfies the independent Check gate.
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check.
-   For a Full Objective Check, after the full gate passes run `savepoint health check O-### [dir]` and record its snapshot ID as `health_snapshot` (see Code Health Evidence below). A Task Check never runs it.
 4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`. After writing the record, run `savepoint resume` to strict-load the complete V2 index, including the new Check.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is a direct repair under the recorded Issue by default, or new or newly selected work linked to the Objective only when the repair needs planning (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective outcome.
-7. Record advisory observations as non-blocking, and fill the record's `## Code Style Review` checklist as `check-method.md` describes; neither changes the result.
+7. Treat advisory observations, including `STYLE` guardrail rules, as non-blocking. Fill the `## Code Style Review` checklist as the method describes; neither changes the result.
 8. Stop. Do not repair implementation, rewrite acceptance criteria, or update Design as part of this run.
 
 ## Verification Gates
 
-A requested Task Check uses Quick evidence and remains optional; it does not replace handoff gates or mandatory integration evidence. Full Objective Checks use Full evidence and require current successful evidence from the project's full gate — `quality_gates` in `.savepoint/config.yml`, or the fuller gate the project's `AGENTS.md` names. A recorded full result is reusable only for a metadata-only correction with the original run documented and code, tests, fixtures, dependencies, and gate definitions proven unchanged since that run; otherwise require a fresh full run.
+Follow AGENTS.md's Verification Policy and the selected method mode. Quick is optional and does not replace handoff gates; Full requires current successful full-gate evidence. Apply the shared metadata-only reuse requirements; otherwise run the full gate fresh.
 
 ## Code Health Evidence
 
-Only a Full Objective Check collects Code Health. Run the full gate first, then `savepoint health check O-### [dir]`; the health tests and coverage read the gate's reports, so tests are not run twice. Record the printed snapshot ID in the Check's `health_snapshot` field. The command saves only an `official` snapshot; a manual snapshot never counts as Check evidence.
+Only a Full Objective Check runs `savepoint health check O-### [dir]`, after the full gate, and records its official snapshot ID in `health_snapshot`. Apply `check-method.md`, Collect Code Health Evidence, for absent configuration, verdict blockers, optional failures, stale reports, and Issue admission. Manual snapshots never count; `savepoint health setup` and `savepoint health report` are human-only.
 
-The verdict is supporting evidence, not clearance. A verdict that blocks clearance (a failing test, a high or critical vulnerability, a required instance that failed or is stale, or an opt-in `blocking` rule) prevents `CLEAR`. A project with no health configuration records "Code Health not configured"; that is not a finding. Optional failures and warnings never create Issues automatically: open one only through the existing Issue capture judgment. A signal between the aim and the watch line in `.savepoint/health/config.json` is an observation, never an Issue and never a reason for `NEEDS WORK`; list what remains in the Check body. `savepoint health setup` is human-only. Method details are in `agent-skills/references/check-method.md`.
-
-## Write Boundary
-
-This skill may write: the Check record, Issues, evaluation metadata, and
-authorized closure evidence when the closure rules below allow it. It may
-record that a Task or Objective is ready for owner closure, but it never sets
-Task/Objective status to `done`; it never records owner acceptance on the
-owner's behalf.
-
-It must never: repair implementation, edit acceptance criteria to match a result, or update Design as a form of remediation. A correction is always routed back to the planner or executor, and a later Check — a new record, never an edit to this one — verifies that the repair actually landed.
+A signal between the aim and the watch line in `.savepoint/health/config.json` is an observation, never an Issue and never a reason for `NEEDS WORK`; list what remains in the Check body. The health verdict supports evidence; it never grants clearance.
 
 ## Check Artifact Template
 
@@ -105,7 +94,7 @@ probes, applicable Guardrails, the `## Code Style Review` checklist when
 Guardrails defines `STYLE-*` rules, owner validation still needed, and
 nonblocking observations.
 
-Each run writes a new record with a new `C-###`. A recheck never edits the superseded record; it sets its own `supersedes` and leaves the prior run intact as history.
+A recheck never edits the superseded record; its new `C-###` sets `supersedes`, leaving the prior run intact.
 
 ## Closure Rules
 
@@ -130,12 +119,6 @@ template and rules. This skill may close an Issue as
 
 ## Rules
 
-- This session must be independent from the executor's conversation under review; state the limitation plainly when it is not, and do not call the result independent unless the user explicitly says to continue anyway.
-- Load and apply `agent-skills/references/check-method.md` in full; do not restate its scope-lock, coverage-matrix, adversarial-pass, materiality, or convergence mechanics here.
-- Write only the Check record, Issues, evaluation metadata, and authorized closure. Never repair implementation, edit acceptance criteria, or update Design as remediation — route corrections back to the planner or executor.
-- Every Check run is a new immutable `C-###` record; a recheck sets `supersedes` and never edits a prior run.
-- Apply Quick evidence only for a requested Task Check. Apply Full evidence for the mandatory Objective Check; it additionally covers cross-Task integration and Design reconciliation. A Task-only Check never substitutes for the mandatory Objective integration gate.
-- A `NEEDS WORK` result records Issues and hands remediation to the executor or planner. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task; an Objective Check's `NEEDS WORK` instead routes remediation to a direct repair under the Issue, or to new or newly selected work linked to the Objective when the repair needs planning, and must never retreat a Task that is already `done`.
-- Apply the closure rules above exactly; do not use stale, unknown, or missing clearance to satisfy an invoked Task Check or the mandatory Objective Check, and do not treat a Task-check waiver or other exception as a `CLEAR` result.
-- Treat advisory observations, including `STYLE` guardrail rules, as non-blocking; record them, but never let them change the result on their own.
-- Use `state` only for router phase, Task `status` only for Task lifecycle, and `stage` only when the Task is `in_progress`.
+This skill may write: the Check record, Issues, evaluation metadata, and authorized closure evidence under Closure Rules. It may record readiness for owner closure, but never sets Task/Objective `status: done` or records owner acceptance on the owner's behalf.
+
+Never repair implementation, edit acceptance criteria to match a result, or update Design as a form of remediation. Route correction back to the planner or executor; verify it in a later immutable record. Apply AGENTS.md's lifecycle terminology.

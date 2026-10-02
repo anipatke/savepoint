@@ -115,10 +115,17 @@ func TestV2ScaffoldRouterOpensAtIdeaWithObjectiveField(t *testing.T) {
 	assertContains(t, content, "state: idea")
 	assertContains(t, content, "objective:")
 	assertContains(t, content, "release: G-001")
-	assertContains(t, content, "| idea | savepoint-idea |")
-	assertContains(t, content, "| design | savepoint-design |")
-	assertContains(t, content, "| task | savepoint-task |")
-	assertContains(t, content, "| check | savepoint-check |")
+	assertContains(t, content, "AGENTS.md's Workflow and Skill Activation")
+	assertContains(t, content, "only the active skill's Read section and Task Context Files")
+	assertNotContains(t, content, "## Read order")
+	assertNotContains(t, content, "## Verification Policy")
+
+	// The router delegates routing to the guide; all four mappings must still
+	// exist in that destination rather than being duplicated in the router.
+	agents := readTemplate(t, filepath.Join("..", ".."), "templates", "project-v2", "AGENTS.md")
+	for _, mapping := range []string{"| idea | savepoint-idea |", "| design | savepoint-design |", "| task | savepoint-task |", "| check | savepoint-check |"} {
+		assertContains(t, agents, mapping)
+	}
 
 	for _, v1State := range []string{"pre-implementation", "epic-design", "epic-task-breakdown", "task-building", "audit-pending", "defect-building"} {
 		assertNotContains(t, content, "state: "+v1State)

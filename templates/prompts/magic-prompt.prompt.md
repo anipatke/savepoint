@@ -1,9 +1,5 @@
-<!-- AGENT: Read AGENTS.md, then .savepoint/router.md. Follow the router's next action. -->
+This project uses Savepoint. Read `AGENTS.md`, then follow its Workflow: use the owner's pasted Next line or run read-only `savepoint resume`; activate the selected skill and follow its read budget. The router holds selection, not a free-text next action.
 
-This project uses Savepoint for AI-driven development workflows.
-
-To start, read `AGENTS.md` in the project root for workflow rules and the codebase map. Then read `.savepoint/router.md` for the current state and next action. Follow the router's instructions.
-
-A single rough sentence about what you want to build is a valid starting point — no prepared requirements document is needed first. Hand that sentence to `savepoint-idea` and let it take it from there.
+A single rough sentence is a valid starting point for `savepoint-idea`; no prepared requirements document is needed.
 
 Project: {{PROJECT_NAME}}

@@ -337,8 +337,8 @@ func TestSavepointDesignSkillTaskTitleNoReuseRule(t *testing.T) {
 		if !strings.Contains(content, "every Task belongs to exactly one Objective") {
 			t.Errorf("%s: %s does not state one-Objective Task membership", tree, path)
 		}
-		if !strings.Contains(content, "E50") {
-			t.Errorf("%s: %s does not note title readability is evaluated by E50 agent scenarios", tree, path)
+		if !strings.Contains(content, "Evaluate title readability through owner-facing scenarios") || !strings.Contains(content, "field validation alone does not establish that a title reads clearly") {
+			t.Errorf("%s: %s does not require owner-facing title readability evaluation beyond field validation", tree, path)
 		}
 	})
 }

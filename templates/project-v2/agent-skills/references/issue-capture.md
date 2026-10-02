@@ -5,9 +5,9 @@ triggerable: false
 
 # Shared Savepoint Issue Capture
 
-This reference is not a skill and never triggers on its own. `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter Issue capture as an entry from their own workflow and point here instead of restating these rules; the rule prose lives in this file alone.
+This non-triggerable reference owns Issue capture for Design, Task, and Check; each enters it from its own workflow.
 
-An Issue is a record, not a phase: durable follow-up is captured from wherever it is noticed — a planner spotting drift, an executor hitting something out of scope, a checker recording a blocker — without a fourth router state or a separate defect phase. "Defect" stays a word the user says; it maps to `type: defect` and does not resurrect a separate defect record, status, or public phase in V2.
+An Issue captures durable follow-up from planning, execution, or Check; it is a record, not a fifth router state. "Defect" stays a word the user says; it maps to `type: defect` and does not resurrect a separate defect record, status, or public phase in V2.
 
 ## Issue Artifact Template
 
@@ -57,13 +57,11 @@ history:
 
 `type` is descriptive: it names what kind of durable follow-up this is, and it is never sufficient on its own to block a Task. Material blocking comes from a Check recording `NEEDS WORK` against an acceptance criterion or guardrail, not from an Issue's `type`.
 
-An optional Task Check may be absent under an explicit owner waiver; that
-absence is not an Issue and does not waive the mandatory Full Objective Check
-or any of its acceptance criteria.
+A Task Check skipped under an explicit owner waiver is not an Issue; apply AGENTS.md's Verification Policy.
 
 ## Search Before Creating
 
-Before allocating an `I-###`, look for an existing Issue matching the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed: nothing in Savepoint runs a matching pass for you, so this search is a manual step every capture takes before naming a new ID.
+Before allocating an `I-###`, search for the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed; every capture performs this search.
 
 After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume` to require strict loading of the complete V2 index before handoff.
 
@@ -72,19 +70,19 @@ After creating or renaming an Issue or another identity-bearing record outside `
 A resolved Issue records exactly one disposition:
 
 - **verified** — the Issue was repaired, and the repair is proven by a Check that recorded `CLEAR`.
-- **accepted** — an explicit owner decision to resolve the Issue, including after visual inspection. The owner may use Space in the board's Issues list to resolve an In Progress Issue; the board records its fixed reason, owner actor, and time. This is an owner decision, not a `CLEAR` Check or independent proof, and it does not waive a mandatory Objective Check. The owner may reopen any resolved Issue with Backspace in the Issues list. An agent may record the owner's exact decision but may not infer acceptance.
+- **accepted** — an explicit owner decision, not a `CLEAR` Check or independent proof; visual inspection may inform it. It never waives the mandatory Objective Check. See Role Boundaries for recording and board actions.
 - **duplicate** — the same problem as another, canonical Issue. It names that Issue and proves nothing itself.
-- **escalated** — the Issue's repair was promoted into a tracked Objective. It names that Objective in `escalated_to` and proves nothing itself; the Objective's own mandatory Check and owner acceptance carry the proof from here, not a later re-verification of this Issue.
+- **escalated** — repair promoted into an Objective, named in `escalated_to`; it proves nothing itself. See Escalation Retires The Issue.
 
 Reopening a recurring problem reuses the same `I-###` with new, dated evidence rather than allocating a new ID.
 
 ## Escalation Retires The Issue
 
-When an Issue's repair becomes a new Objective — not a Task inside the current Objective, but an Objective of its own — retire the Issue immediately rather than leaving it open until that Objective's work is later verified: set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O-###, actor: {role: planner, ...}, ...}`, and append a `kind: escalated` history entry naming the Objective. Escalation does not require Check proof at closure time: the promoted Objective carries its own mandatory Full Objective Check and owner acceptance. An owner-directed `accepted` resolution also closes without Check proof, while making no technical clearance claim. `savepoint-design` performs this closure at the moment it plans the remediation Objective; owner-directed `accepted` closure is the other path that needs no Check proof.
+When repair becomes an Objective of its own, immediately set `status: resolved` with `resolution: {disposition: escalated, escalated_to: O-###, actor: {role: planner, ...}, ...}` and append a `kind: escalated` history entry naming that Objective. Do not wait for repair proof or re-verify the retired Issue: the new Objective carries its mandatory Full Check and owner acceptance. A bounded Task inside an existing Objective is not escalation.
 
 ## History Is Append-Only
 
-`history` is a frontmatter list of `{at, actor, kind, note, check}` entries: `observed`, `repair_attempted`, `rechecked`, `deferred`, `reopened`, or `owner_decision`. It records the Issue's story in the order it happened. A write that shortens, reorders, or edits a recorded entry is refused — history is appended to, never rewritten.
+`history` is a frontmatter list of `{at, actor, kind, note, check}` entries: `observed`, `repair_attempted`, `rechecked`, `deferred`, `reopened`, `owner_decision`, or `escalated`. It records the Issue's story in the order it happened. A write that shortens, reorders, or edits a recorded entry is refused — history is appended to, never rewritten.
 
 Deferral is a dated history entry on an open Issue, not a fourth lifecycle state: an Issue stays `open` or `in_progress` while it waits, with the wait recorded as a `deferred` entry naming the reason, never as a new status.
 
@@ -92,7 +90,7 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 - The **executor** reports repair evidence without independently closing the Issue; it may record an explicit owner-directed `accepted` closure.
 - The **checker** verifies Check proof and closes the Issue as `verified`; it may also resolve a confirmed duplicate.
-- The **owner** may resolve the Issue as `accepted` with Space or reopen any resolved Issue with Backspace from the board's Issues list. The board records the fixed resolution reason, owner actor, time, and append-only history; this does not claim technical `CLEAR`. An agent records an owner decision only when directly instructed.
+- The **owner** may resolve the Issue as `accepted` with Space or reopen any resolved Issue with Backspace from the board's Issues list. Space resolves an In Progress Issue. The board records the fixed resolution reason, owner actor, time, and append-only history; this does not claim technical `CLEAR`. An agent records an owner decision only when directly instructed.
 - The **planner** (`savepoint-design`) closes an Issue as `escalated` at the moment it promotes the repair into a new Objective — see Escalation Retires The Issue above.
 
 ## Out-Of-Scope Repair
@@ -110,10 +108,6 @@ Objective-scoped Checks, when there is exactly one. Set `objective` to that Obje
 Objectives, clear `issue` only; do not guess an Objective. Preserve `release:`
 and run `savepoint resume` to show the resulting Next line. The Issue remains
 open until a checker verifies it or the owner explicitly accepts it.
-Escalate only when the repair itself needs planning — an open Design
-decision, or work spanning multiple Objectives — where the repair becomes a
-new Objective of its own. When that happens, retire the Issue immediately
-with disposition `escalated` rather than leaving it open (see Escalation
-Retires The Issue above). A repair that instead becomes a new, bounded Task
+Escalate to a new Objective only when repair needs an open Design decision or spans multiple Objectives; apply Escalation Retires The Issue immediately. A repair that instead becomes a new, bounded Task
 within an existing Objective is not an escalation: the Issue stays open for
 the checker as in the default case.

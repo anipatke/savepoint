@@ -7,13 +7,13 @@ description: Guides Savepoint idea intake when router state is idea, turning a r
 
 ## Purpose
 
-Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. This skill owns intent and boundary only: what is being built, for whom, the core experience, what's in and out of scope, and how success is judged. It does not design a solution.
+Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. Own intent, users, core experience, scope, exclusions, and observable success; do not design a solution.
 
 Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. `savepoint init` creates G-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. Projects converted by `savepoint migrate` may carry R-### Goal IDs; treat them like G-### Goals. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal, report it to the owner. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
 
 ## Trigger
 
-Use this skill when router `state` is `idea` in a V2 project. Legacy input is handled by the explicit `savepoint migrate` workflow before this V2 state is available; this skill does not route or maintain a legacy lifecycle.
+Use this skill when router `state` is `idea`. Legacy input requires `savepoint migrate` before the V2 workflow.
 
 ## Next
 
@@ -34,11 +34,16 @@ Read nothing else. Design.md, Guardrails.md, Objective or Task files, and untarg
 1. Read the router, any existing `.savepoint/Idea.md`, and its selected Goal record when that selection resolves.
 2. Accept a single rough sentence as a valid starting input. Do not require a prepared requirements document, research document, or a completed template before the conversation starts.
 3. Use the router-selected Goal as the project's planning context. On a fresh project, this is the G-001 placeholder created by `savepoint init`; tell the owner it already exists and do not create another Goal for the same initial outcome.
-4. Ask focused questions to fill each Idea section: Intent, User, Core Experience, Scope, Out of Scope, Success Criteria. For the fresh G-001 placeholder, also gather the owner's wording for Outcome, Why, Success Conditions, and Boundaries.
-5. When a question turns on material product uncertainty — a choice only the owner can make, not one inferable from context — ask the owner directly. Do not resolve product choices by inference.
-6. When grounding the idea against an existing project, read only the targeted evidence needed for that grounding; do not let it turn into designing a solution. Preserve existing Goal content; only fill the fresh scaffold placeholder from owner-provided answers.
-7. Write `.savepoint/Idea.md` using the Idea artifact template below, and fill the fresh G-001 placeholder's sections with the owner's answers while preserving its identity and project-name title.
-8. When the Idea is ready, set router `state: design` and hand off to `savepoint-design`. This skill does not detail any Objective itself; that belongs to `savepoint-design`. Do not write a free-text next action; follow AGENTS.md's Router Selection section for any selection changes.
+4. Use the Idea Interview below to fill each Idea section: Intent, User, Core Experience, Scope, Out of Scope, Success Criteria. For the fresh G-001 placeholder, also gather the owner's wording for Outcome, Why, Success Conditions, and Boundaries.
+5. When grounding the idea against an existing project, read only the targeted evidence needed for that grounding; do not let it turn into designing a solution. Preserve existing Goal content; only fill the fresh scaffold placeholder from owner-provided answers.
+6. Write `.savepoint/Idea.md` using the Idea artifact template below, and fill the fresh G-001 placeholder's sections with the owner's answers while preserving its identity and project-name title.
+7. When the Idea is ready, set router `state: design` and hand off to `savepoint-design`. This skill does not detail any Objective itself; that belongs to `savepoint-design`. Do not write a free-text next action; follow AGENTS.md's Router Selection section for any selection changes.
+
+## Idea Interview
+
+Ask one focused question at a time and wait for the answer before asking the next. Offer concrete choices when useful, using an available structured question tool or plain text when none is available. Briefly acknowledge each decision and follow up on uncertainty that affects another Idea section; do not ask again about settled choices unless new evidence or changed intent requires it.
+
+Use targeted evidence allowed by Read to answer factual questions yourself. Ask the owner directly about intent and material product uncertainty; never resolve those choices by inference. Keep architecture and implementation decisions for `savepoint-design`. Stop when the Idea sections and, when applicable, fresh Goal placeholder have enough owner-provided detail for the design handoff; summarise the settled intent, scope, exclusions, and success criteria before writing them.
 
 ## Idea Artifact Template
 
@@ -82,5 +87,4 @@ How to tell this idea succeeded.
 - Write `.savepoint/Idea.md`, owner-provided sections in the fresh G-001 placeholder, and the routing handoff. Do not create another Goal or write Design, Guardrails, Objectives, Tasks, Checks, Issues, or production code.
 - Do not design architecture or name components/interfaces.
 - Do not detail any Objective; hand off to `savepoint-design` for that.
-- Ask the owner about material product uncertainty instead of deciding it by inference.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.

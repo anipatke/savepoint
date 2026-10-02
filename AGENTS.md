@@ -29,7 +29,7 @@ The board advances the router when the owner closes a Task. `savepoint-design` s
 
 An owner may ask, `set router to O-### [T-###] [I-###]`, or select an Issue alone with `set router to I-###`. Confirm every named record exists and, when a Task is named, require an Objective and confirm the Task belongs to it. If a record is missing or the Task belongs elsewhere, do not edit the router; explain why. For an Issue-only selection, clear `objective` and `task`; for an Objective/Task selection, clear `issue` unless the owner named one. Edit only the `objective`, `task`, and `issue` selection keys, leaving `release:` byte-for-byte unchanged unless the owner names a Release as part of an explicit Goal choice. Finish by running `savepoint resume` and showing its `Next` line.
 
-After a direct Issue repair selected alone, `savepoint-task` records `repair_attempted`, then moves the router to the Issue's Objective when its linked Tasks and Objective-scoped Checks identify exactly one. It clears `task` and `issue`; if there is no single Objective, it clears `issue` only. It leaves `release:` unchanged and runs `savepoint resume` to show the next step.
+After a direct Issue repair selected alone, follow `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair, for the exact router handoff. Preserve `release:`.
 
 Three shared references back these four skills and are never triggered directly: `agent-skills/references/check-method.md` (loaded in full by `savepoint-check`), `agent-skills/references/issue-capture.md` (entered by `savepoint-design`, `savepoint-task`, and `savepoint-check` from their own workflow), and `agent-skills/references/commands-and-procedures.md` (loaded by `savepoint-design` for config reconciliation). Each carries `triggerable: false` frontmatter.
 
@@ -60,6 +60,10 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
 
 The runtime gate resolvers and their tests in `internal/data` enforce this
 contract (`CheckWaiver` in `evidence_v2.go` and `gate_v2.go`).
+
+A Check session must be independent from the executor's conversation: the same model is allowed, the same session is not. Only `savepoint-check` writes Check records. Each run is immutable at `.savepoint/checks/C-###-slug.md`; a recheck writes a new record naming the one it supersedes.
+
+During a Check, load `agent-skills/references/check-method.md` in full and apply the selected mode: Quick follows its Quick Check Procedure; Full applies every section, including coverage matrices and the adversarial pass. Apply Guardrails when present; absence is not a finding. A signed `CLEAR` Check is current on its own; optional freshness assessment marks only `stale` or `unknown`.
 
 ## Required Goal Context
 
@@ -98,22 +102,12 @@ changelogs.
 - Task `stage`: **required** when `status: in_progress` — `build` → `test` → `audit`; reaching `audit` means the Task is ready for a Check, and explicitly does not mean it passed.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation, and its owning Objective from `planned` to `in_progress` at the same time. That is the only Objective status change an agent makes.
-- Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
+- Only the user may set a Task to `status: done` or retreat a Task to an earlier status. **Stop. Prompt the user before continuing** when that decision is required.
 - Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel and reopen a resolved one. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
-Use Issue capture when planning, implementation, or a Check surfaces a defect, drift, a guardrail gap, or other durable follow-up that does not belong inside Design or the current Objective's Tasks. “Defect” stays a word the user says; it maps to `type: defect` on the Issue record and does not reopen a separate defect workflow.
-
-- Issues live at `.savepoint/issues/I-###-slug.md`.
-- See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
-
-## Implementation
-
-Follow the active skill for execution. During `task`, the canonical flow is `savepoint-task` — it owns the read budget, `status: in_progress` + `stage: build` setting, per-criterion evidence, and the handoff decision between an optional Task Check and the mandatory Full Objective Check.
-
-**Stop. Prompt the user before continuing.** Only the user may mark a task `status: done` or retreat a task to an earlier status.
+Capture defects, drift, guardrail gaps, and durable follow-up that does not belong inside Design or the current Objective's Tasks as Issues at `.savepoint/issues/I-###-slug.md`. "Defect" maps to `type: defect`, not a separate workflow. Enter `agent-skills/references/issue-capture.md` for search-before-creating, artifact fields, resolution authority, append-only history, and repair routing.
 
 ## Worktree Lanes
 
@@ -124,24 +118,6 @@ The owner may run independent Tasks or Issue repairs side by side in git worktre
 - Commit on the lane branch; do not push or merge. Optional Task Checks and the Full Objective Check run on the main branch after the lane merges.
 
 `savepoint-design` shapes Tasks for lanes where practical; this section only sets what an agent may write inside one.
-
-## Check
-
-`savepoint-check` is the only role that can write a Check record or close an
-Issue as `verified`. The owner may resolve an Issue as `accepted` with Space
-or reopen any resolved Issue with Backspace in the Issues panel. Board
-resolution records an owner decision without a Check; this does not claim
-technical `CLEAR` or waive a mandatory Objective Check. The owner closes
-Tasks and accepts Objective outcomes after the required evidence exists; Goal
-completion follows its member Objectives.
-
-- A Task Check is optional and runs at Quick evidence only when requested; an explicit owner waiver may skip it, but the waiver is not technical `CLEAR` (it still satisfies a `requires: clear` dependency; see Verification Policy).
-- A Full Objective Check is mandatory, runs at Full evidence, and covers every owned Task (including waived Tasks), cross-Task integration, and reconciliation against `Design.md`.
-- The Check session must be independent from the executor's own session — the same model is allowed, the same session is not.
-- Both evidence modes apply `agent-skills/references/check-method.md` in full: scope locks, coverage matrices, the adversarial pass, materiality, and re-check convergence.
-- Apply `.savepoint/Guardrails.md` when the project has it; its absence is not a finding.
-- A CLEAR Check signed by a checker is current on its own. A freshness assessment is optional and only marks the latest Check `stale` or `unknown`.
-- Check records are immutable, at `.savepoint/checks/C-###-slug.md`. A recheck writes a new record naming the one it supersedes; it never edits a prior run.
 
 ## Code Style
 
@@ -155,7 +131,7 @@ make test-full                 # migration/platform-sensitive Task or Full Objec
 make ci                        # CI full gate plus distribution and package checks
 ```
 
-`make test-focused TEST=...` is an iteration aid. Reuse a prior full result only for a metadata-only correction after recording the original run and proving code, tests, fixtures, dependencies, and gate definitions unchanged.
+`make test-focused TEST=...` is an iteration aid; see Verification Policy for evidence and reuse requirements.
 
 ## Codebase Map
 
@@ -184,9 +160,7 @@ upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
 
 ## Context Budget
 
-- **Read only what you need.** Each phase has a strict read budget. Do not read files outside your current phase's context.
-- **No exploratory reads.** Read only the files listed in the task's `## Context Files`. Do not glob or search for new information unless explicitly instructed.
-- **Token awareness.** Every file read consumes context window. Before reading a file, ask: "Do I need this to complete my current phase?"
+Follow the active skill's Read section and the Task's `## Context Files`. Do not scan or search outside that skill's scope. A necessary targeted extra read during Task execution is allowed only when logged with the file and reason as `savepoint-task` requires. Read Idea only for original intent and Design only for architecture readiness.
 
 ## CLI Rules
 
