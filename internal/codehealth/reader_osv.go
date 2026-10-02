@@ -64,6 +64,49 @@ type osvTally struct {
 	outside, unresolved, errored, ungrouped int
 }
 
+// osvScan accumulates the groups, evidence and limitations of one report.
+type osvScan struct {
+	counts   map[string]int
+	total    int
+	tally    osvTally
+	evidence []RankedEvidence
+}
+
+// addPackage counts one package's groups. rel is its source's repository path;
+// a source outside the project (inside false) cannot be named, so its groups
+// count but get no affected item.
+func (o *osvScan) addPackage(p osvPackage, rel string, inside bool) {
+	switch {
+	case p.Error != "":
+		o.tally.errored++
+	case p.Package.Version == "":
+		o.tally.unresolved++
+	}
+	if len(p.Groups) == 0 && len(p.Vulnerabilities) > 0 {
+		o.tally.ungrouped++
+	}
+	seen := map[string]bool{}
+	for _, g := range p.Groups {
+		// A group repeated within a package, even with its IDs reordered,
+		// is one vulnerability group, not two.
+		if key := osvGroupKey(g.IDs); key != "" {
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+		}
+		bucket, rank := osvBucket(g.MaxSeverity)
+		o.counts[bucket]++
+		o.total++
+		if inside {
+			o.evidence = append(o.evidence, RankedEvidence{
+				Ref:  EvidenceRef{Path: rel, Note: osvNote(p, g.IDs)},
+				Rank: rank,
+			})
+		}
+	}
+}
+
 // Read implements Reader. Every group of a source inside the instance scope is
 // counted. A source outside the project cannot be named, so its groups still
 // count but get no affected item; a source scanned without resolved versions,
@@ -78,12 +121,7 @@ func (OSVScannerReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 		return Reading{}, errors.New("OSV-Scanner JSON has no results list")
 	}
 
-	var (
-		counts   = map[string]int{}
-		total    int
-		tally    osvTally
-		evidence []RankedEvidence
-	)
+	scan := osvScan{counts: map[string]int{}}
 	for _, r := range report.Results {
 		if err := ctx.Err(); err != nil {
 			return Reading{}, err
@@ -93,43 +131,16 @@ func (OSVScannerReader) Read(ctx context.Context, in ReportInput) (Reading, erro
 			continue
 		}
 		if !inside {
-			tally.outside++
+			scan.tally.outside++
 		}
 		if r.Error != "" {
-			tally.errored++
+			scan.tally.errored++
 		}
 		for _, p := range r.Packages {
-			switch {
-			case p.Error != "":
-				tally.errored++
-			case p.Package.Version == "":
-				tally.unresolved++
-			}
-			if len(p.Groups) == 0 && len(p.Vulnerabilities) > 0 {
-				tally.ungrouped++
-			}
-			seen := map[string]bool{}
-			for _, g := range p.Groups {
-				// A group repeated within a package, even with its IDs reordered,
-				// is one vulnerability group, not two.
-				if key := osvGroupKey(g.IDs); key != "" {
-					if seen[key] {
-						continue
-					}
-					seen[key] = true
-				}
-				bucket, rank := osvBucket(g.MaxSeverity)
-				counts[bucket]++
-				total++
-				if inside {
-					evidence = append(evidence, RankedEvidence{
-						Ref:  EvidenceRef{Path: rel, Note: osvNote(p, g.IDs)},
-						Rank: rank,
-					})
-				}
-			}
+			scan.addPackage(p, rel, inside)
 		}
 	}
+	counts, total, tally, evidence := scan.counts, scan.total, scan.tally, scan.evidence
 
 	snapshot := unknownVersion
 	if s := sanitizeLine(report.DatabaseSnapshot); s != "" {

@@ -76,22 +76,10 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	if err := json.Unmarshal(in.Data, &report); err != nil {
 		return Reading{}, fmt.Errorf("jscpd JSON is not a jscpd report: %w", err)
 	}
-	if report.Statistics == nil || report.Statistics.Total == nil {
-		return Reading{}, errors.New("jscpd JSON has no statistics total")
+	if err := validateJscpdTotals(report); err != nil {
+		return Reading{}, err
 	}
 	t := report.Statistics.Total
-	if t.Lines == nil || t.DuplicatedLines == nil || t.Percentage == nil {
-		return Reading{}, errors.New("jscpd JSON total lacks lines, duplicatedLines, or percentage")
-	}
-	if *t.Lines <= 0 {
-		return Reading{}, errors.New("jscpd scanned no lines, so there is nothing to measure")
-	}
-	if *t.DuplicatedLines < 0 || *t.DuplicatedLines > *t.Lines {
-		return Reading{}, errors.New("jscpd JSON totals are inconsistent")
-	}
-	if want := percent(*t.DuplicatedLines, *t.Lines); math.Abs(want-*t.Percentage) > jscpdPercentTolerance {
-		return Reading{}, fmt.Errorf("jscpd JSON percentage %v does not match %d of %d lines", *t.Percentage, *t.DuplicatedLines, *t.Lines)
-	}
 
 	scope := in.inputScope()
 	scoped := len(scope.Include) > 0 || len(scope.Exclude) > 0
@@ -119,11 +107,61 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		}
 	}
 
+	evidence, outside, clones, err := jscpdCloneEvidence(ctx, in, report, scope)
+	if err != nil {
+		return Reading{}, err
+	}
+	if !rebuilt {
+		clones = t.Clones
+	}
+
+	reason := skippedFilesReason(outside, "clone(s) in files outside the project")
+	return Reading{
+		Partial:    outside > 0,
+		Reason:     reason,
+		Value:      &Value{Number: percentage, Unit: UnitPercent},
+		Provenance: prov,
+		Details: []Detail{
+			{Key: DetailDuplicatedLines, Number: float64(duplicated)},
+			{Key: DetailTotalLines, Number: float64(lines)},
+			{Key: DetailClones, Number: float64(clones)},
+			{Key: DetailSources, Number: float64(sources)},
+		},
+		Evidence: WorstEvidence(evidence),
+	}, nil
+}
+
+// validateJscpdTotals refuses a report without totals, or whose totals disagree
+// with themselves.
+func validateJscpdTotals(report jscpdReport) error {
+	if report.Statistics == nil || report.Statistics.Total == nil {
+		return errors.New("jscpd JSON has no statistics total")
+	}
+	t := report.Statistics.Total
+	if t.Lines == nil || t.DuplicatedLines == nil || t.Percentage == nil {
+		return errors.New("jscpd JSON total lacks lines, duplicatedLines, or percentage")
+	}
+	if *t.Lines <= 0 {
+		return errors.New("jscpd scanned no lines, so there is nothing to measure")
+	}
+	if *t.DuplicatedLines < 0 || *t.DuplicatedLines > *t.Lines {
+		return errors.New("jscpd JSON totals are inconsistent")
+	}
+	if want := percent(*t.DuplicatedLines, *t.Lines); math.Abs(want-*t.Percentage) > jscpdPercentTolerance {
+		return fmt.Errorf("jscpd JSON percentage %v does not match %d of %d lines", *t.Percentage, *t.DuplicatedLines, *t.Lines)
+	}
+	return nil
+}
+
+// jscpdCloneEvidence turns the report's clones into evidence for files inside
+// the scope. It also counts clones that touch a file outside the project, which
+// are left out, and the clones it kept.
+func jscpdCloneEvidence(ctx context.Context, in ReportInput, report jscpdReport, scope InputScope) ([]RankedEvidence, int, int, error) {
 	var evidence []RankedEvidence
 	var outside, clones int
 	for _, c := range report.Duplicates {
 		if err := ctx.Err(); err != nil {
-			return Reading{}, err
+			return nil, 0, 0, err
 		}
 		first, ok1 := RelPath(in.Root, jscpdFileName(c.FirstFile.Name))
 		second, ok2 := RelPath(in.Root, jscpdFileName(c.SecondFile.Name))
@@ -150,24 +188,7 @@ func (JscpdReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 			Rank: float64(c.Lines),
 		})
 	}
-	if !rebuilt {
-		clones = t.Clones
-	}
-
-	reason := skippedFilesReason(outside, "clone(s) in files outside the project")
-	return Reading{
-		Partial:    outside > 0,
-		Reason:     reason,
-		Value:      &Value{Number: percentage, Unit: UnitPercent},
-		Provenance: prov,
-		Details: []Detail{
-			{Key: DetailDuplicatedLines, Number: float64(duplicated)},
-			{Key: DetailTotalLines, Number: float64(lines)},
-			{Key: DetailClones, Number: float64(clones)},
-			{Key: DetailSources, Number: float64(sources)},
-		},
-		Evidence: WorstEvidence(evidence),
-	}, nil
+	return evidence, outside, clones, nil
 }
 
 // jscpdFileName drops the ":format" suffix jscpd 5 adds to a clone found in a

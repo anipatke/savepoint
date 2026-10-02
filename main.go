@@ -40,81 +40,75 @@ func main() {
 	}
 
 	if len(args) > 0 {
-		switch args[0] {
-		case "--help", "-h", "help":
-			fmt.Print(mainUsage)
-			os.Exit(0)
-		case "--version":
-			fmt.Println(version)
-			os.Exit(0)
-		case "init":
-			if err := cmd.RunInit(context.Background(), args[1:], os.Stdout, initRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "create-task":
-			if err := cmd.RunCreateTask(context.Background(), args[1:], os.Stdout, os.Stderr, createTaskRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "board":
-			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
-				return board.RunWithFilters(board.Filters{
-					Objective: opts.Objective,
-				})
-			}); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "doctor":
-			code, err := cmd.RunDoctor(context.Background(), args[1:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
-				return runDoctorChecks(opts)
-			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		case "upgrade-assets":
-			if err := cmd.RunUpgradeAssets(context.Background(), args[1:], os.Stdout, upgradeAssetsRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "migrate":
-			code, err := cmd.RunMigrate(context.Background(), args[1:], os.Stdout, migrateRunner)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		case "health":
-			// Ctrl-C cancels collection through the context so a running tool is stopped.
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-			err := cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner, Report: healthReportRunner})
-			stop()
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "resume":
-			code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		default:
-			fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
-			os.Exit(2)
-		}
+		os.Exit(runCommand(args))
 	}
 	// A board refusal, such as an unmigrated project, is a routine message for
 	// the user, not a crash.
 	if err := board.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+// exitFor prints err, when there is one, and returns the exit status for a
+// command that reports only success or failure.
+func exitFor(err error) int {
+	if err == nil {
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, err)
+	return 1
+}
+
+// exitWith prints err, when there is one, and returns the command's own exit
+// code, which does not depend on whether an error was printed.
+func exitWith(code int, err error) int {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	return code
+}
+
+// runCommand runs the named subcommand and returns its exit status.
+func runCommand(args []string) int {
+	switch args[0] {
+	case "--help", "-h", "help":
+		fmt.Print(mainUsage)
+		return 0
+	case "--version":
+		fmt.Println(version)
+		return 0
+	case "init":
+		return exitFor(cmd.RunInit(context.Background(), args[1:], os.Stdout, initRunner))
+	case "create-task":
+		return exitFor(cmd.RunCreateTask(context.Background(), args[1:], os.Stdout, os.Stderr, createTaskRunner))
+	case "board":
+		return exitFor(cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
+			return board.RunWithFilters(board.Filters{
+				Objective: opts.Objective,
+			})
+		}))
+	case "doctor":
+		code, err := cmd.RunDoctor(context.Background(), args[1:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
+			return runDoctorChecks(opts)
+		})
+		return exitWith(code, err)
+	case "upgrade-assets":
+		return exitFor(cmd.RunUpgradeAssets(context.Background(), args[1:], os.Stdout, upgradeAssetsRunner))
+	case "migrate":
+		code, err := cmd.RunMigrate(context.Background(), args[1:], os.Stdout, migrateRunner)
+		return exitWith(code, err)
+	case "health":
+		// Ctrl-C cancels collection through the context so a running tool is stopped.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		return exitFor(cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner, Report: healthReportRunner}))
+	case "resume":
+		code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
+		return exitWith(code, err)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
+		return 2
 	}
 }
 

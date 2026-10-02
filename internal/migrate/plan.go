@@ -620,66 +620,92 @@ func (b *planBuilder) planRouterGoalSelection() error {
 		return nil
 	}
 
-	if v1.Release != "" {
-		if id := b.releaseIDs[v1.Release]; id != "" {
-			if b.isLiveGoal(id) {
-				b.goalSelection = RouterGoalSelection{
-					SourceRelease: v1.Release,
-					GoalID:        id,
-					Reason:        fmt.Sprintf("V1 router release %q resolves to live Goal %s", v1.Release, id),
-				}
-				return nil
-			}
-		}
-		if b.releaseLifecycleDecisionPending(v1.Release) {
-			b.goalSelection = RouterGoalSelection{
-				SourceRelease: v1.Release,
-				Reason:        fmt.Sprintf("V1 router release %q is awaiting an owner lifecycle decision", v1.Release),
-			}
-			return nil
-		}
+	if sel, ok := b.releaseGoalSelection(v1.Release); ok {
+		b.goalSelection = sel
+		return nil
 	}
+	sel, historicalGoalID, ok := b.existingGoalSelection(v1)
+	if ok {
+		b.goalSelection = sel
+		return nil
+	}
+	b.planContinuationGoal(v1.Release, historicalGoalID)
+	return nil
+}
 
+// releaseGoalSelection resolves the router's own release: to a live Goal, or
+// records that the release is still awaiting an owner lifecycle decision.
+func (b *planBuilder) releaseGoalSelection(release string) (RouterGoalSelection, bool) {
+	if release == "" {
+		return RouterGoalSelection{}, false
+	}
+	if id := b.releaseIDs[release]; id != "" && b.isLiveGoal(id) {
+		return RouterGoalSelection{
+			SourceRelease: release,
+			GoalID:        id,
+			Reason:        fmt.Sprintf("V1 router release %q resolves to live Goal %s", release, id),
+		}, true
+	}
+	if b.releaseLifecycleDecisionPending(release) {
+		return RouterGoalSelection{
+			SourceRelease: release,
+			Reason:        fmt.Sprintf("V1 router release %q is awaiting an owner lifecycle decision", release),
+		}, true
+	}
+	return RouterGoalSelection{}, false
+}
+
+// existingGoalSelection picks an existing live Goal from the router's selected
+// Epic or from the converted Objectives. When the selected Epic belongs to a
+// historical Goal it returns no selection and that Goal's ID instead.
+func (b *planBuilder) existingGoalSelection(v1 *data.RouterState) (RouterGoalSelection, string, bool) {
 	selectedGoalID, selectedEpicFound := b.liveGoalForRouterEpic(v1.Release, v1.Epic)
 	if selectedEpicFound && b.isLiveGoal(selectedGoalID) {
-		b.goalSelection = RouterGoalSelection{
+		return RouterGoalSelection{
 			SourceRelease: v1.Release,
 			GoalID:        selectedGoalID,
 			Reason:        fmt.Sprintf("V1 router selection maps to existing live Goal %s containing its active Objective", selectedGoalID),
-		}
-		return nil
+		}, "", true
 	}
-	selectedEpicIsHistorical := selectedEpicFound && selectedGoalID != "" && !b.isLiveGoal(selectedGoalID)
-	if !selectedEpicIsHistorical {
-		if goalID, unique := b.uniqueLiveGoalWithObjectives(); unique {
-			b.goalSelection = RouterGoalSelection{
-				SourceRelease: v1.Release,
-				GoalID:        goalID,
-				Reason:        fmt.Sprintf("Selected existing live Goal %s because it contains the converted active Objectives", goalID),
-			}
-			return nil
-		}
-		if goalID, unique := b.uniqueLiveGoal(); unique {
-			b.goalSelection = RouterGoalSelection{
-				SourceRelease: v1.Release,
-				GoalID:        goalID,
-				Reason:        fmt.Sprintf("Selected the only existing live Goal %s after the V1 router selection did not resolve", goalID),
-			}
-			return nil
-		}
+	if selectedEpicFound && selectedGoalID != "" {
+		return RouterGoalSelection{}, selectedGoalID, false
 	}
+	if goalID, unique := b.uniqueLiveGoalWithObjectives(); unique {
+		return RouterGoalSelection{
+			SourceRelease: v1.Release,
+			GoalID:        goalID,
+			Reason:        fmt.Sprintf("Selected existing live Goal %s because it contains the converted active Objectives", goalID),
+		}, "", true
+	}
+	if goalID, unique := b.uniqueLiveGoal(); unique {
+		return RouterGoalSelection{
+			SourceRelease: v1.Release,
+			GoalID:        goalID,
+			Reason:        fmt.Sprintf("Selected the only existing live Goal %s after the V1 router selection did not resolve", goalID),
+		}, "", true
+	}
+	return RouterGoalSelection{}, "", false
+}
 
-	reason := "The V1 router has no selected release"
-	if v1.Release != "" {
-		reason = fmt.Sprintf("V1 router release %q does not resolve to a live Goal", v1.Release)
-		if id := b.releaseIDs[v1.Release]; id != "" && !b.isLiveGoal(id) {
-			reason = fmt.Sprintf("V1 router release %q resolves only to historical Goal %s", v1.Release, id)
-		}
+// continuationReason says why no existing live Goal could be selected.
+func (b *planBuilder) continuationReason(release, historicalGoalID string) string {
+	if historicalGoalID != "" {
+		return fmt.Sprintf("V1 router selection points to historical Goal %s; active Objectives move to the continuation Goal", historicalGoalID)
 	}
-	if selectedEpicIsHistorical {
-		reason = fmt.Sprintf("V1 router selection points to historical Goal %s; active Objectives move to the continuation Goal", selectedGoalID)
+	if release == "" {
+		return "The V1 router has no selected release"
 	}
+	if id := b.releaseIDs[release]; id != "" && !b.isLiveGoal(id) {
+		return fmt.Sprintf("V1 router release %q resolves only to historical Goal %s", release, id)
+	}
+	return fmt.Sprintf("V1 router release %q does not resolve to a live Goal", release)
+}
 
+// planContinuationGoal plans a generated live Goal and selects it, moving the
+// Objectives that sit in no live Goal into it when the selection was historical
+// or the project has no live Goal at all.
+func (b *planBuilder) planContinuationGoal(release, historicalGoalID string) {
+	reason := b.continuationReason(release, historicalGoalID)
 	hasExistingLiveGoal := b.hasSourceLiveGoal()
 	goalID := b.ids.allocate("G")
 	b.targets = append(b.targets, PlannedTarget{
@@ -692,12 +718,12 @@ func (b *planBuilder) planRouterGoalSelection() error {
 		GeneratedTitle: continuationGoalTitle,
 	})
 	b.goalSelection = RouterGoalSelection{
-		SourceRelease: v1.Release,
+		SourceRelease: release,
 		GoalID:        goalID,
 		Generated:     true,
 		Reason:        reason,
 	}
-	if selectedEpicIsHistorical || !hasExistingLiveGoal {
+	if historicalGoalID != "" || !hasExistingLiveGoal {
 		for i := range b.targets {
 			target := &b.targets[i]
 			if target.Kind == TargetObjective && !b.isLiveGoal(target.ReleaseID) {
@@ -705,7 +731,6 @@ func (b *planBuilder) planRouterGoalSelection() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (b *planBuilder) isLiveGoal(goalID string) bool {

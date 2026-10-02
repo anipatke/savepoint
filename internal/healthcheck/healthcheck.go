@@ -35,24 +35,9 @@ type Request struct {
 // that is noted on req.Stderr instead. Without health configuration it says so and saves
 // nothing.
 func Run(ctx context.Context, req Request, stdout io.Writer) error {
-	root, err := data.ResolveTarget(req.Dir)
-	switch {
-	case errors.Is(err, data.ErrTargetMissing):
-		return fmt.Errorf("health check: target directory does not exist: %s", req.Dir)
-	case errors.Is(err, data.ErrTargetNotSavepoint):
-		return fmt.Errorf("health check: target directory is not a Savepoint project: %s has no .savepoint directory", req.Dir)
-	case err != nil:
-		return fmt.Errorf("health check: %w", err)
-	}
-	if err := data.CheckRuntimeSchema(root); err != nil {
-		return fmt.Errorf("health check: %w", err)
-	}
-	index, err := data.LoadV2Index(filepath.Join(root, ".savepoint"))
+	root, err := resolveHealthTarget(req)
 	if err != nil {
-		return fmt.Errorf("health check: %w", err)
-	}
-	if _, ok := index.Objectives[req.Objective]; !ok {
-		return fmt.Errorf("health check: objective %s does not exist in this project", req.Objective)
+		return err
 	}
 
 	store := codehealth.NewStore(root)
@@ -81,23 +66,9 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 		return fmt.Errorf("health check: no snapshot was saved: %w", err)
 	}
 
-	snapshots, err := store.LoadSnapshots()
+	verdict, err := evaluateSaved(store, cfg, collection.SnapshotID)
 	if err != nil {
-		return fmt.Errorf("health check: snapshot %s was saved but cannot be read back: %w", collection.SnapshotID, err)
-	}
-	var verdict codehealth.Verdict
-	found := false
-	for _, snapshot := range snapshots {
-		if snapshot.ID != collection.SnapshotID {
-			continue
-		}
-		if verdict, err = codehealth.Evaluate(snapshot, cfg); err != nil {
-			return fmt.Errorf("health check: snapshot %s was saved but cannot be evaluated: %w", collection.SnapshotID, err)
-		}
-		found = true
-	}
-	if !found {
-		return fmt.Errorf("health check: snapshot %s was saved but is missing from the store", collection.SnapshotID)
+		return err
 	}
 
 	if collection.ReportErr != nil && req.Stderr != nil {
@@ -112,6 +83,55 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 		fmt.Fprintf(req.Stderr, "health check: snapshot %s was saved, but the report could not be written: %v\n", collection.SnapshotID, err)
 	}
 	return nil
+}
+
+// resolveHealthTarget returns the project root once it is a Savepoint project at
+// a supported schema that holds the requested Objective.
+func resolveHealthTarget(req Request) (string, error) {
+	root, err := data.ResolveTarget(req.Dir)
+	switch {
+	case errors.Is(err, data.ErrTargetMissing):
+		return "", fmt.Errorf("health check: target directory does not exist: %s", req.Dir)
+	case errors.Is(err, data.ErrTargetNotSavepoint):
+		return "", fmt.Errorf("health check: target directory is not a Savepoint project: %s has no .savepoint directory", req.Dir)
+	case err != nil:
+		return "", fmt.Errorf("health check: %w", err)
+	}
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		return "", fmt.Errorf("health check: %w", err)
+	}
+	index, err := data.LoadV2Index(filepath.Join(root, ".savepoint"))
+	if err != nil {
+		return "", fmt.Errorf("health check: %w", err)
+	}
+	if _, ok := index.Objectives[req.Objective]; !ok {
+		return "", fmt.Errorf("health check: objective %s does not exist in this project", req.Objective)
+	}
+	return root, nil
+}
+
+// evaluateSaved reads the just-saved snapshot back from the store and
+// evaluates it against the configuration.
+func evaluateSaved(store codehealth.Store, cfg codehealth.Config, id string) (codehealth.Verdict, error) {
+	snapshots, err := store.LoadSnapshots()
+	if err != nil {
+		return codehealth.Verdict{}, fmt.Errorf("health check: snapshot %s was saved but cannot be read back: %w", id, err)
+	}
+	var verdict codehealth.Verdict
+	found := false
+	for _, snapshot := range snapshots {
+		if snapshot.ID != id {
+			continue
+		}
+		if verdict, err = codehealth.Evaluate(snapshot, cfg); err != nil {
+			return codehealth.Verdict{}, fmt.Errorf("health check: snapshot %s was saved but cannot be evaluated: %w", id, err)
+		}
+		found = true
+	}
+	if !found {
+		return codehealth.Verdict{}, fmt.Errorf("health check: snapshot %s was saved but is missing from the store", id)
+	}
+	return verdict, nil
 }
 
 // ReportRequest is one rewrite of the Code Health report.

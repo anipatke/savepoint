@@ -33,14 +33,56 @@ type junitSuite struct {
 	seen     int
 }
 
+// junitTally accumulates what a report's test cases and suites add up to.
+type junitTally struct {
+	total, skipped, failures, errs, mismatched int
+	evidence                                   []RankedEvidence
+}
+
+// add counts one test case. rel is its repository path and mapped says the path
+// is known and inside the instance scope, so it can carry evidence.
+func (t *junitTally) add(c junitCase, rel string, mapped bool) {
+	t.total++
+	switch {
+	case c.Error != nil:
+		t.errs++
+		t.evidence = appendJUnitEvidence(t.evidence, rel, mapped, c, "errored")
+	case c.Failure != nil:
+		t.failures++
+		t.evidence = appendJUnitEvidence(t.evidence, rel, mapped, c, "failed")
+	case c.Skipped != nil:
+		t.skipped++
+	}
+}
+
+func (t *junitTally) reading() Reading {
+	rd := Reading{
+		Value:      &Value{Number: float64(t.failures + t.errs), Unit: UnitCount},
+		Provenance: Provenance{ProviderVersion: unknownVersion, MeasurementDefinition: testsDefinitionJUnit},
+		Details: []Detail{
+			{Key: "total_tests", Number: float64(t.total)},
+			{Key: "skipped_tests", Number: float64(t.skipped)},
+			{Key: "errors", Number: float64(t.errs)},
+		},
+		Evidence: WorstEvidence(t.evidence),
+	}
+	switch {
+	case t.mismatched > 0:
+		rd.Partial = true
+		rd.Reason = fmt.Sprintf("%d suite(s) declare a test count that does not match the test cases reported", t.mismatched)
+	case t.total == 0:
+		rd.Reason = noTestsRanReason
+	}
+	return rd
+}
+
 // Read implements Reader. Test cases the instance scope excludes are not
 // counted; a case whose file cannot be placed in the repository cannot be
 // judged, so it is. A report with several document roots is unusable, and one
 // whose suites declare more or fewer tests than they hold is partial.
 func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	dec := xml.NewDecoder(bytes.NewReader(in.Data))
-	var total, skipped, failures, errs, mismatched int
-	var evidence []RankedEvidence
+	var tally junitTally
 	var suites []*junitSuite
 	depth, roots := 0, 0
 	sawSuite := false
@@ -58,9 +100,9 @@ func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		switch el := tok.(type) {
 		case xml.EndElement:
 			depth--
-			if n := len(suites); n > 0 && (el.Name.Local == "testsuites" || el.Name.Local == "testsuite") {
+			if n := len(suites); n > 0 && isJUnitSuite(el.Name.Local) {
 				if s := suites[n-1]; s.declared >= 0 && s.declared != s.seen {
-					mismatched++
+					tally.mismatched++
 				}
 				suites = suites[:n-1]
 			}
@@ -71,38 +113,18 @@ func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 				}
 			}
 			depth++
-			switch el.Name.Local {
-			case "testsuites", "testsuite":
+			switch {
+			case isJUnitSuite(el.Name.Local):
 				sawSuite = true
 				declared, err := declaredTests(el)
 				if err != nil {
 					return Reading{}, err
 				}
 				suites = append(suites, &junitSuite{declared: declared})
-			case "testcase":
+			case el.Name.Local == "testcase":
 				depth--
-				var c junitCase
-				if err := dec.DecodeElement(&c, &el); err != nil {
-					return Reading{}, fmt.Errorf("JUnit XML could not be read: %w", err)
-				}
-				for _, s := range suites {
-					s.seen++
-				}
-				rel, known := RelPath(in.Root, junitCasePath(in.Provider, c))
-				mapped := known && in.inputScope().relevant(rel)
-				if known && !mapped {
-					continue
-				}
-				total++
-				switch {
-				case c.Error != nil:
-					errs++
-					evidence = appendJUnitEvidence(evidence, rel, mapped, c, "errored")
-				case c.Failure != nil:
-					failures++
-					evidence = appendJUnitEvidence(evidence, rel, mapped, c, "failed")
-				case c.Skipped != nil:
-					skipped++
+				if err := tally.readCase(dec, el, in, suites); err != nil {
+					return Reading{}, err
 				}
 			}
 		}
@@ -110,26 +132,29 @@ func (JUnitReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	if !sawSuite {
 		return Reading{}, errors.New("JUnit XML has no testsuite element")
 	}
-
-	rd := Reading{
-		Value:      &Value{Number: float64(failures + errs), Unit: UnitCount},
-		Provenance: Provenance{ProviderVersion: unknownVersion, MeasurementDefinition: testsDefinitionJUnit},
-		Details: []Detail{
-			{Key: "total_tests", Number: float64(total)},
-			{Key: "skipped_tests", Number: float64(skipped)},
-			{Key: "errors", Number: float64(errs)},
-		},
-		Evidence: WorstEvidence(evidence),
-	}
-	switch {
-	case mismatched > 0:
-		rd.Partial = true
-		rd.Reason = fmt.Sprintf("%d suite(s) declare a test count that does not match the test cases reported", mismatched)
-	case total == 0:
-		rd.Reason = noTestsRanReason
-	}
-	return rd, nil
+	return tally.reading(), nil
 }
+
+// readCase decodes one test case, counts it toward every open suite, and adds it
+// to the tally unless the instance scope excludes its file.
+func (t *junitTally) readCase(dec *xml.Decoder, el xml.StartElement, in ReportInput, suites []*junitSuite) error {
+	var c junitCase
+	if err := dec.DecodeElement(&c, &el); err != nil {
+		return fmt.Errorf("JUnit XML could not be read: %w", err)
+	}
+	for _, s := range suites {
+		s.seen++
+	}
+	rel, known := RelPath(in.Root, junitCasePath(in.Provider, c))
+	mapped := known && in.inputScope().relevant(rel)
+	if known && !mapped {
+		return nil
+	}
+	t.add(c, rel, mapped)
+	return nil
+}
+
+func isJUnitSuite(name string) bool { return name == "testsuites" || name == "testsuite" }
 
 // declaredTests is the test count a suite states, or -1 when it states none.
 func declaredTests(el xml.StartElement) (int, error) {

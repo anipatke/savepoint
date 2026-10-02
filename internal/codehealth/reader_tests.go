@@ -38,6 +38,63 @@ type goPackageRun struct {
 	begun   bool              // the package's start action was seen
 }
 
+// goTally accumulates the test counts and evidence of every package read.
+type goTally struct {
+	total, passed, skipped, failed, buildFailures int
+	unfinished, unterminated                      int
+	evidence                                      []RankedEvidence
+}
+
+// addPackage counts one package's tests. A package a module owns carries
+// evidence at its directory.
+func (g *goTally) addPackage(name string, p *goPackageRun, dir string, owned bool) {
+	note := func(text string) {
+		if owned {
+			g.evidence = append(g.evidence, RankedEvidence{Ref: EvidenceRef{Path: dir, Note: text}, Rank: 1})
+		}
+	}
+	if p.final == "" && (len(p.started) > 0 || p.begun) {
+		g.unterminated++
+	}
+	pkgFailed := 0
+	tests := make([]string, 0, len(p.started))
+	for t := range p.started {
+		tests = append(tests, t)
+	}
+	sort.Strings(tests)
+	for _, t := range tests {
+		g.total++
+		switch p.results[t] {
+		case "pass":
+			g.passed++
+		case "skip":
+			g.skipped++
+		case "fail":
+			g.failed++
+			pkgFailed++
+			note("test " + t + " failed")
+		default:
+			// Started but never finished: a cut-off stream, or a panic or
+			// timeout that killed the package.
+			if p.final == "" {
+				g.unfinished++
+			} else {
+				g.failed++
+				pkgFailed++
+				note("test " + t + " did not finish")
+			}
+		}
+	}
+	switch {
+	case p.final == "" && len(tests) > 0:
+		// Counted above as unfinished.
+	case p.final == "fail" && pkgFailed == 0:
+		g.buildFailures++
+		g.failed++
+		note("package " + name + " failed to build")
+	}
+}
+
 // Read implements Reader.
 func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	packages, order, err := decodeGoTestEvents(ctx, in.Data)
@@ -46,9 +103,7 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 	}
 	modules := LoadGoModules(in.Root, in.inputScope())
 
-	var total, passed, skipped, failed, buildFailures int
-	var evidence []RankedEvidence
-	unfinished, unterminated := 0, 0
+	var tally goTally
 	for _, name := range order {
 		p := packages[name]
 		// A package a module owns but the instance scope excludes is not this
@@ -57,55 +112,10 @@ func (GoTestReader) Read(ctx context.Context, in ReportInput) (Reading, error) {
 		if owned && !inScope {
 			continue
 		}
-		note := func(text string) {
-			if owned {
-				evidence = append(evidence, RankedEvidence{Ref: EvidenceRef{Path: dir, Note: text}, Rank: 1})
-			}
-		}
-		if p.final == "" && (len(p.started) > 0 || p.begun) {
-			unterminated++
-		}
-		pkgFailed := 0
-		tests := make([]string, 0, len(p.started))
-		for t := range p.started {
-			tests = append(tests, t)
-		}
-		sort.Strings(tests)
-		for _, t := range tests {
-			switch p.results[t] {
-			case "pass":
-				total++
-				passed++
-			case "skip":
-				total++
-				skipped++
-			case "fail":
-				total++
-				failed++
-				pkgFailed++
-				note("test " + t + " failed")
-			default:
-				// Started but never finished: a cut-off stream, or a panic or
-				// timeout that killed the package.
-				total++
-				if p.final == "" {
-					unfinished++
-				} else {
-					failed++
-					pkgFailed++
-					note("test " + t + " did not finish")
-				}
-			}
-		}
-		switch {
-		case p.final == "" && len(tests) > 0:
-			// Counted above as unfinished.
-		case p.final == "fail" && pkgFailed == 0:
-			buildFailures++
-			failed++
-			note("package " + name + " failed to build")
-		}
+		tally.addPackage(name, p, dir, owned)
 	}
+	total, passed, skipped, failed, buildFailures := tally.total, tally.passed, tally.skipped, tally.failed, tally.buildFailures
+	unfinished, unterminated, evidence := tally.unfinished, tally.unterminated, tally.evidence
 
 	rd := Reading{
 		Value:      &Value{Number: float64(failed), Unit: UnitCount},
