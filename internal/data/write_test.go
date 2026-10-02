@@ -31,24 +31,14 @@ owner:
 
 Authored planning notes that must survive the rewrite.`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 	objective.Status = ColumnInProgress
 
-	if err := WriteObjectiveV2(objective); err != nil {
-		t.Fatalf("WriteObjectiveV2() error = %v", err)
-	}
+	mustWriteObjectiveV2(t, objective)
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 
 	reparsed, err := DecodeObjectiveV2(path, string(result))
 	if err != nil {
@@ -88,38 +78,19 @@ status: in_progress
 
 # Objective`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	beforeBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := statTestFile(t, path)
+	beforeBytes := readTestBytes(t, path)
 
 	time.Sleep(10 * time.Millisecond)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 
-	if err := WriteObjectiveV2(objective); err != nil {
-		t.Fatalf("WriteObjectiveV2() error = %v", err)
-	}
+	mustWriteObjectiveV2(t, objective)
 
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	afterBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
+	afterBytes := readTestBytes(t, path)
 
 	if !before.ModTime().Equal(after.ModTime()) {
 		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
@@ -140,17 +111,12 @@ status: planned
 
 # Objective`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 	objective.Status = ColumnType("archived")
 
-	err = WriteObjectiveV2(objective)
+	err := WriteObjectiveV2(objective)
 	if err == nil {
 		t.Fatal("WriteObjectiveV2() expected error for unsupported status")
 	}
@@ -161,10 +127,7 @@ status: planned
 		t.Errorf("error %v is not path-qualified with %q", err, path)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if string(result) != content {
 		t.Error("file content changed despite validation refusal")
 	}
@@ -190,25 +153,15 @@ release: R-001
 
 Authored task notes.`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Status = ColumnInProgress
 	task.Stage = StageBuild
 
-	if err := WriteTaskV2(task); err != nil {
-		t.Fatalf("WriteTaskV2() error = %v", err)
-	}
+	mustWriteTaskV2(t, task)
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 
 	reparsed, err := DecodeTaskV2(path, string(result))
 	if err != nil {
@@ -242,25 +195,15 @@ stage: audit
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Status = ColumnDone
 	task.Stage = ""
 
-	if err := WriteTaskV2(task); err != nil {
-		t.Fatalf("WriteTaskV2() error = %v", err)
-	}
+	mustWriteTaskV2(t, task)
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if strings.Contains(string(result), "stage:") {
 		t.Error("stage field should be removed when leaving in_progress")
 	}
@@ -287,18 +230,13 @@ status: planned
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Status = ColumnInProgress
 	task.Stage = ""
 
-	err = WriteTaskV2(task)
+	err := WriteTaskV2(task)
 	if err == nil {
 		t.Fatal("WriteTaskV2() expected error for in_progress without stage")
 	}
@@ -306,10 +244,7 @@ status: planned
 		t.Fatalf("WriteTaskV2() error = %v, want ErrV2InvalidLifecycle", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if string(result) != content {
 		t.Error("file content changed despite validation refusal")
 	}
@@ -329,38 +264,19 @@ stage: test
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	beforeBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := statTestFile(t, path)
+	beforeBytes := readTestBytes(t, path)
 
 	time.Sleep(10 * time.Millisecond)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 
-	if err := WriteTaskV2(task); err != nil {
-		t.Fatalf("WriteTaskV2() error = %v", err)
-	}
+	mustWriteTaskV2(t, task)
 
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	afterBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
+	afterBytes := readTestBytes(t, path)
 
 	if !before.ModTime().Equal(after.ModTime()) {
 		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
@@ -375,25 +291,15 @@ func TestWriteTaskV2_preservesCRLFLineEndings(t *testing.T) {
 	path := filepath.Join(dir, "T-009.md")
 	content := "---\r\nid: T-009\r\ntitle: \"CRLF task\"\r\nobjective: O-002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Status = ColumnInProgress
 	task.Stage = StageBuild
 
-	if err := WriteTaskV2(task); err != nil {
-		t.Fatalf("WriteTaskV2() error = %v", err)
-	}
+	mustWriteTaskV2(t, task)
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 
 	if strings.Count(string(result), "\n") != strings.Count(string(result), "\r\n") {
 		t.Errorf("result did not preserve CRLF line endings throughout: %q", string(result))
@@ -416,25 +322,15 @@ func TestWriteTaskV2_preservesLFLineEndingsByDefault(t *testing.T) {
 	path := filepath.Join(dir, "T-010.md")
 	content := "---\nid: T-010\ntitle: \"LF task\"\nobjective: O-002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\n---\n\n# Task\n"
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Status = ColumnInProgress
 	task.Stage = StageBuild
 
-	if err := WriteTaskV2(task); err != nil {
-		t.Fatalf("WriteTaskV2() error = %v", err)
-	}
+	mustWriteTaskV2(t, task)
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if strings.Contains(string(result), "\r\n") {
 		t.Errorf("LF source should not gain CRLF endings: %q", string(result))
 	}
@@ -455,14 +351,9 @@ status: planned
 
 # Objective`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 	objective.Status = ColumnInProgress
 
 	if err := os.Chmod(path, 0444); err != nil {
@@ -470,7 +361,7 @@ status: planned
 	}
 	defer os.Chmod(path, 0644)
 
-	err = WriteObjectiveV2(objective)
+	err := WriteObjectiveV2(objective)
 	if err == nil {
 		t.Fatal("WriteObjectiveV2() expected error writing to a read-only file")
 	}
@@ -481,10 +372,7 @@ status: planned
 	if err := os.Chmod(path, 0644); err != nil {
 		t.Fatal(err)
 	}
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if string(result) != content {
 		t.Error("existing record was truncated or altered despite the write failure")
 	}
@@ -524,17 +412,11 @@ func TestWriteV2Record_resolvesDiscoveredRelativePathFromProjectRoot(t *testing.
 		t.Fatalf("WriteTaskV2() from unrelated cwd error = %v", err)
 	}
 
-	objectiveBytes, err := os.ReadFile(filepath.Join(root, objective.Source.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
+	objectiveBytes := readTestBytes(t, filepath.Join(root, objective.Source.Path))
 	if !strings.Contains(string(objectiveBytes), "status: in_progress") {
 		t.Errorf("objective file at project root was not updated: %s", objectiveBytes)
 	}
-	taskBytes, err := os.ReadFile(filepath.Join(root, task.Source.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
+	taskBytes := readTestBytes(t, filepath.Join(root, task.Source.Path))
 	if !strings.Contains(string(taskBytes), "status: in_progress") || !strings.Contains(string(taskBytes), "stage: build") {
 		t.Errorf("task file at project root was not updated: %s", taskBytes)
 	}
@@ -622,9 +504,7 @@ func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *tes
 
 	path := filepath.Join(root, task.Source.Path)
 	userEdit := "---\nid: T-001\ntitle: \"First task\"\nobjective: O-001\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# First task\n\nOwner edit must survive.\n"
-	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, userEdit)
 
 	task.Status = ColumnInProgress
 	task.Stage = StageBuild
@@ -639,10 +519,7 @@ func TestWriteV2Record_refusesStaleLoadedSourceWithoutOverwritingUserEdit(t *tes
 		t.Errorf("WriteTaskV2() error = %v, want path %q", err, path)
 	}
 
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := readTestBytes(t, path)
 	if string(got) != userEdit {
 		t.Fatalf("stale write changed user content:\n got: %s\nwant: %s", got, userEdit)
 	}
@@ -667,14 +544,9 @@ release: R-001
 
 Authored task notes.`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	if task.Evidence != nil {
 		t.Fatalf("Evidence = %+v, want nil before write", task.Evidence)
 	}
@@ -717,10 +589,7 @@ Authored task notes.`
 		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 
 	reparsed, err := DecodeTaskV2(path, string(result))
 	if err != nil {
@@ -783,14 +652,9 @@ replan:
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	if task.Evidence == nil || task.Evidence.Replan == nil {
 		t.Fatalf("Evidence = %+v, want replan present before write", task.Evidence)
 	}
@@ -801,10 +665,7 @@ replan:
 		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if strings.Contains(string(result), "replan:") {
 		t.Error("replan key should be removed, not written empty")
 	}
@@ -866,38 +727,21 @@ replan:
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	beforeBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := statTestFile(t, path)
+	beforeBytes := readTestBytes(t, path)
 
 	time.Sleep(10 * time.Millisecond)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 
 	if err := WriteTaskEvidenceV2(task); err != nil {
 		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
 	}
 
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	afterBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
+	afterBytes := readTestBytes(t, path)
 
 	if !before.ModTime().Equal(after.ModTime()) {
 		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
@@ -920,23 +764,16 @@ status: planned
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 
 	userEdit := "---\nid: T-023\ntitle: \"Guarded evidence write\"\nobjective: O-002\nplanned_by: {role: planner, session: planning-fixture}\nstatus: planned\neditor_note: \"owner edit\"\n---\n\n# Task\n\nOwner edit must survive.\n"
-	if err := os.WriteFile(path, []byte(userEdit), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, userEdit)
 
 	task.Evidence = &Evidence{LastCheck: "C-001"}
 
-	err = WriteTaskEvidenceV2(task)
+	err := WriteTaskEvidenceV2(task)
 	if !errors.Is(err, ErrV2SourceConflict) {
 		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrV2SourceConflict", err)
 	}
@@ -944,10 +781,7 @@ status: planned
 		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrMtimeConflict compatibility marker", err)
 	}
 
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := readTestBytes(t, path)
 	if string(got) != userEdit {
 		t.Fatalf("stale write changed user content:\n got: %s\nwant: %s", got, userEdit)
 	}
@@ -958,24 +792,16 @@ func TestWriteTaskEvidenceV2_preservesCRLFLineEndings(t *testing.T) {
 	path := filepath.Join(dir, "T-024.md")
 	content := "---\r\nid: T-024\r\ntitle: \"CRLF evidence task\"\r\nobjective: O-002\r\nplanned_by: {role: planner, session: planning-fixture}\r\nstatus: planned\r\n---\r\n\r\n# Task\r\n\r\nAuthored notes.\r\n"
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Evidence = &Evidence{LastCheck: "C-001"}
 
 	if err := WriteTaskEvidenceV2(task); err != nil {
 		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if strings.Count(string(result), "\n") != strings.Count(string(result), "\r\n") {
 		t.Errorf("result did not preserve CRLF line endings throughout: %q", string(result))
 	}
@@ -997,14 +823,9 @@ status: planned
 
 # Task`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	task, err := DecodeTaskV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() error = %v", err)
-	}
+	task := mustDecodeTaskV2(t, path, content)
 	task.Evidence = &Evidence{
 		Freshness: &Freshness{
 			State:      FreshnessState("bogus"),
@@ -1015,7 +836,7 @@ status: planned
 		},
 	}
 
-	err = WriteTaskEvidenceV2(task)
+	err := WriteTaskEvidenceV2(task)
 	if err == nil {
 		t.Fatal("WriteTaskEvidenceV2() expected error for malformed freshness state")
 	}
@@ -1023,10 +844,7 @@ status: planned
 		t.Fatalf("WriteTaskEvidenceV2() error = %v, want ErrV2EvidenceMalformed", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 	if string(result) != content {
 		t.Error("file content changed despite validation refusal")
 	}
@@ -1047,14 +865,9 @@ release: R-001
 
 Authored objective notes.`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 	if objective.Evidence != nil {
 		t.Fatalf("Evidence = %+v, want nil before write", objective.Evidence)
 	}
@@ -1075,10 +888,7 @@ Authored objective notes.`
 		t.Fatalf("WriteObjectiveEvidenceV2() error = %v", err)
 	}
 
-	result, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	result := readTestBytes(t, path)
 
 	reparsed, err := DecodeObjectiveV2(path, string(result))
 	if err != nil {
@@ -1121,38 +931,21 @@ freshness:
 
 # Objective`
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
 
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	beforeBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := statTestFile(t, path)
+	beforeBytes := readTestBytes(t, path)
 
 	time.Sleep(10 * time.Millisecond)
 
-	objective, err := DecodeObjectiveV2(path, content)
-	if err != nil {
-		t.Fatalf("DecodeObjectiveV2() error = %v", err)
-	}
+	objective := mustDecodeObjectiveV2(t, path, content)
 
 	if err := WriteObjectiveEvidenceV2(objective); err != nil {
 		t.Fatalf("WriteObjectiveEvidenceV2() error = %v", err)
 	}
 
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	afterBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
+	afterBytes := readTestBytes(t, path)
 
 	if !before.ModTime().Equal(after.ModTime()) {
 		t.Errorf("ModTime changed on no-op write: before %v, after %v", before.ModTime(), after.ModTime())
@@ -1199,22 +992,14 @@ func writeRouterV2Fixture(t *testing.T, content string) (root, path string, mtim
 	t.Helper()
 	root = t.TempDir()
 	path = filepath.Join(root, "router.md")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, path, content)
+	info := statTestFile(t, path)
 	return root, path, info.ModTime()
 }
 
 func readFileString(t *testing.T, path string) string {
 	t.Helper()
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := readTestBytes(t, path)
 	return string(raw)
 }
 
@@ -1388,10 +1173,7 @@ func TestWriteRouterStateV2_repeatingReleaseSelectionLeavesBytesAndMtimeUnchange
 	if err := WriteRouterStateV2(root, RouterSelectionV2{Release: "R-001", Objective: "O-001", Task: "T-005"}, mtime); err != nil {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
 	if !after.ModTime().Equal(mtime) || readFileString(t, path) != content {
 		t.Fatal("repeating unchanged Release selection changed bytes or mtime")
 	}
@@ -1505,10 +1287,7 @@ func TestWriteRouterStateV2_noOpLeavesBytesAndMtimeUnchanged(t *testing.T) {
 		t.Fatalf("WriteRouterStateV2() error = %v", err)
 	}
 
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	after := statTestFile(t, path)
 	if !after.ModTime().Equal(mtime) {
 		t.Errorf("ModTime changed on no-op write: before %v, after %v", mtime, after.ModTime())
 	}
@@ -1682,14 +1461,8 @@ func TestWriteObjectiveGroupOrderV2_preservesContentAndNoOpFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	thirdBeforeInfo, err := os.Stat(thirdPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	thirdBeforeBytes, err := os.ReadFile(thirdPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	thirdBeforeInfo := statTestFile(t, thirdPath)
+	thirdBeforeBytes := readTestBytes(t, thirdPath)
 
 	if err := WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002", "O-003"}); err != nil {
 		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v", err)
@@ -1701,60 +1474,30 @@ func TestWriteObjectiveGroupOrderV2_preservesContentAndNoOpFiles(t *testing.T) {
 	if updated.Objectives["O-001"].Rank != 1 || updated.Objectives["O-002"].Rank != 2 || updated.Objectives["O-003"].Rank != 3 {
 		t.Errorf("updated ranks = (%d, %d, %d), want (1, 2, 3)", updated.Objectives["O-001"].Rank, updated.Objectives["O-002"].Rank, updated.Objectives["O-003"].Rank)
 	}
-	firstAfter, err := os.ReadFile(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstAfter := readTestBytes(t, firstPath)
 	for _, want := range []string{"team: platform", "Keep this authored note."} {
 		if !strings.Contains(string(firstAfter), want) {
 			t.Errorf("Objective rewrite lost %q:\n%s", want, firstAfter)
 		}
 	}
-	thirdAfterInfo, err := os.Stat(thirdPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	thirdAfterBytes, err := os.ReadFile(thirdPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	thirdAfterInfo := statTestFile(t, thirdPath)
+	thirdAfterBytes := readTestBytes(t, thirdPath)
 	if string(thirdAfterBytes) != string(thirdBeforeBytes) || !thirdAfterInfo.ModTime().Equal(thirdBeforeInfo.ModTime()) {
 		t.Error("renumber changed a record whose priority and rank already matched")
 	}
 
-	firstInfo, err := os.Stat(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondInfo, err := os.Stat(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstInfo := statTestFile(t, firstPath)
+	secondInfo := statTestFile(t, secondPath)
 	firstBytes := string(firstAfter)
-	secondBytes, err := os.ReadFile(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	secondBytes := readTestBytes(t, secondPath)
 	time.Sleep(10 * time.Millisecond)
 	if err := WriteObjectiveGroupOrderV2(updated, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002", "O-003"}); err != nil {
 		t.Fatalf("repeating WriteObjectiveGroupOrderV2() error = %v", err)
 	}
-	firstInfoAfter, err := os.Stat(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondInfoAfter, err := os.Stat(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstBytesAfter, err := os.ReadFile(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondBytesAfter, err := os.ReadFile(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstInfoAfter := statTestFile(t, firstPath)
+	secondInfoAfter := statTestFile(t, secondPath)
+	firstBytesAfter := readTestBytes(t, firstPath)
+	secondBytesAfter := readTestBytes(t, secondPath)
 	if string(firstBytesAfter) != firstBytes || string(secondBytesAfter) != string(secondBytes) ||
 		!firstInfo.ModTime().Equal(firstInfoAfter.ModTime()) || !secondInfo.ModTime().Equal(secondInfoAfter.ModTime()) {
 		t.Error("repeating the same Objective order changed file bytes or modification times")
@@ -1769,30 +1512,19 @@ func TestWriteObjectiveGroupOrderV2_staleMemberWritesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	firstBefore, err := os.ReadFile(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondRaw, err := os.ReadFile(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstBefore := readTestBytes(t, firstPath)
+	secondRaw := readTestBytes(t, secondPath)
 	stale := strings.Replace(string(secondRaw), "rank: 1\n", "rank: 1\nexternal_note: edited after load\n", 1)
 	if stale == string(secondRaw) {
 		t.Fatal("second Objective has no rank to extend")
 	}
-	if err := os.WriteFile(secondPath, []byte(stale), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, secondPath, stale)
 
 	err = WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityCritical, []string{"O-001", "O-002"})
 	if !errors.Is(err, ErrV2SourceConflict) {
 		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v, want ErrV2SourceConflict", err)
 	}
-	firstAfter, err := os.ReadFile(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstAfter := readTestBytes(t, firstPath)
 	if string(firstAfter) != string(firstBefore) {
 		t.Error("stale later member caused an earlier Objective to be written")
 	}
@@ -1806,10 +1538,7 @@ func TestWriteObjectiveGroupOrderV2_partialFailureRemainsLoadableAndDiagnosed(t 
 	if err != nil {
 		t.Fatalf("LoadV2Index() error = %v", err)
 	}
-	secondBefore, err := os.ReadFile(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	secondBefore := readTestBytes(t, secondPath)
 	if err := os.Chmod(secondPath, 0444); err != nil {
 		t.Fatal(err)
 	}
@@ -1818,14 +1547,8 @@ func TestWriteObjectiveGroupOrderV2_partialFailureRemainsLoadableAndDiagnosed(t 
 	if !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v, want permission failure on the second file", err)
 	}
-	firstAfter, err := os.ReadFile(firstPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondAfter, err := os.ReadFile(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstAfter := readTestBytes(t, firstPath)
+	secondAfter := readTestBytes(t, secondPath)
 	if !strings.Contains(string(firstAfter), "rank: 1") {
 		t.Errorf("first file rank = %q, want successful first replacement", firstAfter)
 	}
@@ -1876,4 +1599,61 @@ func writeObjectiveOrderRecordFixture(t *testing.T, root, id string, priority Ob
 		t.Fatalf("WriteFile(%s) error = %v", path, err)
 	}
 	return path
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readTestBytes(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func statTestFile(t *testing.T, path string) os.FileInfo {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info
+}
+
+func mustDecodeObjectiveV2(t *testing.T, path, content string) *ObjectiveV2 {
+	t.Helper()
+	objective, err := DecodeObjectiveV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeObjectiveV2() error = %v", err)
+	}
+	return objective
+}
+
+func mustDecodeTaskV2(t *testing.T, path, content string) *TaskV2 {
+	t.Helper()
+	task, err := DecodeTaskV2(path, content)
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() error = %v", err)
+	}
+	return task
+}
+
+func mustWriteObjectiveV2(t *testing.T, objective *ObjectiveV2) {
+	t.Helper()
+	if err := WriteObjectiveV2(objective); err != nil {
+		t.Fatalf("WriteObjectiveV2() error = %v", err)
+	}
+}
+
+func mustWriteTaskV2(t *testing.T, task *TaskV2) {
+	t.Helper()
+	if err := WriteTaskV2(task); err != nil {
+		t.Fatalf("WriteTaskV2() error = %v", err)
+	}
 }

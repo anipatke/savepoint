@@ -32,15 +32,7 @@ var registerVocabulary = []string{
 }
 
 func TestSharedCheckMethodIsNonTriggerableReference(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "references", "check-method.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "references", "check-method.md") }, func(tree, path, content string) {
 		if got := frontmatterField(content, "type"); got != "check-method-reference" {
 			t.Errorf("%s: %s type = %q, want check-method-reference", tree, path, got)
 		}
@@ -50,19 +42,11 @@ func TestSharedCheckMethodIsNonTriggerableReference(t *testing.T) {
 		if frontmatterField(content, "name") != "" {
 			t.Errorf("%s: %s carries a skill name and would be discoverable as a skill", tree, path)
 		}
-	}
+	})
 }
 
 func TestSharedCheckMethodCarriesRequiredSections(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "references", "check-method.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "references", "check-method.md") }, func(tree, path, content string) {
 		for _, heading := range checkMethodSections {
 			body, found := sectionBody(content, heading)
 			if !found {
@@ -73,25 +57,17 @@ func TestSharedCheckMethodCarriesRequiredSections(t *testing.T) {
 				t.Errorf("%s: %s has an empty %s section", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedCheckMethodHasNoRegisterVocabulary(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "references", "check-method.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "references", "check-method.md") }, func(tree, path, content string) {
 		for _, stale := range registerVocabulary {
 			if strings.Contains(content, stale) {
 				t.Errorf("%s: %s contains register vocabulary %q", tree, path, stale)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedCheckMethodLiveAndTemplateMatch(t *testing.T) {
@@ -148,15 +124,7 @@ func TestSavepointIdeaSkillReadBoundary(t *testing.T) {
 }
 
 func TestSavepointIdeaSkillWriteBoundary(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-idea", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-idea", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, ".savepoint/Idea.md") {
 			t.Errorf("%s: %s does not name .savepoint/Idea.md as a write target", tree, path)
 		}
@@ -174,44 +142,28 @@ func TestSavepointIdeaSkillWriteBoundary(t *testing.T) {
 		if !strings.Contains(content, "does not detail any Objective") {
 			t.Errorf("%s: %s does not state that it leaves Objective detailing to savepoint-design", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointIdeaSkillHasArtifactTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-idea", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-idea", "SKILL.md") }, func(tree, path, content string) {
 		for _, heading := range ideaTemplateSections {
 			if !strings.Contains(content, "## "+heading) {
 				t.Errorf("%s: %s missing Idea template section %q", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointIdeaSkillAcceptsRoughInputAndEscalates(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-idea", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-idea", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "rough sentence") {
 			t.Errorf("%s: %s does not state a rough sentence is a valid starting input", tree, path)
 		}
 		if !strings.Contains(content, "material product uncertainty") {
 			t.Errorf("%s: %s does not state the material-product-uncertainty escalation rule", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointIdeaSkillLiveAndTemplateMatch(t *testing.T) {
@@ -227,15 +179,7 @@ func TestSavepointIdeaSkillLiveAndTemplateMatch(t *testing.T) {
 var designStructureHeadings = []string{"## Purpose", "## Trigger", "## Read", "## Workflow", "## Rules"}
 
 func TestSavepointDesignSkillPassesStructureValidation(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		if got := frontmatterField(content, "name"); got != "savepoint-design" {
 			t.Errorf("%s: %s frontmatter name = %q, want savepoint-design", tree, path, got)
 		}
@@ -249,7 +193,7 @@ func TestSavepointDesignSkillPassesStructureValidation(t *testing.T) {
 				t.Errorf("%s: %s has an empty %s section", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillTrigger(t *testing.T) {
@@ -281,15 +225,7 @@ var designWriteTargets = []string{"Design", "Guardrails", "Objective", "routing"
 var designForbiddenOutputs = []string{"production code"}
 
 func TestSavepointDesignSkillWriteBoundary(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, target := range designWriteTargets {
 			if !strings.Contains(content, target) {
 				t.Errorf("%s: %s does not name %q as a write target", tree, path, target)
@@ -306,22 +242,14 @@ func TestSavepointDesignSkillWriteBoundary(t *testing.T) {
 		if !strings.Contains(content, "beyond the next Objective") {
 			t.Errorf("%s: %s does not forbid detailed backlog beyond the next Objective", tree, path)
 		}
-	}
+	})
 }
 
 var designObjectiveFrontmatterFields = []string{"id", "title", "status", "depends_on", "release", "last_check", "freshness"}
 var designObjectiveBodySections = []string{"Outcome", "Why", "Success Conditions", "Architectural Considerations", "Boundaries"}
 
 func TestSavepointDesignSkillObjectiveTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, field := range designObjectiveFrontmatterFields {
 			if !strings.Contains(content, field+":") {
 				t.Errorf("%s: %s Objective template missing frontmatter field %q", tree, path, field)
@@ -344,22 +272,14 @@ func TestSavepointDesignSkillObjectiveTemplate(t *testing.T) {
 		if !strings.Contains(content, "second, manually kept list") {
 			t.Errorf("%s: %s does not forbid a second manually maintained membership list", tree, path)
 		}
-	}
+	})
 }
 
 var designTaskFrontmatterFields = []string{"title", "objective", "status", "depends_on", "owner_validation", "planned_by"}
 var designTaskBodySections = []string{"Outcome", "User Check", "Done When", "Context Files", "Design References", "Guardrails", "Implementation Plan", "Boundaries", "Technical Verification", "Technical Evidence", "Drift Notes"}
 
 func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, field := range designTaskFrontmatterFields {
 			if !strings.Contains(content, field+":") {
 				t.Errorf("%s: %s Task template missing frontmatter field %q", tree, path, field)
@@ -382,18 +302,11 @@ func TestSavepointDesignSkillTaskTemplate(t *testing.T) {
 		if !strings.Contains(content, "no globs, no directory-only entries") {
 			t.Errorf("%s: %s Task template does not state Context Files must name exact paths", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillTaskCreationWorkflow(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"The planner never chooses, reserves, or writes a Task ID or destination filename.",
 			"complete V2 Task Markdown as an ID-free draft",
@@ -410,19 +323,11 @@ func TestSavepointDesignSkillTaskCreationWorkflow(t *testing.T) {
 		if strings.Contains(content, "id: T-014") || strings.Contains(content, "# T-014:") {
 			t.Errorf("%s: %s contains a manually allocated Task ID example", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillTaskTitleNoReuseRule(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "must never be the Outcome text, a truncation of it, or a restatement of the technical objective") {
 			t.Errorf("%s: %s does not state the title no-reuse rule", tree, path)
 		}
@@ -435,21 +340,13 @@ func TestSavepointDesignSkillTaskTitleNoReuseRule(t *testing.T) {
 		if !strings.Contains(content, "E50") {
 			t.Errorf("%s: %s does not note title readability is evaluated by E50 agent scenarios", tree, path)
 		}
-	}
+	})
 }
 
 var designSectionHeadings = []string{"Architecture", "Components/Codebase Map", "Interfaces and Data Flow", "Boundaries", "Decisions", "Current Technical State"}
 
 func TestSavepointDesignSkillDesignTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, heading := range designSectionHeadings {
 			if !strings.Contains(content, heading) {
 				t.Errorf("%s: %s Design template missing section %q", tree, path, heading)
@@ -461,25 +358,17 @@ func TestSavepointDesignSkillDesignTemplate(t *testing.T) {
 		if !strings.Contains(content, "Objective's deltas") || !strings.Contains(content, "reconciled") {
 			t.Errorf("%s: %s does not state Objective deltas hold planned change until reconciliation", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillGuardrailsRule(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{"durable project constraints only", "10–20 substantive rules", "stable category IDs", "owns severity and exception authority", "must not duplicate guardrail prose"} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state guardrails rule phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillReadinessGate(t *testing.T) {
@@ -501,15 +390,7 @@ func TestSavepointDesignSkillReadinessGate(t *testing.T) {
 }
 
 func TestSavepointDesignSkillOneObjectiveResearchAndSplitRules(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "Keep exactly one Objective active") {
 			t.Errorf("%s: %s does not state the one-Objective rule", tree, path)
 		}
@@ -522,7 +403,7 @@ func TestSavepointDesignSkillOneObjectiveResearchAndSplitRules(t *testing.T) {
 		if !strings.Contains(content, "Route product choices to the owner") || !strings.Contains(content, "does not require the owner to review code") {
 			t.Errorf("%s: %s does not state the product-choice/technical-readiness rule", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointDesignSkillLiveAndTemplateMatch(t *testing.T) {
@@ -538,15 +419,7 @@ func TestSavepointDesignSkillLiveAndTemplateMatch(t *testing.T) {
 var taskStructureHeadings = []string{"## Purpose", "## Trigger", "## Read", "## Workflow", "## Rules"}
 
 func TestSavepointTaskSkillPassesStructureValidation(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		if got := frontmatterField(content, "name"); got != "savepoint-task" {
 			t.Errorf("%s: %s frontmatter name = %q, want savepoint-task", tree, path, got)
 		}
@@ -560,7 +433,7 @@ func TestSavepointTaskSkillPassesStructureValidation(t *testing.T) {
 				t.Errorf("%s: %s has an empty %s section", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillTrigger(t *testing.T) {
@@ -607,15 +480,7 @@ var taskWriteTargets = []string{"scoped implementation", "recorded evidence", "l
 var taskForbiddenClaims = []string{"edit the Task's acceptance criteria", "write a Check record", "close an Issue", "claim clearance or owner acceptance"}
 
 func TestSavepointTaskSkillWriteBoundaryAndForbiddenClaims(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		for _, target := range taskWriteTargets {
 			if !strings.Contains(content, target) {
 				t.Errorf("%s: %s does not name %q as a write target", tree, path, target)
@@ -626,19 +491,11 @@ func TestSavepointTaskSkillWriteBoundaryAndForbiddenClaims(t *testing.T) {
 				t.Errorf("%s: %s does not name %q as forbidden", tree, path, forbidden)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillLifecycleStages(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"in_progress` with `stage: build`",
 			"`build` → `test` → `audit`",
@@ -649,53 +506,29 @@ func TestSavepointTaskSkillLifecycleStages(t *testing.T) {
 				t.Errorf("%s: %s does not state lifecycle phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillBlockedStartReported(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{"dependencies are satisfied", "owning Objective is ready", "blocked start is reported"} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillExtraReadsLogged(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "logged with what was read and why") {
 			t.Errorf("%s: %s does not require extra reads to be logged with what and why", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillReplanRequiredContract(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"REPLAN REQUIRED",
 			"current `status` and `stage` unchanged",
@@ -707,19 +540,11 @@ func TestSavepointTaskSkillReplanRequiredContract(t *testing.T) {
 				t.Errorf("%s: %s does not state replan phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillEvidenceRequirement(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"per-criterion outcome",
 			"configured build and test gates",
@@ -730,61 +555,37 @@ func TestSavepointTaskSkillEvidenceRequirement(t *testing.T) {
 				t.Errorf("%s: %s does not state evidence phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillFreshCheckHandoff(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "fresh `savepoint-check` session") {
 			t.Errorf("%s: %s does not name a fresh savepoint-check session as the handoff target", tree, path)
 		}
 		if !strings.Contains(content, "can never be that Check") {
 			t.Errorf("%s: %s does not state the executor's own session can never be the Check", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillObjectiveCheckNeedsWorkDoesNotRetreatDoneTasks(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "never retreats a Task that is already `done`") {
 			t.Errorf("%s: %s does not state an Objective Check's NEEDS WORK never retreats a done Task", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillStyleAdvisoryRule(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-task", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-task", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "STYLE` guardrail rules as advisory") {
 			t.Errorf("%s: %s does not treat STYLE guardrail rules as advisory", tree, path)
 		}
 		if !strings.Contains(content, "guardrail rule IDs rather than restating rule prose") {
 			t.Errorf("%s: %s does not reference guardrail rule IDs instead of restating rule prose", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointTaskSkillLiveAndTemplateMatch(t *testing.T) {
@@ -800,15 +601,7 @@ func TestSavepointTaskSkillLiveAndTemplateMatch(t *testing.T) {
 var checkStructureHeadings = []string{"## Purpose", "## Trigger", "## Read", "## Workflow", "## Rules"}
 
 func TestSavepointCheckSkillPassesStructureValidation(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		if got := frontmatterField(content, "name"); got != "savepoint-check" {
 			t.Errorf("%s: %s frontmatter name = %q, want savepoint-check", tree, path, got)
 		}
@@ -822,7 +615,7 @@ func TestSavepointCheckSkillPassesStructureValidation(t *testing.T) {
 				t.Errorf("%s: %s has an empty %s section", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillFreshSessionRule(t *testing.T) {
@@ -847,37 +640,21 @@ func TestSavepointCheckSkillFreshSessionRule(t *testing.T) {
 }
 
 func TestSavepointCheckSkillLoadsMethodWithoutRestating(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "references/check-method.md` in full") {
 			t.Errorf("%s: %s does not state it loads check-method.md in full", tree, path)
 		}
 		if !strings.Contains(content, "does not restate that method") {
 			t.Errorf("%s: %s does not state it avoids restating the shared method", tree, path)
 		}
-	}
+	})
 }
 
 var checkWriteTargets = []string{"the Check record", "Issues", "evaluation metadata", "authorized closure"}
 var checkForbiddenActions = []string{"repair implementation", "edit acceptance criteria", "update Design as a form of remediation"}
 
 func TestSavepointCheckSkillWriteBoundaryAndForbiddenActions(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, target := range checkWriteTargets {
 			if !strings.Contains(content, target) {
 				t.Errorf("%s: %s does not name %q as a write target", tree, path, target)
@@ -888,21 +665,13 @@ func TestSavepointCheckSkillWriteBoundaryAndForbiddenActions(t *testing.T) {
 				t.Errorf("%s: %s does not name %q as forbidden", tree, path, forbidden)
 			}
 		}
-	}
+	})
 }
 
 var checkTemplateFields = []string{"id: C-###", "scope: {kind: task, id: T-001}", "result: CLEAR|NEEDS WORK", "checked_by:", "executed_session:", "checked_at:", "reviewed:", "files:", "dependencies:", "issues:", "supersedes:"}
 
 func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, field := range checkTemplateFields {
 			if !strings.Contains(content, field) {
 				t.Errorf("%s: %s Check template missing field %q", tree, path, field)
@@ -914,18 +683,11 @@ func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 		if !strings.Contains(content, "never edits the superseded record") {
 			t.Errorf("%s: %s does not state a recheck never edits the superseded record", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillStrictLoadsNewCheck(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"After writing the record, run `savepoint resume`",
 			"strict-load the complete V2 index, including the new Check",
@@ -934,19 +696,11 @@ func TestSavepointCheckSkillStrictLoadsNewCheck(t *testing.T) {
 				t.Errorf("%s: %s does not require strict index loading after Check creation: missing %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillScopes(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "a Task Check evaluates one Task's outcome and evidence") {
 			t.Errorf("%s: %s does not scope a Task Check to one Task's outcome and evidence", tree, path)
 		}
@@ -959,19 +713,11 @@ func TestSavepointCheckSkillScopes(t *testing.T) {
 		if strings.Contains(content, "scope.kind: release") {
 			t.Errorf("%s: %s describes writing a release-scoped Check", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillClosureRules(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"complete a technical Task",
 			"no unexcepted material blocker",
@@ -986,7 +732,7 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 				t.Errorf("%s: %s does not state closure phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
@@ -1074,15 +820,7 @@ func readSkillFile(t *testing.T, root, skill string) []byte {
 }
 
 func TestSavepointCheckSkillNeedsWorkPath(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "hand remediation back to the executor or planner") {
 			t.Errorf("%s: %s does not hand NEEDS WORK remediation back to executor or planner", tree, path)
 		}
@@ -1092,23 +830,15 @@ func TestSavepointCheckSkillNeedsWorkPath(t *testing.T) {
 		if !strings.Contains(content, "must not retreat a Task that is already `done`") && !strings.Contains(content, "must never retreat a Task that is already `done`") {
 			t.Errorf("%s: %s does not state an Objective Check's NEEDS WORK must not retreat a done Task", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillAdvisoryObservationsNonBlocking(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-check", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "STYLE` guardrail rules, as non-blocking") {
 			t.Errorf("%s: %s does not treat STYLE guardrail rules as non-blocking", tree, path)
 		}
-	}
+	})
 }
 
 func TestSavepointCheckSkillLiveAndTemplateMatch(t *testing.T) {
@@ -1124,15 +854,7 @@ func issueCapturePath(root string) string {
 }
 
 func TestSharedIssueCaptureIsNonTriggerableReference(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		if got := frontmatterField(content, "type"); got != "issue-capture-reference" {
 			t.Errorf("%s: %s type = %q, want issue-capture-reference", tree, path, got)
 		}
@@ -1142,7 +864,7 @@ func TestSharedIssueCaptureIsNonTriggerableReference(t *testing.T) {
 		if frontmatterField(content, "name") != "" {
 			t.Errorf("%s: %s carries a skill name and would be discoverable as a skill", tree, path)
 		}
-	}
+	})
 }
 
 // issueArtifactFields are the IssueV2 frontmatter fields the reference's
@@ -1156,15 +878,7 @@ var issueArtifactFields = []string{
 var issueArtifactBodySections = []string{"Summary", "Evidence", "Proof Needed"}
 
 func TestSharedIssueCaptureArtifactTemplate(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, field := range issueArtifactFields {
 			if !strings.Contains(content, field) {
 				t.Errorf("%s: %s Issue template missing field %q", tree, path, field)
@@ -1175,18 +889,11 @@ func TestSharedIssueCaptureArtifactTemplate(t *testing.T) {
 				t.Errorf("%s: %s Issue template missing body section %q", tree, path, heading)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureStrictLoadsIdentityChanges(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume`",
 			"strict loading of the complete V2 index",
@@ -1195,7 +902,7 @@ func TestSharedIssueCaptureStrictLoadsIdentityChanges(t *testing.T) {
 				t.Errorf("%s: %s does not require strict index loading after identity changes: missing %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureTypeNeverBlocksAlone(t *testing.T) {
@@ -1213,15 +920,7 @@ func TestSharedIssueCaptureTypeNeverBlocksAlone(t *testing.T) {
 }
 
 func TestSharedIssueCaptureSearchFirstRule(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"same symptom, the same location, the same violated requirement, or the same linked work",
 			"No automatic deduplication is assumed",
@@ -1230,19 +929,11 @@ func TestSharedIssueCaptureSearchFirstRule(t *testing.T) {
 				t.Errorf("%s: %s does not state search-first phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureDispositionsAndHistory(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"proven by a Check that recorded `CLEAR`",
 			"owner decision, not a `CLEAR` Check or independent proof",
@@ -1256,19 +947,11 @@ func TestSharedIssueCaptureDispositionsAndHistory(t *testing.T) {
 				t.Errorf("%s: %s does not state disposition/history phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"executor** reports repair evidence without independently closing the Issue",
 			"checker** verifies Check proof and closes the Issue as `verified`",
@@ -1281,19 +964,11 @@ func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
 				t.Errorf("%s: %s does not state role/routing phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureDefectWordMapping(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := issueCapturePath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"\"Defect\" stays a word the user says",
 			"maps to `type: defect`",
@@ -1303,7 +978,7 @@ func TestSharedIssueCaptureDefectWordMapping(t *testing.T) {
 				t.Errorf("%s: %s does not state defect word-mapping phrase %q", tree, path, phrase)
 			}
 		}
-	}
+	})
 }
 
 func TestSharedIssueCaptureLiveAndTemplateMatch(t *testing.T) {
@@ -1387,15 +1062,7 @@ func commandsAndProceduresPath(root string) string {
 }
 
 func TestSharedCommandsAndProceduresIsNonTriggerableReference(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := commandsAndProceduresPath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return commandsAndProceduresPath(root) }, func(tree, path, content string) {
 		if got := frontmatterField(content, "type"); got != "commands-reference" {
 			t.Errorf("%s: %s type = %q, want commands-reference", tree, path, got)
 		}
@@ -1405,7 +1072,7 @@ func TestSharedCommandsAndProceduresIsNonTriggerableReference(t *testing.T) {
 		if frontmatterField(content, "name") != "" {
 			t.Errorf("%s: %s carries a skill name and would be discoverable as a skill", tree, path)
 		}
-	}
+	})
 }
 
 // commandsAndProceduresConfigKeys are the QualityGates field names
@@ -1444,15 +1111,7 @@ func TestSharedCommandsAndProceduresConfigContract(t *testing.T) {
 }
 
 func TestSharedCommandsAndProceduresHealthCheckMapping(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := commandsAndProceduresPath(root)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return commandsAndProceduresPath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"quality_gates",
 			"check-method.md",
@@ -1474,7 +1133,7 @@ func TestSharedCommandsAndProceduresHealthCheckMapping(t *testing.T) {
 		if !strings.Contains(content, "not something migration performs automatically") {
 			t.Errorf("%s: %s does not state migration never auto-creates the procedure file or writes config.yml", tree, path)
 		}
-	}
+	})
 }
 
 func TestSharedCommandsAndProceduresLiveAndTemplateMatch(t *testing.T) {
@@ -1486,19 +1145,11 @@ func TestSharedCommandsAndProceduresLiveAndTemplateMatch(t *testing.T) {
 }
 
 func TestSavepointDesignSkillReferencesCommandsAndProcedures(t *testing.T) {
-	for tree, root := range v2SkillRoots() {
-		path := filepath.Join(root, "savepoint-design", "SKILL.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("%s: read %s: %v", tree, path, err)
-			continue
-		}
-		content := string(data)
-
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		if !strings.Contains(content, "agent-skills/references/commands-and-procedures.md") {
 			t.Errorf("%s: %s does not point at the shared commands-and-procedures reference", tree, path)
 		}
-	}
+	})
 }
 
 // v2Skills and v2References are the complete V2 skill/reference set the

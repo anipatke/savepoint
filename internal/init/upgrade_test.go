@@ -38,11 +38,7 @@ func TestUpgradeProjectAssets_requiresExistingDirectory(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		".savepoint":           &fstest.MapFile{Mode: fs.ModeDir | 0755},
@@ -51,10 +47,7 @@ func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# Audit Skill")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	for _, e := range report.Actions {
 		if strings.HasPrefix(e.Path, ".savepoint/") {
@@ -66,11 +59,7 @@ func TestUpgradeProjectAssets_skipsSavepointDir(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
@@ -84,10 +73,7 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(newContent)},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	found := false
 	for _, e := range report.Actions {
@@ -102,21 +88,14 @@ func TestUpgradeProjectAssets_updatesAgentSkills(t *testing.T) {
 		t.Fatal("skill path not in report")
 	}
 
-	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(skillDir, "SKILL.md"))
 	if string(data) != newContent {
 		t.Fatalf("content = %q, want %q", string(data), newContent)
 	}
 }
 
 func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
@@ -129,10 +108,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte(content)},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	for _, e := range report.Actions {
 		if e.Path == "agent-skills/savepoint-audit-epic/SKILL.md" {
@@ -144,11 +120,7 @@ func TestUpgradeProjectAssets_skillIdempotent(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	before := "# My Guide\n\nExisting user content.\n\n"
 	after := "\n\nTrailing user note.\n"
@@ -159,10 +131,7 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Managed Content")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	action, found := actionFor(report, "AGENTS.md")
 	if !found {
@@ -172,10 +141,7 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 		t.Errorf("action = %v, want merged", action)
 	}
 
-	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(target, "AGENTS.md"))
 	// Everything outside the markers must survive byte for byte; only the
 	// block between them is Savepoint's to rewrite.
 	want := before + managedBegin + "\n# Savepoint Managed Content\n" + managedEnd + after
@@ -185,20 +151,13 @@ func TestUpgradeProjectAssets_mergesAgentsMd(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_absentAgentsMdWritesWholeFile(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	action, found := actionFor(report, "AGENTS.md")
 	if !found {
@@ -208,10 +167,7 @@ func TestUpgradeProjectAssets_absentAgentsMdWritesWholeFile(t *testing.T) {
 		t.Errorf("action = %v, want updated", action)
 	}
 
-	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(target, "AGENTS.md"))
 	want := managedBegin + "\n# Savepoint Instructions\n" + managedEnd + "\n"
 	if string(data) != want {
 		t.Errorf("guide = %q, want %q", string(data), want)
@@ -219,11 +175,7 @@ func TestUpgradeProjectAssets_absentAgentsMdWritesWholeFile(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_unmarkedAgentsMdConflicts(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	guidePath := filepath.Join(target, "AGENTS.md")
 	existingGuide := "# My Guide\n\nExisting user content.\n"
@@ -233,10 +185,7 @@ func TestUpgradeProjectAssets_unmarkedAgentsMdConflicts(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	entry, found := entryFor(report, "AGENTS.md")
 	if !found {
@@ -249,10 +198,7 @@ func TestUpgradeProjectAssets_unmarkedAgentsMdConflicts(t *testing.T) {
 		t.Errorf("note = %q, want %q", entry.Note, noteConflict)
 	}
 
-	data, err := os.ReadFile(guidePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, guidePath)
 	if string(data) != existingGuide {
 		t.Errorf("guide changed: got %q, want %q", string(data), existingGuide)
 	}
@@ -324,11 +270,7 @@ func TestUpgradeProjectAssets_halfMarkedAgentsMdConflicts(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_forceAdoptsUnmarkedAgentsMd(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	guidePath := filepath.Join(target, "AGENTS.md")
 	existingGuide := "# My Guide\n\nExisting user content.\n"
@@ -354,10 +296,7 @@ func TestUpgradeProjectAssets_forceAdoptsUnmarkedAgentsMd(t *testing.T) {
 		t.Errorf("note = %q, want %q", entry.Note, noteBackup)
 	}
 
-	data, err := os.ReadFile(guidePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, guidePath)
 	got := string(data)
 	if !strings.Contains(got, "# My Guide") {
 		t.Errorf("force dropped user content: %q", got)
@@ -432,11 +371,7 @@ func TestUpgradeProjectAssets_dryRunUnmarkedAgentsMdConflicts(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	variantPath := filepath.Join(target, "Agents.MD")
 	testutil.WriteFile(t, variantPath, "# My Guide\n")
@@ -445,10 +380,7 @@ func TestUpgradeProjectAssets_conflictSidecarKeepsGuideCasing(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	action, found := actionFor(report, "AGENTS.md")
 	if !found {
@@ -484,11 +416,7 @@ func hasExactEntry(t *testing.T, dir, name string) bool {
 }
 
 func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
@@ -501,10 +429,7 @@ func TestUpgradeProjectAssets_agentsMdIdempotent(t *testing.T) {
 		}
 	}
 
-	data, err := os.ReadFile(filepath.Join(target, "AGENTS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(target, "AGENTS.md"))
 	got := string(data)
 	count := strings.Count(got, managedBegin)
 	if count != 1 {
@@ -557,21 +482,14 @@ func TestUpgradeProjectAssets_ignoresLegacyMigrationDirectory(t *testing.T) {
 		t.Fatal("skill path not in report")
 	}
 
-	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(skillDir, "SKILL.md"))
 	if string(data) != "# New Content" {
 		t.Fatalf("skill content = %q, want the upgrade to have written the new content", string(data))
 	}
 }
 
 func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
@@ -602,21 +520,14 @@ func TestUpgradeProjectAssets_dryRunDoesNotWrite(t *testing.T) {
 		t.Fatal("skill path not in dry-run report")
 	}
 
-	data, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(skillDir, "SKILL.md"))
 	if string(data) != oldContent {
 		t.Fatalf("dry-run should not write: got %q, want %q", string(data), oldContent)
 	}
 }
 
 func TestUpgradeProjectAssets_dryRunReportsUnchanged(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	content := "# Same Content"
 	skillDir := filepath.Join(target, "agent-skills", "savepoint-audit-epic")
@@ -644,21 +555,14 @@ func TestUpgradeProjectAssets_dryRunReportsUnchanged(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_skipsNonAllowlistedFiles(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"some-other-file.md": &fstest.MapFile{Data: []byte("content")},
 		"README.md":          &fstest.MapFile{Data: []byte("# Readme")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	for _, e := range report.Actions {
 		if e.Action != ActionSkipped {
@@ -668,21 +572,14 @@ func TestUpgradeProjectAssets_skipsNonAllowlistedFiles(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_skipsPromptTemplates(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"templates/prompts/task-building.prompt.md": &fstest.MapFile{Data: []byte("stale phase prompt")},
 		"prompts/task-building.prompt.md":           &fstest.MapFile{Data: []byte("stale phase prompt")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	if len(report.Actions) != len(templates) {
 		t.Fatalf("actions = %d, want %d", len(report.Actions), len(templates))
@@ -698,20 +595,13 @@ func TestUpgradeProjectAssets_skipsPromptTemplates(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"agent-skills/savepoint-audit-epic/SKILL.md": &fstest.MapFile{Data: []byte("# New Skill")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	found := false
 	for _, e := range report.Actions {
@@ -732,11 +622,7 @@ func TestUpgradeProjectAssets_createsMissingSkillFile(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	variantPath := filepath.Join(target, "Agents.MD")
 	testutil.WriteFile(t, variantPath, "# My Guide\n\n"+managedBegin+"\n# Old\n"+managedEnd+"\n")
@@ -745,10 +631,7 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 		"AGENTS.md": &fstest.MapFile{Data: []byte("# Savepoint Instructions")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	action, found := actionFor(report, "AGENTS.md")
 	if !found {
@@ -758,10 +641,7 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 		t.Errorf("action = %v, want merged", action)
 	}
 
-	data, err := os.ReadFile(variantPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, variantPath)
 	got := string(data)
 	if !strings.Contains(got, "# My Guide") {
 		t.Errorf("missing existing content: %q", got)
@@ -783,11 +663,7 @@ func TestUpgradeProjectAssets_casingVariantAgentsMd(t *testing.T) {
 }
 
 func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	variantPath := filepath.Join(target, "Agents.MD")
 	existingGuide := "# My Guide\n\n" + managedBegin + "\n# Old\n" + managedEnd + "\n"
@@ -810,31 +686,21 @@ func TestUpgradeProjectAssets_dryRunUsesCasingVariantAgentGuide(t *testing.T) {
 		t.Errorf("dry-run action = %v, want merged", action)
 	}
 
-	data, err := os.ReadFile(variantPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, variantPath)
 	if string(data) != existingGuide {
 		t.Errorf("dry run changed the guide: got %q", string(data))
 	}
 }
 
 func TestUpgradeProjectAssets_multipleSkills(t *testing.T) {
-	target := t.TempDir()
-	savepointDir := filepath.Join(target, ".savepoint")
-	if err := os.MkdirAll(savepointDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	target := savepointProject(t)
 
 	templates := fstest.MapFS{
 		"agent-skills/skill-a/SKILL.md": &fstest.MapFile{Data: []byte("# Skill A")},
 		"agent-skills/skill-b/SKILL.md": &fstest.MapFile{Data: []byte("# Skill B")},
 	}
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	updated := 0
 	for _, e := range report.Actions {
@@ -882,10 +748,7 @@ func TestUpgradeProjectAssets_addsMissingAuditAssets(t *testing.T) {
 
 	templates := auditTemplates()
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	for path, file := range templates {
 		action, found := actionFor(report, path)
@@ -921,10 +784,7 @@ func TestUpgradeProjectAssets_preservesEditedAuditAssets(t *testing.T) {
 
 	templates := auditTemplates()
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	action, found := actionFor(report, ".savepoint/audit/register.md")
 	if !found {
@@ -934,10 +794,7 @@ func TestUpgradeProjectAssets_preservesEditedAuditAssets(t *testing.T) {
 		t.Errorf("edited register action = %v, want unchanged", action)
 	}
 
-	data, err := os.ReadFile(editedRegister)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, editedRegister)
 	if string(data) != userContent {
 		t.Errorf("edited register overwritten: got %q, want %q", string(data), userContent)
 	}
@@ -1031,10 +888,7 @@ func TestUpgradeProjectAssets_installsMissingPolicyAssets(t *testing.T) {
 
 	templates := policyTemplates()
 
-	report, err := upgradeAssetsFromTree(templates, target, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, target)
 
 	for _, path := range policyAssetPaths() {
 		action, found := actionFor(report, path)
@@ -1546,10 +1400,7 @@ func TestUpgradeProjectAssets_legacyProjectWithUnmarkedGuide(t *testing.T) {
 	dir, guide, skill := legacyProject(t, "AGENTS.unmarked.md")
 	templates := legacyTemplates()
 
-	report, err := upgradeAssetsFromTree(templates, dir, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, dir)
 
 	guideEntry, found := entryFor(report, "AGENTS.md")
 	if !found {
@@ -1560,10 +1411,7 @@ func TestUpgradeProjectAssets_legacyProjectWithUnmarkedGuide(t *testing.T) {
 	}
 
 	guidePath := filepath.Join(dir, "AGENTS.md")
-	data, err := os.ReadFile(guidePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, guidePath)
 	if string(data) != guide {
 		t.Errorf("unmarked guide changed:\n got %q\nwant %q", string(data), guide)
 	}
@@ -1589,10 +1437,7 @@ func TestUpgradeProjectAssets_legacyProjectWithMarkedGuide(t *testing.T) {
 	dir, guide, _ := legacyProject(t, "AGENTS.marked.md")
 	templates := legacyTemplates()
 
-	report, err := upgradeAssetsFromTree(templates, dir, false, false)
-	if err != nil {
-		t.Fatalf("UpgradeProjectAssets() error = %v", err)
-	}
+	report := mustUpgrade(t, templates, dir)
 
 	action, found := actionFor(report, "AGENTS.md")
 	if !found {
@@ -1602,10 +1447,7 @@ func TestUpgradeProjectAssets_legacyProjectWithMarkedGuide(t *testing.T) {
 		t.Errorf("marked guide action = %v, want merged", action)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := mustReadFile(t, filepath.Join(dir, "AGENTS.md"))
 	merged := string(data)
 
 	// Prose on both sides of the markers survives; only the block is rewritten.
@@ -1676,4 +1518,35 @@ func TestUpgradeReport_formatConflict(t *testing.T) {
 // tree for the target's schema.
 func upgradeAssetsFromTree(templates fs.FS, targetDir string, dryRun, force bool) (*UpgradeReport, error) {
 	return upgradeProjectAssets(templates, targetDir, dryRun, force, AtomicWrite, false)
+}
+
+// savepointProject returns a temporary directory that looks like a Savepoint
+// project: it has a .savepoint directory.
+func savepointProject(t *testing.T) string {
+	t.Helper()
+	target := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(target, ".savepoint"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	return target
+}
+
+// mustUpgrade runs a normal (not dry-run, not forced) upgrade and fails the
+// test on error.
+func mustUpgrade(t *testing.T, templates fs.FS, target string) *UpgradeReport {
+	t.Helper()
+	report, err := upgradeAssetsFromTree(templates, target, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	return report
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }

@@ -16,8 +16,8 @@ import (
 var ErrToolUnavailable = errors.New("tool is not available")
 
 // Limits on what one executed tool may hand back. Stdout is the report when no
-// {report} file is used, so it gets the report cap; stderr only feeds a short
-// reason.
+// {report} file is used, so it gets the report cap and keeps its start; stderr
+// only feeds a short reason and keeps its end.
 const (
 	MaxReportBytes = 32 << 20
 	maxStderrBytes = 64 << 10
@@ -66,7 +66,7 @@ func (ExecRunner) Run(ctx context.Context, spec ToolSpec) (ToolResult, error) {
 	cmd.WaitDelay = killWait
 	configureProcess(cmd)
 	out := &limitedBuffer{limit: MaxReportBytes}
-	errOut := &limitedBuffer{limit: maxStderrBytes}
+	errOut := &tailBuffer{limit: maxStderrBytes}
 	cmd.Stdout, cmd.Stderr = out, errOut
 
 	if err := cmd.Start(); err != nil {
@@ -115,6 +115,30 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	}
 	b.buf.Write(p)
 	return n, nil
+}
+
+// tailBuffer keeps the last limit bytes and drops the earlier ones, so the
+// error a tool prints last survives however much progress came first. Like
+// limitedBuffer it always accepts writes.
+type tailBuffer struct {
+	buf   []byte
+	limit int
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.buf = append(b.buf, p...)
+	// Trim in batches so a chatty tool costs amortized constant time per byte.
+	if len(b.buf) > 2*b.limit {
+		b.buf = append(b.buf[:0], b.buf[len(b.buf)-b.limit:]...)
+	}
+	return len(p), nil
+}
+
+func (b *tailBuffer) String() string {
+	if len(b.buf) > b.limit {
+		return string(b.buf[len(b.buf)-b.limit:])
+	}
+	return string(b.buf)
 }
 
 func (b *limitedBuffer) Bytes() []byte  { return b.buf.Bytes() }

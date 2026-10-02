@@ -42,6 +42,25 @@ func TestHelperProcess(t *testing.T) {
 		for i := 0; i < MaxReportBytes>>20+2; i++ {
 			os.Stdout.Write(chunk)
 		}
+	case "stdout-size":
+		n, _ := strconv.Atoi(args[1])
+		os.Stdout.Write(bytes.Repeat([]byte("a"), n))
+	case "stderr-tail":
+		// n bytes of progress noise ending in "END", then a failing exit.
+		n, _ := strconv.Atoi(args[1])
+		os.Stderr.WriteString(strings.Repeat("p", n-len("END")) + "END")
+		os.Exit(127)
+	case "args":
+		wd, _ := os.Getwd()
+		os.Stdout.WriteString(wd + "\x00" + strings.Join(args[1:], "\x00"))
+	case "orphan":
+		// Leave a grandchild holding this process's output pipes after exiting.
+		child := helperCommand("hang")
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		if err := child.Start(); err != nil {
+			os.Exit(3)
+		}
+		os.WriteFile(args[1], []byte(strconv.Itoa(child.Process.Pid)), 0o644)
 	case "hang":
 		time.Sleep(time.Minute)
 	case "child":
