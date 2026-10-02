@@ -171,22 +171,91 @@ func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
 	return runGoTestStream(cmd, output, nil)
 }
 
-func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("open go test output: %w", err)
-	}
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start go test: %w", err)
-	}
+// testStreamSummary aggregates go test -json events into the timing and
+// failure data reported once the stream ends.
+type testStreamSummary struct {
+	packages       []testTiming
+	tests          []testTiming
+	skipped        []string
+	failedPackages []string
+	packageOutput  map[string]*strings.Builder
+}
 
-	var packages []testTiming
-	var tests []testTiming
-	var skipped []string
-	var failedPackages []string
-	packageOutput := make(map[string]*strings.Builder)
+func newTestStreamSummary() *testStreamSummary {
+	return &testStreamSummary{packageOutput: make(map[string]*strings.Builder)}
+}
+
+func (s *testStreamSummary) add(event goTestEvent) {
+	if event.Output != "" {
+		s.addOutput(event)
+	}
+	if event.Test == "" {
+		s.addPackageResult(event)
+		return
+	}
+	s.addTestResult(event)
+}
+
+func (s *testStreamSummary) addOutput(event goTestEvent) {
+	name := event.Package
+	if name == "" {
+		name = "<go test>"
+	}
+	if s.packageOutput[name] == nil {
+		s.packageOutput[name] = &strings.Builder{}
+	}
+	s.packageOutput[name].WriteString(event.Output)
+}
+
+func (s *testStreamSummary) addPackageResult(event goTestEvent) {
+	if event.Action == "fail" {
+		s.failedPackages = append(s.failedPackages, event.Package)
+	}
+	if event.Elapsed > 0 && (event.Action == "pass" || event.Action == "fail") {
+		s.packages = append(s.packages, testTiming{name: event.Package, elapsed: eventElapsed(event)})
+	}
+}
+
+func (s *testStreamSummary) addTestResult(event goTestEvent) {
+	switch event.Action {
+	case "pass", "fail":
+		s.tests = append(s.tests, testTiming{name: event.Package + "." + event.Test, elapsed: eventElapsed(event)})
+	case "skip":
+		s.skipped = append(s.skipped, event.Package+"."+event.Test)
+	}
+}
+
+func eventElapsed(event goTestEvent) time.Duration {
+	return time.Duration(event.Elapsed * float64(time.Second))
+}
+
+// writeFailedPackages prints the captured output of each failed package once,
+// in name order.
+func (s *testStreamSummary) writeFailedPackages(output io.Writer) error {
+	sort.Strings(s.failedPackages)
+	previousPackage := ""
+	for _, packageName := range s.failedPackages {
+		if packageName == previousPackage {
+			continue
+		}
+		previousPackage = packageName
+		fmt.Fprintf(output, "\nOutput for failed package %s:\n", packageName)
+		if s.packageOutput[packageName] == nil {
+			continue
+		}
+		if _, err := io.WriteString(output, s.packageOutput[packageName].String()); err != nil {
+			return fmt.Errorf("write failed package output: %w", err)
+		}
+	}
+	return nil
+}
+
+// consumeTestStream reads the event stream line by line, teeing each raw line
+// to tee when set. Lines that are not events pass straight through to output.
+// It returns the first read or tee-write failure; a tee failure does not stop
+// the read; a scan failure drains the rest so the child is never blocked on a
+// full pipe.
+func consumeTestStream(stdout io.Reader, output, tee io.Writer, summary *testStreamSummary) error {
 	var scanErr error
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
@@ -202,55 +271,41 @@ func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
 			fmt.Fprintln(output, string(line))
 			continue
 		}
-		if event.Output != "" {
-			packageName := event.Package
-			if packageName == "" {
-				packageName = "<go test>"
-			}
-			if packageOutput[packageName] == nil {
-				packageOutput[packageName] = &strings.Builder{}
-			}
-			packageOutput[packageName].WriteString(event.Output)
-		}
-		if event.Test == "" && event.Action == "fail" {
-			failedPackages = append(failedPackages, event.Package)
-		}
-		if event.Test == "" && event.Elapsed > 0 && (event.Action == "pass" || event.Action == "fail") {
-			packages = append(packages, testTiming{name: event.Package, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
-		}
-		if event.Test != "" {
-			if event.Action == "pass" || event.Action == "fail" {
-				tests = append(tests, testTiming{name: event.Package + "." + event.Test, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
-			}
-			if event.Action == "skip" {
-				skipped = append(skipped, event.Package+"."+event.Test)
-			}
+		summary.add(event)
+	}
+	if err := scanner.Err(); err != nil {
+		// Keep draining so the child cannot block on a full pipe and hang Wait.
+		_, _ = io.Copy(io.Discard, stdout)
+		if scanErr == nil {
+			scanErr = err
 		}
 	}
-	if err := scanner.Err(); err != nil && scanErr == nil {
-		scanErr = err
+	return scanErr
+}
+
+func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("open go test output: %w", err)
 	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start go test: %w", err)
+	}
+
+	summary := newTestStreamSummary()
+	scanErr := consumeTestStream(stdout, output, tee, summary)
 	waitErr := cmd.Wait()
-	sort.Strings(failedPackages)
-	previousPackage := ""
-	for _, packageName := range failedPackages {
-		if packageName == previousPackage {
-			continue
-		}
-		previousPackage = packageName
-		fmt.Fprintf(output, "\nOutput for failed package %s:\n", packageName)
-		if packageOutput[packageName] != nil {
-			if _, err := io.WriteString(output, packageOutput[packageName].String()); err != nil {
-				return fmt.Errorf("write failed package output: %w", err)
-			}
-		}
+	if err := summary.writeFailedPackages(output); err != nil {
+		return err
 	}
 	if stderr.Len() > 0 {
 		if _, err := io.Copy(output, &stderr); err != nil {
 			return fmt.Errorf("write go test diagnostics: %w", err)
 		}
 	}
-	writeTestTimingSummary(output, packages, tests, skipped)
+	writeTestTimingSummary(output, summary.packages, summary.tests, summary.skipped)
 	if waitErr != nil {
 		return waitErr
 	}

@@ -607,3 +607,67 @@ func TestGoTestStreamComplete(t *testing.T) {
 		}
 	}
 }
+
+func streamHelperCommand(mode string) *exec.Cmd {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestGoTestStreamHelperProcess$")
+	cmd.Env = append(os.Environ(), "SAVEPOINT_BUILDTOOL_STREAM_HELPER="+mode)
+	return cmd
+}
+
+func TestGoTestStreamHelperProcess(t *testing.T) {
+	switch os.Getenv("SAVEPOINT_BUILDTOOL_STREAM_HELPER") {
+	case "failed-package":
+		fmt.Println(`not json at all`)
+		fmt.Println(`{"Action":"output","Package":"fixture/b","Output":"b detail\n"}`)
+		fmt.Println(`{"Action":"output","Package":"fixture/a","Output":"a detail\n"}`)
+		fmt.Println(`{"Action":"fail","Package":"fixture/b","Elapsed":0.1}`)
+		fmt.Println(`{"Action":"fail","Package":"fixture/a","Elapsed":0.1}`)
+		os.Exit(1)
+	case "oversized":
+		fmt.Println(`{"Action":"start","Package":"fixture"}`)
+		fmt.Println(strings.Repeat("x", 11*1024*1024))
+		os.Exit(0)
+	case "ok":
+		fmt.Println(`{"Action":"pass","Package":"fixture","Elapsed":0.1}`)
+		os.Exit(0)
+	}
+}
+
+func TestRunGoTestStreamPrintsMalformedLinesAndFailedPackageOutputInOrder(t *testing.T) {
+	var output bytes.Buffer
+	err := runGoTestStream(streamHelperCommand("failed-package"), &output, nil)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("runGoTestStream() error = %v, want child exit 1", err)
+	}
+	got := output.String()
+	malformed := strings.Index(got, "not json at all")
+	a := strings.Index(got, "Output for failed package fixture/a:\na detail")
+	b := strings.Index(got, "Output for failed package fixture/b:\nb detail")
+	if malformed < 0 || a < 0 || b < 0 || !(malformed < a && a < b) {
+		t.Fatalf("output order wrong (malformed=%d a=%d b=%d):\n%s", malformed, a, b, got)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+func TestRunGoTestStreamReportsReportWriteFailureAfterChildSucceeds(t *testing.T) {
+	var output bytes.Buffer
+	err := runGoTestStream(streamHelperCommand("ok"), &output, failingWriter{})
+	if err == nil || !strings.Contains(err.Error(), "write go test report: disk full") {
+		t.Fatalf("runGoTestStream() error = %v, want report write failure", err)
+	}
+	if !strings.Contains(output.String(), "Go test timing summary") {
+		t.Errorf("timing summary missing after write failure:\n%s", output.String())
+	}
+}
+
+func TestRunGoTestStreamReportsOversizedEventLine(t *testing.T) {
+	var output bytes.Buffer
+	err := runGoTestStream(streamHelperCommand("oversized"), &output, nil)
+	if err == nil || !strings.Contains(err.Error(), "read go test output") {
+		t.Fatalf("runGoTestStream() error = %v, want read failure", err)
+	}
+}

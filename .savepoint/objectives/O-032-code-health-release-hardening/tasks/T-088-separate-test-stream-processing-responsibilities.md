@@ -2,11 +2,20 @@
 id: T-088
 title: Separate test-stream processing responsibilities
 objective: O-032
-status: planned
+status: done
 complexity_tier: high
 complexity_reason: Streaming subprocess failures and report completion have multiple error and output ownership boundaries.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-088
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:04:59Z"
 ---
 
 # Separate test-stream processing responsibilities
@@ -57,8 +66,24 @@ For before/after complexity evidence, the owner-confirmed scope authorizes a dir
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Executed 2026-10-02 by executor; toolchain go1.26.2 linux/amd64, lizard 1.24.0.
+
+Per criterion:
+1. Separation: `runGoTestStream` now owns only pipe/start/wait/output ordering. Event aggregation moved to `testStreamSummary` (`add`, `addOutput`, `addPackageResult`, `addTestResult`, `writeFailedPackages`); stream reading/tee moved to `consumeTestStream`. Output order unchanged: malformed lines live, then failed-package output (sorted, deduped), stderr, timing summary. Evidence: `TestRunGoTestStreamPrintsMalformedLinesAndFailedPackageOutputInOrder` plus existing `TestRunGoTestCommandReportsTimingAndPropagatesFailure`.
+2. Failure handling: malformed line passthrough (new test), tee/report write failure reported after a successful child with timing still printed (`TestRunGoTestStreamReportsReportWriteFailureAfterChildSucceeds`), oversized line reported as `read go test output` (`TestRunGoTestStreamReportsOversizedEventLine`), nonzero exit propagates as the primary error (existing), interruption/early exit keep prior reports (existing `...WhenInterrupted`, `...WhenChildExitsEarly`). No partial stream becomes a report: `goTestRunCompleted`/`goTestStreamComplete` untouched.
+3. Existing regressions (complete-report preservation, temp cleanup, focused-no-report, timing, package failure) pass unchanged. Four tests added, each for evidence that was missing.
+4. Lizard (`lizard internal/buildtool/main.go`, same file): before `runGoTestStream` CCN 31 / 87 NLOC; after CCN 8 / 30 NLOC. New helpers max CCN 8 (`consumeTestStream`), `writeFailedPackages` 5, others <=5. Untouched `runGoTestWithReports` and `goTestStreamComplete` remain at CCN 10.
+
+Behavior fix found while testing: a single event line over the 10 MB scanner limit stopped reading and left the child blocked on a full pipe, so `cmd.Wait` hung forever. `consumeTestStream` now drains the pipe after a scan error, preserving the read error as the failure. This is a small necessary change within the stream-processing scope.
+
+Commands: `make test-focused TEST='TestRunGoTest|TestGoTest' PKGS=./internal/buildtool` passed; `make build && make test-fast` exit 0.
+
+Files read: internal/buildtool/main.go, internal/buildtool/main_test.go (Context Files). Extra reads: AGENTS.md, agent-skills/savepoint-task/SKILL.md, router.md, O-032 Objective.md (workflow routing and Objective boundaries). Files changed: internal/buildtool/main.go, internal/buildtool/main_test.go, this Task.
+
+Limitations: no real-module interrupted-run manual User Check was performed; interruption is covered by the existing helper-subprocess tests. `make test-full` not run (ordinary handoff). The 11 MB oversized test emits ~11 MB through a pipe (about 40ms).
 
 ## Drift Notes
 
-Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check. If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
+Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check.
+
+- Added `testStreamSummary` and `consumeTestStream` in `internal/buildtool/main.go`; `runGoTestStream` signature unchanged. Oversized stream lines now drain the pipe instead of deadlocking Wait. If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
