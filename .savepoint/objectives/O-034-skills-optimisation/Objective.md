@@ -34,6 +34,15 @@ Skill instructions remain the canonical workflow source; shared references hold 
 
 The exact recurring review mechanism and scenario verification approach will be settled when this Objective is ready for Task planning. Detailed Tasks wait until the preceding work has supplied its lessons.
 
+## Lessons Carried In
+
+Evidence from O-032's Code Health complexity work (2026-10-03), for the review to weigh when it runs:
+
+- The complexity signal has an aim (10 or less) and a watch line (20 or less). Bringing the hardest function from 42 to 20 took about 25 functions, mostly long scenario tests; reaching the aim would touch about 280 more, over 120 of them production code. The report's "investigate each signal and apply a fix" wording invites chasing the aim without saying where to stop.
+- Costs seen: indirection from splitting, scenario tests that no longer read top to bottom, refactor regressions (tests changed alongside the code that they guard), review churn, and metric gaming, since moving branches elsewhere lowers the score without removing them.
+- Judgment worth stating in skills: fix to the watch line, prefer production code that is risky or often changed, leave flat dispatch tables alone, report what remains rather than silently stopping or silently continuing, and treat narrowing the measured scope (for example excluding test files) as an owner decision.
+- Candidate review questions: whether `savepoint-task` and `savepoint-check` should say how an agent acts on an advisory Code Health report, and whether the generated report's next-step text should name the watch line as the stopping point. Any change to report wording is product work and would be recorded as follow-up, not applied by this review.
+
 ## Boundaries
 
 **In scope:** an end-of-Goal skill retrospective, evidence-backed template improvements, canonical/scaffold parity, upgrade delivery, representative agent scenarios, and guidance making the review recurring for future Goals.
