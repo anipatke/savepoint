@@ -41,7 +41,7 @@ var (
 // wording comes from the dashboard rows, never from this table.
 const (
 	reportTitle    = "# Code Health report"
-	reportBrief    = "Investigate each signal below that is not Good, blocking ones first. For each, find the cause in the files listed, propose a fix, then apply it. When you are done, re-run the check with `%s` and confirm the signal improved."
+	reportBrief    = "Fix each signal below that Needs attention, blocking ones first: find the cause in the files listed, propose a fix, then apply it. Stop once a signal reaches Watch or better; the aim is a direction, not a target to chase. Re-run `%s`, then report any signals that remain and why you stopped."
 	reportRerun    = "savepoint health check %s"
 	reportMeasured = "Measured %s (%s)."
 	reportNoFiles  = "No affected files were recorded."

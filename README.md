@@ -150,7 +150,7 @@ teammate pick up where the last one stopped.
 | `savepoint health setup [dir] [--apply]` | Previews suggested Code Health tools; `--apply` writes the health config. See [Code Health](#code-health). |
 | `savepoint health check O-### [dir]` | Collects an official Code Health snapshot during a Full Objective Check. |
 | `savepoint health report [dir]` | Rewrites the Code Health report from the newest saved snapshot. |
-| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refreshes shipped skills and templates in an existing project. `--dry-run` lists what would change; a skill you edited is kept and the new text is offered beside it unless you pass `--force`. |
+| `savepoint upgrade-assets [dir] [--dry-run] [--force]` | Refreshes shipped skills and templates in an existing project. `--dry-run` lists what would change; a skill you edited since the last upgrade is kept and the new text is offered beside it as `.new` unless you pass `--force`; in a project with no skill manifest yet, every differing skill is replaced once and the old copy is saved as `.bak`. |
 
 Run `savepoint --help` for the command list or `savepoint <command> --help` for
 command-specific options. The package is also available through `npx` for
@@ -434,8 +434,11 @@ the managed skills and templates. `upgrade-assets` does not perform a
 migration.
 
 User-authored project files remain outside the managed asset region. A skill
-you have edited is never overwritten without `--force`, and repeated updates
-are designed to be safe and reviewable.
+you have edited since the last upgrade is not overwritten without `--force`;
+the new text is offered beside it. The exception is a project that predates the
+skill manifest: its first upgrade replaces each differing skill and keeps the
+original as a `.bak` file. Repeated updates are designed to be safe and
+reviewable.
 
 ## Built for agent work
 

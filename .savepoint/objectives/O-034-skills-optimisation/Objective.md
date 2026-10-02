@@ -1,7 +1,7 @@
 ---
 id: O-034
 title: Skills optimisation
-status: in_progress
+status: done
 depends_on: [O-032]
 release: R-007
 priority: low

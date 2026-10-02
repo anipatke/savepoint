@@ -106,6 +106,12 @@ When adding another Goal:
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. Treat Goal completion as derived from its Objectives: a Goal is complete when every member Objective is complete. It does not mean published or deployed.
 
+### Goal Workflow Retrospective
+
+Once a Goal's other Objectives are planned, add one final workflow-retrospective Objective to that Goal. The planner owns it and records its outcome in that Objective, including a "no change, because…" conclusion when nothing needs to change. It reviews the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in.
+
+What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It adds no field, state, command, or Goal-owned Task list, and a Goal is still complete when every member Objective is complete.
+
 ## Objective Artifact Template
 
 Write the Objective file with this structure:

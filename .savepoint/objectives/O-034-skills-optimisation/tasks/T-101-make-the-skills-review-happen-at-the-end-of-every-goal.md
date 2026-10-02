@@ -2,12 +2,21 @@
 id: T-101
 title: Make the skills review happen at the end of every Goal
 objective: O-034
-status: planned
+status: done
 depends_on: [{task: T-100, requires: clear}]
 complexity_tier: low
 complexity_reason: One planning-guidance rule with parity, upgrade, and content tests.
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: plan-o034-20261003}
+check_waiver:
+    task: T-101
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T20:18:06Z"
 ---
 
 # Make the skills review happen at the end of every Goal
@@ -56,7 +65,21 @@ Focused `make test-focused TEST=... PKGS=./internal/init` during iteration; `mak
 
 ## Technical Evidence
 
-Pending execution.
+Executor evidence (not a Check, not CLEAR).
+
+### Per-criterion outcomes
+
+- **Rule stated.** `savepoint-design` gains "### Goal Workflow Retrospective" under Required Goal Context: add one final retrospective Objective once the Goal's other Objectives are planned; the planner owns it and records the outcome in it, including a "no change, because…" conclusion; downstream projects tune their own Guardrails, AGENTS.md project rules and gates and record packaged-skill suggestions as Issues. Matches O-034's Confirmed Design.
+- **No new mechanism.** The text adds no field, state, command, Goal-owned Task list or Goal-level Check, and the existing "a Goal is complete when every member Objective is complete" lines are untouched. `TestSkillReviewRulesArePinned` ("design adds a retrospective Objective to each Goal") pins the rule and fails if "Goal Check" or "Goal-level Check" appears.
+- **Parity (TPL-01).** The scaffold copy is a byte copy; `TestSavepointDesignSkillLiveAndTemplateMatch` passes.
+- **Upgrade (TPL-04, FS-02).** `TestUpgradeDeliversGoalRetrospectiveRuleToDesignSkill`: a manifest-tracked old design skill is updated from the real templates and contains the new section.
+- **Scenario "planner finishes planning a Goal's Objectives".** Before, the text said nothing, so no review happened. Now the planner adds the final Objective, owns it, and records its outcome there. In this repo the review edits canonical skills; downstream it tunes project-owned files and files Issues. Completion semantics are unchanged.
+- **Gate.** `make build && make test-fast` passed (exit 0).
+
+### Limitations
+
+- The scenario walk is written, not a live agent run. No `make test-full`: no code changed.
+- Extra reads, logged: `internal/init/upgrade_test.go` helpers and `agent_skills_test.go` case table, to match T-100's test pattern.
 
 ## Drift Notes
 

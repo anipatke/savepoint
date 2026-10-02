@@ -2,7 +2,7 @@
 id: I-122
 title: Code Health report next-step wording invites chasing the aim
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: executor, session: build-t100-20261003}
@@ -15,6 +15,21 @@ history:
     actor: {role: executor, session: build-t100-20261003}
     kind: observed
     note: Follow-up F1 from the T-099 skills review. Not applied in T-100 because report wording is product work.
+  - at: '2026-10-03T13:00:00Z'
+    actor: {role: owner, session: user}
+    kind: owner_decision
+    note: >-
+      Owner chose the wording. report.go reportBrief now says to fix signals
+      that Need attention, stop once a signal reaches Watch or better (the aim
+      is a direction, not a target), and report remaining signals and why work
+      stopped. report_test.go asserts the phrases; internal/codehealth tests
+      pass and a regenerated report.md carries the text. No independent Check
+      was run.
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user}
+  at: '2026-10-03T13:00:00Z'
+  reason: Owner decided the report wording and accepted the change.
 ---
 
 # I-122: Code Health report next-step wording invites chasing the aim

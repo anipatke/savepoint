@@ -42,7 +42,7 @@ func headingOrder(text string) []string {
 
 func TestReportBriefNamesRerunCommand(t *testing.T) {
 	text := reportFor(t, nil)
-	for _, want := range []string{"not Good", "blocking ones first", "propose a fix, then apply it", "`savepoint health check O-036`"} {
+	for _, want := range []string{"Needs attention", "blocking ones first", "propose a fix, then apply it", "Stop once a signal reaches Watch or better", "report any signals that remain", "`savepoint health check O-036`"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("report lacks %q:\n%s", want, text)
 		}

@@ -18,8 +18,8 @@ selection; the command does not write project files.
 ```yaml
 state: task
 release: R-007
-objective: O-034
-task: T-100
+objective: none
+task: none
 issue: none
 ```
 

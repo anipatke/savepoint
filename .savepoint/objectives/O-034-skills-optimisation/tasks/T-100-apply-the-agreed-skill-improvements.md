@@ -2,13 +2,21 @@
 id: T-100
 title: Apply the agreed skill improvements
 objective: O-034
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-099, requires: clear}]
 complexity_tier: medium
 complexity_reason: Text edits across seven parity-checked assets with content tests and upgrade delivery.
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: plan-o034-20261003}
+check_waiver:
+    task: T-100
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T20:13:22Z"
 ---
 
 # Apply the agreed skill improvements

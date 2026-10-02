@@ -1601,3 +1601,25 @@ func TestUpgradeKeepsAnEditedSkillAndOffersTheRevision(t *testing.T) {
 	incoming := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill))+incomingSuffix))
 	assertContains(t, incoming, "## Acting On A Code Health Report")
 }
+
+func TestUpgradeDeliversGoalRetrospectiveRuleToDesignSkill(t *testing.T) {
+	const designSkill = "agent-skills/savepoint-design/SKILL.md"
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	dir := savepointProject(t)
+	const old = "# savepoint-design before the retrospective rule"
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)), old)
+	manifest := NewManifest()
+	manifest.Record(designSkill, []byte(old))
+	if err := manifest.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if got := upgradeActionFor(t, report, designSkill); got != ActionUpdated {
+		t.Fatalf("action = %v, want updated", got)
+	}
+	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "### Goal Workflow Retrospective")
+}
