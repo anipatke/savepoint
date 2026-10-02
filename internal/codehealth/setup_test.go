@@ -29,7 +29,9 @@ func fileState(t *testing.T, root string) map[string]string {
 		if err != nil {
 			return err
 		}
-		info, err := d.Info()
+		// Lstat, not d.Info(): on NTFS a directory entry's times can lag behind the
+		// file, which would read as a change the code never made.
+		info, err := os.Lstat(p)
 		if err != nil {
 			return err
 		}

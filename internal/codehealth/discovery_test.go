@@ -434,7 +434,9 @@ func TestDiscoverIsReadOnly(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			info, err := e.Info()
+			// Lstat, not e.Info(): on NTFS a directory entry's times can lag behind
+			// the file, which would read as a change the code never made.
+			info, err := os.Lstat(p)
 			if err != nil {
 				return err
 			}
