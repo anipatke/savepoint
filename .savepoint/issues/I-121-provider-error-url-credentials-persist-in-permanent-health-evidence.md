@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-085, T-091]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-959]
 guardrail_ids: [TEST-02, TEST-05]
 severity: high
 history:
@@ -31,6 +31,11 @@ history:
     actor: {role: executor, session: repair-o032-20261002b}
     kind: repair_attempted
     note: "Targeted repair for C-958: when ExecRunner's stderr tail dropped earlier bytes, tailBuffer.Text removes a leading user:password@ fragment (scheme cut away) before sanitizing. Added TestExecRunnerDropsCredentialsWhoseSchemeWasTruncated, sweeping cut positions. make test-full passed locally."
+  - at: '2026-10-02T06:50:00Z'
+    actor: {role: checker, session: recheck-o032-20261002c-independent}
+    kind: rechecked
+    check: C-959
+    note: "Technically proven: 130/130 cells through real ExecRunner and Collect (64KiB -1/exact/+12, every overflow cutting the URI, >2x cap; newline and non-space filler) leave no credential fragment in the reason or immutable snapshot, keep the trailing failure text, valid UTF-8 and bounded. Open only because verified needs a CLEAR Check; C-959 is NEEDS WORK on I-118."
 ---
 
 # I-121: Provider error URL credentials persist in permanent health evidence

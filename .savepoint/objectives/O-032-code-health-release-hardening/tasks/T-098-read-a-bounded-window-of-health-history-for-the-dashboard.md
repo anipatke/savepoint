@@ -23,21 +23,25 @@ check_waiver:
 
 ## Outcome
 
-Opening Code Health and the board chip read the newest 10 official snapshots plus the manual ones between them, instead of every saved snapshot, so load cost no longer grows with snapshot size, with unchanged output for histories inside the window.
+Opening Code Health and the board chip read the newest 10 official snapshots plus the manual ones between them, instead of decoding every saved snapshot: older files are read only for their time and origin, and only the window is validated, with unchanged output for histories inside the window.
 
 ## User Check
 
-Open the board with a small and a large saved history; the Health screen and chip look the same, and a long history says "Older history was not read" in the basis line.
+Open the board with a small and a large saved history; the Health screen and chip look the same, and a long history says "Older history was not checked" in the basis line.
 
 ## Done When
 
-- A store function lists snapshot files, reads a bounded head (512 bytes) of each for `created_at` and `origin` (falling back to a full decode of that file when the head does not parse), orders them as `LoadSnapshots` does (stored time, then identity), and returns the window: the 10 newest official snapshots, every snapshot newer than the oldest of them, and the newest snapshot. Only those files are fully decoded, validated and checked against their name.
+- A store function lists snapshot files, reads each for `created_at` and `origin` by the full decoder's JSON rule (a repeated field keeps its last value), orders them as `LoadSnapshots` does (stored time, then identity), and returns the window: the 10 newest official snapshots, every snapshot newer than the oldest of them, and the newest snapshot. Only those files are fully decoded, validated and checked against their name.
 - `LoadDashboard` uses it. Rows, headline, sign-off, `History` and `Chip` are byte-identical to the full-load result for histories with at most 10 official snapshots, proven by tests built on the T-094 fixtures.
-- Beyond the window, specified and tested: trend, baseline and sparkline equal the full-history result for signals present in every window snapshot; `basisWords` says "most recent" and "Older history was not read" only when history was cut, and its manual and not-compared counts are within the window; `hasOfficial` still uses every head.
-- A name that is not a snapshot name, an unreadable head, or any damaged window file still fails the load with today's errors; a damaged body outside the window does not fail it; nothing is repaired or rewritten.
+- Beyond the window, specified and tested: trend, baseline and sparkline equal the full-history result for signals present in every window snapshot; `basisWords` says "most recent" and "Older history was not checked" only when history was cut, and its manual and not-compared counts are within the window; `hasOfficial` still uses every head.
+- A name that is not a snapshot name, a file outside the window that is not readable JSON or lacks a valid time and origin, or any damaged window file fails the load; other damage to a readable file outside the window is not validated and does not fail it; nothing is repaired or rewritten.
 - `LoadSnapshots`, `Collect`, `Prune`, doctor and `SnapshotLabels` are unchanged and still read everything.
-- `HealthHistoryLoadDashboard` single n=1,000 loads in under 250 ms and heavy n=1,000 allocates no more than heavy n=100 plus a stated constant, recorded the way T-094 recorded them.
+- `HealthHistoryLoadDashboard` single n=1,000 loads in under 250 ms; the heavy cases are measured and recorded the way T-094 recorded them (cost still grows with snapshot bytes because every file is read, but only the window is decoded and validated).
 - No cache, no index, no retention change, no storage identity change, no file written by a read.
+
+## Owner Amendment
+
+On 2026-10-02 the owner chose the simpler whole-file read made under I-118 (commit 8da136a) over the 512-byte head read, and directed the planner to amend this Task to match (recorded in C-959 follow-up; actor: owner via planner session plan-o032-20261002-i118-amend, 2026-10-02T07:05:00Z). Changed: Outcome and Done When items 1, 3, 4 and 6, and the User Check wording. Measured trade-off (go1.26.2, Ryzen 7 7800X3D, WSL2, warm cache): single n=1,000 34 ms (was 13 ms); heavy n=1,000 0.56 s and 168 MB (was 34 ms and 24 MB); full load 1.2 s and 1.2 GB. The Technical Evidence below records the original head-read build and is kept as history.
 
 ## Context Files
 

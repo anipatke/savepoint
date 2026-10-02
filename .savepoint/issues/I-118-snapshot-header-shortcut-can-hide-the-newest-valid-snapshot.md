@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-098]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-959]
 guardrail_ids: [CFG-01, TEST-02]
 severity: medium
 history:
@@ -31,6 +31,15 @@ history:
     actor: {role: executor, session: repair-o032-20261002b}
     kind: repair_attempted
     note: "Owner-directed simplification: the 512-byte head shortcut (parseHead) is removed. LoadWindow reads each file and takes created_at/origin with json.Unmarshal, the decoder's own last-wins rule, validating only the window. Changes the T-097 bounded-read design: older bodies are now read, not decoded; dashboard 33 ms at 1,000 normal snapshots (was 13) and 0.56 s at 1,000 maximum-size (was 34 ms; full load 1.2 s). User text now says Older history was not checked."
+  - at: '2026-10-02T06:50:00Z'
+    actor: {role: checker, session: recheck-o032-20261002c-independent}
+    kind: rechecked
+    check: C-959
+    note: "Original finding proven: valid repeated created_at/origin (before, and same-value after) agree with LoadSnapshots on newest, order and history; representations and the I-117 matrix pass. Not met: a truncated or trailing-garbage file outside the window now fails the dashboard load (T-098 DW4), and load cost grows with snapshot size again (heavy n=1,000 561.6 ms / 168.0 MB vs 34.2 ms / 23.7 MB), contradicting T-098 Outcome/DW1/DW6, the T-097 decision and Design.md. No recorded owner exception or amended criterion. Convergence limit reached; owner decides: amend through savepoint-design, record an exception, or restore a bounded read."
+  - at: '2026-10-02T07:05:00Z'
+    actor: {role: owner, session: plan-o032-20261002-i118-amend}
+    kind: owner_decision
+    note: "Owner chose option 1 from C-959: keep the whole-file read. Planner amended T-098 (Outcome, Done When 1/3/4/6, User Check), the T-097 decision and Design.md to describe it, including the measured cost and that a non-JSON file outside the window fails the load. No code change. Needs a fresh independent Check for verified."
 ---
 
 # I-118: Snapshot header shortcut can hide the newest valid snapshot

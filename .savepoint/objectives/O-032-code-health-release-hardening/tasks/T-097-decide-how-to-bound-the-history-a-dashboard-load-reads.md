@@ -102,6 +102,8 @@ A is the only candidate that is exact, needs no migration and does not depend on
 
 **Not proposed.** A cache or index, a storage-identity change, a retention change, mtime ordering, and any change to the collector, `Prune`, doctor or report text. No change at all is also defensible: all three T-094 budgets are met and 1,000 official or manual snapshots at ordinary size load in 85 ms. The case for change is the heavy end (1.25 s, 1.2 GB per load, two or three loads per open) and unbounded growth of manual history.
 
+**Owner amendment (2026-10-02).** The owner replaced candidate A's 512-byte head read with a whole-file read of each snapshot that decodes only `created_at` and `origin` (I-118, commit 8da136a), so the head can no longer disagree with the full decoder. The window rule, wording (now "Older history was not checked"), sign-off and the other readers above are unchanged. Two parts of this decision no longer hold: load cost again grows with snapshot bytes (heavy n=1,000 0.56 s and 168 MB, single n=1,000 34 ms against the 250 ms budget), and a file outside the window that is not readable JSON now fails the dashboard load; other damage outside the window is still not shown. Recorded by the planner on the owner's instruction, 2026-10-02T07:05:00Z.
+
 **Recommendation:** the bounded Task below, since the lookup is exact, needs no migration and removes the size-dependent cost; the owner may equally choose no change and keep T-094's budgets under watch.
 
 ### Per-criterion outcome
