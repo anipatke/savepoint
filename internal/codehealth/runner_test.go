@@ -34,6 +34,9 @@ func TestHelperProcess(t *testing.T) {
 		code, _ := strconv.Atoi(args[1])
 		os.Stderr.WriteString("bad\x1b[31m thing\nsecond line " + strings.Repeat("x", 500))
 		os.Exit(code)
+	case "noisy-fail":
+		os.Stderr.WriteString(strings.Repeat("Scanned file and found 28 packages\n", 40) + "Error during extraction: connection refused\n")
+		os.Exit(127)
 	case "huge":
 		chunk := bytes.Repeat([]byte("a"), 1<<20)
 		for i := 0; i < MaxReportBytes>>20+2; i++ {
@@ -96,8 +99,17 @@ func TestExecRunnerResults(t *testing.T) {
 		if err != nil || res.ExitCode != 7 {
 			t.Fatalf("got exit %d err %v", res.ExitCode, err)
 		}
-		if strings.ContainsAny(res.Stderr, "\x1b\n") || !strings.HasPrefix(res.Stderr, "bad [31m thing second line") || len(res.Stderr) > MaxReasonLen {
+		if strings.ContainsAny(res.Stderr, "\x1b\n") || !strings.HasPrefix(res.Stderr, "…") || !strings.HasSuffix(res.Stderr, "xxx") || len(res.Stderr) > MaxReasonLen {
 			t.Fatalf("stderr not sanitized and bounded: %q", res.Stderr)
+		}
+	})
+	t.Run("stderr keeps the final error after long progress output", func(t *testing.T) {
+		res, err := ExecRunner{}.Run(ctx, helperSpec(dir, "noisy-fail"))
+		if err != nil || res.ExitCode != 127 {
+			t.Fatalf("got exit %d err %v", res.ExitCode, err)
+		}
+		if !strings.HasSuffix(res.Stderr, "Error during extraction: connection refused") || len(res.Stderr) > MaxReasonLen {
+			t.Fatalf("stderr lost the final error: %q", res.Stderr)
 		}
 	})
 	t.Run("missing executable is unavailable", func(t *testing.T) {

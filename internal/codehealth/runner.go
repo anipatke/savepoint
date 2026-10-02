@@ -36,7 +36,7 @@ type ToolSpec struct {
 
 // ToolResult is a tool that ran to completion. A non-zero ExitCode is a result,
 // not an error. Truncated reports that stdout passed MaxReportBytes and the
-// excess was dropped. Stderr is a bounded, sanitized single line.
+// excess was dropped. Stderr is a bounded, sanitized single line that keeps its end.
 type ToolResult struct {
 	Stdout    []byte
 	Truncated bool
@@ -81,7 +81,7 @@ func (ExecRunner) Run(ctx context.Context, spec ToolSpec) (ToolResult, error) {
 	if ctx.Err() != nil {
 		return ToolResult{}, ctx.Err()
 	}
-	res := ToolResult{Stdout: out.Bytes(), Truncated: out.truncated, Stderr: sanitizeLine(errOut.String())}
+	res := ToolResult{Stdout: out.Bytes(), Truncated: out.truncated, Stderr: sanitizeTail(errOut.String())}
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
@@ -120,8 +120,8 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 func (b *limitedBuffer) Bytes() []byte  { return b.buf.Bytes() }
 func (b *limitedBuffer) String() string { return b.buf.String() }
 
-// sanitizeLine reduces tool text to one bounded, printable line for a reason.
-func sanitizeLine(s string) string {
+// cleanLine reduces tool text to one printable line, without bounding it.
+func cleanLine(s string) string {
 	s = strings.ToValidUTF8(s, "")
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -129,13 +129,32 @@ func sanitizeLine(s string) string {
 		}
 		return r
 	}, s)
-	s = strings.Join(strings.Fields(s), " ")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// sanitizeLine reduces tool text to one bounded, printable line for a reason.
+func sanitizeLine(s string) string {
+	s = cleanLine(s)
 	if len(s) > MaxReasonLen/2 {
 		cut := MaxReasonLen / 2
 		for cut > 0 && !utf8.RuneStart(s[cut]) {
 			cut--
 		}
 		s = s[:cut] + "…"
+	}
+	return s
+}
+
+// sanitizeTail is sanitizeLine for a tool's stderr: tools print the error last,
+// after any progress output, so an oversized line keeps its end, not its start.
+func sanitizeTail(s string) string {
+	s = cleanLine(s)
+	if len(s) > MaxReasonLen/2 {
+		cut := len(s) - MaxReasonLen/2
+		for cut < len(s) && !utf8.RuneStart(s[cut]) {
+			cut++
+		}
+		s = "…" + s[cut:]
 	}
 	return s
 }
