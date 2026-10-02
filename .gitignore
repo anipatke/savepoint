@@ -4,6 +4,7 @@ savepoint.exe
 *.zip
 node_modules/
 coverage/
+!internal/codehealth/testdata/readers/coverage/
 .DS_Store
 Thumbs.db
 .env
@@ -17,3 +18,10 @@ pnpm-debug.log*
 
 # Windows download metadata streams copied through WSL; ":" is invalid in Windows paths
 *:Zone.Identifier
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Test reports written by make test / test-fast for Code Health
+go-test.json
+coverage.out

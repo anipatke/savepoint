@@ -70,70 +70,40 @@ type UpgradeEntry struct {
 	Note string
 }
 
+var summaryOrder = []struct {
+	action UpgradeAction
+	label  string
+}{
+	{ActionFailed, "Failed"},
+	{ActionConflict, "Conflicts"},
+	{ActionUpdated, "Updated"},
+	{ActionInstalled, "Installed"},
+	{ActionMerged, "Merged"},
+	{ActionMigrated, "Migrated"},
+	{ActionRetired, "Retired"},
+	{ActionUnchanged, "Unchanged"},
+	{ActionSkipped, "Skipped"},
+	{ActionInfo, "Info"},
+}
+
 func (r *UpgradeReport) Format() string {
 	if len(r.Actions) == 0 {
 		return "No assets to upgrade."
 	}
 
-	var updated, installed, merged, migrated, retired, unchanged, skipped, conflicts, failed, info int
+	counts := map[UpgradeAction]int{}
 	for _, e := range r.Actions {
-		switch e.Action {
-		case ActionFailed:
-			failed++
-		case ActionConflict:
-			conflicts++
-		case ActionUpdated:
-			updated++
-		case ActionInstalled:
-			installed++
-		case ActionMerged:
-			merged++
-		case ActionMigrated:
-			migrated++
-		case ActionRetired:
-			retired++
-		case ActionUnchanged:
-			unchanged++
-		case ActionSkipped:
-			skipped++
-		case ActionInfo:
-			info++
-		}
+		counts[e.Action]++
 	}
 
 	var b strings.Builder
 	b.WriteString("Upgrade Report:\n")
 	// Failures and conflicts lead the summary: they are the counts that need
 	// the user to do something before the upgrade is complete.
-	if failed > 0 {
-		fmt.Fprintf(&b, "  Failed: %d\n", failed)
-	}
-	if conflicts > 0 {
-		fmt.Fprintf(&b, "  Conflicts: %d\n", conflicts)
-	}
-	if updated > 0 {
-		fmt.Fprintf(&b, "  Updated: %d\n", updated)
-	}
-	if installed > 0 {
-		fmt.Fprintf(&b, "  Installed: %d\n", installed)
-	}
-	if merged > 0 {
-		fmt.Fprintf(&b, "  Merged: %d\n", merged)
-	}
-	if migrated > 0 {
-		fmt.Fprintf(&b, "  Migrated: %d\n", migrated)
-	}
-	if retired > 0 {
-		fmt.Fprintf(&b, "  Retired: %d\n", retired)
-	}
-	if unchanged > 0 {
-		fmt.Fprintf(&b, "  Unchanged: %d\n", unchanged)
-	}
-	if skipped > 0 {
-		fmt.Fprintf(&b, "  Skipped: %d\n", skipped)
-	}
-	if info > 0 {
-		fmt.Fprintf(&b, "  Info: %d\n", info)
+	for _, s := range summaryOrder {
+		if n := counts[s.action]; n > 0 {
+			fmt.Fprintf(&b, "  %s: %d\n", s.label, n)
+		}
 	}
 
 	for _, e := range r.Actions {
@@ -579,6 +549,11 @@ func writeSkillAsset(targetPath, path string, content []byte, manifest *Manifest
 // on a dry run. Sidecars carry no provenance: they are never the live file.
 func writeSidecar(targetPath, path, suffix string, content []byte, dryRun bool, write assetWriter) error {
 	if dryRun {
+		return nil
+	}
+	// A repeat run with the same incoming content leaves the sidecar's bytes
+	// and modification time alone.
+	if existing, err := os.ReadFile(targetPath + suffix); err == nil && bytes.Equal(existing, content) {
 		return nil
 	}
 	if err := write(targetPath+suffix, content); err != nil {

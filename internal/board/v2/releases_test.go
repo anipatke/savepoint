@@ -331,14 +331,28 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if switched.ReleaseOverlay || switched.SelectedRelease != "R-002" {
 		t.Errorf("selection state = open %t, release %q; want closed/R-002", switched.ReleaseOverlay, switched.SelectedRelease)
 	}
-	if got := cardIDsInView(switched); !equalIDs(got, []string{"T-002"}) {
-		t.Errorf("selected Release shows Tasks %v, want only indexed member T-002", got)
-	}
-	if len(switched.Objectives) != 1 || switched.Objectives[0].ID() != "O-002" {
-		t.Errorf("selected Release Objectives = %v, want only O-002", switched.Objectives)
-	}
+	assertOnlySecondReleaseMemberVisible(t, "selected", switched)
 
 	final := applyBoardCommands(t, switched, cmd)
+	assertRouterClearedForSecondRelease(t, final)
+	assertOnlySecondReleaseMemberVisible(t, "reloaded", final)
+	assertBoardAndResumeNameNothingSelected(t, final)
+	assertRouterFileRewritten(t, root, beforeRouter)
+	assertPipedOutputScopedToSecondRelease(t, root)
+}
+
+func assertOnlySecondReleaseMemberVisible(t *testing.T, when string, m Model) {
+	t.Helper()
+	if got := cardIDsInView(m); !equalIDs(got, []string{"T-002"}) {
+		t.Errorf("%s Release shows Tasks %v, want only indexed member T-002", when, got)
+	}
+	if len(m.Objectives) != 1 || m.Objectives[0].ID() != "O-002" {
+		t.Errorf("%s Release Objectives = %v, want only O-002", when, m.Objectives)
+	}
+}
+
+func assertRouterClearedForSecondRelease(t *testing.T, final Model) {
+	t.Helper()
 	if final.State.Router == nil || final.State.Router.Release != "R-002" {
 		t.Fatalf("router Release = %+v, want R-002 after the canonical write", final.State.Router)
 	}
@@ -351,16 +365,13 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if final.State.Next.Release == nil || final.State.Next.Release.ID != "R-002" {
 		t.Fatalf("reloaded Next.Release = %+v, want R-002-scoped Next", final.State.Next.Release)
 	}
-	if got := cardIDsInView(final); !equalIDs(got, []string{"T-002"}) {
-		t.Errorf("reloaded selected Release shows Tasks %v, want T-002", got)
-	}
-	if len(final.Objectives) != 1 || final.Objectives[0].ID() != "O-002" {
-		t.Errorf("reloaded visible Objectives = %v, want only O-002", final.Objectives)
-	}
-	// The board's own Next area and `savepoint resume` intentionally carry
-	// different amounts of detail now (the board is a one-line glance; resume
-	// stays the full narrative) — so each is checked against its own wording
-	// rather than for a shared substring between them.
+}
+
+// assertBoardAndResumeNameNothingSelected checks each surface against its own
+// wording: the board's Next area is a one-line glance and `savepoint resume`
+// stays the full narrative, so they intentionally carry different detail.
+func assertBoardAndResumeNameNothingSelected(t *testing.T, final Model) {
+	t.Helper()
 	view := xansi.Strip(final.View())
 	for _, want := range []string{
 		"GOAL: R-002 — Second release",
@@ -386,6 +397,10 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if strings.Contains(resumeOutput.String(), "Task: T-002 — Second task") {
 		t.Errorf("resume output substituted the Release's member Task without an Objective selection:\n%s", resumeOutput.String())
 	}
+}
+
+func assertRouterFileRewritten(t *testing.T, root string, beforeRouter []byte) {
+	t.Helper()
 	content, err := os.ReadFile(filepath.Join(root, "router.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -399,7 +414,10 @@ func TestReleaseSelectionFiltersIndexedObjectivesAndPersistsOnlyRouterContext(t 
 	if string(beforeRouter) == string(content) {
 		t.Error("canonical Release selection did not change router context")
 	}
+}
 
+func assertPipedOutputScopedToSecondRelease(t *testing.T, root string) {
+	t.Helper()
 	var plain bytes.Buffer
 	if err := Run(Options{Root: root, Stdout: &plain, TTY: false}); err != nil {
 		t.Fatalf("Run() error = %v", err)

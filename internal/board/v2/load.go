@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -20,7 +21,14 @@ type ProjectState struct {
 	Router      *data.RouterStateV2
 	RouterMtime time.Time
 	Issues      IssueCatalog
-	Next        data.Next
+	// Health maps a stored health snapshot ID to its label. It is read once
+	// per load, only when some Check names a snapshot, so rendering never
+	// touches the filesystem and a project without health reads nothing.
+	Health map[string]codehealth.SnapshotLabel
+	// HealthChip is the header's glance at overall health, read once per load
+	// from saved data, so rendering never touches the filesystem.
+	HealthChip codehealth.Chip
+	Next       data.Next
 }
 
 // objectiveCount and taskCount report what the load put into the index. A nil
@@ -153,8 +161,22 @@ func loadProject(root string) projectLoadedMsg {
 		Router:      router,
 		RouterMtime: routerInfo.ModTime(),
 		Issues:      issueCatalog(index),
+		Health:      loadHealthLabels(root, index),
+		HealthChip:  codehealth.LoadChip(filepath.Dir(root)),
 		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
 	}}
+}
+
+// loadHealthLabels looks up the stored snapshots only when some Check names
+// one. root is the .savepoint directory; the health store lives under its
+// parent project path, as for doctor.
+func loadHealthLabels(root string, index *data.V2Index) map[string]codehealth.SnapshotLabel {
+	for _, check := range index.Checks {
+		if check.HealthSnapshot != "" {
+			return codehealth.SnapshotLabels(filepath.Dir(root))
+		}
+	}
+	return nil
 }
 
 // readRouter reads and strictly decodes the project's V2 router. Both an

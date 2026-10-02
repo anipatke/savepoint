@@ -61,6 +61,12 @@ If a rule can block a Check's verdict or require remediation, it must be defined
 | STYLE-09 | Guideline | **Content lives in data** — keep copy/config out of logic. |
 | STYLE-10 | Guideline | **Small diffs** — minimal, reviewable, behaviour-preserving changes. |
 
+### Code Health
+
+| ID | Severity | Rule |
+|---|---|---|
+| CODE-01 | Guideline | **Complexity** — bring a Watch signal back to its watch line; the aim is not a target. |
+
 ## Savepoint Check Enforcement
 
 `savepoint-check` applies these rules through `agent-skills/references/check-method.md`: Quick evidence is optional and applies only to a requested Task Check; Full evidence is mandatory for an Objective Check. Code style rules are Guideline severity throughout — they inform review but never block a Check's verdict by themselves.

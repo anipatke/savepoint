@@ -433,9 +433,7 @@ func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDone
 	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
 		t.Fatalf("Blockers = %+v, want one GateBlockClearanceNeedsWork", got.Blockers)
 	}
-	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
-		t.Fatalf("owned tasks changed status while only the objective check was NEEDS WORK")
-	}
+	assertCompletedTasksStayDone(t, index, "while only the objective check was NEEDS WORK")
 
 	// The finding becomes new work under the same Objective. The two
 	// completed Tasks are historical work and must not be reopened.
@@ -445,9 +443,7 @@ func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDone
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockInvalidState {
 		t.Fatalf("new remediation Task must block Objective completion, got %+v", got)
 	}
-	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
-		t.Fatal("adding remediation work reopened a completed Task")
-	}
+	assertCompletedTasksStayDone(t, index, "when remediation work was added")
 
 	// Finishing remediation alone cannot override the failed Check. A fresh,
 	// superseding CLEAR Check is still required.
@@ -456,12 +452,21 @@ func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDone
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
 		t.Fatalf("repair without recheck must remain blocked, got %+v", got)
 	}
+	checkOpenIssueBlocksUntilResolved(t, index)
+	assertCompletedTasksStayDone(t, index, "during repair and recheck")
+}
+
+// checkOpenIssueBlocksUntilResolved records the superseding CLEAR Check and
+// shows an unresolved material Issue still blocks completion, an unrelated
+// exception does not accept it, and resolving it allows completion.
+func checkOpenIssueBlocksUntilResolved(t *testing.T, index *V2Index) {
+	t.Helper()
 	mustObjectiveCheck(index, "C-002", "O-001", CheckResultClear)
 	index.Objectives["O-001"] = mustCurrentObjective("O-001", "C-002", nil)
 	index.Issues = map[string]*IssueV2{"I-001": {ID: "I-001", Status: IssueStatusOpen}}
 	index.CheckIssues = map[string][]string{"C-002": {"I-001"}}
 
-	got = ResolveObjectiveCompletion(index, "O-001")
+	got := ResolveObjectiveCompletion(index, "O-001")
 	if got.Allowed || len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockObjectiveIssueUnresolved || got.Blockers[0].Issue != "I-001" {
 		t.Fatalf("current CLEAR Check with unresolved material Issue must block, got %+v", got)
 	}
@@ -479,8 +484,14 @@ func TestResolveObjectiveCompletion_repairAndRecheckDoesNotRequireRetreatingDone
 	if !got.Allowed {
 		t.Fatalf("Allowed = false, want true after the recheck cleared, blockers = %+v", got.Blockers)
 	}
-	if index.Tasks["T-001"].Status != ColumnDone || index.Tasks["T-002"].Status != ColumnDone {
-		t.Fatalf("owned tasks changed status during repair and recheck, want both to remain done throughout")
+}
+
+func assertCompletedTasksStayDone(t *testing.T, index *V2Index, when string) {
+	t.Helper()
+	for _, id := range []string{"T-001", "T-002"} {
+		if index.Tasks[id].Status != ColumnDone {
+			t.Fatalf("completed Task %s changed status %s, want it to stay done", id, when)
+		}
 	}
 }
 

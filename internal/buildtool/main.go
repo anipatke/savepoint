@@ -64,15 +64,226 @@ func focusedTestArgs(args []string) ([]string, error) {
 	return append(goArgs, packages...), nil
 }
 
+// Report file names match the conventional paths Code Health discovers.
+const (
+	goTestReportName   = "go-test.json"
+	goCoverReportName  = "coverage.out"
+	writeReportsOption = "-reports"
+)
+
 func runGoTest(args []string, output io.Writer) error {
+	reports := len(args) > 0 && args[0] == writeReportsOption
+	if reports {
+		args = args[1:]
+	}
 	if len(args) == 0 {
 		return errors.New("go test arguments are required")
+	}
+	if reports {
+		return runGoTestWithReports(".", args, output)
 	}
 	commandArgs := append([]string{"test"}, args...)
 	return runGoTestCommand(exec.Command("go", commandArgs...), output)
 }
 
+// runGoTestWithReports runs go test, teeing the raw JSON stream and a coverage
+// profile into dir. Each report is written to a temp file and renamed into place
+// after go test exits, pass or fail, so a report is never half written.
+func runGoTestWithReports(dir string, args []string, output io.Writer) error {
+	jsonTmp, err := os.CreateTemp(dir, "."+goTestReportName+".*")
+	if err != nil {
+		return fmt.Errorf("create go test report: %w", err)
+	}
+	defer os.Remove(jsonTmp.Name())
+	coverTmp, err := os.CreateTemp(dir, "."+goCoverReportName+".*")
+	if err != nil {
+		jsonTmp.Close()
+		return fmt.Errorf("create coverage report: %w", err)
+	}
+	coverTmp.Close()
+	defer os.Remove(coverTmp.Name())
+
+	commandArgs := append([]string{"test", "-coverprofile=" + coverTmp.Name()}, args...)
+	runErr := runGoTestStream(exec.Command("go", commandArgs...), output, jsonTmp)
+	if err := jsonTmp.Close(); err != nil {
+		return errors.Join(runErr, fmt.Errorf("close go test report: %w", err))
+	}
+	// A killed or unreadable child leaves a partial stream; keep the previous
+	// complete reports rather than replacing them with it.
+	if !goTestRunCompleted(runErr) || !goTestStreamComplete(jsonTmp.Name(), runErr == nil) {
+		return runErr
+	}
+	if err := os.Rename(jsonTmp.Name(), filepath.Join(dir, goTestReportName)); err != nil {
+		return errors.Join(runErr, fmt.Errorf("save go test report: %w", err))
+	}
+	// A build failure leaves no profile; keep the previous complete one then.
+	if info, err := os.Stat(coverTmp.Name()); err == nil && info.Size() > 0 {
+		if err := os.Rename(coverTmp.Name(), filepath.Join(dir, goCoverReportName)); err != nil {
+			return errors.Join(runErr, fmt.Errorf("save coverage report: %w", err))
+		}
+	}
+	return runErr
+}
+
+// goTestRunCompleted reports whether go test ran to its own exit: success, or
+// a failing exit such as failed tests or a build error. A signal, a start
+// failure, or an unreadable stream means the event stream may be incomplete.
+func goTestRunCompleted(runErr error) bool {
+	if runErr == nil {
+		return true
+	}
+	var exitErr *exec.ExitError
+	return errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0
+}
+
+// goTestStreamComplete reports whether every package that started in the JSON
+// stream also reported a result. Windows gives a terminated child a normal
+// exit code, so the exit code alone cannot tell an interrupted run from a
+// failing one. An empty stream counts only after a successful run.
+func goTestStreamComplete(path string, emptyOK bool) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	open := make(map[string]bool)
+	seen := false
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		var event goTestEvent
+		if json.Unmarshal(scanner.Bytes(), &event) != nil || event.Test != "" {
+			continue
+		}
+		switch event.Action {
+		case "start":
+			open[event.Package] = true
+			seen = true
+		case "pass", "fail", "skip":
+			delete(open, event.Package)
+			seen = true
+		}
+	}
+	return scanner.Err() == nil && len(open) == 0 && (seen || emptyOK)
+}
+
 func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
+	return runGoTestStream(cmd, output, nil)
+}
+
+// testStreamSummary aggregates go test -json events into the timing and
+// failure data reported once the stream ends.
+type testStreamSummary struct {
+	packages       []testTiming
+	tests          []testTiming
+	skipped        []string
+	failedPackages []string
+	packageOutput  map[string]*strings.Builder
+}
+
+func newTestStreamSummary() *testStreamSummary {
+	return &testStreamSummary{packageOutput: make(map[string]*strings.Builder)}
+}
+
+func (s *testStreamSummary) add(event goTestEvent) {
+	if event.Output != "" {
+		s.addOutput(event)
+	}
+	if event.Test == "" {
+		s.addPackageResult(event)
+		return
+	}
+	s.addTestResult(event)
+}
+
+func (s *testStreamSummary) addOutput(event goTestEvent) {
+	name := event.Package
+	if name == "" {
+		name = "<go test>"
+	}
+	if s.packageOutput[name] == nil {
+		s.packageOutput[name] = &strings.Builder{}
+	}
+	s.packageOutput[name].WriteString(event.Output)
+}
+
+func (s *testStreamSummary) addPackageResult(event goTestEvent) {
+	if event.Action == "fail" {
+		s.failedPackages = append(s.failedPackages, event.Package)
+	}
+	if event.Elapsed > 0 && (event.Action == "pass" || event.Action == "fail") {
+		s.packages = append(s.packages, testTiming{name: event.Package, elapsed: eventElapsed(event)})
+	}
+}
+
+func (s *testStreamSummary) addTestResult(event goTestEvent) {
+	switch event.Action {
+	case "pass", "fail":
+		s.tests = append(s.tests, testTiming{name: event.Package + "." + event.Test, elapsed: eventElapsed(event)})
+	case "skip":
+		s.skipped = append(s.skipped, event.Package+"."+event.Test)
+	}
+}
+
+func eventElapsed(event goTestEvent) time.Duration {
+	return time.Duration(event.Elapsed * float64(time.Second))
+}
+
+// writeFailedPackages prints the captured output of each failed package once,
+// in name order.
+func (s *testStreamSummary) writeFailedPackages(output io.Writer) error {
+	sort.Strings(s.failedPackages)
+	previousPackage := ""
+	for _, packageName := range s.failedPackages {
+		if packageName == previousPackage {
+			continue
+		}
+		previousPackage = packageName
+		fmt.Fprintf(output, "\nOutput for failed package %s:\n", packageName)
+		if s.packageOutput[packageName] == nil {
+			continue
+		}
+		if _, err := io.WriteString(output, s.packageOutput[packageName].String()); err != nil {
+			return fmt.Errorf("write failed package output: %w", err)
+		}
+	}
+	return nil
+}
+
+// consumeTestStream reads the event stream line by line, teeing each raw line
+// to tee when set. Lines that are not events pass straight through to output.
+// It returns the first read or tee-write failure; a tee failure does not stop
+// the read; a scan failure drains the rest so the child is never blocked on a
+// full pipe.
+func consumeTestStream(stdout io.Reader, output, tee io.Writer, summary *testStreamSummary) error {
+	var scanErr error
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		line := append([]byte(nil), scanner.Bytes()...)
+		if tee != nil {
+			if _, err := tee.Write(append(line[:len(line):len(line)], '\n')); err != nil && scanErr == nil {
+				scanErr = fmt.Errorf("write go test report: %w", err)
+			}
+		}
+		var event goTestEvent
+		if err := json.Unmarshal(line, &event); err != nil {
+			fmt.Fprintln(output, string(line))
+			continue
+		}
+		summary.add(event)
+	}
+	if err := scanner.Err(); err != nil {
+		// Keep draining so the child cannot block on a full pipe and hang Wait.
+		_, _ = io.Copy(io.Discard, stdout)
+		if scanErr == nil {
+			scanErr = err
+		}
+	}
+	return scanErr
+}
+
+func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("open go test output: %w", err)
@@ -83,74 +294,54 @@ func runGoTestCommand(cmd *exec.Cmd, output io.Writer) error {
 		return fmt.Errorf("start go test: %w", err)
 	}
 
-	var packages []testTiming
-	var tests []testTiming
-	var skipped []string
-	var failedPackages []string
-	packageOutput := make(map[string]*strings.Builder)
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
-	for scanner.Scan() {
-		line := append([]byte(nil), scanner.Bytes()...)
-		var event goTestEvent
-		if err := json.Unmarshal(line, &event); err != nil {
-			fmt.Fprintln(output, string(line))
-			continue
-		}
-		if event.Output != "" {
-			packageName := event.Package
-			if packageName == "" {
-				packageName = "<go test>"
-			}
-			if packageOutput[packageName] == nil {
-				packageOutput[packageName] = &strings.Builder{}
-			}
-			packageOutput[packageName].WriteString(event.Output)
-		}
-		if event.Test == "" && event.Action == "fail" {
-			failedPackages = append(failedPackages, event.Package)
-		}
-		if event.Test == "" && event.Elapsed > 0 && (event.Action == "pass" || event.Action == "fail") {
-			packages = append(packages, testTiming{name: event.Package, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
-		}
-		if event.Test != "" {
-			if event.Action == "pass" || event.Action == "fail" {
-				tests = append(tests, testTiming{name: event.Package + "." + event.Test, elapsed: time.Duration(event.Elapsed * float64(time.Second))})
-			}
-			if event.Action == "skip" {
-				skipped = append(skipped, event.Package+"."+event.Test)
-			}
-		}
-	}
-	scanErr := scanner.Err()
+	summary := newTestStreamSummary()
+	out := &firstErrorWriter{w: output}
+	scanErr := consumeTestStream(stdout, out, tee, summary)
 	waitErr := cmd.Wait()
-	sort.Strings(failedPackages)
-	previousPackage := ""
-	for _, packageName := range failedPackages {
-		if packageName == previousPackage {
-			continue
-		}
-		previousPackage = packageName
-		fmt.Fprintf(output, "\nOutput for failed package %s:\n", packageName)
-		if packageOutput[packageName] != nil {
-			if _, err := io.WriteString(output, packageOutput[packageName].String()); err != nil {
-				return fmt.Errorf("write failed package output: %w", err)
-			}
-		}
+	// Every output step runs even when an earlier one failed, so the child's own
+	// failure is never replaced by a secondary one.
+	var outErr error
+	if err := summary.writeFailedPackages(out); err != nil {
+		outErr = err
 	}
 	if stderr.Len() > 0 {
-		if _, err := io.Copy(output, &stderr); err != nil {
-			return fmt.Errorf("write go test diagnostics: %w", err)
+		if _, err := io.Copy(out, &stderr); err != nil && outErr == nil {
+			outErr = fmt.Errorf("write go test diagnostics: %w", err)
 		}
 	}
-	writeTestTimingSummary(output, packages, tests, skipped)
+	writeTestTimingSummary(out, summary.packages, summary.tests, summary.skipped)
+	if outErr == nil && out.err != nil {
+		outErr = fmt.Errorf("write go test output: %w", out.err)
+	}
+	var errs []error
 	if waitErr != nil {
-		return waitErr
+		errs = append(errs, waitErr)
 	}
 	if scanErr != nil {
-		return fmt.Errorf("read go test output: %w", scanErr)
+		errs = append(errs, fmt.Errorf("read go test output: %w", scanErr))
 	}
-	return nil
+	if outErr != nil {
+		errs = append(errs, outErr)
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	return errors.Join(errs...)
+}
+
+// firstErrorWriter passes writes through and remembers the first failure, so
+// output written with fmt.Fprint calls that drop their error is still reported.
+type firstErrorWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (f *firstErrorWriter) Write(p []byte) (int, error) {
+	n, err := f.w.Write(p)
+	if err != nil && f.err == nil {
+		f.err = err
+	}
+	return n, err
 }
 
 func writeTestTimingSummary(output io.Writer, packages, tests []testTiming, skipped []string) {

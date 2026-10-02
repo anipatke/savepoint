@@ -326,101 +326,87 @@ func v2ConsistencyDiagnosticName(kind data.ConsistencyDiagnosticKind) string {
 	}
 }
 
+// v2DiagnosticRule maps one data sentinel to its stable diagnostic name. A
+// rule with refine picks a more specific name from the error message.
+type v2DiagnosticRule struct {
+	sentinel error
+	name     string
+	refine   func(msg string) string
+}
+
+func refineInvalidID(msg string) string {
+	if strings.Contains(msg, "release id") || strings.Contains(msg, "Goal id") {
+		return "v2-release-invalid-id"
+	}
+	return "v2-invalid-id"
+}
+
+func refineCheckScopeTarget(msg string) string {
+	if strings.Contains(msg, "scope names missing release") {
+		return "v2-check-missing-release-scope-target"
+	}
+	return "v2-check-missing-scope-target"
+}
+
+// v2DiagnosticRules is ordered: the first sentinel an error wraps wins.
+var v2DiagnosticRules = []v2DiagnosticRule{
+	{data.ErrMalformedSchemaVersion, "schema-version-malformed", nil},
+	{data.ErrUnsupportedSchemaVersion, "schema-version-unsupported", nil},
+	{data.ErrV2MissingField, "v2-missing-field", nil},
+	{data.ErrV2InvalidID, "v2-invalid-id", refineInvalidID},
+	{data.ErrV2InvalidOwnership, "v2-invalid-ownership", nil},
+	{data.ErrV2InvalidLifecycle, "v2-invalid-lifecycle", nil},
+	{data.ErrV2InvalidDependency, "v2-invalid-dependency", nil},
+	{data.ErrV2InvalidReleaseReference, "v2-invalid-release-reference", nil},
+	{data.ErrV2DuplicateID, "v2-duplicate-id", nil},
+	{data.ErrV2PathMismatch, "v2-path-mismatch", nil},
+	{data.ErrV2UnsafePath, "v2-unsafe-path", nil},
+	{data.ErrV2MissingOwner, "v2-missing-owner", nil},
+	{data.ErrV2MissingRelease, "v2-missing-release", nil},
+	{data.ErrV2ReleaseMissingSection, "v2-release-missing-section", nil},
+	{data.ErrV2ReleaseLegacyMalformed, "v2-release-legacy-malformed", nil},
+	{data.ErrV2MissingDependencyTarget, "v2-missing-dependency-target", nil},
+	{data.ErrV2SelfDependency, "v2-self-dependency", nil},
+	{data.ErrV2DependencyCycle, "v2-dependency-cycle", nil},
+	{data.ErrV2Malformed, "v2-record-malformed", nil},
+	{data.ErrV2CheckMalformed, "v2-check-malformed", nil},
+	{data.ErrV2CheckMissingScopeTarget, "v2-check-missing-scope-target", refineCheckScopeTarget},
+	{data.ErrV2CheckMissingReference, "v2-check-missing-reference", nil},
+	{data.ErrV2CheckSupersedesConflict, "v2-check-supersedes-conflict", nil},
+	{data.ErrV2EvidenceMalformed, "v2-evidence-malformed", nil},
+	{data.ErrV2EvidenceMissingReference, "v2-evidence-missing-reference", nil},
+	{data.ErrV2CheckImmutable, "v2-check-immutable", nil},
+	{data.ErrV2IssueMissingDuplicateTarget, "v2-issue-missing-duplicate-target", nil},
+	{data.ErrV2IssueMissingEscalationTarget, "v2-issue-missing-escalation-target", nil},
+	{data.ErrV2IssueSelfDuplicate, "v2-issue-self-duplicate", nil},
+	{data.ErrV2IssueDuplicateCycle, "v2-issue-duplicate-cycle", nil},
+	{data.ErrV2IssueMissingLinkTarget, "v2-issue-missing-link-target", nil},
+	{data.ErrV2IssueUnpairedCheckLink, "v2-issue-unpaired-check-link", nil},
+	{data.ErrV2IssueResolutionRequired, "v2-issue-resolution-required", nil},
+	{data.ErrV2IssueResolutionNotAllowed, "v2-issue-resolution-not-allowed", nil},
+	{data.ErrV2IssueResolutionMissingProof, "v2-issue-resolution-missing-proof", nil},
+	{data.ErrV2IssueResolutionUnusableProof, "v2-issue-resolution-unusable-proof", nil},
+	{data.ErrV2IssueResolutionFieldMismatch, "v2-issue-resolution-field-mismatch", nil},
+	{data.ErrV2IssueAlreadyExists, "v2-issue-already-exists", nil},
+	{data.ErrV2IssueHistoryNotAppendOnly, "v2-issue-history-not-append-only", nil},
+	{data.ErrV2IssueMalformed, "v2-issue-malformed", nil},
+}
+
 // v2DiagnosticName maps V2 runtime errors to the stable diagnostic name
 // doctor reports them under. Every V2 structural sentinel in
 // internal/data/errors.go has a name here so a project's diagnostic name
 // never changes between doctor runs.
 func v2DiagnosticName(err error) string {
-	switch {
-	case errors.Is(err, data.ErrMalformedSchemaVersion):
-		return "schema-version-malformed"
-	case errors.Is(err, data.ErrUnsupportedSchemaVersion):
-		return "schema-version-unsupported"
-	case errors.Is(err, data.ErrV2MissingField):
-		return "v2-missing-field"
-	case errors.Is(err, data.ErrV2InvalidID):
-		if strings.Contains(err.Error(), "release id") || strings.Contains(err.Error(), "Goal id") {
-			return "v2-release-invalid-id"
+	for _, rule := range v2DiagnosticRules {
+		if !errors.Is(err, rule.sentinel) {
+			continue
 		}
-		return "v2-invalid-id"
-	case errors.Is(err, data.ErrV2InvalidOwnership):
-		return "v2-invalid-ownership"
-	case errors.Is(err, data.ErrV2InvalidLifecycle):
-		return "v2-invalid-lifecycle"
-	case errors.Is(err, data.ErrV2InvalidDependency):
-		return "v2-invalid-dependency"
-	case errors.Is(err, data.ErrV2InvalidReleaseReference):
-		return "v2-invalid-release-reference"
-	case errors.Is(err, data.ErrV2DuplicateID):
-		return "v2-duplicate-id"
-	case errors.Is(err, data.ErrV2PathMismatch):
-		return "v2-path-mismatch"
-	case errors.Is(err, data.ErrV2UnsafePath):
-		return "v2-unsafe-path"
-	case errors.Is(err, data.ErrV2MissingOwner):
-		return "v2-missing-owner"
-	case errors.Is(err, data.ErrV2MissingRelease):
-		return "v2-missing-release"
-	case errors.Is(err, data.ErrV2ReleaseMissingSection):
-		return "v2-release-missing-section"
-	case errors.Is(err, data.ErrV2ReleaseLegacyMalformed):
-		return "v2-release-legacy-malformed"
-	case errors.Is(err, data.ErrV2MissingDependencyTarget):
-		return "v2-missing-dependency-target"
-	case errors.Is(err, data.ErrV2SelfDependency):
-		return "v2-self-dependency"
-	case errors.Is(err, data.ErrV2DependencyCycle):
-		return "v2-dependency-cycle"
-	case errors.Is(err, data.ErrV2Malformed):
-		return "v2-record-malformed"
-	case errors.Is(err, data.ErrV2CheckMalformed):
-		return "v2-check-malformed"
-	case errors.Is(err, data.ErrV2CheckMissingScopeTarget):
-		if strings.Contains(err.Error(), "scope names missing release") {
-			return "v2-check-missing-release-scope-target"
+		if rule.refine != nil {
+			return rule.refine(err.Error())
 		}
-		return "v2-check-missing-scope-target"
-	case errors.Is(err, data.ErrV2CheckMissingReference):
-		return "v2-check-missing-reference"
-	case errors.Is(err, data.ErrV2CheckSupersedesConflict):
-		return "v2-check-supersedes-conflict"
-	case errors.Is(err, data.ErrV2EvidenceMalformed):
-		return "v2-evidence-malformed"
-	case errors.Is(err, data.ErrV2EvidenceMissingReference):
-		return "v2-evidence-missing-reference"
-	case errors.Is(err, data.ErrV2CheckImmutable):
-		return "v2-check-immutable"
-	case errors.Is(err, data.ErrV2IssueMissingDuplicateTarget):
-		return "v2-issue-missing-duplicate-target"
-	case errors.Is(err, data.ErrV2IssueMissingEscalationTarget):
-		return "v2-issue-missing-escalation-target"
-	case errors.Is(err, data.ErrV2IssueSelfDuplicate):
-		return "v2-issue-self-duplicate"
-	case errors.Is(err, data.ErrV2IssueDuplicateCycle):
-		return "v2-issue-duplicate-cycle"
-	case errors.Is(err, data.ErrV2IssueMissingLinkTarget):
-		return "v2-issue-missing-link-target"
-	case errors.Is(err, data.ErrV2IssueUnpairedCheckLink):
-		return "v2-issue-unpaired-check-link"
-	case errors.Is(err, data.ErrV2IssueResolutionRequired):
-		return "v2-issue-resolution-required"
-	case errors.Is(err, data.ErrV2IssueResolutionNotAllowed):
-		return "v2-issue-resolution-not-allowed"
-	case errors.Is(err, data.ErrV2IssueResolutionMissingProof):
-		return "v2-issue-resolution-missing-proof"
-	case errors.Is(err, data.ErrV2IssueResolutionUnusableProof):
-		return "v2-issue-resolution-unusable-proof"
-	case errors.Is(err, data.ErrV2IssueResolutionFieldMismatch):
-		return "v2-issue-resolution-field-mismatch"
-	case errors.Is(err, data.ErrV2IssueAlreadyExists):
-		return "v2-issue-already-exists"
-	case errors.Is(err, data.ErrV2IssueHistoryNotAppendOnly):
-		return "v2-issue-history-not-append-only"
-	case errors.Is(err, data.ErrV2IssueMalformed):
-		return "v2-issue-malformed"
-	default:
-		return "v2-project-error"
+		return rule.name
 	}
+	return "v2-project-error"
 }
 
 func (p Problem) Error() string {

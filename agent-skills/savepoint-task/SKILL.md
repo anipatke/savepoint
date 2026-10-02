@@ -15,7 +15,7 @@ Every Savepoint project has at least one live Goal selected by the router, and e
 
 ## Trigger
 
-Use this skill when router `state` is `task`.
+Use this skill when the `Next` line starts with `Start`, `Build`, or `Test`, or router `state` is `task`. A pasted `Next` line is the selection.
 
 ## Next
 
@@ -29,7 +29,7 @@ Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is 
 - The Task's `## Context Files`
 - Applicable policy: the `.savepoint/Guardrails.md` rule IDs the Task names, when the project has that file
 
-These Context Files are the read budget. Any read beyond them is an extra read: allowed, but logged with what was read and why, so replanning frequency and context growth stay measurable instead of anecdotal.
+These Context Files are the read budget. Any read beyond them is an extra read: allowed, but logged with what was read and why, so replanning frequency and context growth stay measurable instead of anecdotal. The router, `AGENTS.md`, this skill (read directly when the skill tool cannot find it), and the Guardrail IDs the Task names are not extra reads.
 
 ## Workflow
 
@@ -37,7 +37,7 @@ These Context Files are the read budget. Any read beyond them is an extra read: 
 2. Set the router selection to the owning Objective and active Task, then set the Task `status: in_progress` and `stage: build`, and set the owning Objective `status: in_progress` if it is still `planned`. Follow AGENTS.md's Router Selection section and preserve `release:`.
 3. Implement the plan's checklist in scoped order, writing code that follows the `STYLE` guardrail rules where the project defines them.
 4. Advance the lifecycle as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check when one is requested — an optional Task Check or the mandatory Full Objective Check — and explicitly does not mean it passed.
-5. Before editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
+5. Before reading or editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
 6. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
 7. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
 8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
@@ -48,7 +48,7 @@ In a worktree lane, follow AGENTS.md's Worktree Lanes section: skip the router w
 
 This skill may write: scoped implementation for the active Task, recorded evidence (extra reads, per-criterion outcomes, command results, limitations), lifecycle progress (`status` and `stage`), and a replan handoff when one is needed.
 
-It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue on its own, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. The owner may resolve an Issue as `accepted` with Space or reopen any resolved Issue with Backspace in the board's Issues list; those remain owner actions. The executor may record an explicit owner instruction to resolve an Issue as `accepted`, not infer it or claim executor clearance.
+It must never: edit the Task's acceptance criteria to match what was actually built, write a Check record, close an Issue on its own, invent a Task-check waiver, or claim clearance or owner acceptance for its own work. Resolving an Issue as `accepted` and reopening a resolved Issue remain owner actions. The executor may record an explicit owner instruction to resolve an Issue as `accepted`, not infer it or claim executor clearance.
 
 ## Lifecycle
 
@@ -103,6 +103,18 @@ Gate commands are project-owned: `quality_gates` in `.savepoint/config.yml` (bui
 - The mandatory Full Objective Check requires the full gate.
 - Reuse a successful full result only for a metadata-only correction. Record the original command, time, toolchain, and result, and prove that code, tests, fixtures, dependencies, and gate definitions are unchanged since that run. Any change to those inputs requires a fresh full run.
 
+## Acting On A Code Health Report
+
+A Code Health report is advisory. When it lists a signal, use the thresholds in `.savepoint/health/config.json`:
+
+- Bring a signal that Needs Attention back to the watch line. The aim is not a target; do not chase it.
+- Prefer production code that is risky or often changed over tests, and leave flat dispatch tables alone.
+- Do not lower a score by moving branches elsewhere; a split must make the code easier to read.
+- Record in the Task evidence what remains above the watch line; never silently stop or silently continue.
+- Narrowing the measured scope, for example excluding test files, is the owner's decision.
+
+When the project's Guardrails define a complexity rule, cite its ID rather than restating it.
+
 ## Evidence And Handoff
 
 At handoff, the Task's recorded evidence must include:
@@ -128,7 +140,7 @@ This evidence is what a fresh `savepoint-check` session will treat as claims to 
 
 - Stay within the active Task's scope; do not widen it and call the extra work necessary without a replan.
 - Do not edit acceptance criteria to match what was built.
-- Do not write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work. Record an `accepted` Issue resolution only on explicit owner instruction. Space and Backspace in the board's Issues list are owner actions to resolve or reopen Issues.
+- Do not write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance for this Task's own work. Record an `accepted` Issue resolution only on explicit owner instruction.
 - A blocked start (unsatisfied Task dependency, an owning Objective that is not ready) is reported, never worked around.
 - Every read beyond the Task's Context Files is logged with what was read and why.
 - A materially invalid plan returns `REPLAN REQUIRED` with preserved partial work and unchanged `status`/`stage`; it is never silently redesigned.

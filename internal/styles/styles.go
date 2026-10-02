@@ -270,6 +270,14 @@ var (
 	BadgeWaiting   = lipgloss.NewStyle().Foreground(clrPurple)
 	BadgeNeutral   = lipgloss.NewStyle().Foreground(clrDim)
 
+	// Health labels: color reinforces the label word, never replaces it.
+	HealthGood           = lipgloss.NewStyle().Foreground(clrGreen)
+	HealthWatch          = lipgloss.NewStyle().Foreground(clrOrange)
+	HealthNeedsAttention = lipgloss.NewStyle().Foreground(clrRed)
+	HealthUnknown        = lipgloss.NewStyle().Foreground(clrDim)
+	// HealthAccent is the Code Health screen's own accent for its headings.
+	HealthAccent = lipgloss.NewStyle().Foreground(clrPurple).Bold(true)
+
 	// IssueAccent is the Issues surface's own accent: Issue IDs and the
 	// Issues headings wear it so the panel reads as a different place from
 	// the Task board it replaces on screen. Status columns keep their own

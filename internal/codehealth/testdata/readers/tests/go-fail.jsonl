@@ -1,0 +1,7 @@
+{"Action":"run","Package":"example.com/m/a","Test":"TestOne"}
+{"Action":"pass","Package":"example.com/m/a","Test":"TestOne"}
+{"Action":"run","Package":"example.com/m/a","Test":"TestBad"}
+{"Action":"fail","Package":"example.com/m/a","Test":"TestBad"}
+{"Action":"run","Package":"example.com/m/a","Test":"TestSkip"}
+{"Action":"skip","Package":"example.com/m/a","Test":"TestSkip"}
+{"Action":"fail","Package":"example.com/m/a"}

@@ -97,6 +97,13 @@ history:
 		t.Errorf("Origin = %+v, want %+v", issue.Origin, wantOrigin)
 	}
 
+	assertDecodedIssueLinks(t, issue)
+	assertDecodedIssueResolution(t, issue)
+	assertDecodedIssueHistory(t, issue)
+}
+
+func assertDecodedIssueLinks(t *testing.T, issue *IssueV2) {
+	t.Helper()
 	if len(issue.Tasks) != 2 || issue.Tasks[0] != "T-001" || issue.Tasks[1] != "T-002" {
 		t.Errorf("Tasks = %v, want [T-001 T-002]", issue.Tasks)
 	}
@@ -112,7 +119,10 @@ history:
 	if issue.DuplicateOf != "I-002" {
 		t.Errorf("DuplicateOf = %q, want I-002", issue.DuplicateOf)
 	}
+}
 
+func assertDecodedIssueResolution(t *testing.T, issue *IssueV2) {
+	t.Helper()
 	if issue.Resolution == nil {
 		t.Fatal("Resolution = nil, want the decoded resolution block")
 	}
@@ -128,7 +138,10 @@ history:
 	if issue.Resolution.Reason != "repaired and rechecked" {
 		t.Errorf("Resolution.Reason = %q, want the recorded reason", issue.Resolution.Reason)
 	}
+}
 
+func assertDecodedIssueHistory(t *testing.T, issue *IssueV2) {
+	t.Helper()
 	if len(issue.History) != 2 {
 		t.Fatalf("History = %d entries, want 2", len(issue.History))
 	}
@@ -739,20 +752,22 @@ func TestInspectIssueConsistency_sortedOrderReturnsEveryProblem(t *testing.T) {
 	}
 }
 
+type issueTransitionCase struct {
+	name                   string
+	status                 string
+	fields                 string
+	advance                bool
+	wantStatus             IssueStatus
+	wantKind               IssueHistoryKind
+	wantDispositionInNote  string
+	wantResolved           bool
+	wantClearClosureFields bool
+}
+
 func TestAdvanceAndRetreatIssueV2_transitions(t *testing.T) {
 	actor := Actor{Role: ActorRoleOwner, Session: "board-owner"}
 	at := time.Date(2026, 9, 25, 2, 3, 4, 0, time.UTC)
-	tests := []struct {
-		name                   string
-		status                 string
-		fields                 string
-		advance                bool
-		wantStatus             IssueStatus
-		wantKind               IssueHistoryKind
-		wantDispositionInNote  string
-		wantResolved           bool
-		wantClearClosureFields bool
-	}{
+	tests := []issueTransitionCase{
 		{
 			name:       "open to in progress",
 			status:     "open",
@@ -819,74 +834,90 @@ escalated_to: O-002`,
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			issue, index, path := newIssueTransitionFixture(t, tt.status, tt.fields)
-			beforeBody := issue.Source.Body
-			beforeHistory := append([]IssueHistoryEntry(nil), issue.History...)
-			if tt.advance {
-				if err := AdvanceIssueV2(index, issue.ID, actor, at); err != nil {
-					t.Fatalf("AdvanceIssueV2() error = %v", err)
-				}
-			} else if err := RetreatIssueV2(index, issue.ID, actor, at); err != nil {
-				t.Fatalf("RetreatIssueV2() error = %v", err)
-			}
+		t.Run(tt.name, func(t *testing.T) { checkIssueTransition(t, tt, actor, at) })
+	}
+}
 
-			if issue.Status != tt.wantStatus {
-				t.Errorf("status = %q, want %q", issue.Status, tt.wantStatus)
-			}
-			if len(issue.History) != len(beforeHistory)+1 {
-				t.Fatalf("history length = %d, want %d", len(issue.History), len(beforeHistory)+1)
-			}
-			if !reflect.DeepEqual(issue.History[:len(beforeHistory)], beforeHistory) {
-				t.Errorf("existing history changed: got %+v, want original entries %+v", issue.History[:len(beforeHistory)], beforeHistory)
-			}
-			entry := issue.History[len(issue.History)-1]
-			if entry.Kind != tt.wantKind || entry.Actor != actor || !entry.At.Equal(at) {
-				t.Errorf("appended history entry = %+v, want kind %q, actor %+v, time %s", entry, tt.wantKind, actor, at.Format(time.RFC3339))
-			}
-			if tt.wantDispositionInNote != "" && !strings.Contains(entry.Note, tt.wantDispositionInNote) {
-				t.Errorf("reopened note = %q, want removed disposition %q named", entry.Note, tt.wantDispositionInNote)
-			}
-			if tt.wantResolved {
-				if issue.Resolution == nil {
-					t.Fatal("resolution = nil, want accepted owner resolution")
-				}
-				if issue.Resolution.Disposition != IssueDispositionAccepted || issue.Resolution.Actor != actor || !issue.Resolution.At.Equal(at) || issue.Resolution.Reason != issueBoardResolutionReason || issue.Resolution.Check != "" {
-					t.Errorf("resolution = %+v, want accepted owner resolution without a proof Check", issue.Resolution)
-				}
-			} else if tt.wantClearClosureFields {
-				if issue.Resolution != nil || issue.DuplicateOf != "" || issue.EscalatedTo != "" {
-					t.Errorf("reopened closure fields = resolution:%+v duplicate_of:%q escalated_to:%q, want all cleared", issue.Resolution, issue.DuplicateOf, issue.EscalatedTo)
-				}
-			}
+func checkIssueTransition(t *testing.T, tt issueTransitionCase, actor Actor, at time.Time) {
+	issue, index, path := newIssueTransitionFixture(t, tt.status, tt.fields)
+	beforeBody := issue.Source.Body
+	beforeHistory := append([]IssueHistoryEntry(nil), issue.History...)
+	if tt.advance {
+		if err := AdvanceIssueV2(index, issue.ID, actor, at); err != nil {
+			t.Fatalf("AdvanceIssueV2() error = %v", err)
+		}
+	} else if err := RetreatIssueV2(index, issue.ID, actor, at); err != nil {
+		t.Fatalf("RetreatIssueV2() error = %v", err)
+	}
 
-			written, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			updated, err := DecodeIssueV2(path, string(written))
-			if err != nil {
-				t.Fatalf("DecodeIssueV2(written) error = %v", err)
-			}
-			if updated.Source.Body != beforeBody {
-				t.Errorf("Markdown body changed: got %q, want %q", updated.Source.Body, beforeBody)
-			}
-			if !strings.Contains(string(written), "project_extension") || !strings.Contains(string(written), "preserve-this-value") {
-				t.Errorf("unknown frontmatter field was not preserved:\n%s", written)
-			}
-			if !strings.Contains(string(written), "history_extension") {
-				t.Errorf("unknown existing history field was not preserved:\n%s", written)
-			}
-			if !reflect.DeepEqual(updated.History[:len(beforeHistory)], beforeHistory) {
-				t.Errorf("written history changed existing entries: got %+v, want %+v", updated.History[:len(beforeHistory)], beforeHistory)
-			}
-			if len(updated.History) != len(beforeHistory)+1 || updated.History[len(updated.History)-1].Kind != tt.wantKind {
-				t.Errorf("written history = %+v, want one appended %q entry", updated.History, tt.wantKind)
-			}
-			if tt.wantClearClosureFields && (strings.Contains(string(written), "duplicate_of:") || strings.Contains(string(written), "escalated_to:")) {
-				t.Errorf("reopened file retained disposition targets:\n%s", written)
-			}
-		})
+	if issue.Status != tt.wantStatus {
+		t.Errorf("status = %q, want %q", issue.Status, tt.wantStatus)
+	}
+	assertTransitionHistory(t, issue, beforeHistory, tt, actor, at)
+	assertTransitionClosureFields(t, issue, tt, actor, at)
+	assertTransitionWrittenFile(t, path, beforeBody, beforeHistory, tt)
+}
+
+func assertTransitionHistory(t *testing.T, issue *IssueV2, beforeHistory []IssueHistoryEntry, tt issueTransitionCase, actor Actor, at time.Time) {
+	t.Helper()
+	if len(issue.History) != len(beforeHistory)+1 {
+		t.Fatalf("history length = %d, want %d", len(issue.History), len(beforeHistory)+1)
+	}
+	if !reflect.DeepEqual(issue.History[:len(beforeHistory)], beforeHistory) {
+		t.Errorf("existing history changed: got %+v, want original entries %+v", issue.History[:len(beforeHistory)], beforeHistory)
+	}
+	entry := issue.History[len(issue.History)-1]
+	if entry.Kind != tt.wantKind || entry.Actor != actor || !entry.At.Equal(at) {
+		t.Errorf("appended history entry = %+v, want kind %q, actor %+v, time %s", entry, tt.wantKind, actor, at.Format(time.RFC3339))
+	}
+	if tt.wantDispositionInNote != "" && !strings.Contains(entry.Note, tt.wantDispositionInNote) {
+		t.Errorf("reopened note = %q, want removed disposition %q named", entry.Note, tt.wantDispositionInNote)
+	}
+}
+
+func assertTransitionClosureFields(t *testing.T, issue *IssueV2, tt issueTransitionCase, actor Actor, at time.Time) {
+	t.Helper()
+	if tt.wantResolved {
+		if issue.Resolution == nil {
+			t.Fatal("resolution = nil, want accepted owner resolution")
+		}
+		if issue.Resolution.Disposition != IssueDispositionAccepted || issue.Resolution.Actor != actor || !issue.Resolution.At.Equal(at) || issue.Resolution.Reason != issueBoardResolutionReason || issue.Resolution.Check != "" {
+			t.Errorf("resolution = %+v, want accepted owner resolution without a proof Check", issue.Resolution)
+		}
+	} else if tt.wantClearClosureFields {
+		if issue.Resolution != nil || issue.DuplicateOf != "" || issue.EscalatedTo != "" {
+			t.Errorf("reopened closure fields = resolution:%+v duplicate_of:%q escalated_to:%q, want all cleared", issue.Resolution, issue.DuplicateOf, issue.EscalatedTo)
+		}
+	}
+}
+
+func assertTransitionWrittenFile(t *testing.T, path, beforeBody string, beforeHistory []IssueHistoryEntry, tt issueTransitionCase) {
+	t.Helper()
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := DecodeIssueV2(path, string(written))
+	if err != nil {
+		t.Fatalf("DecodeIssueV2(written) error = %v", err)
+	}
+	if updated.Source.Body != beforeBody {
+		t.Errorf("Markdown body changed: got %q, want %q", updated.Source.Body, beforeBody)
+	}
+	if !strings.Contains(string(written), "project_extension") || !strings.Contains(string(written), "preserve-this-value") {
+		t.Errorf("unknown frontmatter field was not preserved:\n%s", written)
+	}
+	if !strings.Contains(string(written), "history_extension") {
+		t.Errorf("unknown existing history field was not preserved:\n%s", written)
+	}
+	if !reflect.DeepEqual(updated.History[:len(beforeHistory)], beforeHistory) {
+		t.Errorf("written history changed existing entries: got %+v, want %+v", updated.History[:len(beforeHistory)], beforeHistory)
+	}
+	if len(updated.History) != len(beforeHistory)+1 || updated.History[len(updated.History)-1].Kind != tt.wantKind {
+		t.Errorf("written history = %+v, want one appended %q entry", updated.History, tt.wantKind)
+	}
+	if tt.wantClearClosureFields && (strings.Contains(string(written), "duplicate_of:") || strings.Contains(string(written), "escalated_to:")) {
+		t.Errorf("reopened file retained disposition targets:\n%s", written)
 	}
 }
 

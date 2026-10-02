@@ -103,6 +103,11 @@ type Model struct {
 	// Issues is the one read-only follow-up overlay. It is mutually exclusive
 	// with Detail and restores the board cursor it replaced when closed.
 	Issues *IssueOverlay
+	// Health is the full-screen Code Health view, mutually exclusive with the
+	// other overlays. HealthFuncs are its injectable load, freshness, and
+	// refresh commands; nil fields use the real ones.
+	Health      *HealthOverlay
+	HealthFuncs HealthFuncs
 	// Help is the keyboard reference overlay. It changes no cursor or project
 	// state, and its action rows are derived from the currently focused record.
 	Help bool

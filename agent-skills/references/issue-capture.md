@@ -99,6 +99,10 @@ Deferral is a dated history entry on an open Issue, not a fourth lifecycle state
 
 Default: fix it directly and record repair evidence in the Issue's own
 history (`kind: repair_attempted`), leaving the Issue open for a checker or an explicit owner acceptance decision.
+Before recording `repair_attempted`, re-run the Issue's Proof Needed scenario
+and the neighbouring cases the repair could change, record each result in the
+history entry, and mark any platform or case you could not run as unverified.
+This is executor evidence only; it never claims `verified`.
 After recording a direct repair, advance an Issue-only router selection: use
 the one distinct Objective identified by the Issue's linked Tasks and
 Objective-scoped Checks, when there is exactly one. Set `objective` to that Objective and clear

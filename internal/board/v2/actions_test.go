@@ -801,24 +801,7 @@ func TestSidebarOrderHealsAfterInjectedMidWriteFailure(t *testing.T) {
 	if !injected {
 		t.Fatal("injected writer was not called")
 	}
-	if !strings.Contains(failed.StatusMessage, "Objective O-003") {
-		t.Errorf("failure status %q does not name Objective O-003", failed.StatusMessage)
-	}
-	if got := objectiveRowIDs(failed.Objectives); !slices.Equal(got, beforeOrder) {
-		t.Errorf("partial write displayed order %v, want deterministic prior order %v", got, beforeOrder)
-	}
-	if got := failed.State.Index.Objectives["O-003"].Rank; got != 1 {
-		t.Errorf("partial O-003 rank = %d, want the injected rank 1", got)
-	}
-	if got := failed.State.Index.Objectives["O-002"].Rank; got != 1 {
-		t.Errorf("unwritten O-002 rank = %d, want the pre-existing duplicate rank 1", got)
-	}
-	if got := failed.State.Index.Objectives["O-001"].Rank; got != 0 {
-		t.Errorf("done O-001 rank = %d, want its untouched unranked value", got)
-	}
-	if got := failed.Objectives[failed.ObjectiveCursor].ID(); got != "O-003" || failed.SelectedObjective != "O-003" {
-		t.Errorf("after interrupted write cursor/selection = %s/%s, want O-003/O-003", got, failed.SelectedObjective)
-	}
+	assertInterruptedWriteLeavesPriorOrder(t, failed, beforeOrder)
 
 	healed := runSidebarRuneKey(t, failed, "K")
 	wantOrder := slices.Clone(beforeOrder)
@@ -835,5 +818,31 @@ func TestSidebarOrderHealsAfterInjectedMidWriteFailure(t *testing.T) {
 		if got := healed.State.Index.Objectives[id].Rank; got != openRank {
 			t.Errorf("healed Objective %s rank = %d, want %d", id, got, openRank)
 		}
+	}
+}
+
+func assertInterruptedWriteLeavesPriorOrder(t *testing.T, failed Model, beforeOrder []string) {
+	t.Helper()
+	if !strings.Contains(failed.StatusMessage, "Objective O-003") {
+		t.Errorf("failure status %q does not name Objective O-003", failed.StatusMessage)
+	}
+	if got := objectiveRowIDs(failed.Objectives); !slices.Equal(got, beforeOrder) {
+		t.Errorf("partial write displayed order %v, want deterministic prior order %v", got, beforeOrder)
+	}
+	for _, want := range []struct {
+		id    string
+		rank  int
+		label string
+	}{
+		{"O-003", 1, "partial O-003 rank, want the injected rank"},
+		{"O-002", 1, "unwritten O-002 rank, want the pre-existing duplicate rank"},
+		{"O-001", 0, "done O-001 rank, want its untouched unranked value"},
+	} {
+		if got := failed.State.Index.Objectives[want.id].Rank; got != want.rank {
+			t.Errorf("%s %d (got %d)", want.label, want.rank, got)
+		}
+	}
+	if got := failed.Objectives[failed.ObjectiveCursor].ID(); got != "O-003" || failed.SelectedObjective != "O-003" {
+		t.Errorf("after interrupted write cursor/selection = %s/%s, want O-003/O-003", got, failed.SelectedObjective)
 	}
 }

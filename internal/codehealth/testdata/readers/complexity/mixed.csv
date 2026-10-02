@@ -1,0 +1,5 @@
+3,1,15,0,3,"main@5-7@./cmd/main.go","./cmd/main.go","main","main()",5,7
+25,12,180,2,30,"Parse@10-39@./pkg/parse.go","./pkg/parse.go","Parse","Parse(a, b)",10,39
+8,3,50,1,8,"helper@1-8@app/util.py","app/util.py","helper","helper(x)",1,8
+40,22,300,3,45,"render@20-64@web/src/view.ts","web/src/view.ts","render","render(a, b, c)",20,64
+5,2,30,1,5,"f@3-7@/work/proj/web/src/z.ts","/work/proj/web/src/z.ts","f","f(a, b)",3,7

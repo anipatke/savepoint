@@ -1,0 +1,12 @@
+{
+ "results": [
+  {
+   "source": {
+    "path": "/work/proj/go.mod",
+    "type": "lockfile"
+   },
+   "packages": [],
+   "error": "lockfile could not be parsed"
+  }
+ ]
+}

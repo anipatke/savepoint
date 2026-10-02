@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -617,4 +619,93 @@ func selectionMessage(selection data.RouterSelectionV2) string {
 		return fmt.Sprintf("Selection recorded: %s.", selection.Objective)
 	}
 	return fmt.Sprintf("Selection recorded: %s / %s.", selection.Objective, selection.Task)
+}
+
+// healthFreshnessTimeout bounds the read-only Git queries behind the freshness
+// line; a slow repository shows "unknown" rather than holding the screen.
+const healthFreshnessTimeout = 10 * time.Second
+
+// healthRoot is the project directory Code Health reads and writes; the board's
+// Root is its .savepoint directory.
+func healthRoot(root string) string { return filepath.Dir(root) }
+
+func loadHealthDashboard(root string) (codehealth.Dashboard, error) {
+	return codehealth.LoadDashboard(healthRoot(root))
+}
+
+func healthFreshness(ctx context.Context, root string, recorded codehealth.RepositoryIdentity) codehealth.CodeFreshness {
+	return codehealth.DashboardFreshness(ctx, healthRoot(root), nil, recorded)
+}
+
+// refreshHealth is one manual collection with the project's saved
+// configuration. An error means nothing was saved; reportErr means the
+// snapshot stands but the report could not be rewritten.
+func refreshHealth(ctx context.Context, root string, progress func(codehealth.Progress)) (reportErr, err error) {
+	project := healthRoot(root)
+	cfg, err := codehealth.NewStore(project).LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+	collection, err := codehealth.Collect(ctx, codehealth.CollectRequest{
+		Root:      project,
+		Origin:    codehealth.OriginManual,
+		Config:    cfg,
+		Readers:   codehealth.DefaultReaders(),
+		Progress:  progress,
+		Objective: selectedObjective(root),
+	})
+	return collection.ReportErr, err
+}
+
+// selectedObjective is the router's selected Objective, or empty when it cannot
+// be read or selects none.
+func selectedObjective(root string) string {
+	content, err := os.ReadFile(filepath.Join(root, "router.md"))
+	if err != nil {
+		return ""
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(content))
+	if err != nil {
+		return ""
+	}
+	return router.Objective
+}
+
+func healthLoadCmd(funcs HealthFuncs, root string) tea.Cmd {
+	return func() tea.Msg {
+		dashboard, err := funcs.Load(root)
+		return healthLoadedMsg{Dashboard: dashboard, Err: err}
+	}
+}
+
+func healthFreshnessCmd(funcs HealthFuncs, root string, dashboard codehealth.Dashboard) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), healthFreshnessTimeout)
+		defer cancel()
+		return healthFreshnessMsg{SnapshotID: dashboard.SnapshotID, Freshness: funcs.Freshness(ctx, root, dashboard.Recorded)}
+	}
+}
+
+// healthRefreshCmd runs the collection and reports through events: one message
+// per signal as it starts, then the result. Progress sends give up when the
+// run is cancelled, so a cancelled collection is never held up by the screen.
+func healthRefreshCmd(ctx context.Context, funcs HealthFuncs, root string, events chan<- tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		send := func(msg tea.Msg) {
+			select {
+			case events <- msg:
+			case <-ctx.Done():
+			}
+		}
+		reportErr, err := funcs.Refresh(ctx, root, func(p codehealth.Progress) { send(healthProgressMsg{Progress: p}) })
+		// The result must arrive even after cancellation, so this send blocks
+		// until the program reads it.
+		events <- healthRefreshDoneMsg{Err: err, ReportErr: reportErr}
+		return nil
+	}
+}
+
+// waitHealthEvent delivers the next progress or result message.
+func waitHealthEvent(events <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg { return <-events }
 }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="3" failures="1" errors="0" time="0.5">
+    <testsuite name="src/a.test.ts" hostname="ci-box-7" tests="3" failures="1" skipped="1">
+        <testcase classname="src/a.test.ts" name="adds" time="0.01"></testcase>
+        <testcase classname="src/a.test.ts" name="subtracts" time="0.01"><failure message="expected 1" type="AssertionError">SECRET stack</failure></testcase>
+        <testcase classname="src/a.test.ts" name="later" time="0"><skipped/></testcase>
+        <system-out>captured output</system-out>
+    </testsuite>
+</testsuites>

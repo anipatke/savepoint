@@ -297,6 +297,35 @@ Objective Check. Treat passing
 tests and gates as supporting evidence, never as a substitute for acceptance
 review.
 
+## Collect Code Health Evidence
+
+Full mode only. A Quick Task Check, and every other Savepoint activity, never
+collects health.
+
+1. Run the project's full gate first (see Verify Evidence And Gates). Test and
+   coverage health instances read the reports that gate wrote, so tests do not
+   run twice.
+2. Run `savepoint health check O-### [dir]` for the Objective under review. It
+   saves one `official` snapshot and prints the snapshot ID, whether a new
+   snapshot was created, and a plain verdict. It exits non-zero only when no
+   snapshot was saved; a blocking verdict still exits 0, so read the verdict.
+   Never use a manual snapshot (from the board refresh) as Check evidence.
+3. Record the printed snapshot ID in the Check frontmatter as
+   `health_snapshot`. A project with no health configuration prints "Code
+   Health is not configured"; record "Code Health not configured" in the Check
+   body, omit `health_snapshot`, and do not treat it as a finding.
+4. Treat the verdict as supporting evidence, never as `CLEAR` or as proof the
+   Objective is healthy. A verdict that says "blocks clearance" prevents
+   `CLEAR`: record the Issues behind it and result `NEEDS WORK`. A verdict that
+   "does not block clearance" neither grants nor withholds `CLEAR`.
+5. Keep collection failure, incomplete coverage, stale reports, unhealthy
+   measurement, and Check findings as separate statements. A failed tool is not
+   bad code.
+6. Optional-instance failures, warnings, Watch results, and unknown-severity
+   vulnerabilities do not block. Open an Issue for one only through the Issue
+   Capture judgment below, when durable follow-up is warranted; collection
+   never creates Issues.
+
 ## Complete The Issues Pass
 
 Classify every acceptance criterion before returning a verdict: **Proven**

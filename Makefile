@@ -5,9 +5,10 @@ VERSION ?=
 build:
 	go run ./internal/buildtool -version "$(VERSION)" build
 
-# Full host-platform Go suite. JSON output feeds the package/test timing summary.
+# Full host-platform Go suite. JSON output feeds the package/test timing summary
+# and, with -reports, go-test.json and coverage.out for Code Health.
 test:
-	go run ./internal/buildtool test -json -count=1 ./...
+	go run ./internal/buildtool test -reports -json -count=1 ./...
 
 # Iteration aid: make test-focused TEST='TestName' [PKGS=./package].
 test-focused:
@@ -15,7 +16,7 @@ test-focused:
 
 # Ordinary Task handoff gate. T-013's three expensive migration scenarios stay in full.
 test-fast:
-	go run ./internal/buildtool test -json -count=1 -skip '^(TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability|TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits|TestEndToEnd_goldenIsReproducible)$$' ./...
+	go run ./internal/buildtool test -reports -json -count=1 -skip '^(TestEndToEnd_temporaryRepositoryCopyMigratesWithReleaseAccountability|TestApply_recoversAtEveryPublishBoundaryWithoutOverwritingUserEdits|TestEndToEnd_goldenIsReproducible)$$' ./...
 
 # Migration/platform-sensitive Task and Objective/Release integration gate.
 test-full: test build-all

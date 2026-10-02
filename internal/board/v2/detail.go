@@ -1,10 +1,12 @@
 package v2
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
 
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 )
 
@@ -25,6 +27,11 @@ const (
 	DetailTask      DetailKind = "TASK"
 	DetailObjective DetailKind = "OBJECTIVE"
 	DetailRelease   DetailKind = "RELEASE"
+)
+
+const (
+	healthLineFormat  = "Health: %s (snapshot %s) — press %s for details"
+	healthMissingLine = "Health: snapshot not found — run savepoint doctor"
 )
 
 // RecordRef is one record named from a detail — an owning Objective, an owned
@@ -117,7 +124,10 @@ type RecordDetail struct {
 	Evidence    *data.Evidence
 	Checks      []CheckEntry
 	StyleReview *StyleReview
-	Issues      []*data.IssueV2
+	// Health is the one finished Health line of an Objective whose latest
+	// Check names a health snapshot, empty otherwise.
+	Health string
+	Issues []*data.IssueV2
 }
 
 // StyleReview carries only the latest Check's authored style section. Present
@@ -166,7 +176,7 @@ func newTaskDetail(index *data.V2Index, taskID string) (RecordDetail, bool) {
 
 // newObjectiveDetail resolves the detail for one Objective: the same evidence
 // shape a Task carries, plus the Tasks it owns and the Objectives it waits on.
-func newObjectiveDetail(index *data.V2Index, objectiveID string) (RecordDetail, bool) {
+func newObjectiveDetail(index *data.V2Index, health map[string]codehealth.SnapshotLabel, objectiveID string) (RecordDetail, bool) {
 	objective, ok := index.Objectives[objectiveID]
 	if !ok {
 		return RecordDetail{}, false
@@ -183,6 +193,7 @@ func newObjectiveDetail(index *data.V2Index, objectiveID string) (RecordDetail, 
 		Evidence:    objective.Evidence,
 		Checks:      checkHistory(index, objective.ID),
 		StyleReview: latestStyleReview(index, objective.ID),
+		Health:      healthLine(index, health, objective.ID),
 	}
 
 	// Ownership is index.ObjectiveTasks' answer, built from each Task's own
@@ -255,6 +266,21 @@ func newReleaseDetail(index *data.V2Index, releaseID string) (RecordDetail, bool
 	return detail, true
 }
 
+// healthLine is the Health line for the latest Check of targetID: empty when
+// that Check names no snapshot, a pointer to the Code Health screen when the
+// snapshot is stored, and a doctor pointer when it is not.
+func healthLine(index *data.V2Index, health map[string]codehealth.SnapshotLabel, targetID string) string {
+	check := index.Checks[index.LatestCheck[targetID]]
+	if check == nil || check.HealthSnapshot == "" {
+		return ""
+	}
+	label, ok := health[check.HealthSnapshot]
+	if !ok {
+		return healthMissingLine
+	}
+	return fmt.Sprintf(healthLineFormat, label.Label, label.ShortID, healthKey)
+}
+
 func latestStyleReview(index *data.V2Index, targetID string) *StyleReview {
 	id := index.LatestCheck[targetID]
 	if id == "" {
@@ -300,12 +326,12 @@ func codeStyleReviewLines(body string) ([]string, bool) {
 // reload under an open overlay shows the records as they now are. A record the
 // load no longer holds reports ok=false: there is nothing left to show, and the
 // copy already on screen would be older than the project.
-func reopenDetail(index *data.V2Index, detail RecordDetail) (RecordDetail, bool) {
+func reopenDetail(index *data.V2Index, health map[string]codehealth.SnapshotLabel, detail RecordDetail) (RecordDetail, bool) {
 	if index == nil {
 		return RecordDetail{}, false
 	}
 	if detail.Kind == DetailObjective {
-		return newObjectiveDetail(index, detail.ID)
+		return newObjectiveDetail(index, health, detail.ID)
 	}
 	if detail.Kind == DetailRelease {
 		return newReleaseDetail(index, detail.ID)

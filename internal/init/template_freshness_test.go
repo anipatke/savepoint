@@ -484,3 +484,23 @@ func TestGuidancePlansAndBoundsWorktreeLanes(t *testing.T) {
 		assertContains(t, readTemplate(t, root, parts...), "follow AGENTS.md's Worktree Lanes section")
 	}
 }
+
+func TestScaffoldedPolicyDocumentsPointInsteadOfRestating(t *testing.T) {
+	root := filepath.Join("..", "..", "templates", "project-v2", ".savepoint")
+
+	design := readTemplate(t, root, "Design.md")
+	assertContains(t, design, "Verification Policy")
+	assertNotContains(t, design, "auto-records the waiver")
+	assertNotContains(t, design, "Space")
+
+	guardrails := readTemplate(t, root, "Guardrails.md")
+	assertContains(t, guardrails, "| CODE-01 | Guideline |")
+	assertContains(t, guardrails, "the aim is not a target")
+}
+
+func TestRepoAgentsGuideDropsDuplicateRoutingAndLegacySections(t *testing.T) {
+	agents := readTemplate(t, filepath.Join("..", ".."), "AGENTS.md")
+	assertContains(t, agents, "## Skill Activation")
+	assertNotContains(t, agents, "## V2 Routing")
+	assertNotContains(t, agents, "## Legacy V1 compatibility")
+}
