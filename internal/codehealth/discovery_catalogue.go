@@ -29,9 +29,18 @@ var defaultExclusions = []string{
 	"third_party/**",
 	"dist/**",
 	"build/**",
+	".savepoint/**",
 	"**/*.pb.go",
 	"**/*_generated.*",
 	"**/*.min.js",
+}
+
+// capabilityExclusions are proposed on top of defaultExclusions for one
+// capability only. Duplication counts copied lines, and template mirrors and
+// test fixtures are copies by design, so they would only inflate the first
+// baseline. Other signals still measure them.
+var capabilityExclusions = map[Capability][]string{
+	CapabilityDuplication: {"templates/**", "**/testdata/**"},
 }
 
 // reportsDir holds the reports of tools Savepoint runs itself.

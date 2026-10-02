@@ -249,35 +249,43 @@ func TestDiscoverMonorepoNamesAndScopes(t *testing.T) {
 
 func TestDiscoverDefaultExclusions(t *testing.T) {
 	root := tree(t, map[string]string{
-		"go.mod":            "module x\n",
-		"vendor/a/a.go":     "package a\n",
-		"third_party/b/b.c": "",
+		"go.mod":               "module x\n",
+		"vendor/a/a.go":        "package a\n",
+		"third_party/b/b.c":    "",
+		".savepoint/Design.md": "",
+		"templates/t.md":       "",
 	})
 	got := discover(t, root)
-	want := []string{"vendor/**", "third_party/**", "**/*.pb.go", "**/*_generated.*", "**/*.min.js"}
+	want := []string{"vendor/**", "third_party/**", ".savepoint/**", "**/*.pb.go", "**/*_generated.*", "**/*.min.js"}
+	if ex := find(t, got, ".", ProviderLizardCSV).Config.Exclusions; !reflect.DeepEqual(ex, want) {
+		t.Errorf("complexity exclusions = %v, want %v", ex, want)
+	}
+	// Duplication also leaves out template mirrors and test fixtures, which are
+	// copies by design; the other signals still measure them.
+	want = append(want, "templates/**", "**/testdata/**")
 	if ex := find(t, got, ".", ProviderJscpdJSON).Config.Exclusions; !reflect.DeepEqual(ex, want) {
-		t.Errorf("exclusions = %v, want %v", ex, want)
+		t.Errorf("duplication exclusions = %v, want %v", ex, want)
 	}
 }
 
 func TestDiscoverExecutedToolArgsTranslateExclusions(t *testing.T) {
-	root := tree(t, map[string]string{"go.mod": "module x\n", "vendor/a.go": ""})
+	root := tree(t, map[string]string{"go.mod": "module x\n", "vendor/a.go": "", ".savepoint/Design.md": ""})
 	got := discover(t, root)
 
 	liz := find(t, got, ".", ProviderLizardCSV).Config
 	wantLiz := []string{"--csv", "-o", ".savepoint/health/reports/root-lizard.csv",
-		"-x", "*/vendor/*", "-x", "*.pb.go", "-x", "*_generated.*", "-x", "*.min.js", "."}
+		"-x", "*/vendor/*", "-x", "*/.savepoint/*", "-x", "*.pb.go", "-x", "*_generated.*", "-x", "*.min.js", "."}
 	if !reflect.DeepEqual(liz.Args, wantLiz) || liz.Report != ".savepoint/health/reports/root-lizard.csv" {
 		t.Errorf("lizard = %v report %q", liz.Args, liz.Report)
 	}
 	jscpd := find(t, got, ".", ProviderJscpdJSON).Config
 	if jscpd.Report != ".savepoint/health/reports/root/jscpd-report.json" ||
-		!slices.Contains(jscpd.Args, "vendor/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/.git/**") ||
+		!slices.Contains(jscpd.Args, "vendor/**,.savepoint/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/testdata/**,**/.git/**") ||
 		!slices.Contains(jscpd.Args, ".savepoint/health/reports/root") {
 		t.Errorf("jscpd = %v report %q", jscpd.Args, jscpd.Report)
 	}
 	osv := find(t, got, ".", ProviderOSVScannerJSON).Config
-	if !slices.Contains(osv.Args, "g:vendor/**") || !slices.Contains(osv.Args, "--output-file") {
+	if !slices.Contains(osv.Args, "g:vendor/**") || !slices.Contains(osv.Args, "g:.savepoint/**") || !slices.Contains(osv.Args, "--output-file") {
 		t.Errorf("osv args = %v", osv.Args)
 	}
 	for _, c := range []CapabilityConfig{liz, jscpd, osv} {

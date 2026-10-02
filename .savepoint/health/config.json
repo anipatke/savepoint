@@ -61,7 +61,7 @@
         "--workers",
         "1",
         "--ignore",
-        "dist/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/.git/**",
+        "dist/**,**/*.pb.go,**/*_generated.*,**/*.min.js,**/.git/**,.savepoint/**,templates/**,**/testdata/**",
         "."
       ],
       "report": ".savepoint/health/reports/root/jscpd-report.json",
@@ -69,7 +69,10 @@
         "dist/**",
         "**/*.pb.go",
         "**/*_generated.*",
-        "**/*.min.js"
+        "**/*.min.js",
+        ".savepoint/**",
+        "templates/**",
+        "**/testdata/**"
       ]
     },
     {

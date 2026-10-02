@@ -325,14 +325,16 @@ func (c component) scope() []string {
 	return []string{c.dir + "/**"}
 }
 
-// exclusions returns the default exclusions that apply to the component, with
-// directory patterns anchored to it.
-func (c component) exclusions() []string {
+// exclusions returns the default exclusions that apply to the component for
+// one capability, with directory patterns anchored to it. A directory pattern
+// with a wildcard, such as "**/testdata/**", names no single entry and is
+// always proposed.
+func (c component) exclusions(cap Capability) []string {
 	var out []string
-	for _, p := range defaultExclusions {
+	for _, p := range append(slices.Clone(defaultExclusions), capabilityExclusions[cap]...) {
 		dir, isDir := strings.CutSuffix(p, "/**")
 		switch {
-		case !isDir:
+		case !isDir || strings.Contains(dir, "*"):
 			out = append(out, p)
 		case c.dirSet[dir]:
 			out = append(out, c.join(p))
@@ -404,7 +406,7 @@ func (d *discoverer) reportProposal(c component, cap Capability, p ProviderKey, 
 	ro := reportOnlyProviders[p]
 	prop := Proposal{
 		Config: CapabilityConfig{Capability: cap, Provider: p, Report: c.join(ro.Report),
-			Scope: c.scope(), Exclusions: c.exclusions()},
+			Scope: c.scope(), Exclusions: c.exclusions(cap)},
 		Reason:   why,
 		GateFlag: ro.Gate,
 	}
@@ -424,7 +426,7 @@ func (d *discoverer) executedProposal(c component, cap Capability, p ProviderKey
 	ex := executedProviders[p]
 	report := ex.Report(c.slug())
 	target := c.dir
-	exclusions := c.exclusions()
+	exclusions := c.exclusions(cap)
 	prop := Proposal{
 		Config: CapabilityConfig{Capability: cap, Provider: p, Executable: ex.Executable,
 			Args: ex.Args(target, report, exclusions), Report: report,
