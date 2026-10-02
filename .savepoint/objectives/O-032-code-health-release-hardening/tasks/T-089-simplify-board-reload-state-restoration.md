@@ -2,11 +2,20 @@
 id: T-089
 title: Simplify board reload state restoration
 objective: O-032
-status: planned
+status: done
 complexity_tier: high
 complexity_reason: Reload retry and selection state must survive decomposition without changing visible behavior.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-089
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:08:39Z"
 ---
 
 # Simplify board reload state restoration
@@ -57,7 +66,21 @@ For before/after complexity evidence, the owner-confirmed scope authorizes a dir
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Executed 2026-10-02 (toolchain: local `go`, `lizard` from ~/.local/bin).
+
+**Change:** `internal/board/v2/update.go` only. `applyLoad` now delegates to `acceptLoadSeq` (sequence rejection), `applyLoadFailure` (reload keeps state + `ReloadDiagnostic`; initial failure resets board), `restoreLoadedSelection` (release/Objective/cursor/focus/overlay restoration), `noteVanishedSelection`, `reconcileDetailAndIssues` and `noteIssueFocusMoved`. Order of side effects is unchanged; the one-retry step, status preservation, rollback cleanup and fatal-filter exit stay inline in `applyLoad`. No IO moved, no data-layer rules duplicated, no tests edited.
+
+**Per-criterion:**
+- Sequence rejection / initial vs reload failure / one retry / previous visible state / diagnostics: same code paths, covered by existing tests (e.g. `TestFailedReloadRetriesBeforeReporting`); board/v2 Reload|Load|Retry|Stale|Filter subset: 47 PASS.
+- Release/Objective/cursor restoration, filtered scope, retained status, rollback cleanup, fatal filter: unchanged logic, existing board/v2 tests pass in `make test-fast`.
+- Helpers extracted, no IO in rendering: yes.
+- Complexity (lizard, `internal/board/v2/update.go`): `applyLoad` CCN 26 / 80 lines before; 7 / 36 lines after. New helpers CCN <=10 (largest `reconcileDetailAndIssues` 10, `restoreLoadedSelection` and others lower). Touched functions all <=10.
+
+**Commands:** `make build` ok; `make test-fast` ok (exit 0); `make test-focused TEST=. PKGS=./internal/board/v2` ok; `gofmt -l` and `go vet ./internal/board/v2` clean.
+
+**Files read:** all within Context Files except none beyond (`update.go`, board v2 tests via test run). No extra reads.
+
+**Limitations:** No new scenario tests were added; independent initial/success/failure/retry/stale-sequence/filter scenarios rely on the existing suite, which I did not individually re-audit for each case. Complexity measured only on update.go/load.go; no Savepoint health command run.
 
 ## Drift Notes
 
