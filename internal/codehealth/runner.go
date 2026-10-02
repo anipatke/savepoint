@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -144,7 +145,12 @@ func (b *tailBuffer) String() string {
 func (b *limitedBuffer) Bytes() []byte  { return b.buf.Bytes() }
 func (b *limitedBuffer) String() string { return b.buf.String() }
 
-// cleanLine reduces tool text to one printable line, without bounding it.
+// urlUserinfo matches the credentials of a URL, "user:password@" after "://".
+var urlUserinfo = regexp.MustCompile(`://[^\s/?#@]*@`)
+
+// cleanLine reduces tool text to one printable line, without bounding it. A
+// credential inside a URL is dropped, since the text is saved in permanent
+// evidence.
 func cleanLine(s string) string {
 	s = strings.ToValidUTF8(s, "")
 	s = strings.Map(func(r rune) rune {
@@ -153,7 +159,8 @@ func cleanLine(s string) string {
 		}
 		return r
 	}, s)
-	return strings.Join(strings.Fields(s), " ")
+	s = strings.Join(strings.Fields(s), " ")
+	return urlUserinfo.ReplaceAllString(s, "://")
 }
 
 // sanitizeLine reduces tool text to one bounded, printable line for a reason.

@@ -160,6 +160,8 @@ const (
 	textNoResultRow      = "This snapshot has no result for this instance; refresh to measure it."
 	textNoBasis          = "No comparable official history yet."
 	textBasisFormat      = "Compared with %d earlier comparable official %s."
+	textBasisCutFormat   = "Compared with the %d most recent comparable official %s."
+	textOlderNotRead     = " Older history was not read."
 	textTrendRange       = "%s over %d official checks, %s to %s"
 )
 
@@ -172,10 +174,11 @@ func CapabilityText(c Capability) string {
 	return string(c)
 }
 
-// LoadDashboard reads the saved configuration and snapshots and describes the
-// newest snapshot of either origin. It runs no subprocess and no tool. A
-// damaged configuration or history is returned as the storage error; nothing is
-// repaired.
+// LoadDashboard reads the saved configuration and a bounded window of the
+// snapshots (see Store.LoadWindow) and describes the newest snapshot of either
+// origin. It runs no subprocess and no tool. A damaged configuration or a
+// damaged file the window reads is returned as the storage error; nothing is
+// repaired. When older snapshots were left unread, each row's Basis says so.
 func LoadDashboard(root string) (Dashboard, error) {
 	store := NewStore(root)
 	cfg, err := store.LoadConfig()
@@ -185,12 +188,18 @@ func LoadDashboard(root string) (Dashboard, error) {
 	if err != nil {
 		return Dashboard{}, err
 	}
-	snaps, err := store.LoadSnapshots()
+	snaps, cut, err := store.LoadWindow()
 	if err != nil {
 		return Dashboard{}, err
 	}
+	return buildDashboard(store, cfg, snaps, cut), nil
+}
+
+// buildDashboard describes the newest of snaps, oldest first. cut says older
+// snapshots exist that snaps leaves out.
+func buildDashboard(store Store, cfg Config, snaps []Snapshot, cut bool) Dashboard {
 	if len(snaps) == 0 {
-		return Dashboard{State: DashboardFirstRun}, nil
+		return Dashboard{State: DashboardFirstRun}
 	}
 	newest := snaps[len(snaps)-1]
 	d := Dashboard{
@@ -202,7 +211,7 @@ func LoadDashboard(root string) (Dashboard, error) {
 		SnapshotID:  newest.ID,
 		MeasuredAt:  newest.CreatedAt,
 		Recorded:    newest.Repository,
-		Rows:        dashboardRows(cfg, newest, dashboardHistory(snaps[:len(snaps)-1])),
+		Rows:        dashboardRows(cfg, newest, dashboardHistory(snaps[:len(snaps)-1]), cut),
 	}
 	d.MeasuredText = whenText(newest.CreatedAt)
 	d.noteReport(store)
@@ -215,7 +224,7 @@ func LoadDashboard(root string) (Dashboard, error) {
 			Overall: s.Summary.Overall, OverallText: classificationText[s.Summary.Overall],
 		})
 	}
-	return d, nil
+	return d
 }
 
 // noteReport records, with one file check, whether the report exists and points
@@ -323,7 +332,7 @@ func dashboardHistory(earlier []Snapshot) map[instanceKey][]HistoryEntry {
 // dashboardRows lists the five signals in canonical order: each configured
 // instance in configuration order, or one placeholder for a capability with
 // none.
-func dashboardRows(cfg Config, snap Snapshot, history map[instanceKey][]HistoryEntry) []DashboardRow {
+func dashboardRows(cfg Config, snap Snapshot, history map[instanceKey][]HistoryEntry, cut bool) []DashboardRow {
 	results := make(map[instanceKey]CapabilityResult, len(snap.Results))
 	for _, r := range snap.Results {
 		results[r.key()] = r
@@ -351,7 +360,7 @@ func dashboardRows(cfg Config, snap Snapshot, history map[instanceKey][]HistoryE
 				rows = append(rows, noResultRow(cc))
 				continue
 			}
-			rows = append(rows, measuredRow(snap.Origin, cc, r, summaries[key], history[r.historyKey()]))
+			rows = append(rows, measuredRow(snap.Origin, cc, r, summaries[key], history[r.historyKey()], cut))
 		}
 	}
 	return rows
@@ -401,8 +410,9 @@ func noResultRow(cc CapabilityConfig) DashboardRow {
 	}.withWords(unmeasuredWords(cc.Capability, cc.Thresholds, false))
 }
 
-func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs CapabilitySummary, history []HistoryEntry) DashboardRow {
+func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs CapabilitySummary, history []HistoryEntry, cut bool) DashboardRow {
 	s := selectSeries(r, ownHistory(r, history))
+	s.cut = cut
 	trend := buildTrend(r, origin, s)
 	row := DashboardRow{
 		Capability: r.Capability, CapabilityText: capabilityText[r.Capability], Name: r.Name,
@@ -454,16 +464,25 @@ func trendWords(r CapabilityResult, t Trend) string {
 }
 
 // basisWords says what the trend was compared with, and what was left out.
+// When the load left older history unread the counts are those of what it read,
+// and the sentence says so.
 func basisWords(s series) string {
 	out := textNoBasis
 	if n := len(s.values); n > 0 {
-		out = fmt.Sprintf(textBasisFormat, n, pluralize(n, "check", "checks"))
+		format := textBasisFormat
+		if s.cut {
+			format = textBasisCutFormat
+		}
+		out = fmt.Sprintf(format, n, pluralize(n, "check", "checks"))
 	}
 	if s.incompatible > 0 {
 		out += fmt.Sprintf(" %d earlier official %s not compared.", s.incompatible, pluralize(s.incompatible, "result", "results"))
 	}
 	if s.manual > 0 {
 		out += fmt.Sprintf(" %d manual %s shown, not counted.", s.manual, pluralize(s.manual, "result", "results"))
+	}
+	if s.cut {
+		out += textOlderNotRead
 	}
 	return out
 }

@@ -2,11 +2,13 @@ package codehealth
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 )
 
@@ -188,11 +190,22 @@ func TestConcurrentSnapshotSavesAndReads(t *testing.T) {
 	assertNoTemps(t, healthPath(root, snapshotsDir))
 }
 
-// Readers during replacement see a complete old or new file, never a mixture.
-func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows refuses to replace a file another handle holds open")
+// platformRefusal reports whether err is Windows refusing to replace or open a
+// file another handle holds: access denied or a sharing violation. Elsewhere
+// nothing is a platform refusal.
+func platformRefusal(err error) bool {
+	if runtime.GOOS != "windows" {
+		return false
 	}
+	var errno syscall.Errno
+	return errors.Is(err, fs.ErrPermission) || (errors.As(err, &errno) && (errno == 5 || errno == 32))
+}
+
+// Readers during replacement see a complete old or new file, never a mixture.
+// Windows may refuse a replacement while a reader holds the file; that refusal
+// is accepted, but the owner's bytes must stay complete and no temp file may
+// remain.
+func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
 	st, root := newProject(t)
 	full := validConfig(t)
 	short := full
@@ -212,11 +225,11 @@ func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
 			if i%2 == 1 {
 				cfg, text = short, oldText
 			}
-			if _, err := st.SaveConfig(cfg); err != nil {
+			if _, err := st.SaveConfig(cfg); err != nil && !platformRefusal(err) {
 				errs <- err
 				return
 			}
-			if _, err := st.WriteReport(text); err != nil {
+			if _, err := st.WriteReport(text); err != nil && !platformRefusal(err) {
 				errs <- err
 				return
 			}
@@ -227,6 +240,9 @@ func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
 			for range 200 {
 				cfg, err := st.LoadConfig()
 				if err != nil {
+					if platformRefusal(err) {
+						continue
+					}
 					errs <- err
 					return
 				}
@@ -236,6 +252,9 @@ func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
 				}
 				data, err := os.ReadFile(filepath.Join(healthPath(root), reportFile))
 				if err != nil {
+					if platformRefusal(err) {
+						continue
+					}
 					errs <- err
 					return
 				}
@@ -250,6 +269,12 @@ func TestReadersSeeCompleteConfigAndReportDuringReplacement(t *testing.T) {
 	close(errs)
 	for err := range errs {
 		t.Error(err)
+	}
+	if cfg, err := st.LoadConfig(); err != nil || (len(cfg.Capabilities) != len(full.Capabilities) && len(cfg.Capabilities) != 1) {
+		t.Errorf("config after replacement = %d capabilities, %v; want the old or new content", len(cfg.Capabilities), err)
+	}
+	if data, err := os.ReadFile(filepath.Join(healthPath(root), reportFile)); err != nil || (string(data) != oldText && string(data) != newText) {
+		t.Errorf("report after replacement is not the old or new content: %v", err)
 	}
 	assertNoTemps(t, healthPath(root))
 }

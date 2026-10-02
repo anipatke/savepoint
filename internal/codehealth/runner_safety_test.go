@@ -259,3 +259,36 @@ func TestCollectRealProcessTimeoutEndsDescendantsAndLaterInstanceRuns(t *testing
 	}
 	waitGone(t, readPid(t, pidFile))
 }
+
+// A credential inside a URL in a tool's error never reaches the saved reason.
+func TestFailureReasonsDropURLCredentials(t *testing.T) {
+	const secret = "o032-secret-for-probe"
+	for name, in := range map[string]string{
+		"userinfo":         "proxy connection failed https://alice:" + secret + "@proxy.example.invalid",
+		"user only":        "fetch ftp://" + secret + "@host.example.invalid/x failed",
+		"oversized line":   strings.Repeat("y", 3*MaxReasonLen) + " https://bob:" + secret + "@h.example.invalid/path",
+		"several and text": "a http://u:" + secret + "@one.example.invalid b https://v:" + secret + "@two.example.invalid done",
+	} {
+		for fn, got := range map[string]string{"sanitizeTail": sanitizeTail(in), "sanitizeLine": sanitizeLine(in)} {
+			if strings.Contains(got, secret) {
+				t.Errorf("%s/%s kept the credential: %q", name, fn, got)
+			}
+		}
+		if got := sanitizeTail(in); !strings.Contains(got, "example.invalid") {
+			t.Errorf("%s: useful host text was lost: %q", name, got)
+		}
+	}
+
+	dir := project(t)
+	tools := &fakeTools{t: t, behavior: map[string]func(context.Context, ToolSpec) (ToolResult, error){
+		"fails": func(context.Context, ToolSpec) (ToolResult, error) {
+			return ToolResult{ExitCode: 127, Stderr: "proxy connection failed https://alice:" + secret + "@proxy.example.invalid"}, nil
+		},
+	}}
+	got := collect(t, dir, cfgOf(lizardInstance("fails", "fails", "a/**")), Readers{ProviderLizardCSV: readerFunc(func(context.Context, ReportInput) (Reading, error) {
+		return Reading{}, errors.New("not reached")
+	})}, tools)
+	if r := collectedFor(t, got, CapabilityComplexity, "fails").Result; strings.Contains(r.Reason, secret) || !strings.Contains(r.Reason, "proxy.example.invalid") {
+		t.Errorf("collected reason = %q", r.Reason)
+	}
+}

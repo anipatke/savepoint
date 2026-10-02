@@ -377,7 +377,7 @@ func (c *collector) execute(ctx context.Context, cc CapabilityConfig) (data []by
 	if res.ExitCode != 0 && !slices.Contains(findingsExitCodes[cc.Provider], res.ExitCode) {
 		reason := fmt.Sprintf("%s exited with status %d", filepath.Base(cc.Executable), res.ExitCode)
 		if res.Stderr != "" {
-			reason += ": " + res.Stderr
+			reason += ": " + sanitizeTail(res.Stderr)
 		}
 		return nil, false, fail(OutcomeFailed, "%s", reason)
 	}

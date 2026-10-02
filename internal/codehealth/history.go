@@ -43,6 +43,7 @@ type series struct {
 	values       []float64 // oldest first
 	manual       int       // manual observations in the same series
 	incompatible int       // official observations in a different series
+	cut          bool      // older snapshots exist that were not read
 }
 
 // selectSeries keeps only official, available, finite observations that share

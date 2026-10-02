@@ -295,24 +295,53 @@ func runGoTestStream(cmd *exec.Cmd, output io.Writer, tee io.Writer) error {
 	}
 
 	summary := newTestStreamSummary()
-	scanErr := consumeTestStream(stdout, output, tee, summary)
+	out := &firstErrorWriter{w: output}
+	scanErr := consumeTestStream(stdout, out, tee, summary)
 	waitErr := cmd.Wait()
-	if err := summary.writeFailedPackages(output); err != nil {
-		return err
+	// Every output step runs even when an earlier one failed, so the child's own
+	// failure is never replaced by a secondary one.
+	var outErr error
+	if err := summary.writeFailedPackages(out); err != nil {
+		outErr = err
 	}
 	if stderr.Len() > 0 {
-		if _, err := io.Copy(output, &stderr); err != nil {
-			return fmt.Errorf("write go test diagnostics: %w", err)
+		if _, err := io.Copy(out, &stderr); err != nil && outErr == nil {
+			outErr = fmt.Errorf("write go test diagnostics: %w", err)
 		}
 	}
-	writeTestTimingSummary(output, summary.packages, summary.tests, summary.skipped)
+	writeTestTimingSummary(out, summary.packages, summary.tests, summary.skipped)
+	if outErr == nil && out.err != nil {
+		outErr = fmt.Errorf("write go test output: %w", out.err)
+	}
+	var errs []error
 	if waitErr != nil {
-		return waitErr
+		errs = append(errs, waitErr)
 	}
 	if scanErr != nil {
-		return fmt.Errorf("read go test output: %w", scanErr)
+		errs = append(errs, fmt.Errorf("read go test output: %w", scanErr))
 	}
-	return nil
+	if outErr != nil {
+		errs = append(errs, outErr)
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	return errors.Join(errs...)
+}
+
+// firstErrorWriter passes writes through and remembers the first failure, so
+// output written with fmt.Fprint calls that drop their error is still reported.
+type firstErrorWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (f *firstErrorWriter) Write(p []byte) (int, error) {
+	n, err := f.w.Write(p)
+	if err != nil && f.err == nil {
+		f.err = err
+	}
+	return n, err
 }
 
 func writeTestTimingSummary(output io.Writer, packages, tests []testTiming, skipped []string) {

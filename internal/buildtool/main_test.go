@@ -671,3 +671,29 @@ func TestRunGoTestStreamReportsOversizedEventLine(t *testing.T) {
 		t.Fatalf("runGoTestStream() error = %v, want read failure", err)
 	}
 }
+
+func TestRunGoTestStreamReportsBrokenOutputAfterChildSucceeds(t *testing.T) {
+	err := runGoTestStream(streamHelperCommand("ok"), failingWriter{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("a broken output sink with a passing child returned %v", err)
+	}
+}
+
+func TestRunGoTestStreamKeepsChildFailureWhenOutputAlsoFails(t *testing.T) {
+	err := runGoTestStream(streamHelperCommand("failed-package"), failingWriter{}, nil)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("child failure was replaced by the output failure: %v", err)
+	}
+	if !strings.Contains(err.Error(), "disk full") {
+		t.Errorf("output failure was dropped: %v", err)
+	}
+}
+
+func TestConsumeTestStreamReportsFailingSinkForMalformedLine(t *testing.T) {
+	out := &firstErrorWriter{w: failingWriter{}}
+	err := consumeTestStream(strings.NewReader("not json\n"), out, nil, newTestStreamSummary())
+	if err != nil || out.err == nil {
+		t.Fatalf("consume error %v, recorded sink error %v; want nil and the sink failure", err, out.err)
+	}
+}

@@ -2,12 +2,21 @@
 id: T-095
 title: Verify the v2.1 binary and package boundary
 objective: O-032
-status: planned
+status: done
 depends_on: [{task: T-087, requires: clear}, {task: T-088, requires: clear}, {task: T-089, requires: clear}, {task: T-090, requires: clear}, {task: T-091, requires: clear}, {task: T-092, requires: clear}, {task: T-093, requires: clear}]
 complexity_tier: medium
 complexity_reason: Release evidence must cover six archives, checksums and provider-free runtime distribution.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-095
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:59:18Z"
 ---
 
 # Verify the v2.1 binary and package boundary
@@ -57,7 +66,21 @@ Fresh `make test-full` for this platform/migration/distribution-sensitive Task; 
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Executed 2026-10-02 on linux/amd64, go1.26.2, node v22.22.2, npm 10.9.7, branch v2.1 at 136fe69 plus the uncommitted T-094/T-097/T-098 working tree.
+
+**Criterion 1 — make ci and inventory.** `make ci` (= `test-full build dist package-check`) exited 0 at 2026-10-02T04:57:26Z (~22s wall; Go test cache not relied on, `-count=1`). First attempt failed: `unexpected distribution archive "savepoint-v1.3.1-darwin-amd64.tar.gz"` — six stale v1.3.1 archives left in untracked `dist/` from a 2026-09-26 build. The guard is correct (it refuses mixed versions); I moved them to the session scratchpad (not deleted) and re-ran. No code change. Result: six archives `savepoint-v2.0.5-{linux,darwin,windows}-{amd64,arm64}.tar.gz`; `sha256sum -c dist/checksums.txt` OK for all six; `tar tzf` shows exactly one member each (`savepoint`, or `savepoint.exe` for windows); `make verify-dist` → "distribution verified: 6 archives (v2.0.5)"; `make smoke-test` → native `v2.0.5`, "smoke test passed"; `npm test` passed; `npm pack --dry-run` lists LICENSE, README, bin/savepoint.js, six platform binaries, package.json (10 files).
+
+**Criterion 2 — provider-free runtime.** Extracted the linux-amd64 archive to a temp dir and ran with `env -i PATH=/nonexistent`: `--version`, `--help`, `init`, `doctor` (ALL CLEAN), `resume`, `health setup` preview and `--apply` all worked. Missing providers (lizard, jscpd, osv-scanner) reported as `gap: missing executable` with "install it yourself, Savepoint does not"; no download/install attempted. Source grep: no `net/http` or install invocation in non-test code; the only `npm install` is the opt-in `init --install` for the user's own project. `health check` was not run end to end here (needs an Objective in the temp project); provider unavailability under check is covered by the T-093 tests.
+
+**Criterion 3 — dependency boundary.** Go deps are bubbletea/fsnotify and transitive libs only; npm package ships only the wrapper plus the six binaries; no provider is bundled or declared as a dependency. Provider prerequisites are stated by `savepoint health setup` output. README.md does not mention Code Health providers at all; documenting them is T-096's scope, not changed here.
+
+**Criterion 4 — native Windows CI.** Not available. `windows-tests` in `.github/workflows/ci.yml` triggers only on push/PR to master and v2; `gh run list --branch v2.1` returns no runs. The latest Windows run seen is on master/fix branch (2026-09-27, success) and predates this branch's work. The windows archives here are cross-compiled and only structure/checksum verified, not runtime validated. Missing for the Full Objective Check: a green `windows-tests` run on the O-032 head commit (e.g. via PR to v2/master).
+
+**Criterion 5 — regressions.** None added; evidence exposed no uncovered contract (stale-version refusal already enforced by `dist`). No publishing, tagging or deployment.
+
+Files read: Context Files listed (buildtool/main.go partially, ci.yml, Makefile, package.json), plus extra reads: `agent-skills/savepoint-task/SKILL.md` and AGENTS.md (workflow), bin/savepoint.js, go.mod, README.md grep, `internal/init/install.go` grep (verify no runtime install). Files changed: this Task file only (router already selected T-095).
+
+Limitations: linux-only runtime smoke; version is still 2.0.5 in package.json/binaries on branch v2.1 (owner decision 2026-10-02: the version is bumped on merge with master, so 2.0.5 here is expected); working tree was dirty with other Tasks' changes, so evidence is for that tree; no Windows native evidence.
 
 ## Drift Notes
 
