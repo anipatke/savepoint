@@ -2,12 +2,21 @@
 id: T-093
 title: Exercise all health readers together
 objective: O-032
-status: planned
+status: done
 depends_on: [{task: T-090, requires: clear}, {task: T-091, requires: clear}, {task: T-086, requires: clear}]
 complexity_tier: high
 complexity_reason: Nine readers and partial polyglot states need cross-instance integration evidence.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-093
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:26:58Z"
 ---
 
 # Exercise all health readers together
@@ -57,8 +66,26 @@ No new provider, real provider/network requirement in tests, official collection
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Run 2026-10-02, go1.26.2, linux/WSL2. `make build && make test-fast` passed (codehealth 10.2s). Focused: `go test ./internal/codehealth -run Polyglot -count=3` passed. No provider, network, official collection, or `savepoint health` command ran; the only new file is `internal/codehealth/readers_polyglot_test.go` (temporary projects, fake tool runner, existing fixtures).
+
+### Per-criterion evidence
+
+1. **Nine readers, Go/JS/Python mix.** `TestPolyglotReadersKeepEachStackIndependent` runs `DefaultReaders()` over one config with an instance per reader. Outcomes: go-test measured (failing), vitest-junit malformed=failed, pytest-junit measured (failing), go-cover measured but stale, vitest-v8 absent (required), coveragepy malformed=failed, lizard go measured / js unavailable / py partial, jscpd js and py measured, osv scanner-error=partial. Every unmeasured result has no value, details or evidence, every partial is never `good`, and every non-measured summary is `unknown`. Each instance run alone in a fresh project matches its result beside the others (outcome, value, details).
+2. **Scope/config/provider-version, rename/sibling, manual/official, trend and staleness.** `TestPolyglotHistoryComparabilityAcrossChanges`: three official checks draw a trend with the early note; a rename keeps the series; a scope change restarts only that instance (sibling keeps its drawing); a jscpd provider-version change restarts only jscpd; a newest manual snapshot leaves the trend and shows "manual refresh does not affect sign-off"; a newer official snapshot restores sign-off. Staleness: the Go coverage profile is older than the Go sources and is judged `stale` (reported, optional).
+3. **Strict references, official-only Check, required vs optional, report warning.** Same test: `Evaluate` refuses the manual snapshot (`ErrManualSnapshot`); the absent vitest-v8 report blocks while required and is only reported with `Required` off (same snapshot, config digest unchanged). `TestPolyglotDashboardAgreesWithTheVerdict`: dashboard sign-off and every row's blocks/advisory state agree with `Evaluate`, and neither text ever says "healthy". Existing and not duplicated: strict snapshot references `internal/doctor/health_snapshot_refs_test.go` (missing, manual, unreadable, read-only); report-failure warning `TestCollectReportWriteFailureKeepsTheSnapshot` and `TestRun_reportWriteFailureIsOnlyAWarning`. No classification policy changed.
+4. **Duplication denominator.** The scoped jscpd instances use the jscpd 5 report (no per-file counts); the test asserts each keeps only the report's own totals (3.33% of 600 lines) and asserts no scoped figure.
+5. **Coverage matrix.** In the header comment of `readers_polyglot_test.go`; each reader's good/partial/malformed/boundary cases stay in `reader_*_test.go`, and `TestCollectWithRealReadersKeepsEveryMeasureTruthful` stays as the all-measured case.
+
+### Files
+
+Read: the Context Files plus `collect.go`, `gate.go`, `dashboard.go`, `spark.go`, `identity.go`, `reader_lizard.go`, `reader_osv.go`, `reader_jscpd.go`, `dashboard_test.go`, `repository_test.go`, `reader_repair_test.go`, `collect_test.go` (extra reads: to learn outcome rules, series identity and helpers). Changed: `internal/codehealth/readers_polyglot_test.go` (new), this Task file.
+
+### Limitations
+
+Test-only: no production behavior changed. Reports are made stale/fresh by file mtime, so the stale case depends on filesystem timestamps (set explicitly, hour offsets). The OSV scanner-error fixture reads as partial with a value, not failed; I asserted that existing behavior rather than changing it.
 
 ## Drift Notes
 
-Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check. If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
+Record implemented responsibility or interface changes for planner reconciliation before the mandatory Full Objective Check.
+
+None from this Task. Observation only: the `JscpdReader.Read` doc comment says a report without per-file counts "gives a partial reading with no value", but the code (and `TestJscpdReaderWithoutPerFileCountsKeepsTheReportTotal`) keeps the report total, available. Left unchanged as out of scope. If evidence requires a material unknown repair, return REPLAN REQUIRED rather than inventing another scope.
