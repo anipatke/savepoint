@@ -581,6 +581,11 @@ func writeSidecar(targetPath, path, suffix string, content []byte, dryRun bool, 
 	if dryRun {
 		return nil
 	}
+	// A repeat run with the same incoming content leaves the sidecar's bytes
+	// and modification time alone.
+	if existing, err := os.ReadFile(targetPath + suffix); err == nil && bytes.Equal(existing, content) {
+		return nil
+	}
 	if err := write(targetPath+suffix, content); err != nil {
 		return fmt.Errorf("write %s%s: %w", path, suffix, err)
 	}

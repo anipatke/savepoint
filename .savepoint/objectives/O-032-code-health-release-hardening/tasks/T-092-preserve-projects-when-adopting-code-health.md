@@ -2,11 +2,20 @@
 id: T-092
 title: Preserve projects when adopting Code Health
 objective: O-032
-status: planned
+status: done
 complexity_tier: high
 complexity_reason: Scaffold, upgrades and migration boundaries must preserve owner-authored files.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-092
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:22:27Z"
 ---
 
 # Preserve projects when adopting Code Health
@@ -56,7 +65,18 @@ Fresh `make test-full` for this platform/migration/distribution-sensitive Task; 
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Command: `make build && make test-full` on linux/amd64, go1.26.2, 2026-10-02 ~14:22 AEST: passed (build, test, and linux/darwin/windows builds).
+
+Per criterion:
+1. Fresh/init and schema-2 upgrade preservation: new `TestMainUpgradeAssetsPreservesAdoptedHealthAndAuthoredContent` (main_health_test.go) keeps edited health config, snapshots, reports, Design.md, Health-Check.md, config.yml and an unmanaged file byte-identical; dry-run changes nothing; repeat run changes nothing (hash and mtime). Fresh init writes no health files: existing `TestMainInitEndsWithHealthPreviewAndWritesNoHealthConfig`.
+2. Migration/schema boundaries: existing `TestUpgradeProjectAssets_refusesV1WithoutMutation`, `_neverWritesSchemaVersion`, `_malformedSchemaVersionRefusesCleanly`, `_unsupportedSchemaVersionRefusesCleanly` and `internal/migrate` preview-first tests pass unchanged; no health config or snapshots are invented.
+3. Guidance: templates/project-v2/AGENTS.md lines 189-191 already state setup is human-only and `health check O-###` runs only in a Full Objective Check; matches runtime wiring in main.go. No template change needed; skill identity tests pass.
+4. Conflict recovery: the new test's edited-skill conflict keeps the owner bytes, writes `SKILL.md.new` and reports "incoming written to .new". Repair: a repeat run rewrote an identical `.new` sidecar (mtime churn); `writeSidecar` in internal/init/upgrade.go now skips an identical sidecar. Existing `upgrade_failure_test.go` write-failure cases pass.
+5. Separation and full gate recorded above.
+
+Files read: internal/init/{scaffold,manifest,upgrade}.go, main.go, main_health_test.go, main_test.go helpers, upgrade_schema_test.go, templates/project-v2/AGENTS.md (grep). Extra reads beyond Context Files: main.go and main_test.go (wiring and snapshot helpers). Files changed: internal/init/upgrade.go, main_health_test.go, this Task.
+
+Limitations: partial-write failure was covered by existing tests rather than a new one; no Task Check or health command was run; Windows behavior verified only by cross-build.
 
 ## Drift Notes
 
