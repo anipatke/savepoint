@@ -2,12 +2,21 @@
 id: T-090
 title: Protect saved health evidence under failures
 objective: O-032
-status: planned
+status: done
 depends_on: [{task: T-086, requires: clear}]
 complexity_tier: high
 complexity_reason: Concurrent persistence and explicit retention require filesystem preservation and failure evidence.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o032-20261002-owner-confirmed}
+check_waiver:
+    task: T-090
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T04:12:37Z"
 ---
 
 # Protect saved health evidence under failures
@@ -57,7 +66,18 @@ Fresh `make test-full` for this platform/migration/distribution-sensitive Task; 
 
 ## Technical Evidence
 
-Pending execution: named per-criterion cases, command/time/toolchain/results, files read/changed, decision deliverable where applicable and limitations.
+Executor evidence (not a Check, not CLEAR). Extra reads: none beyond Context Files (also read `internal/codehealth/model_test.go` helpers via grep only). Files changed: `internal/codehealth/storage_failure_test.go` (new). No production code changed: no failure was demonstrated, so no repair was made.
+
+Per criterion:
+1. Version/record validation: existing `TestLoadConfigRejectsBadFiles`, `TestLoadSnapshotsRejectsBadFiles`, `TestDecodersRequireEndOfInputAfterOneRecord`, `TestSymlinkEscapesAreRefused` cover malformed/trailing JSON, newer version, unsafe paths. Added `TestOlderAndNewerRecordVersionsAreRefused` (versions 0, 2, -1 for config and snapshot) and `TestOversizedRecordsAreRefusedUnread` (config, snapshot, conflicting save).
+2. Concurrency: added `TestConcurrentSnapshotSavesAndReads` (8 same-identity writers: exactly one creates; 8 different snapshots; 8 concurrent readers; no temps) and `TestReadersSeeCompleteConfigAndReportDuringReplacement` (readers see only complete old/new config and report; skipped on Windows, where replacing an open file is refused by the OS).
+3. Failure preservation: existing `TestConfigFailedReplaceKeepsOldFile`, `TestWriteReportUnwritableDirectory`, `TestWriteReportNeverOverwritesOwnersIgnoreFile`. Added `TestFailedReplacementAfterTempCreationLeavesNoTemp` (rename fails after temp creation for config and report; no temp left, obstruction untouched) and `TestFailedWritesPreserveOwnerBytesAndRepeatSucceeds` (owner .gitignore, config bytes and prior report unchanged; repeat succeeds after obstruction removed).
+4. Prune: existing retention, official-preservation, tie, repeat, saving-never-prunes, invalid-history and read-only partial-failure tests. Added `TestPruneToleratesAFileRemovedByAnotherPrune`.
+5. Versions/IDs unchanged; no repair needed.
+
+Commands: `go vet ./internal/codehealth`; `go test -race -count=3 ./internal/codehealth` pass; `make build` and fresh `make test-full` exit 0 on 2026-10-02T04:12Z, linux/amd64, go1.26.2.
+
+Limitations: partial prune failure after at least one removal is not deterministically triggerable without fault injection, so only zero-removed failure and the vanished-file path are covered; Windows behaviour of the new concurrency tests is untested locally (CI covers it); read-only-directory cases skip as root/Windows.
 
 ## Drift Notes
 
