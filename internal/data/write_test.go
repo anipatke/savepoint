@@ -551,11 +551,37 @@ Authored task notes.`
 		t.Fatalf("Evidence = %+v, want nil before write", task.Evidence)
 	}
 
+	task.Evidence = fullTaskEvidenceV2()
+
+	if err := WriteTaskEvidenceV2(task); err != nil {
+		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
+	}
+
+	result := readTestBytes(t, path)
+
+	reparsed, err := DecodeTaskV2(path, string(result))
+	if err != nil {
+		t.Fatalf("DecodeTaskV2() after write error = %v", err)
+	}
+	assertFullTaskEvidenceRoundTrips(t, reparsed.Evidence)
+
+	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
+		t.Errorf("Status/Stage = %q/%q, want in_progress/build preserved", reparsed.Status, reparsed.Stage)
+	}
+	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T-010" {
+		t.Errorf("DependsOn = %v, want [T-010] preserved", reparsed.DependsOn)
+	}
+	if !strings.Contains(string(result), "Authored task notes.") {
+		t.Error("authored body content not preserved")
+	}
+}
+
+func fullTaskEvidenceV2() *Evidence {
 	assessedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
 	recordedAt := time.Date(2026, 9, 14, 1, 0, 0, 0, time.UTC)
 	replanAt := time.Date(2026, 9, 14, 2, 0, 0, 0, time.UTC)
 	waiverAt := time.Date(2026, 9, 14, 3, 0, 0, 0, time.UTC)
-	task.Evidence = &Evidence{
+	return &Evidence{
 		CheckWaiver: &CheckWaiver{
 			Task:       "T-020",
 			Reason:     "Owner completed via board without requesting a Check.",
@@ -584,50 +610,33 @@ Authored task notes.`
 			RecordedAt: replanAt,
 		},
 	}
+}
 
-	if err := WriteTaskEvidenceV2(task); err != nil {
-		t.Fatalf("WriteTaskEvidenceV2() error = %v", err)
-	}
-
-	result := readTestBytes(t, path)
-
-	reparsed, err := DecodeTaskV2(path, string(result))
-	if err != nil {
-		t.Fatalf("DecodeTaskV2() after write error = %v", err)
-	}
-	if reparsed.Evidence == nil {
+func assertFullTaskEvidenceRoundTrips(t *testing.T, e *Evidence) {
+	t.Helper()
+	if e == nil {
 		t.Fatal("Evidence = nil, want populated evidence")
 	}
-	if reparsed.Evidence.LastCheck != "C-001" {
-		t.Errorf("LastCheck = %q, want C-001", reparsed.Evidence.LastCheck)
+	if e.LastCheck != "C-001" {
+		t.Errorf("LastCheck = %q, want C-001", e.LastCheck)
 	}
-	if reparsed.Evidence.Freshness == nil || reparsed.Evidence.Freshness.State != FreshnessCurrent {
-		t.Errorf("Freshness = %+v, want state current", reparsed.Evidence.Freshness)
+	if e.Freshness == nil || e.Freshness.State != FreshnessCurrent {
+		t.Errorf("Freshness = %+v, want state current", e.Freshness)
 	}
-	if reparsed.Evidence.OwnerValidation == nil || !reparsed.Evidence.OwnerValidation.Required {
-		t.Errorf("OwnerValidation = %+v, want required true", reparsed.Evidence.OwnerValidation)
+	if e.OwnerValidation == nil || !e.OwnerValidation.Required {
+		t.Errorf("OwnerValidation = %+v, want required true", e.OwnerValidation)
 	}
-	if reparsed.Evidence.OwnerValidation.AcceptedBy != (Actor{Role: ActorRoleOwner, Session: "owner-1"}) {
-		t.Errorf("OwnerValidation.AcceptedBy = %+v, want owner/owner-1", reparsed.Evidence.OwnerValidation.AcceptedBy)
+	if e.OwnerValidation.AcceptedBy != (Actor{Role: ActorRoleOwner, Session: "owner-1"}) {
+		t.Errorf("OwnerValidation.AcceptedBy = %+v, want owner/owner-1", e.OwnerValidation.AcceptedBy)
 	}
-	if reparsed.Evidence.Exception == nil || reparsed.Evidence.Exception.Owner != "owner-1" {
-		t.Errorf("Exception = %+v, want owner owner-1", reparsed.Evidence.Exception)
+	if e.Exception == nil || e.Exception.Owner != "owner-1" {
+		t.Errorf("Exception = %+v, want owner owner-1", e.Exception)
 	}
-	if reparsed.Evidence.Replan == nil || reparsed.Evidence.Replan.Reason != "Plan needs revisiting." {
-		t.Errorf("Replan = %+v, want reason set", reparsed.Evidence.Replan)
+	if e.Replan == nil || e.Replan.Reason != "Plan needs revisiting." {
+		t.Errorf("Replan = %+v, want reason set", e.Replan)
 	}
-	if reparsed.Evidence.CheckWaiver == nil || reparsed.Evidence.CheckWaiver.Task != "T-020" || reparsed.Evidence.CheckWaiver.Actor.Role != ActorRoleOwner {
-		t.Errorf("CheckWaiver = %+v, want task T-020 recorded by owner", reparsed.Evidence.CheckWaiver)
-	}
-
-	if reparsed.Status != ColumnInProgress || reparsed.Stage != StageBuild {
-		t.Errorf("Status/Stage = %q/%q, want in_progress/build preserved", reparsed.Status, reparsed.Stage)
-	}
-	if len(reparsed.DependsOn) != 1 || reparsed.DependsOn[0].Task != "T-010" {
-		t.Errorf("DependsOn = %v, want [T-010] preserved", reparsed.DependsOn)
-	}
-	if !strings.Contains(string(result), "Authored task notes.") {
-		t.Error("authored body content not preserved")
+	if e.CheckWaiver == nil || e.CheckWaiver.Task != "T-020" || e.CheckWaiver.Actor.Role != ActorRoleOwner {
+		t.Errorf("CheckWaiver = %+v, want task T-020 recorded by owner", e.CheckWaiver)
 	}
 }
 

@@ -322,26 +322,10 @@ func TestRunV2ChecksReportsMissingGoalsAndConcreteRepairs(t *testing.T) {
 	root := t.TempDir()
 	writeCompleteV2Project(t, root)
 	routerPath := filepath.Join(root, "router.md")
-	routerRaw, err := os.ReadFile(routerPath)
-	if err != nil {
-		t.Fatalf("ReadFile(router.md) error = %v", err)
-	}
-	missingGoalRouter := strings.Replace(string(routerRaw), "release: R-001\n", "release: none\n", 1)
-	if missingGoalRouter == string(routerRaw) {
-		t.Fatal("fixture router has no Goal selection to clear")
-	}
-	if err := os.WriteFile(routerPath, []byte(missingGoalRouter), 0644); err != nil {
-		t.Fatalf("WriteFile(router.md) error = %v", err)
-	}
+	routerRaw := replaceInFile(t, routerPath, "release: R-001\n", "release: none\n")
 
 	report := RunV2Checks(root)
-	var routerProblem *Problem
-	for i := range report.Project {
-		if strings.Contains(report.Project[i].Message, "[router-goal-missing]") {
-			routerProblem = &report.Project[i]
-			break
-		}
-	}
+	routerProblem := findProjectProblem(report, "[router-goal-missing]")
 	if routerProblem == nil {
 		t.Fatalf("Project = %+v, want a router Goal problem", report.Project)
 	}
@@ -356,26 +340,10 @@ func TestRunV2ChecksReportsMissingGoalsAndConcreteRepairs(t *testing.T) {
 		t.Fatalf("restore router.md error = %v", err)
 	}
 	objectivePath := filepath.Join(root, "objectives", "O-001-ship", "Objective.md")
-	objectiveRaw, err := os.ReadFile(objectivePath)
-	if err != nil {
-		t.Fatalf("ReadFile(Objective.md) error = %v", err)
-	}
-	withoutGoal := strings.Replace(string(objectiveRaw), "release: R-001\n", "", 1)
-	if withoutGoal == string(objectiveRaw) {
-		t.Fatal("fixture Objective has no Goal reference to remove")
-	}
-	if err := os.WriteFile(objectivePath, []byte(withoutGoal), 0644); err != nil {
-		t.Fatalf("WriteFile(Objective.md) error = %v", err)
-	}
+	replaceInFile(t, objectivePath, "release: R-001\n", "")
 
 	report = RunV2Checks(root)
-	var objectiveProblem *Problem
-	for i := range report.Project {
-		if strings.Contains(report.Project[i].Message, "[objective-goal-missing]") {
-			objectiveProblem = &report.Project[i]
-			break
-		}
-	}
+	objectiveProblem := findProjectProblem(report, "[objective-goal-missing]")
 	if objectiveProblem == nil {
 		t.Fatalf("Project = %+v, want an Objective Goal problem", report.Project)
 	}
@@ -383,47 +351,59 @@ func TestRunV2ChecksReportsMissingGoalsAndConcreteRepairs(t *testing.T) {
 		t.Errorf("Objective problem = %+v, want O-001's file and exact release field repair", objectiveProblem)
 	}
 
-	noGoalsRoot := t.TempDir()
-	writeCompleteV2Project(t, noGoalsRoot)
-	if err := os.RemoveAll(filepath.Join(noGoalsRoot, "releases")); err != nil {
+	assertNoGoalsRepairsCreateAGoal(t)
+}
+
+// replaceInFile swaps the first old for new in the file, failing when old is
+// absent, and returns the original bytes so a test can restore them.
+func replaceInFile(t *testing.T, path, old, new string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", filepath.Base(path), err)
+	}
+	changed := strings.Replace(string(raw), old, new, 1)
+	if changed == string(raw) {
+		t.Fatalf("fixture %s has no %q to replace", filepath.Base(path), old)
+	}
+	if err := os.WriteFile(path, []byte(changed), 0644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", filepath.Base(path), err)
+	}
+	return raw
+}
+
+// findProjectProblem returns the first Project problem whose message carries
+// tag, or nil.
+func findProjectProblem(report *DiagnosticReport, tag string) *Problem {
+	for i := range report.Project {
+		if strings.Contains(report.Project[i].Message, tag) {
+			return &report.Project[i]
+		}
+	}
+	return nil
+}
+
+// assertNoGoalsRepairsCreateAGoal checks that with no Goal records at all, both
+// the router and Objective repairs tell the owner to create one.
+func assertNoGoalsRepairsCreateAGoal(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	writeCompleteV2Project(t, root)
+	if err := os.RemoveAll(filepath.Join(root, "releases")); err != nil {
 		t.Fatalf("RemoveAll(releases) error = %v", err)
 	}
-	noGoalsRouterPath := filepath.Join(noGoalsRoot, "router.md")
-	noGoalsRouter, err := os.ReadFile(noGoalsRouterPath)
-	if err != nil {
-		t.Fatalf("ReadFile(router.md) error = %v", err)
-	}
-	noGoalsRouterText := strings.Replace(string(noGoalsRouter), "release: R-001\n", "release: none\n", 1)
-	if err := os.WriteFile(noGoalsRouterPath, []byte(noGoalsRouterText), 0644); err != nil {
-		t.Fatalf("WriteFile(router.md) error = %v", err)
-	}
-	noGoalsObjectivePath := filepath.Join(noGoalsRoot, "objectives", "O-001-ship", "Objective.md")
-	noGoalsObjective, err := os.ReadFile(noGoalsObjectivePath)
-	if err != nil {
-		t.Fatalf("ReadFile(Objective.md) error = %v", err)
-	}
-	noGoalsObjectiveText := strings.Replace(string(noGoalsObjective), "release: R-001\n", "", 1)
-	if err := os.WriteFile(noGoalsObjectivePath, []byte(noGoalsObjectiveText), 0644); err != nil {
-		t.Fatalf("WriteFile(Objective.md) error = %v", err)
-	}
-	noGoalsReport := RunV2Checks(noGoalsRoot)
-	var noGoalRouterFound, noGoalObjectiveFound bool
-	for _, problem := range noGoalsReport.Project {
-		if strings.Contains(problem.Message, "[router-goal-missing]") {
-			noGoalRouterFound = true
-			if !strings.Contains(problem.Repair, "Create a Goal") {
-				t.Errorf("router repair with no Goals = %q, want it to create a Goal", problem.Repair)
-			}
+	replaceInFile(t, filepath.Join(root, "router.md"), "release: R-001\n", "release: none\n")
+	replaceInFile(t, filepath.Join(root, "objectives", "O-001-ship", "Objective.md"), "release: R-001\n", "")
+
+	report := RunV2Checks(root)
+	for _, tag := range []string{"[router-goal-missing]", "[objective-goal-missing]"} {
+		problem := findProjectProblem(report, tag)
+		if problem == nil {
+			t.Fatalf("Project = %+v, want a %s problem with no Goals available", report.Project, tag)
 		}
-		if strings.Contains(problem.Message, "[objective-goal-missing]") {
-			noGoalObjectiveFound = true
-			if !strings.Contains(problem.Repair, "Create a Goal") {
-				t.Errorf("Objective repair with no Goals = %q, want it to create a Goal", problem.Repair)
-			}
+		if !strings.Contains(problem.Repair, "Create a Goal") {
+			t.Errorf("%s repair with no Goals = %q, want it to create a Goal", tag, problem.Repair)
 		}
-	}
-	if !noGoalRouterFound || !noGoalObjectiveFound {
-		t.Fatalf("Project = %+v, want router and Objective problems with no Goals available", noGoalsReport.Project)
 	}
 }
 

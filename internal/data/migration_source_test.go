@@ -147,6 +147,29 @@ func TestMigrationSourceBasicInventory(t *testing.T) {
 func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	const fixture = "v1-basic"
 	savepointRoot := filepath.Join(migrationFixtureDir(fixture), "project", ".savepoint")
+	tasks, rawContent := loadBasicFixtureTasks(t, savepointRoot)
+	t1, t2 := tasks[0], tasks[1]
+
+	if t1.Column != ColumnDone {
+		t.Errorf("T001.Column = %v, want done", t1.Column)
+	}
+	if t2.Column != ColumnInProgress {
+		t.Errorf("T002.Column = %v, want in_progress", t2.Column)
+	}
+	if t2.Stage != StageBuild {
+		t.Errorf("T002.Stage = %v, want build (healed from legacy phase: implementation)", t2.Stage)
+	}
+
+	assertLegacyFrontmatterStaysRaw(t, rawContent["T002-follow-up"])
+	assertLegacyDependencyResolves(t, tasks)
+	assertRawBytesKeepAuthoredText(t, rawContent["T002-follow-up"], t2)
+	assertMultilineExtractorsDiffer(t, t2)
+}
+
+// loadBasicFixtureTasks discovers the v1-basic Release, Epic and Tasks and
+// parses each Task, returning them with their raw file content by ID.
+func loadBasicFixtureTasks(t *testing.T, savepointRoot string) ([]Task, map[string]string) {
+	t.Helper()
 	discover := NewDiscover()
 	parser := NewParser()
 
@@ -189,35 +212,27 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 		}
 		// Discovery normally supplies release/epic scope explicitly (see
 		// internal/board/board.go's loadEpicTasks); mirror that here so
-		// ResolveDependency below sees the same context a real load would.
+		// ResolveDependency sees the same context a real load would.
 		task.Release = "v1"
 		task.Epic = "E01-example"
 		tasks = append(tasks, *task)
 	}
-	t1, t2 := tasks[0], tasks[1]
+	return tasks, rawContent
+}
 
-	if t1.Column != ColumnDone {
-		t.Errorf("T001.Column = %v, want done", t1.Column)
-	}
-	if t2.Column != ColumnInProgress {
-		t.Errorf("T002.Column = %v, want in_progress", t2.Column)
-	}
-	if t2.Stage != StageBuild {
-		t.Errorf("T002.Stage = %v, want build (healed from legacy phase: implementation)", t2.Stage)
-	}
-
-	// Raw YAML still reports the original legacy phase; the healed Stage
-	// above is a parser interpretation, not a rewrite of the source.
-	rawFrontmatter := rawFrontmatterMap(t, rawContent["T002-follow-up"])
+// assertLegacyFrontmatterStaysRaw checks that raw YAML still reports the
+// original legacy phase; the healed Stage is a parser interpretation, not a
+// rewrite of the source. An unknown top-level field and an unknown nested field
+// parse without error and are simply absent from the typed Task.
+func assertLegacyFrontmatterStaysRaw(t *testing.T, raw string) {
+	t.Helper()
+	rawFrontmatter := rawFrontmatterMap(t, raw)
 	if rawFrontmatter["phase"] != "implementation" {
 		t.Errorf("raw T002 frontmatter phase = %v, want implementation", rawFrontmatter["phase"])
 	}
 	if _, hasStage := rawFrontmatter["stage"]; hasStage {
 		t.Error("raw T002 frontmatter has a stage key; source should only carry the legacy phase key")
 	}
-
-	// An unknown top-level field and an unknown nested field parse without
-	// error and are simply absent from the typed Task.
 	if rawFrontmatter["legacy_note"] != "kept from v1 authoring; not part of the current schema" {
 		t.Errorf("raw T002 frontmatter legacy_note = %v", rawFrontmatter["legacy_note"])
 	}
@@ -229,10 +244,14 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	if !ok || reviewer["name"] != "sam" {
 		t.Errorf("raw T002 frontmatter metadata.reviewer = %v, want name sam", metadata["reviewer"])
 	}
+}
 
-	// The dependency reference uses the legacy short-with-suffix form
-	// ("T001-original", not "T001" or the full scoped ID); ResolveDependency
-	// must still land on T001 using T002's release/epic scope.
+// assertLegacyDependencyResolves checks that the dependency reference, which
+// uses the legacy short-with-suffix form ("T001-original", not "T001" or the
+// full scoped ID), still lands on T001 using T002's release/epic scope.
+func assertLegacyDependencyResolves(t *testing.T, tasks []Task) {
+	t.Helper()
+	t1, t2 := tasks[0], tasks[1]
 	if len(t2.DependsOn) != 1 || t2.DependsOn[0] != "T001-original" {
 		t.Fatalf("T002.DependsOn = %v, want [T001-original]", t2.DependsOn)
 	}
@@ -240,16 +259,18 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	if resolution.Kind != DependencyTask || resolution.ID != t1.ID || resolution.TaskStatus != ColumnDone {
 		t.Errorf("ResolveDependency() = %+v, want task %s done", resolution, t1.ID)
 	}
+}
 
-	// Source bytes are CRLF throughout; the parser normalizes internally
-	// but never rewrites the file, so the fixture itself must still be CRLF.
-	if !strings.Contains(rawContent["T002-follow-up"], "\r\n") {
+// assertRawBytesKeepAuthoredText checks that the source bytes are CRLF
+// throughout (the parser normalizes internally but never rewrites the file) and
+// that the body comment survives in raw content without becoming a checklist
+// item.
+func assertRawBytesKeepAuthoredText(t *testing.T, raw string, t2 Task) {
+	t.Helper()
+	if !strings.Contains(raw, "\r\n") {
 		t.Error("raw T002 content has no CRLF line endings; fixture must stay CRLF")
 	}
-
-	// The body comment survives in raw content but never becomes a
-	// checklist item.
-	if !strings.Contains(rawContent["T002-follow-up"], "<!-- Author note:") {
+	if !strings.Contains(raw, "<!-- Author note:") {
 		t.Error("raw T002 content lost its author-note comment")
 	}
 	for _, item := range t2.Checklist {
@@ -257,10 +278,16 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 			t.Errorf("Checklist picked up the body comment: %+v", item)
 		}
 	}
+}
 
-	// Multiline authored text: raw bytes keep every authored line, but the
-	// two checklist extractors normalize it differently. Implementation
-	// Plan items join their continuation lines into one string...
+// assertMultilineExtractorsDiffer checks multiline authored text: raw bytes
+// keep every authored line, but the two checklist extractors normalize it
+// differently. Implementation Plan items join their continuation lines into one
+// string, while Acceptance Criteria extraction does not merge them at all, so
+// only the first authored line survives into the typed model. This is exactly
+// the gap raw-byte preservation exists to cover.
+func assertMultilineExtractorsDiffer(t *testing.T, t2 Task) {
+	t.Helper()
 	if len(t2.Checklist) != 2 {
 		t.Fatalf("T002.Checklist = %+v, want 2 items", t2.Checklist)
 	}
@@ -268,10 +295,6 @@ func TestMigrationSourceBasicInterpretation(t *testing.T) {
 	if t2.Checklist[1].Text != wantJoined {
 		t.Errorf("T002.Checklist[1].Text = %q, want %q", t2.Checklist[1].Text, wantJoined)
 	}
-
-	// ...but Acceptance Criteria extraction does not merge continuation
-	// lines at all, so only the first authored line survives into the typed
-	// model. This is exactly the gap raw-byte preservation exists to cover.
 	if len(t2.Acceptance) != 2 {
 		t.Fatalf("T002.Acceptance = %+v, want 2 items", t2.Acceptance)
 	}

@@ -295,33 +295,43 @@ func TestLifecycle_upgradeRefreshesPackageOwnedAssets(t *testing.T) {
 			continue
 		}
 		skills++
-
-		want, err := fs.ReadFile(templates, path)
-		if err != nil {
-			t.Fatalf("read template %s: %v", path, err)
-		}
-		if got := readProjectFile(t, dir, path); got != string(want) {
-			t.Errorf("%s was not refreshed to the shipped content", path)
-		}
-		if action, found := actionFor(report, path); !found || action != ActionUpdated {
-			t.Errorf("%s action = %v (found %v), want updated", path, action, found)
-		}
-		// Nothing the user had is lost: replacing a tracked skill under
-		// --force keeps the old copy beside it. Shared references under
-		// agent-skills/references/ carry no provenance and refresh directly.
-		_, err = os.Stat(filepath.Join(dir, filepath.FromSlash(path)) + backupSuffix)
-		if isManifestPath(path) && err != nil {
-			t.Errorf("%s replaced without a backup: %v", path, err)
-		}
-		if !isManifestPath(path) && err == nil {
-			t.Errorf("%s is package-owned and needs no backup, but one was written", path)
-		}
+		assertSkillRefreshed(t, templates, dir, report, path)
 	}
 	if skills == 0 {
 		t.Fatal("no package-owned skill assets found")
 	}
 
-	// The marked guide keeps its user prose and takes the new managed block.
+	assertGuideManagedBlockRefreshed(t, templates, dir, report)
+}
+
+func assertSkillRefreshed(t *testing.T, templates fs.FS, dir string, report *UpgradeReport, path string) {
+	t.Helper()
+	want, err := fs.ReadFile(templates, path)
+	if err != nil {
+		t.Fatalf("read template %s: %v", path, err)
+	}
+	if got := readProjectFile(t, dir, path); got != string(want) {
+		t.Errorf("%s was not refreshed to the shipped content", path)
+	}
+	if action, found := actionFor(report, path); !found || action != ActionUpdated {
+		t.Errorf("%s action = %v (found %v), want updated", path, action, found)
+	}
+	// Nothing the user had is lost: replacing a tracked skill under --force
+	// keeps the old copy beside it. Shared references under
+	// agent-skills/references/ carry no provenance and refresh directly.
+	_, err = os.Stat(filepath.Join(dir, filepath.FromSlash(path)) + backupSuffix)
+	if isManifestPath(path) && err != nil {
+		t.Errorf("%s replaced without a backup: %v", path, err)
+	}
+	if !isManifestPath(path) && err == nil {
+		t.Errorf("%s is package-owned and needs no backup, but one was written", path)
+	}
+}
+
+// assertGuideManagedBlockRefreshed checks that the marked guide keeps its user
+// prose and takes the new managed block.
+func assertGuideManagedBlockRefreshed(t *testing.T, templates fs.FS, dir string, report *UpgradeReport) {
+	t.Helper()
 	guide := readProjectFile(t, dir, "AGENTS.md")
 	for _, prose := range []string{"# Team Guide", "Our prose.", "More of our prose."} {
 		if !strings.Contains(guide, prose) {

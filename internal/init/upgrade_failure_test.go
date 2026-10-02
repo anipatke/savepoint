@@ -105,91 +105,125 @@ func TestUpgrade_writeFailureLeavesRecoverableState(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			dir, templates := failureProject(t)
-			manifestBefore, _ := projectFile(t, dir, ".savepoint/.upgrade-manifest.yml")
+		t.Run(tc.name, func(t *testing.T) { checkWriteFailure(t, tc.failAt) })
+	}
+}
 
-			w := &countingWriter{failAt: tc.failAt}
-			report, err := upgradeProjectAssets(templates, dir, false, true, w.write, false)
+// failureOutcome is what a failed upgrade left behind.
+type failureOutcome struct {
+	dir                           string
+	report                        *UpgradeReport
+	err                           error
+	backup                        string
+	hasBackup                     bool
+	manifestBefore, manifestAfter string
+}
 
-			if !errors.Is(err, errInjected) {
-				t.Fatalf("error = %v, want the injected failure to surface", err)
-			}
-			if report == nil {
-				t.Fatal("no report returned; the applied work is invisible to the user")
-			}
+func checkWriteFailure(t *testing.T, failAt int) {
+	dir, templates := failureProject(t)
+	manifestBefore, _ := projectFile(t, dir, ".savepoint/.upgrade-manifest.yml")
 
-			backup, hasBackup := projectFile(t, dir, skillA+backupSuffix)
-			liveA, _ := projectFile(t, dir, skillA)
-			liveB, _ := projectFile(t, dir, skillB)
-			manifestAfter, _ := projectFile(t, dir, ".savepoint/.upgrade-manifest.yml")
+	w := &countingWriter{failAt: failAt}
+	report, err := upgradeProjectAssets(templates, dir, false, true, w.write, false)
 
-			switch tc.failAt {
-			case 1:
-				// Nothing was applied, so nothing may have changed.
-				if hasBackup {
-					t.Error("failed-before-any-write upgrade left a backup")
-				}
-				assertFileIs(t, dir, skillA, "# My edits")
-				assertFileIs(t, dir, skillB, "# Ours v1")
-				if manifestAfter != manifestBefore {
-					t.Error("failed-before-any-write upgrade rewrote the manifest")
-				}
-			case 2:
-				// The replacement failed, but the user's content survives twice
-				// over: untouched in place, and copied to the backup.
-				if !hasBackup || backup != "# My edits" {
-					t.Errorf("backup = %q (exists %v), want the user's content", backup, hasBackup)
-				}
-				assertFileIs(t, dir, skillA, "# My edits")
-				assertFileIs(t, dir, skillB, "# Ours v1")
+	if !errors.Is(err, errInjected) {
+		t.Fatalf("error = %v, want the injected failure to surface", err)
+	}
+	if report == nil {
+		t.Fatal("no report returned; the applied work is invisible to the user")
+	}
 
-				// Writing a .bak and not saying so is the same invisible
-				// partial state the report exists to prevent.
-				entry, found := entryFor(report, skillA)
-				if !found {
-					t.Fatalf("report does not mention %s at all: %+v", skillA, report.Actions)
-				}
-				if entry.Action != ActionFailed {
-					t.Errorf("%s action = %v, want failed", skillA, entry.Action)
-				}
-				if entry.Note != noteBackup {
-					t.Errorf("%s note = %q, want it to name the backup", skillA, entry.Note)
-				}
-				if !strings.Contains(report.Format(), backupSuffix) {
-					t.Errorf("report does not name the backup:\n%s", report.Format())
-				}
-			case 3:
-				// skill-a is applied and skill-b is untouched: no half-written
-				// file, and the manifest now matches what is on disk.
-				if !hasBackup || backup != "# My edits" {
-					t.Errorf("backup = %q (exists %v), want the user's content", backup, hasBackup)
-				}
-				assertFileIs(t, dir, skillA, "# Ours v2")
-				assertFileIs(t, dir, skillB, "# Ours v1")
-				assertRecordedHash(t, dir, skillA, "# Ours v2")
-				assertRecordedHash(t, dir, skillB, "# Ours v1")
-				if action, found := actionFor(report, skillA); !found || action != ActionUpdated {
-					t.Errorf("report does not name the applied %s: %v (found %v)", skillA, action, found)
-				}
-			case 4:
-				// Both assets are applied; only the provenance record failed.
-				assertFileIs(t, dir, skillA, "# Ours v2")
-				assertFileIs(t, dir, skillB, "# Ours v2")
-				if !strings.Contains(err.Error(), "manifest") {
-					t.Errorf("error = %v, want it to name the manifest", err)
-				}
-				for _, path := range []string{skillA, skillB} {
-					if action, found := actionFor(report, path); !found || action != ActionUpdated {
-						t.Errorf("report does not name the applied %s: %v (found %v)", path, action, found)
-					}
-				}
-			}
+	backup, hasBackup := projectFile(t, dir, skillA+backupSuffix)
+	liveA, _ := projectFile(t, dir, skillA)
+	liveB, _ := projectFile(t, dir, skillB)
+	manifestAfter, _ := projectFile(t, dir, ".savepoint/.upgrade-manifest.yml")
+	out := failureOutcome{dir, report, err, backup, hasBackup, manifestBefore, manifestAfter}
 
-			if liveA == "" || liveB == "" {
-				t.Error("a skill file was left empty by the failed upgrade")
-			}
-		})
+	switch failAt {
+	case 1:
+		out.assertNothingApplied(t)
+	case 2:
+		out.assertReplacementFailedAfterBackup(t)
+	case 3:
+		out.assertFirstAssetApplied(t)
+	case 4:
+		out.assertOnlyManifestFailed(t)
+	}
+
+	if liveA == "" || liveB == "" {
+		t.Error("a skill file was left empty by the failed upgrade")
+	}
+}
+
+// assertNothingApplied: nothing was applied, so nothing may have changed.
+func (o failureOutcome) assertNothingApplied(t *testing.T) {
+	t.Helper()
+	if o.hasBackup {
+		t.Error("failed-before-any-write upgrade left a backup")
+	}
+	assertFileIs(t, o.dir, skillA, "# My edits")
+	assertFileIs(t, o.dir, skillB, "# Ours v1")
+	if o.manifestAfter != o.manifestBefore {
+		t.Error("failed-before-any-write upgrade rewrote the manifest")
+	}
+}
+
+// assertReplacementFailedAfterBackup: the replacement failed, but the user's
+// content survives twice over, untouched in place and copied to the backup.
+func (o failureOutcome) assertReplacementFailedAfterBackup(t *testing.T) {
+	t.Helper()
+	if !o.hasBackup || o.backup != "# My edits" {
+		t.Errorf("backup = %q (exists %v), want the user's content", o.backup, o.hasBackup)
+	}
+	assertFileIs(t, o.dir, skillA, "# My edits")
+	assertFileIs(t, o.dir, skillB, "# Ours v1")
+
+	// Writing a .bak and not saying so is the same invisible partial state the
+	// report exists to prevent.
+	entry, found := entryFor(o.report, skillA)
+	if !found {
+		t.Fatalf("report does not mention %s at all: %+v", skillA, o.report.Actions)
+	}
+	if entry.Action != ActionFailed {
+		t.Errorf("%s action = %v, want failed", skillA, entry.Action)
+	}
+	if entry.Note != noteBackup {
+		t.Errorf("%s note = %q, want it to name the backup", skillA, entry.Note)
+	}
+	if !strings.Contains(o.report.Format(), backupSuffix) {
+		t.Errorf("report does not name the backup:\n%s", o.report.Format())
+	}
+}
+
+// assertFirstAssetApplied: skill-a is applied and skill-b is untouched, with no
+// half-written file, and the manifest now matches what is on disk.
+func (o failureOutcome) assertFirstAssetApplied(t *testing.T) {
+	t.Helper()
+	if !o.hasBackup || o.backup != "# My edits" {
+		t.Errorf("backup = %q (exists %v), want the user's content", o.backup, o.hasBackup)
+	}
+	assertFileIs(t, o.dir, skillA, "# Ours v2")
+	assertFileIs(t, o.dir, skillB, "# Ours v1")
+	assertRecordedHash(t, o.dir, skillA, "# Ours v2")
+	assertRecordedHash(t, o.dir, skillB, "# Ours v1")
+	if action, found := actionFor(o.report, skillA); !found || action != ActionUpdated {
+		t.Errorf("report does not name the applied %s: %v (found %v)", skillA, action, found)
+	}
+}
+
+// assertOnlyManifestFailed: both assets are applied; only the provenance record
+// failed.
+func (o failureOutcome) assertOnlyManifestFailed(t *testing.T) {
+	t.Helper()
+	assertFileIs(t, o.dir, skillA, "# Ours v2")
+	assertFileIs(t, o.dir, skillB, "# Ours v2")
+	if !strings.Contains(o.err.Error(), "manifest") {
+		t.Errorf("error = %v, want it to name the manifest", o.err)
+	}
+	for _, path := range []string{skillA, skillB} {
+		if action, found := actionFor(o.report, path); !found || action != ActionUpdated {
+			t.Errorf("report does not name the applied %s: %v (found %v)", path, action, found)
+		}
 	}
 }
 

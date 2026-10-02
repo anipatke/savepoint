@@ -33,10 +33,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	checkedAt := time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)
 
 	// --- records load: no Check yet, both Tasks resolve to missing clearance ---
-	index, err := LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index := mustLoadV2Index(t, root)
 	if got := ResolveClearance(index, "T-001").State; got != ClearanceMissing {
 		t.Fatalf("T-001 clearance = %q, want missing before any Check is recorded", got)
 	}
@@ -47,10 +44,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	// --- a technical Task closes under checker authority once current ---
 	c001 := writeScenarioCheck(t, root, "C-001", CheckScopeTask, "T-001", "sess-1", checkedAt, "")
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	t001 := index.Tasks["T-001"]
 	t001.Evidence = &Evidence{Freshness: &Freshness{
 		State: FreshnessCurrent, Check: c001.ID,
@@ -61,10 +55,7 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("WriteTaskEvidenceV2(T-001) error = %v", err)
 	}
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	if got := ResolveClearance(index, "T-001").State; got != ClearanceCurrent {
 		t.Fatalf("T-001 clearance = %q, want current after freshness names the latest Check", got)
 	}
@@ -73,13 +64,16 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("ResolveTaskCompletion(T-001) = %+v, want allowed under checker authority", completion)
 	}
 
+	checkOwnerValidatedScenario(t, root, t002Path, checkedAt)
+}
+
+// checkOwnerValidatedScenario runs the owner-validated Task through waiting,
+// acceptance, supersession by a rerun, and authored-content preservation.
+func checkOwnerValidatedScenario(t *testing.T, root, t002Path string, checkedAt time.Time) {
 	// --- an owner-validated Task waits until the owner accepts ---
 	c002 := writeScenarioCheck(t, root, "C-002", CheckScopeTask, "T-002", "sess-1", checkedAt, "")
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index := mustLoadV2Index(t, root)
 	t002 := index.Tasks["T-002"]
 	t002.Evidence = &Evidence{
 		Freshness: &Freshness{
@@ -93,10 +87,7 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("WriteTaskEvidenceV2(T-002) error = %v", err)
 	}
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	waiting := ResolveTaskCompletion(index, "T-002")
 	if waiting.Allowed {
 		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want blocked pending owner acceptance", waiting)
@@ -113,10 +104,7 @@ func TestE43_EpicScenario(t *testing.T) {
 		t.Fatalf("WriteTaskEvidenceV2(T-002) accept error = %v", err)
 	}
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	accepted := ResolveTaskCompletion(index, "T-002")
 	if !accepted.Allowed || accepted.AllowedByException {
 		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want allowed by owner acceptance, not exception", accepted)
@@ -126,10 +114,7 @@ func TestE43_EpicScenario(t *testing.T) {
 	//     its own, but the owner has not accepted it yet ---
 	writeScenarioCheck(t, root, "C-003", CheckScopeTask, "T-002", "sess-2", checkedAt.Add(24*time.Hour), c002.ID)
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	rerunClearance := ResolveClearance(index, "T-002")
 	if rerunClearance.State != ClearanceCurrent || rerunClearance.Check != "C-003" {
 		t.Fatalf("T-002 clearance after rerun = %+v, want current on C-003 (a CLEAR re-check needs no freshness record)", rerunClearance)
@@ -172,10 +157,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	writeV2TaskFixture(t, root, "O-002-follow-on", "T-002-beta.md", "T-002", "Beta", "O-002")
 
 	// --- T-002 cannot start while its owning Objective O-002 waits on O-001 ---
-	index, err := LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index := mustLoadV2Index(t, root)
 	start := ResolveTaskStart(index, "T-002")
 	if start.Allowed {
 		t.Fatalf("ResolveTaskStart(T-002) = %+v, want blocked on the owning objective's dependency", start)
@@ -186,10 +168,7 @@ func TestE44_EpicScenario(t *testing.T) {
 
 	// --- close T-001 under checker authority ---
 	c001 := writeScenarioCheck(t, root, "C-001", CheckScopeTask, "T-001", "sess-1", checkedAt, "")
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	t001 := index.Tasks["T-001"]
 	t001.Evidence = &Evidence{Freshness: &Freshness{
 		State: FreshnessCurrent, Check: c001.ID,
@@ -205,15 +184,9 @@ func TestE44_EpicScenario(t *testing.T) {
 
 	// --- close O-001 itself under checker authority once its integration
 	//     Check is current ---
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	co1 := writeScenarioCheck(t, root, "C-002", CheckScopeObjective, "O-001", "sess-1", checkedAt, "")
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	o001 := index.Objectives["O-001"]
 	o001.Evidence = &Evidence{Freshness: &Freshness{
 		State: FreshnessCurrent, Check: co1.ID,
@@ -223,10 +196,7 @@ func TestE44_EpicScenario(t *testing.T) {
 		t.Fatalf("WriteObjectiveEvidenceV2(O-001) error = %v", err)
 	}
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	completion := ResolveObjectiveCompletion(index, "O-001")
 	if !completion.Allowed || completion.Actor != ActorRoleChecker {
 		t.Fatalf("ResolveObjectiveCompletion(O-001) = %+v, want allowed under checker authority", completion)
@@ -238,10 +208,7 @@ func TestE44_EpicScenario(t *testing.T) {
 	}
 
 	// --- O-002's dependency on O-001 is now satisfied, so T-002 can start ---
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	dep := ResolveObjectiveDependency(index, "O-001")
 	if !dep.Satisfied {
 		t.Fatalf("ResolveObjectiveDependency(O-001) = %+v, want satisfied", dep)
@@ -251,20 +218,24 @@ func TestE44_EpicScenario(t *testing.T) {
 		t.Fatalf("ResolveTaskStart(T-002) = %+v, want allowed once the owning objective's dependency clears", start2)
 	}
 
+	checkIssueProofSurvivesLaterCheck(t, root, co1.ID, checkedAt)
+}
+
+// checkIssueProofSurvivesLaterCheck records an Issue resolved as verified proof
+// by the Objective's integration Check, then a later CLEAR Check, and requires
+// no record to be reported stale.
+func checkIssueProofSurvivesLaterCheck(t *testing.T, root, checkID string, checkedAt time.Time) {
 	// --- an Issue observed against O-001's integration Check resolves as
 	//     verified proof, using that same Check ---
 	issueID := "I-001"
 	testutil.WriteFile(t, filepath.Join(root, v2IssuesDirName, issueID+"-latency-regression.md"),
 		"---\nid: "+issueID+"\ntitle: \"Latency regression\"\ntype: defect\nstatus: resolved\n"+
-			"source: {kind: check, check: "+co1.ID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
-			"checks: ["+co1.ID+"]\n"+
-			"resolution: {disposition: verified, check: "+co1.ID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
+			"source: {kind: check, check: "+checkID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
+			"checks: ["+checkID+"]\n"+
+			"resolution: {disposition: verified, check: "+checkID+", actor: {role: checker, session: sess-1}, at: '"+checkedAt.Format(time.RFC3339)+"'}\n"+
 			"---\n\n# Issue\n\nObserved during integration review.\n")
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index := mustLoadV2Index(t, root)
 	if got := index.IssueStatusCounts()[IssueStatusResolved]; got != 1 {
 		t.Errorf("IssueStatusCounts()[resolved] = %d, want 1", got)
 	}
@@ -281,18 +252,24 @@ func TestE44_EpicScenario(t *testing.T) {
 	// --- a later CLEAR Objective-scoped Check keeps O-001 cleared on its
 	//     own and re-confirms the Issue's verified proof (I-059), without
 	//     rewriting any record ---
-	writeScenarioCheck(t, root, "C-003", CheckScopeObjective, "O-001", "sess-2", checkedAt.Add(24*time.Hour), co1.ID)
+	writeScenarioCheck(t, root, "C-003", CheckScopeObjective, "O-001", "sess-2", checkedAt.Add(24*time.Hour), checkID)
 
-	index, err = LoadV2Index(root)
-	if err != nil {
-		t.Fatalf("LoadV2Index() error = %v", err)
-	}
+	index = mustLoadV2Index(t, root)
 	if objectiveProblems := InspectObjectiveConsistency(index); len(objectiveProblems) != 0 {
 		t.Fatalf("InspectObjectiveConsistency() = %+v, want none (the later CLEAR Check is current on its own)", objectiveProblems)
 	}
 	if issueProblems := InspectIssueConsistency(index); len(issueProblems) != 0 {
 		t.Fatalf("InspectIssueConsistency() = %+v, want none (a CLEAR recheck re-confirms %s's proof)", issueProblems, issueID)
 	}
+}
+
+func mustLoadV2Index(t *testing.T, root string) *V2Index {
+	t.Helper()
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+	return index
 }
 
 // writeScenarioCheck writes one CLEAR Check record as a checker session would
