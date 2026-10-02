@@ -2,16 +2,22 @@
 id: I-120
 title: Test-stream writer failures are ignored or replace the child failure
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-088]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-960]
 guardrail_ids: [TEST-01, TEST-02]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "Code unchanged since C-958 proof; broken-sink stream tests pass in a fresh make ci."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -27,6 +33,11 @@ history:
     kind: rechecked
     check: C-958
     note: "Original broken output sink reproductions pass, child ExitError remains discoverable; fresh full stream tests pass. Technically proven, open pending CLEAR Check proof."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. Code unchanged since C-958 proof; broken-sink stream tests pass in a fresh make ci."
 ---
 
 # I-120: Test-stream writer failures are ignored or replace the child failure

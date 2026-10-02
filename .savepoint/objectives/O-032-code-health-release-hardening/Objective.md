@@ -1,7 +1,7 @@
 ---
 id: O-032
 title: Harden Code Health for the v2.1 release
-status: in_progress
+status: done
 depends_on: [O-026, O-027, O-028, O-029, O-030, O-031, O-035, O-036]
 release: R-007
 priority: medium

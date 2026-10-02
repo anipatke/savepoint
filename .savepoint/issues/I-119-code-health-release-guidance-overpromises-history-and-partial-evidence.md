@@ -2,16 +2,22 @@
 id: I-119
 title: Code Health release guidance overpromises history and partial evidence
 type: drift
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-096, T-098]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-960]
 guardrail_ids: [TPL-02]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "Release copy qualifies sparse-series trend and partial values; Design.md now agrees with code and README."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -27,6 +33,11 @@ history:
     kind: rechecked
     check: C-958
     note: "Release copy now qualifies sparse-series trend and partial measured values; original sparse fixture matches approved limit. Technically proven, open pending CLEAR Check proof."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. Release copy qualifies sparse-series trend and partial values; Design.md now agrees with code and README."
 ---
 
 # I-119: Code Health release guidance overpromises history and partial evidence

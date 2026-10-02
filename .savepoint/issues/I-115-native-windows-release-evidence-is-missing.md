@@ -2,16 +2,22 @@
 id: I-115
 title: Native Windows release evidence is missing
 type: verification
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-091, T-095]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-960]
 guardrail_ids: [CFG-03, CFG-02, TEST-08]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "Current-head native evidence: run 36975366853 on exact 37dffd3 has ci and windows-tests successful; fresh Linux make ci passed."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -23,6 +29,11 @@ history:
     kind: rechecked
     check: C-958
     note: "Native current-head Windows full suite and Linux make ci success verified from https://github.com/anipatke/savepoint/actions/runs/36971878006 on d00543d5252fc5557aeba067995427236da2823f, go1.26.8. Evidence gap filled; remains open pending CLEAR Check proof."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. Current-head native evidence: run 36975366853 on exact 37dffd3 has ci and windows-tests successful; fresh Linux make ci passed."
 ---
 
 # I-115: Native Windows release evidence is missing

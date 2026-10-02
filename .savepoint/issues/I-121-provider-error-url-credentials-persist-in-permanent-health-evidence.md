@@ -2,16 +2,22 @@
 id: I-121
 title: Provider error URL credentials persist in permanent health evidence
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-085, T-091]
-checks: [C-957, C-958, C-959]
+checks: [C-957, C-958, C-959, C-960]
 guardrail_ids: [TEST-02, TEST-05]
 severity: high
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "130/130 cells through real ExecRunner and Collect leave no credential fragment in reason or snapshot, keep trailing failure text, valid UTF-8, bounded."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -36,6 +42,11 @@ history:
     kind: rechecked
     check: C-959
     note: "Technically proven: 130/130 cells through real ExecRunner and Collect (64KiB -1/exact/+12, every overflow cutting the URI, >2x cap; newline and non-space filler) leave no credential fragment in the reason or immutable snapshot, keep the trailing failure text, valid UTF-8 and bounded. Open only because verified needs a CLEAR Check; C-959 is NEEDS WORK on I-118."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. 130/130 cells through real ExecRunner and Collect leave no credential fragment in reason or snapshot, keep trailing failure text, valid UTF-8, bounded."
 ---
 
 # I-121: Provider error URL credentials persist in permanent health evidence

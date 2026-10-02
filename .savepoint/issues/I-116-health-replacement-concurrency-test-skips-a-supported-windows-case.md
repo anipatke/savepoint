@@ -2,16 +2,22 @@
 id: I-116
 title: Health replacement concurrency test skips a supported Windows case
 type: guardrail
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-090, T-091]
-checks: [C-957, C-958]
+checks: [C-957, C-958, C-960]
 guardrail_ids: [CFG-03, CFG-02, TEST-02]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "Replacement test has no blanket Windows skip; code unchanged since C-958 proof; native windows-tests green on current head 37dffd3."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -27,6 +33,11 @@ history:
     kind: rechecked
     check: C-958
     note: "Replacement test has no blanket Windows skip, native full suite passes on run 36971878006 exact d00543d; Linux full and scoped race checks pass. Technically proven, open pending CLEAR Check proof."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. Replacement test has no blanket Windows skip; code unchanged since C-958 proof; native windows-tests green on current head 37dffd3."
 ---
 
 # I-116: Health replacement concurrency test skips a supported Windows case

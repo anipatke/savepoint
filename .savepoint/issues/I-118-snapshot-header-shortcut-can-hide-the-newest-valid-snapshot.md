@@ -2,16 +2,22 @@
 id: I-118
 title: Snapshot header shortcut can hide the newest valid snapshot
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-957
   actor: {role: checker, session: check-o032-20261002-independent}
   at: '2026-10-02T05:23:00Z'
 tasks: [T-098]
-checks: [C-957, C-958, C-959]
+checks: [C-957, C-958, C-959, C-960]
 guardrail_ids: [CFG-01, TEST-02]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-960
+  actor: {role: checker, session: recheck-o032-20261003-independent}
+  at: '2026-10-02T19:20:00Z'
+  reason: "Against the owner-amended T-098: valid repeated created_at/origin agree with LoadSnapshots on newest, order and history; amended DW4 damage boundary passes 17/17 with no writes; single n=1,000 38 ms under the 250 ms budget, heavy cost measured as recorded."
 history:
   - at: '2026-10-02T05:23:00Z'
     actor: {role: checker, session: check-o032-20261002-independent}
@@ -40,6 +46,11 @@ history:
     actor: {role: owner, session: plan-o032-20261002-i118-amend}
     kind: owner_decision
     note: "Owner chose option 1 from C-959: keep the whole-file read. Planner amended T-098 (Outcome, Done When 1/3/4/6, User Check), the T-097 decision and Design.md to describe it, including the measured cost and that a non-JSON file outside the window fails the load. No code change. Needs a fresh independent Check for verified."
+  - at: '2026-10-02T19:20:00Z'
+    actor: {role: checker, session: recheck-o032-20261003-independent}
+    kind: rechecked
+    check: C-960
+    note: "CLEAR. Against the owner-amended T-098: valid repeated created_at/origin agree with LoadSnapshots on newest, order and history; amended DW4 damage boundary passes 17/17 with no writes; single n=1,000 38 ms under the 250 ms budget, heavy cost measured as recorded."
 ---
 
 # I-118: Snapshot header shortcut can hide the newest valid snapshot
