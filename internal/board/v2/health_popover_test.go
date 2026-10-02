@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -224,5 +225,24 @@ func TestHealthPopoverRefreshAndNoticesFitEverySize(t *testing.T) {
 		view = xansi.Strip(screen(m))
 		popoverBounds(t, view, size[0], size[1])
 		requireContains(t, view, "Could not read history", "Tests")
+	}
+}
+
+func TestHealthRefreshReportWarningSurvivesReload(t *testing.T) {
+	for _, size := range popoverSizes {
+		f := &fakeHealth{dashboard: measuredDashboard(fiveSignals()), refresh: func(ctx context.Context, _ func(codehealth.Progress)) error {
+			<-ctx.Done()
+			return codehealth.ErrCollectionCancelled
+		}}
+		m := openHealthScreenAt(t, f, size[0], size[1])
+		m, _ = startRefresh(t, m)
+		next, cmd := m.Update(healthRefreshDoneMsg{ReportErr: errors.New("disk full")})
+		m = settle(t, next.(Model), cmd)
+		view := xansi.Strip(screen(m))
+		popoverBounds(t, view, size[0], size[1])
+		requireContains(t, view, "report could not be updated")
+		if m.Health.Refresh != nil {
+			t.Fatalf("a refresh with a report warning is still running")
+		}
 	}
 }

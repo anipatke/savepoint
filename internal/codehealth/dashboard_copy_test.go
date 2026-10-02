@@ -149,9 +149,9 @@ func TestWhereNamesOneFileOrCountsMany(t *testing.T) {
 	}{
 		{"no evidence", nil, ""},
 		{"one path", ref("internal/doctor/repairs.go"), "internal/doctor/repairs.go"},
-		{"many paths", ref("internal/doctor/repairs.go", "a.go", "b.go"), "3 files; savepoint health check lists them"},
-		{"two paths", ref("internal/doctor/repairs.go", "a.go"), "2 files; savepoint health check lists them"},
-		{"same file twice counts once", ref("a.go", "a.go", "b.go", "b.go"), "2 files; savepoint health check lists them"},
+		{"many paths", ref("internal/doctor/repairs.go", "a.go", "b.go"), "3 files"},
+		{"two paths", ref("internal/doctor/repairs.go", "a.go"), "2 files"},
+		{"same file twice counts once", ref("a.go", "a.go", "b.go", "b.go"), "2 files"},
 		{"one file at several lines names the file", ref("a.go", "a.go"), "a.go"},
 	}
 	for _, tt := range tests {
@@ -199,7 +199,7 @@ func TestDashboardRowsCarryPlainWords(t *testing.T) {
 	}
 	cx := rowFor(t, d, CapabilityComplexity)
 	if cx.Value != "hardest function scores 46" || cx.Aim != "aim for 10 or less" ||
-		cx.Where != "2 files; savepoint health check lists them" || cx.NextStep != "Ask your agent to split the most tangled function." {
+		cx.Where != "2 files" || cx.NextStep != "Ask your agent to split the most tangled function." {
 		t.Errorf("complexity row = %+v", cx)
 	}
 	if !strings.Contains(cx.Meaning, "past the watch line of 20 or less") {
@@ -344,6 +344,91 @@ func TestFigureIsTheNumberAlone(t *testing.T) {
 	for _, tt := range tests {
 		if got := measuredWords(nil, tt.r, ClassificationGood).Figure; got != tt.want {
 			t.Errorf("%s figure = %q, want %q", tt.r.Capability, got, tt.want)
+		}
+	}
+}
+
+// A good value on doubtful evidence is Watch overall, but the value alone is Good.
+func TestValueLabelIgnoresHistoryAndConfidence(t *testing.T) {
+	stale := sparkRow(t, CapabilityCoverage, []float64{90, 90, 90, 90}, func(i int, r *CapabilityResult) {
+		if i == 3 {
+			r.Freshness = FreshnessStale
+		}
+	}, nil)
+	if stale.Label != ClassificationWatch || stale.ValueLabel != ClassificationGood {
+		t.Errorf("stale good coverage: label %s, value label %s", stale.Label, stale.ValueLabel)
+	}
+	thin := sparkRow(t, CapabilityCoverage, []float64{90}, nil, nil)
+	if thin.Label != ClassificationWatch || thin.ValueLabel != ClassificationGood {
+		t.Errorf("thin good coverage: label %s, value label %s", thin.Label, thin.ValueLabel)
+	}
+	bad := sparkRow(t, CapabilityCoverage, []float64{40, 40, 40, 40}, nil, nil)
+	if bad.ValueLabel != ClassificationNeedsAttention {
+		t.Errorf("poor coverage value label = %s", bad.ValueLabel)
+	}
+}
+
+func TestRedSignalPointsAtTheReport(t *testing.T) {
+	store, root := dashProject(t)
+	cfg := dashConfig(t, store, CapabilityTests, CapabilityComplexity, CapabilityDuplication)
+	results := goodResults(cfg, func(r *CapabilityResult) {
+		switch r.Capability {
+		case CapabilityComplexity:
+			r.Value.Number = 46
+		case CapabilityDuplication:
+			r.Value.Number = 4
+		}
+	})
+	saveDash(t, store, cfg, OriginOfficial, 1, results, dashRepo(1))
+
+	d := mustLoad(t, root)
+	if d.ReportExists {
+		t.Fatal("ReportExists with no report file")
+	}
+	cx := rowFor(t, d, CapabilityComplexity)
+	if cx.Label != ClassificationNeedsAttention || cx.PopoverNextStep() != "Run savepoint health report, then ask your agent to investigate it." {
+		t.Errorf("red without report: label %q next %q", cx.Label, cx.PopoverNextStep())
+	}
+
+	if _, err := store.WriteReport("report\n"); err != nil {
+		t.Fatal(err)
+	}
+	d = mustLoad(t, root)
+	if !d.ReportExists {
+		t.Fatal("ReportExists false with a report file")
+	}
+	cx = rowFor(t, d, CapabilityComplexity)
+	if got := cx.PopoverNextStep(); got != "Ask your agent to investigate .savepoint/health/report.md" {
+		t.Errorf("red with report: next %q", got)
+	}
+	if cx.NextStep != "Ask your agent to split the most tangled function." {
+		t.Errorf("the report keeps the signal's own next step, got %q", cx.NextStep)
+	}
+	for _, c := range []Capability{CapabilityTests, CapabilityDuplication, CapabilityCoverage} {
+		row := rowFor(t, d, c)
+		if row.PopoverNextStep() != row.NextStep || row.ReportStep != "" {
+			t.Errorf("%s (%s) must keep its own next step, got %q", c, row.Label, row.PopoverNextStep())
+		}
+	}
+}
+
+func TestWatchAndUnknownKeepTheirNextStep(t *testing.T) {
+	store, root := dashProject(t)
+	cfg := dashConfig(t, store, CapabilityComplexity, CapabilityDuplication)
+	results := goodResults(cfg, func(r *CapabilityResult) {
+		if r.Capability == CapabilityComplexity {
+			r.Value.Number = 18
+		}
+		if r.Capability == CapabilityDuplication {
+			*r = unmeasured(*r, OutcomeFailed)
+		}
+	})
+	saveDash(t, store, cfg, OriginOfficial, 1, results, dashRepo(1))
+	d := mustLoad(t, root)
+	for _, c := range []Capability{CapabilityComplexity, CapabilityDuplication} {
+		row := rowFor(t, d, c)
+		if row.Label == ClassificationNeedsAttention || row.PopoverNextStep() != row.NextStep {
+			t.Errorf("%s (%s) next = %q, want its own %q", c, row.Label, row.PopoverNextStep(), row.NextStep)
 		}
 	}
 }

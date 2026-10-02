@@ -44,6 +44,9 @@ type Dashboard struct {
 	Recorded RepositoryIdentity
 	Rows     []DashboardRow
 	History  []DashboardHistoryEntry
+	// ReportExists is whether the agent report file was there when the
+	// dashboard loaded; rendering never checks again.
+	ReportExists bool
 }
 
 // DashboardRow describes one configured instance, or the placeholder for a
@@ -54,10 +57,13 @@ type DashboardRow struct {
 	Name           string
 	NotConfigured  bool
 	Label          Classification
-	LabelText      string
-	Explanation    string
-	Trend          string
-	Basis          string
+	// ValueLabel is what the number alone earns against the thresholds, before
+	// history and confidence move the label; it equals Label when unmeasured.
+	ValueLabel  Classification
+	LabelText   string
+	Explanation string
+	Trend       string
+	Basis       string
 	// Spark draws the last official checks, oldest first, one block each; it
 	// is empty below three points. SparkWord is better, worse or steady, empty
 	// when there is no trend. SparkNote says when history is thin or restarted.
@@ -87,6 +93,10 @@ type DashboardRow struct {
 	Meaning  string
 	NextStep string
 	Where    string
+	// ReportStep replaces NextStep in the popover for a signal that needs
+	// attention, pointing at the report. Empty for every other signal. The
+	// report itself keeps NextStep.
+	ReportStep string
 }
 
 // DashboardHistoryEntry is one earlier snapshot, newest first.
@@ -195,7 +205,8 @@ func LoadDashboard(root string) (Dashboard, error) {
 		Rows:        dashboardRows(cfg, newest, dashboardHistory(snaps[:len(snaps)-1])),
 	}
 	d.MeasuredText = whenText(newest.CreatedAt)
-	d.Headline = headlineText(d.Rows)
+	d.noteReport(store)
+	d.Headline = headlineText(d.Rows, d.Overall)
 	d.applySignOff(cfg, newest, hasOfficial(snaps))
 	for i := len(snaps) - 1; i >= 0 && len(d.History) < MaxDashboardHistory; i-- {
 		s := snaps[i]
@@ -205,6 +216,30 @@ func LoadDashboard(root string) (Dashboard, error) {
 		})
 	}
 	return d, nil
+}
+
+// noteReport records, with one file check, whether the report exists and points
+// each Needs Attention row at it.
+func (d *Dashboard) noteReport(store Store) {
+	d.ReportExists = store.reportExists()
+	step := textReportMissing
+	if d.ReportExists {
+		step = textReportPresent
+	}
+	for i := range d.Rows {
+		if d.Rows[i].Label == ClassificationNeedsAttention {
+			d.Rows[i].ReportStep = step
+		}
+	}
+}
+
+// PopoverNextStep is the next step the popover shows: the pointer to the
+// report for a signal that needs attention, else the signal's own step.
+func (row DashboardRow) PopoverNextStep() string {
+	if row.ReportStep != "" {
+		return row.ReportStep
+	}
+	return row.NextStep
 }
 
 func hasOfficial(snaps []Snapshot) bool {
@@ -322,6 +357,18 @@ func dashboardRows(cfg Config, snap Snapshot, history map[instanceKey][]HistoryE
 	return rows
 }
 
+// shownLabel is the label the row's mark and colour follow: what the number
+// earns, so stale or thin evidence does not turn a good value amber.
+func (row DashboardRow) shownLabel() Classification {
+	if row.ValueLabel != "" {
+		return row.ValueLabel
+	}
+	return row.Label
+}
+
+// ShownLabel is shownLabel for screens.
+func (row DashboardRow) ShownLabel() Classification { return row.shownLabel() }
+
 // BlocksSignOff is true when the gate says this signal blocks sign-off.
 func (row DashboardRow) BlocksSignOff() bool { return row.SignOff == textSignOffBlocks }
 
@@ -368,6 +415,7 @@ func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs Capa
 		Scope: slices.Clone(r.Scope), CollectedAt: r.CollectedAt,
 		Evidence: slices.Clone(r.Evidence),
 	}
+	row.ValueLabel = valueLabel(cc.Thresholds, r, cs.Classification)
 	row.Spark, row.SparkWord, row.SparkNote = sparkline(r.Capability, sparkValues(r, origin, s), trend.Direction, s.incompatible > 0)
 	if r.Outcome.Measured() {
 		row.FreshnessText = freshnessText[r.Freshness]
@@ -377,6 +425,18 @@ func measuredRow(origin Origin, cc CapabilityConfig, r CapabilityResult, cs Capa
 		row.Meaning, row.NextStep = why.Meaning, why.NextStep
 	}
 	return row
+}
+
+// valueLabel is the label the value earns by threshold alone. A result with no
+// usable value keeps the stored label.
+func valueLabel(configured *Threshold, r CapabilityResult, label Classification) Classification {
+	if r.Value == nil || !r.Outcome.Measured() || label == ClassificationUnknown {
+		return label
+	}
+	if base, _, why := classifyValue(r, thresholdFor(r.Capability, configured)); why != "" {
+		return base
+	}
+	return label
 }
 
 func requiredText(required bool) string {

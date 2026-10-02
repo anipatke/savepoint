@@ -3,6 +3,7 @@ package codehealth
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // signOffProject saves an official snapshot built from tweak and returns the
@@ -133,37 +134,48 @@ func TestDashboardHeadline(t *testing.T) {
 	}
 	g, w, n, u := ClassificationGood, ClassificationWatch, ClassificationNeedsAttention, ClassificationUnknown
 	for _, tc := range []struct {
-		name string
-		rows []DashboardRow
-		want string
+		name    string
+		rows    []DashboardRow
+		overall Classification
+		want    string
 	}{
-		{"all good", rows(g, g, g, g, g), "All 5 look fine"},
-		{"two need a look", rows(g, w, n, g, g), "2 of 5 need a look"},
-		{"one needs a look", rows(g, g, w, g, g), "1 of 5 needs a look"},
-		{"unknown counts as needing a look", rows(g, u, g), "1 of 3 needs a look"},
-		{"nothing judged", rows(u, u, u), "Not enough to judge yet"},
-		{"no rows", nil, "Not enough to judge yet"},
+		{"all good", rows(g, g, g, g, g), g, "All 5 look fine"},
+		{"two need a look", rows(g, w, n, g, g), n, "2 of 5 need a look"},
+		{"one needs a look", rows(g, g, w, g, g), w, "1 of 5 needs a look"},
+		{"unknown counts as needing a look", rows(g, u, g), u, "1 of 3 needs a look"},
+		{"nothing judged", rows(u, u, u), u, "Not enough to judge yet"},
+		{"no rows", nil, u, "Not enough to judge yet"},
+		{"fine values but overall Watch", rows(g, g, g, g, g), w, "All 5 look fine; re-run to confirm"},
+		{"counted by value, not by label", func() []DashboardRow {
+			r := rows(w, g)
+			r[0].ValueLabel = g
+			return r
+		}(), w, "All 2 look fine; re-run to confirm"},
 	} {
-		if got := headlineText(tc.rows); got != tc.want {
+		if got := headlineText(tc.rows, tc.overall); got != tc.want {
 			t.Errorf("%s: headline = %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }
 
-func TestDashboardDatesAreFixedUTC(t *testing.T) {
+// The dashboard shows times in the machine's own zone.
+func TestDashboardDatesUseTheLocalZone(t *testing.T) {
+	old := time.Local
+	time.Local = time.FixedZone("test", 2*60*60)
+	t.Cleanup(func() { time.Local = old })
 	store, root := dashProject(t)
 	cfg := dashConfig(t, store, allCapabilities()...)
 	saveDash(t, store, cfg, OriginOfficial, 1, goodResults(cfg, nil), dashRepo(1))
 	saveDash(t, store, cfg, OriginOfficial, 2, goodResults(cfg, nil), dashRepo(2))
 	d := mustLoad(t, root)
-	if d.MeasuredText != "1 Oct 00:02 UTC" {
+	if d.MeasuredText != "1 Oct 02:02" {
 		t.Errorf("MeasuredText = %q", d.MeasuredText)
 	}
-	if len(d.History) != 2 || d.History[0].WhenText != "1 Oct 00:02 UTC" || d.History[1].WhenText != "1 Oct 00:01 UTC" {
+	if len(d.History) != 2 || d.History[0].WhenText != "1 Oct 02:02" || d.History[1].WhenText != "1 Oct 02:01" {
 		t.Errorf("History WhenText = %+v", d.History)
 	}
-	if got := whenText("2026-10-01T20:53:09Z"); got != "1 Oct 20:53 UTC" {
-		t.Errorf("whenText = %q", got)
+	if got := whenText("2026-10-01T23:53:09Z"); got != "2 Oct 01:53" {
+		t.Errorf("whenText across midnight = %q", got)
 	}
 	if got := whenText("not a time"); got != "not a time" {
 		t.Errorf("whenText fallback = %q", got)

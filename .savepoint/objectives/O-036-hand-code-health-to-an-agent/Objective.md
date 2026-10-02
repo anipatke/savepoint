@@ -1,7 +1,7 @@
 ---
 id: O-036
 title: Hand Code Health to an agent
-status: planned
+status: done
 depends_on: [O-035]
 release: R-007
 priority: medium

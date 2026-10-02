@@ -2,10 +2,19 @@
 id: T-084
 title: Point red signals at the report in the popover
 objective: O-036
-status: planned
+status: done
 depends_on: [{task: T-082, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o036-20261002}
+check_waiver:
+    task: T-084
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T02:52:47Z"
 ---
 
 # Point red signals at the report in the popover

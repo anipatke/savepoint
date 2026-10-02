@@ -2,10 +2,19 @@
 id: T-083
 title: Keep the report current and add a command to rewrite it
 objective: O-036
-status: planned
+status: done
 depends_on: [{task: T-082, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o036-20261002}
+check_waiver:
+    task: T-083
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T02:14:38Z"
 ---
 
 # Keep the report current and add a command to rewrite it
@@ -54,7 +63,16 @@ Focused tests during iteration; `make build && make test-fast` for ordinary hand
 
 ## Technical Evidence
 
-Pending execution: named cases, results, reviewed source basis, files read/changed, and limitations, recorded after the work lands.
+Executor handoff (not a Check; no waiver recorded). Commands: `make build && make test-fast` (ok); focused `go test ./cmd ./internal/healthcheck ./internal/codehealth . ./internal/board/...` (ok).
+
+Per criterion:
+- Rewrite on save: `Collect` (the one path used by `health check` and the popover refresh) calls the new `RefreshReport` after `SaveSnapshot`; failure lands in `Collection.ReportErr`, never an error. `healthcheck.Run` prints it to stderr as a warning. `CollectRequest.Objective` carries the re-run Objective (check passes its own, popover passes the router's). Tests: `TestCollectRewritesReportForTheSavedSnapshot`, `TestCollectReportWriteFailureKeepsTheSnapshot`, `TestRun_rewritesReportForTheSavedSnapshot`, `TestRun_reportWriteFailureIsOnlyAWarning`.
+- Command: `savepoint health report [dir]` -> `healthcheck.RunReport` -> `codehealth.RefreshReport`; prints the path, no snapshot, no tool. No snapshot or not set up returns `ErrReportNoSnapshot` / `ErrReportNotConfigured` (non-zero exit via main), writing nothing. Objective from router, else `O-###`. Tests: `TestRunReport_rewritesDeletedReportWithoutNewSnapshot`, `TestRunReport_nothingToReportWritesNothing`, `TestRunReport_unwritableReportIsAnError`, `TestRunReport_namesTheRoutersObjective`, `TestRefreshReportCreatesNoSnapshot`.
+- Usage and parser: usage text, `--help`, and main help list the command; unknown flags and extra arguments are rejected with the usage line. Tests: `TestParseHealthReportArgs`, `TestParseHealthReportRejectionShowsUsage`, `TestRunHealthDispatchesReport`, `TestParseHealthArgsRejectsBadInput`, `TestMainHelpListsHealthSetup`.
+
+Files read: Context Files, plus `AGENTS.md`, `agent-skills/savepoint-task/SKILL.md`, `internal/data/router_v2.go`, `internal/board/v2/io.go` (extra reads, for the router Objective and the popover refresh path). Files changed: `internal/codehealth/collect.go`, `collect_test.go`, `internal/healthcheck/healthcheck.go`, `healthcheck_test.go`, `cmd/health.go`, `cmd/health_test.go`, `main.go`, `main_health_test.go`, `internal/board/v2/io.go` (passes the router Objective; no popover change), `AGENTS.md` and `.savepoint/Design.md` (command documented as human-only).
+
+Limitations: no dedicated test drives the board's `refreshHealth`; the rewrite after a popover refresh is covered through `Collect`, which it calls. A report warning during a popover refresh is not shown (the popover has no channel for it). `make test-full` not run. The tree also holds uncommitted work from earlier Tasks.
 
 ## Drift Notes
 

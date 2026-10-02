@@ -583,3 +583,65 @@ func TestCollectDefaultsToRealRunnersAndClock(t *testing.T) {
 		t.Fatalf("got %s", r.Outcome)
 	}
 }
+
+func collectWithSavedConfig(t *testing.T, dir, objective string) Collection {
+	t.Helper()
+	cfg := cfgOf(lizardInstance("web", "lizard-web", "web/**"))
+	if _, err := NewStore(dir).SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	tools := &fakeTools{t: t, behavior: map[string]func(context.Context, ToolSpec) (ToolResult, error){"lizard-web": stdout("w")}}
+	got, err := Collect(context.Background(), CollectRequest{
+		Root: dir, Origin: OriginManual, Config: cfg, Readers: Readers{ProviderLizardCSV: okReader(7, UnitCCN)},
+		Runner: tools, Clock: testClock, Objective: objective,
+	})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	return got
+}
+
+func TestCollectRewritesReportForTheSavedSnapshot(t *testing.T) {
+	dir := project(t)
+	got := collectWithSavedConfig(t, dir, "O-009")
+	if got.ReportErr != nil {
+		t.Fatalf("ReportErr = %v", got.ReportErr)
+	}
+	text, err := os.ReadFile(filepath.Join(dir, ".savepoint", "health", "report.md"))
+	if err != nil {
+		t.Fatalf("no report after a collection: %v", err)
+	}
+	if !strings.Contains(string(text), "savepoint health check O-009") || !strings.Contains(string(text), "manual") {
+		t.Errorf("report does not describe the saved manual snapshot:\n%s", text)
+	}
+}
+
+func TestCollectReportWriteFailureKeepsTheSnapshot(t *testing.T) {
+	dir := project(t)
+	if err := os.MkdirAll(filepath.Join(dir, ".savepoint", "health", "report.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := collectWithSavedConfig(t, dir, "")
+	if got.ReportErr == nil {
+		t.Fatal("ReportErr = nil, want the write failure")
+	}
+	if snaps, err := NewStore(dir).LoadSnapshots(); err != nil || len(snaps) != 1 || snaps[0].ID != got.SnapshotID {
+		t.Fatalf("snapshots = %d, err %v; want the saved snapshot to stand", len(snaps), err)
+	}
+}
+
+func TestRefreshReportCreatesNoSnapshot(t *testing.T) {
+	dir := project(t)
+	if _, _, err := RefreshReport(dir, ""); !errors.Is(err, ErrReportNotConfigured) {
+		t.Fatalf("not set up: error = %v", err)
+	}
+	if _, err := NewStore(dir).SaveConfig(cfgOf(lizardInstance("web", "lizard-web", "web/**"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := RefreshReport(dir, ""); !errors.Is(err, ErrReportNoSnapshot) {
+		t.Fatalf("no snapshot: error = %v", err)
+	}
+	if snaps, _ := NewStore(dir).LoadSnapshots(); len(snaps) != 0 {
+		t.Fatalf("snapshots = %d, want none", len(snaps))
+	}
+}

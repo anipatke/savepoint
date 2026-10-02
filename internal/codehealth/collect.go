@@ -79,6 +79,9 @@ type CollectRequest struct {
 	Git      CommandRunner
 	Clock    func() time.Time
 	Progress func(Progress)
+	// Objective names the Objective the report tells an agent to re-run; empty
+	// writes the generic O-###.
+	Objective string
 }
 
 // Collected is one instance's result and whether the project marked it
@@ -95,6 +98,9 @@ type Collection struct {
 	SnapshotID string
 	Created    bool
 	Results    []Collected
+	// ReportErr is why the report could not be rewritten after the save. It is
+	// a warning only: the snapshot stands.
+	ReportErr error
 }
 
 // Collect runs the configured instances one at a time, assembles one result for
@@ -184,7 +190,32 @@ func Collect(ctx context.Context, req CollectRequest) (Collection, error) {
 	if err != nil {
 		return Collection{}, err
 	}
-	return Collection{SnapshotID: snap.ID, Created: created, Results: collected}, nil
+	_, _, reportErr := RefreshReport(req.Root, req.Objective)
+	return Collection{SnapshotID: snap.ID, Created: created, Results: collected, ReportErr: reportErr}, nil
+}
+
+// reportObjectivePlaceholder stands in for the Objective ID when none is known.
+const reportObjectivePlaceholder = "O-###"
+
+// RefreshReport rewrites .savepoint/health/report.md from the newest saved
+// snapshot and returns the report's path. It runs no tool and saves no
+// snapshot; without configuration or a snapshot it writes nothing and returns
+// ErrReportNotConfigured or ErrReportNoSnapshot. changed is false when the
+// file already held this text.
+func RefreshReport(root, objective string) (path string, changed bool, err error) {
+	if objective == "" {
+		objective = reportObjectivePlaceholder
+	}
+	d, err := LoadDashboard(root)
+	if err != nil {
+		return "", false, err
+	}
+	text, err := RenderReport(d, objective)
+	if err != nil {
+		return "", false, err
+	}
+	changed, err = NewStore(root).WriteReport(text)
+	return filepath.Join(root, ".savepoint", healthDir, reportFile), changed, err
 }
 
 // ownHistory keeps the earlier results that belong to r's instance: those

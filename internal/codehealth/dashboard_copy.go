@@ -93,14 +93,16 @@ var (
 // Why a label differs from what the value alone says (STYLE-09). Each cause
 // follows a lead sentence saying where the value stands.
 const (
-	textLeadGood     = "Meets the aim"
-	textLeadWatch    = "Within the watch range"
-	textCauseWorse   = ", but it is clearly worse than recent checks."
-	textCausePartial = ", but only part was measured."
-	textCauseStale   = ", but the result may be out of date."
-	textCauseThin    = "; it stays Watch until three comparable checks."
-	textNextThin     = "Nothing to fix; it settles after a few more official checks."
-	textNextAgain    = "Run the health check again for a full result."
+	textLeadGood      = "Meets the aim"
+	textLeadWatch     = "Within the watch range"
+	textCauseWorse    = ", but it is clearly worse than recent checks."
+	textCausePartial  = ", but only part was measured."
+	textCauseStale    = ", but the result may be out of date."
+	textCauseThin     = "; it stays Watch until three comparable checks."
+	textNextThin      = "Nothing to fix; it settles after a few more official checks."
+	textReportPresent = "Ask your agent to investigate " + ReportPath
+	textReportMissing = "Run savepoint health report, then ask your agent to investigate it."
+	textNextAgain     = "Run the health check again for a full result."
 )
 
 const (
@@ -118,7 +120,7 @@ const (
 	textAimMore         = "aim for %s or more"
 	textAimLess         = "aim for %s or less"
 	textPastWatch       = " It is past the watch line of %s."
-	textWhereMany       = "%d files; savepoint health check lists them"
+	textWhereMany       = "%d files"
 	textBoundMore       = "%s or more"
 	textBoundLess       = "%s or less"
 	textThousandsSep    = ","
@@ -343,7 +345,8 @@ const (
 	textHeadlineNone       = "Not enough to judge yet"
 	textHeadlineAllFine    = "All %d look fine"
 	textHeadlineSomeLook   = "%d of %d %s a look"
-	whenLayout             = "2 Jan 15:04 UTC"
+	textHeadlineConfirm    = "All %d look fine; re-run to confirm"
+	whenLayout             = "2 Jan 15:04"
 )
 
 // rowSignOff maps the gate's disposition for a signal to its row wording. A
@@ -353,12 +356,14 @@ var rowSignOff = map[Disposition]string{
 	DispositionReported: textSignOffAdvisory,
 }
 
-// headlineText counts the signals that are not Good. With nothing judged at all
-// it says so rather than claiming all is fine.
-func headlineText(rows []DashboardRow) string {
+// headlineText counts the signals whose value is not Good. With nothing judged
+// at all it says so rather than claiming all is fine. When every value is fine
+// but the snapshot's overall label is not Good (stale, partial or thin history),
+// it says to re-run, the one thing that clears it.
+func headlineText(rows []DashboardRow, overall Classification) string {
 	look, judged := 0, 0
 	for _, row := range rows {
-		if row.Label != ClassificationGood {
+		if row.shownLabel() != ClassificationGood {
 			look++
 		}
 		if row.Label != ClassificationUnknown {
@@ -368,18 +373,20 @@ func headlineText(rows []DashboardRow) string {
 	switch {
 	case judged == 0:
 		return textHeadlineNone
+	case look == 0 && overall != ClassificationGood:
+		return fmt.Sprintf(textHeadlineConfirm, len(rows))
 	case look == 0:
 		return fmt.Sprintf(textHeadlineAllFine, len(rows))
 	}
 	return fmt.Sprintf(textHeadlineSomeLook, look, len(rows), pluralize(look, "needs", "need"))
 }
 
-// whenText writes a stored time in one fixed UTC form, independent of the
-// machine's clock and zone. An unreadable time is shown as stored.
+// whenText writes a stored time in the machine's local zone. An unreadable
+// time is shown as stored.
 func whenText(stored string) string {
 	t, err := time.Parse(timestampLayout, stored)
 	if err != nil {
 		return stored
 	}
-	return t.UTC().Format(whenLayout)
+	return t.Local().Format(whenLayout)
 }

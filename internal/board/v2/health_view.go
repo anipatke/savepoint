@@ -32,6 +32,7 @@ const (
 	textHealthLoading        = "Reading saved results…"
 	textHealthLoadFailed     = "Could not read history, showing older results: %v"
 	textHealthRefreshFailed  = "Refresh failed; nothing was saved: %v"
+	textHealthReportFailed   = "Refreshed, but the report could not be updated and may be out of date: %v"
 	textHealthCancelled      = "Refresh cancelled; nothing was saved."
 	textHealthCancelling     = "Cancelling…"
 	textHealthRefreshing     = "Refreshing %d of %d: %s"
@@ -173,7 +174,7 @@ func (m Model) healthPopoverLines(width int) []string {
 	}
 	lines = append(lines, healthSignalRows(h, width)...)
 	lines = append(lines, styles.Divider.Render(strings.Repeat("─", width)))
-	lines = append(lines, healthSelectedLines(h)...)
+	lines = append(lines, healthSelectedLines(h, width)...)
 	for len(lines) < healthPopoverInner-2 {
 		lines = append(lines, "")
 	}
@@ -224,6 +225,8 @@ func (m Model) healthStatusLine(width int) string {
 		return styles.HealthWatch.Render(fitLine(refreshLine(h.Refresh), width-len(textHealthEsc)-2)) + styles.CardMeta.Render("  "+textHealthEsc)
 	case h.Notice != "":
 		return styles.HealthWatch.Render(h.Notice)
+	case h.ReportWarning != "":
+		return styles.HealthWatch.Render(h.ReportWarning)
 	case h.Freshness != nil:
 		return styles.CardMeta.Render(h.Freshness.Text)
 	case h.Dashboard != nil && h.Dashboard.State == codehealth.DashboardMeasured:
@@ -255,7 +258,7 @@ func healthSignalRows(h *HealthOverlay, width int) []string {
 	for i, row := range shown {
 		names[i] = healthRowName(row)
 		values[i] = healthFigure(row) + older
-		sparks[i] = healthSpark(row, healthLabelStyle(row.Label))
+		sparks[i] = healthSpark(row, healthLabelStyle(row.ShownLabel()))
 		nameW = max(nameW, lipgloss.Width(names[i]))
 		valueW = max(valueW, lipgloss.Width(values[i]))
 		sparkW = max(sparkW, lipgloss.Width(sparks[i]))
@@ -273,8 +276,8 @@ func healthSignalRows(h *HealthOverlay, width int) []string {
 		if i == h.Cursor {
 			marker = "▸ "
 		}
-		style := healthLabelStyle(row.Label)
-		line := marker + style.Render(healthGlyph[row.Label]) + " " + padCells(cutCells(names[i], nameW), nameW) +
+		style := healthLabelStyle(row.ShownLabel())
+		line := marker + style.Render(healthGlyph[row.ShownLabel()]) + " " + padCells(cutCells(names[i], nameW), nameW) +
 			gap + padCells(cutValue(values[i], valueW), valueW) + gap + padCells(sparks[i], sparkW)
 		if row.Aim != "" {
 			line += styles.CardMeta.Render(gap + row.Aim)
@@ -371,7 +374,7 @@ func padCells(text string, width int) string {
 }
 
 // healthSelectedLines explains the selected signal in at most five lines.
-func healthSelectedLines(h *HealthOverlay) []string {
+func healthSelectedLines(h *HealthOverlay, width int) []string {
 	rows := h.rows()
 	if h.Cursor >= len(rows) {
 		return nil
@@ -384,9 +387,10 @@ func healthSelectedLines(h *HealthOverlay) []string {
 	if row.Value != "" {
 		question += textHealthValueJoin + row.Value
 	}
-	lines := []string{styles.HealthAccent.Render(question), row.Meaning}
+	head := []string{styles.HealthAccent.Render(question), row.Meaning}
+	note := ""
 	if row.SparkNote != "" {
-		lines = append(lines, fmt.Sprintf(textHealthHistoryNote, row.SparkNote))
+		note = fmt.Sprintf(textHealthHistoryNote, row.SparkNote)
 	}
 	signOff, where := "", ""
 	if row.SignOff != "" {
@@ -395,13 +399,27 @@ func healthSelectedLines(h *HealthOverlay) []string {
 	if row.Where != "" {
 		where = "Where: " + row.Where
 	}
-	next := "Next: " + row.NextStep
-	// The five lines always end with Next; sign-off and where share a line
-	// when the history note needs the room.
-	if len(lines)+len(nonEmpty(signOff, where))+1 > healthDetailLines {
-		return append(lines, strings.Join(nonEmpty(signOff, where), textHealthDetailJoin), next)
+	// Next is never cut off: it wraps, and the lines around it give way
+	// instead, first by sharing sign-off with where, then by dropping the note.
+	next := wrapDetailLine("Next: "+row.PopoverNextStep(), width)
+	build := func(withNote, merged bool) []string {
+		lines := append([]string{}, head...)
+		if withNote && note != "" {
+			lines = append(lines, note)
+		}
+		if merged {
+			lines = append(lines, strings.Join(nonEmpty(signOff, where), textHealthDetailJoin))
+		} else {
+			lines = append(lines, nonEmpty(signOff, where)...)
+		}
+		return append(lines, next...)
 	}
-	return append(append(lines, nonEmpty(signOff, where)...), next)
+	for _, try := range [][2]bool{{true, false}, {true, true}, {false, true}} {
+		if lines := build(try[0], try[1]); len(lines) <= healthDetailLines {
+			return lines
+		}
+	}
+	return build(false, true)
 }
 
 func nonEmpty(texts ...string) []string {

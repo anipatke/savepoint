@@ -41,8 +41,8 @@ func (f *fakeHealth) funcs() HealthFuncs {
 		Freshness: func(context.Context, string, codehealth.RepositoryIdentity) codehealth.CodeFreshness {
 			return f.fresh
 		},
-		Refresh: func(ctx context.Context, _ string, progress func(codehealth.Progress)) error {
-			return f.refresh(ctx, progress)
+		Refresh: func(ctx context.Context, _ string, progress func(codehealth.Progress)) (error, error) {
+			return nil, f.refresh(ctx, progress)
 		},
 	}
 }

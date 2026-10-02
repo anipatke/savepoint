@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"github.com/opencode/savepoint/internal/codehealth"
 )
 
@@ -144,5 +145,61 @@ func TestHealthPopoverShowsOneRowPerSignalWithoutScrolling(t *testing.T) {
 				requireContains(t, xansi.Strip(screen(m)), "(worst of 2: integration)")
 			}
 		})
+	}
+}
+
+func TestHealthSparkLastBlockFollowsTheValueNotTheConfidence(t *testing.T) {
+	forceColorProfile(t, termenv.TrueColor)
+	good := healthLabelStyle(codehealth.ClassificationGood).Render("█")
+	watch := healthLabelStyle(codehealth.ClassificationWatch).Render("█")
+	if good == watch {
+		t.Fatal("good and watch render alike, so colour cannot be checked")
+	}
+	rows := realCopyRows()[:1]
+	rows[0].Label, rows[0].ValueLabel = codehealth.ClassificationWatch, codehealth.ClassificationGood
+	d := measuredDashboard(rows)
+	m := openHealthScreenAt(t, &fakeHealth{dashboard: d}, 80, 24)
+	line := m.Health.rows()[0]
+	got := strings.Join(healthSignalRows(m.Health, 68), "\n")
+	if !strings.Contains(got, good) || strings.Contains(got, watch) {
+		t.Errorf("good value on stale evidence: last block should be drawn good:\n%q", got)
+	}
+	line.ValueLabel = ""
+	m.Health.Dashboard.Rows[0] = line
+	if got := strings.Join(healthSignalRows(m.Health, 68), "\n"); !strings.Contains(got, watch) {
+		t.Errorf("without a value label the block follows the label:\n%q", got)
+	}
+}
+
+func TestHealthRowMarkFollowsTheValue(t *testing.T) {
+	rows := realCopyRows()
+	rows[0].Label, rows[0].ValueLabel = codehealth.ClassificationWatch, codehealth.ClassificationGood
+	m := openHealthScreenAt(t, &fakeHealth{dashboard: measuredDashboard(rows)}, 80, 24)
+	view := strings.Join(strings.Fields(xansi.Strip(screen(m))), " ")
+	requireContains(t, view, "✓ Tests failing 0")
+	if strings.Contains(view, "~ Tests failing") {
+		t.Errorf("a good value on doubtful evidence still shows the Watch mark:\n%s", view)
+	}
+}
+
+func TestHealthPopoverNextStepPointsAtTheReportAtEverySize(t *testing.T) {
+	for _, step := range []string{
+		"Ask your agent to investigate .savepoint/health/report.md",
+		"Run savepoint health report, then ask your agent to investigate it.",
+	} {
+		rows := realCopyRows()
+		rows[0].Label, rows[0].LabelText, rows[0].ReportStep = codehealth.ClassificationNeedsAttention, "Needs Attention", step
+		rows[0].NextStep = "Ask your agent to fix the failing tests."
+		rows[0].Where = "13 files"
+		for _, size := range [][2]int{{80, 20}, {80, 24}, {80, 40}} {
+			m := openHealthScreenAt(t, &fakeHealth{dashboard: measuredDashboard(rows)}, size[0], size[1])
+			view := xansi.Strip(screen(m))
+			popoverBounds(t, view, size[0], size[1])
+			flat := strings.Join(strings.Fields(strings.ReplaceAll(view, "│", " ")), " ")
+			requireContains(t, flat, "Next: "+step, "Where: 13 files")
+			if strings.Contains(flat, "fix the failing tests") || strings.Contains(flat, "lists them") {
+				t.Errorf("%v: stale wording:\n%s", size, view)
+			}
+		}
 	}
 }

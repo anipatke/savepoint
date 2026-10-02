@@ -34,11 +34,11 @@ func TestLoadChipNoCheckYetWithConfigAndNoSnapshots(t *testing.T) {
 
 func TestLoadChipMeasuredCountsGoodOfSignals(t *testing.T) {
 	st, root := newProject(t)
-	cfg := saveConfig(t, st)
+	saveConfig(t, st)
 	mustSave(t, st, snapAt(t, OriginOfficial, 1))
 
 	got := LoadChip(root)
-	want := Chip{State: ChipMeasured, Overall: ClassificationNeedsAttention, Label: "Needs Attention", Good: 1, Signals: signalCount(cfg)}
+	want := Chip{State: ChipMeasured, Overall: ClassificationNeedsAttention, Label: "Needs Attention", Good: 1, Signals: 5}
 	if got != want {
 		t.Fatalf("LoadChip() = %+v, want %+v", got, want)
 	}
@@ -174,5 +174,33 @@ func TestLatestSnapshotFollowsStoredRecencyNotFileTime(t *testing.T) {
 				t.Errorf("header chip %+v differs from the dashboard's %+v", chip, want)
 			}
 		})
+	}
+}
+
+// The header counts a signal as Good by its number, exactly as the popover's
+// headline does, so thin history or stale evidence never makes them disagree.
+func TestChipCountsGoodByValueLikeTheDashboard(t *testing.T) {
+	store, root := dashProject(t)
+	cfg := dashConfig(t, store, allCapabilities()...)
+	results := goodResults(cfg, func(r *CapabilityResult) {
+		if r.Capability == CapabilityComplexity {
+			r.Value.Number = 46
+		}
+	})
+	saveDash(t, store, cfg, OriginOfficial, 1, results, dashRepo(1))
+
+	d := mustLoad(t, root)
+	thin := 0
+	for _, row := range d.Rows {
+		if row.Label != ClassificationGood && row.ShownLabel() == ClassificationGood {
+			thin++
+		}
+	}
+	if thin == 0 {
+		t.Fatal("fixture has no signal held below Good by history alone")
+	}
+	got := LoadChip(root)
+	if got.Good != 4 || got.Signals != 5 || got != d.Chip() {
+		t.Errorf("LoadChip() = %+v, want 4/5 and the dashboard's own chip %+v", got, d.Chip())
 	}
 }

@@ -638,21 +638,37 @@ func healthFreshness(ctx context.Context, root string, recorded codehealth.Repos
 }
 
 // refreshHealth is one manual collection with the project's saved
-// configuration. An error means nothing was saved.
-func refreshHealth(ctx context.Context, root string, progress func(codehealth.Progress)) error {
+// configuration. An error means nothing was saved; reportErr means the
+// snapshot stands but the report could not be rewritten.
+func refreshHealth(ctx context.Context, root string, progress func(codehealth.Progress)) (reportErr, err error) {
 	project := healthRoot(root)
 	cfg, err := codehealth.NewStore(project).LoadConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = codehealth.Collect(ctx, codehealth.CollectRequest{
-		Root:     project,
-		Origin:   codehealth.OriginManual,
-		Config:   cfg,
-		Readers:  codehealth.DefaultReaders(),
-		Progress: progress,
+	collection, err := codehealth.Collect(ctx, codehealth.CollectRequest{
+		Root:      project,
+		Origin:    codehealth.OriginManual,
+		Config:    cfg,
+		Readers:   codehealth.DefaultReaders(),
+		Progress:  progress,
+		Objective: selectedObjective(root),
 	})
-	return err
+	return collection.ReportErr, err
+}
+
+// selectedObjective is the router's selected Objective, or empty when it cannot
+// be read or selects none.
+func selectedObjective(root string) string {
+	content, err := os.ReadFile(filepath.Join(root, "router.md"))
+	if err != nil {
+		return ""
+	}
+	router, err := data.NewRouterReader().ReadStateV2(string(content))
+	if err != nil {
+		return ""
+	}
+	return router.Objective
 }
 
 func healthLoadCmd(funcs HealthFuncs, root string) tea.Cmd {
@@ -681,10 +697,10 @@ func healthRefreshCmd(ctx context.Context, funcs HealthFuncs, root string, event
 			case <-ctx.Done():
 			}
 		}
-		err := funcs.Refresh(ctx, root, func(p codehealth.Progress) { send(healthProgressMsg{Progress: p}) })
+		reportErr, err := funcs.Refresh(ctx, root, func(p codehealth.Progress) { send(healthProgressMsg{Progress: p}) })
 		// The result must arrive even after cancellation, so this send blocks
 		// until the program reads it.
-		events <- healthRefreshDoneMsg{Err: err}
+		events <- healthRefreshDoneMsg{Err: err, ReportErr: reportErr}
 		return nil
 	}
 }

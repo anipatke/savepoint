@@ -92,7 +92,7 @@ func main() {
 		case "health":
 			// Ctrl-C cancels collection through the context so a running tool is stopped.
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-			err := cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner})
+			err := cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner, Report: healthReportRunner})
 			stop()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
@@ -128,6 +128,7 @@ Commands:
   resume [dir]                           Print the next V2 action
   health setup [dir] [--apply]           Preview or save suggested health tools
   health check O-### [dir]               Collect an official health snapshot for an Objective
+  health report [dir]                    Rewrite .savepoint/health/report.md from the newest snapshot
   migrate [dir] [--apply]                Convert a legacy project to V2
   upgrade-assets [dir]                   Refresh assets in an existing V2 project
 
@@ -350,6 +351,11 @@ func healthSetupRunner(ctx context.Context, opts cmd.HealthSetupOptions) error {
 // collection itself lives in internal/healthcheck.
 func healthCheckRunner(ctx context.Context, opts cmd.HealthCheckOptions) error {
 	return healthcheck.Run(ctx, healthcheck.Request{Dir: opts.Dir, Objective: opts.Objective, Stderr: os.Stderr}, os.Stdout)
+}
+
+// healthReportRunner is the production wiring for `health report`.
+func healthReportRunner(_ context.Context, opts cmd.HealthReportOptions) error {
+	return healthcheck.RunReport(healthcheck.ReportRequest{Dir: opts.Dir}, os.Stdout)
 }
 
 // previewHealthSetup prints what setup would suggest without writing anything.

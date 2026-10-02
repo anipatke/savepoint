@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/opencode/savepoint/internal/codehealth"
@@ -65,12 +66,13 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 	}
 
 	collection, err := codehealth.Collect(ctx, codehealth.CollectRequest{
-		Root:    root,
-		Origin:  codehealth.OriginOfficial,
-		Config:  cfg,
-		Readers: codehealth.DefaultReaders(),
-		Runner:  req.Runner,
-		Git:     req.Git,
+		Root:      root,
+		Origin:    codehealth.OriginOfficial,
+		Config:    cfg,
+		Readers:   codehealth.DefaultReaders(),
+		Runner:    req.Runner,
+		Git:       req.Git,
+		Objective: req.Objective,
 	})
 	if errors.Is(err, codehealth.ErrCollectionCancelled) {
 		return fmt.Errorf("health check: cancelled; no snapshot was saved: %w", err)
@@ -98,6 +100,10 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 		return fmt.Errorf("health check: snapshot %s was saved but is missing from the store", collection.SnapshotID)
 	}
 
+	if collection.ReportErr != nil && req.Stderr != nil {
+		fmt.Fprintf(req.Stderr, "warning: snapshot %s was saved, but the report could not be written: %v\n", collection.SnapshotID, collection.ReportErr)
+	}
+
 	stored := "created"
 	if !collection.Created {
 		stored = "already stored"
@@ -106,4 +112,48 @@ func Run(ctx context.Context, req Request, stdout io.Writer) error {
 		fmt.Fprintf(req.Stderr, "health check: snapshot %s was saved, but the report could not be written: %v\n", collection.SnapshotID, err)
 	}
 	return nil
+}
+
+// ReportRequest is one rewrite of the Code Health report.
+type ReportRequest struct {
+	Dir string
+}
+
+// RunReport rewrites .savepoint/health/report.md from the newest saved snapshot
+// and prints its path. It runs no tool and saves no snapshot. Without Code
+// Health setup or a snapshot it writes nothing and returns that as an error.
+// The re-run line names the router's Objective, or O-### when none is selected.
+func RunReport(req ReportRequest, stdout io.Writer) error {
+	root, err := data.ResolveTarget(req.Dir)
+	switch {
+	case errors.Is(err, data.ErrTargetMissing):
+		return fmt.Errorf("health report: target directory does not exist: %s", req.Dir)
+	case errors.Is(err, data.ErrTargetNotSavepoint):
+		return fmt.Errorf("health report: target directory is not a Savepoint project: %s has no .savepoint directory", req.Dir)
+	case err != nil:
+		return fmt.Errorf("health report: %w", err)
+	}
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		return fmt.Errorf("health report: %w", err)
+	}
+	path, _, err := codehealth.RefreshReport(root, routerObjective(root))
+	if err != nil {
+		return fmt.Errorf("health report: %w", err)
+	}
+	_, err = fmt.Fprintf(stdout, "Report written to %s\n", path)
+	return err
+}
+
+// routerObjective is the router's selected Objective, or empty when the router
+// cannot be read or selects none.
+func routerObjective(root string) string {
+	content, err := os.ReadFile(filepath.Join(root, ".savepoint", "router.md"))
+	if err != nil {
+		return ""
+	}
+	state, err := data.NewRouterReader().ReadStateV2(string(content))
+	if err != nil {
+		return ""
+	}
+	return state.Objective
 }

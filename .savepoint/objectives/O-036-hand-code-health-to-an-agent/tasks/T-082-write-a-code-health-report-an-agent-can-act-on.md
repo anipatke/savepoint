@@ -2,9 +2,18 @@
 id: T-082
 title: Write a Code Health report an agent can act on
 objective: O-036
-status: planned
-owner_validation: {required: true}
+status: done
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o036-20261002}
+check_waiver:
+    task: T-082
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-02T00:07:41Z"
 ---
 
 # Write a Code Health report an agent can act on
@@ -57,7 +66,20 @@ Focused tests during iteration (`make test-focused`); `make build && make test-f
 
 ## Technical Evidence
 
-Pending execution: named cases, results, reviewed source basis, files read/changed, and limitations, recorded after the work lands.
+Executor handoff (not a Check; no waiver recorded). Commands: `make build` (ok), `make test-fast` (ok, no failures), `go test ./internal/codehealth -run Report -v` (all new tests pass).
+
+Per criterion:
+- Renderer: `RenderReport(d Dashboard, objective string) (string, error)` in `report.go`; reads no file, runs nothing.
+- Brief: fixed text, names `savepoint health check <objective>`; `TestReportBriefNamesRerunCommand`.
+- Order and wording: stable sort Needs Attention, Watch, Unknown, Good over dashboard rows; name, question, label, number (row `Value`), aim, meaning, next step, sign-off, better/worse/steady word taken from the row; `TestReportShowsEverySignalWithDashboardWording`, `TestReportOrdersByLabelKeepingDashboardOrder`, `TestReportEveryLabelAppears`.
+- Evidence: `path:line note`, path only when no line, "No affected files were recorded." when none, one section per instance; `TestReportEvidenceOneManyAndNone`, `TestReportSeveralInstancesGetOneSectionEach`.
+- Date and origin stated; provider names, snapshot id/hash, raw timestamps, commit absent; `TestReportStatesOfficialAndDate`, `TestReportKeepsInternalsOut`, `TestReportManualNewestSnapshot`.
+- Refusals: `ErrReportNotConfigured`, `ErrReportNoSnapshot`; `TestReportRefusals`.
+- `Store.WriteReport` writes `.savepoint/health/report.md` by temp-and-rename, creates `.gitignore` (`report.md`) once via link, leaves an existing one alone, no change on identical text; `TestWriteReport*` (create/repeat, atomic replace, owner's ignore file kept, created once, unwritable directory, non-project).
+
+Files read: Context Files only, plus `AGENTS.md`, `agent-skills/savepoint-task/SKILL.md`, `internal/codehealth/dashboard_test.go` helpers, `errors.go`, `history.go` (`pluralize`) and `main.go`/`internal/healthcheck` grep to confirm the `health check O-###` command spelling (extra reads). Files changed: new `report.go`, `report_test.go`.
+
+Limitations: the unwritable-directory test skips as root and on Windows. Stored evidence arrives path-sorted from the snapshot, so "stored order" is that order. A fresh `make test-full` was not run (not required for ordinary handoff). The working tree also holds earlier uncommitted O-035 edits that this Task did not make.
 
 ## Drift Notes
 

@@ -26,7 +26,7 @@ func initGoProject(t *testing.T) string {
 
 func TestMainHelpListsHealthSetup(t *testing.T) {
 	result := runMainForTest(t, []string{"--help"}, "")
-	if !strings.Contains(result.stdout, "health setup [dir] [--apply]") {
+	if !strings.Contains(result.stdout, "health setup [dir] [--apply]") || !strings.Contains(result.stdout, "health report [dir]") {
 		t.Fatalf("help = %q", result.stdout)
 	}
 	result = runMainForTest(t, []string{"health", "setup", "--help"}, "")

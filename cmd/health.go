@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-const healthUsage = "Usage: health setup [dir] [--apply]\n       health check O-### [dir]"
+const healthUsage = "Usage: health setup [dir] [--apply]\n       health check O-### [dir]\n       health report [dir]"
 
 // HealthSetupOptions is setup's whole parsed surface. Without Apply it only
 // previews.
@@ -22,20 +22,28 @@ type HealthCheckOptions struct {
 	Dir       string
 }
 
-// HealthInvocation is one parsed health command; exactly one of Setup and
-// Check is set.
+// HealthReportOptions is report's whole parsed surface. It takes no Objective.
+type HealthReportOptions struct {
+	Dir string
+}
+
+// HealthInvocation is one parsed health command; exactly one of Setup, Check
+// and Report is set.
 type HealthInvocation struct {
-	Setup *HealthSetupOptions
-	Check *HealthCheckOptions
+	Setup  *HealthSetupOptions
+	Check  *HealthCheckOptions
+	Report *HealthReportOptions
 }
 
 type HealthSetupRunner func(context.Context, HealthSetupOptions) error
 type HealthCheckRunner func(context.Context, HealthCheckOptions) error
+type HealthReportRunner func(context.Context, HealthReportOptions) error
 
 // HealthRunners are the production behaviors RunHealth dispatches to.
 type HealthRunners struct {
-	Setup HealthSetupRunner
-	Check HealthCheckRunner
+	Setup  HealthSetupRunner
+	Check  HealthCheckRunner
+	Report HealthReportRunner
 }
 
 // isObjectiveID reports whether s is O- followed by at least three digits.
@@ -63,6 +71,9 @@ func RunHealth(ctx context.Context, args []string, stdout io.Writer, runners Hea
 	if invocation.Check != nil {
 		return runners.Check(ctx, *invocation.Check)
 	}
+	if invocation.Report != nil {
+		return runners.Report(ctx, *invocation.Report)
+	}
 	return runners.Setup(ctx, *invocation.Setup)
 }
 
@@ -71,15 +82,17 @@ func ParseHealthArgs(args []string) (HealthInvocation, bool, error) {
 		return HealthInvocation{}, true, nil
 	}
 	if len(args) == 0 {
-		return HealthInvocation{}, false, fmt.Errorf("health needs a subcommand: setup or check\n%s", healthUsage)
+		return HealthInvocation{}, false, fmt.Errorf("health needs a subcommand: setup, check or report\n%s", healthUsage)
 	}
 	switch args[0] {
 	case "setup":
 		return parseHealthSetup(args[1:])
 	case "check":
 		return parseHealthCheck(args[1:])
+	case "report":
+		return parseHealthReport(args[1:])
 	}
-	return HealthInvocation{}, false, fmt.Errorf("health needs a subcommand: setup or check\n%s", healthUsage)
+	return HealthInvocation{}, false, fmt.Errorf("health needs a subcommand: setup, check or report\n%s", healthUsage)
 }
 
 func parseHealthSetup(args []string) (HealthInvocation, bool, error) {
@@ -131,4 +144,23 @@ func parseHealthCheck(args []string) (HealthInvocation, bool, error) {
 		return HealthInvocation{}, false, fmt.Errorf("health check needs an Objective ID like O-001\n%s", healthUsage)
 	}
 	return HealthInvocation{Check: &options}, false, nil
+}
+
+func parseHealthReport(args []string) (HealthInvocation, bool, error) {
+	options := HealthReportOptions{Dir: "."}
+	var dirSet bool
+	for _, arg := range args {
+		switch {
+		case arg == "--help":
+			return HealthInvocation{}, true, nil
+		case len(arg) > 0 && arg[0] == '-':
+			return HealthInvocation{}, false, fmt.Errorf("unknown health report flag %q\n%s", arg, healthUsage)
+		case dirSet:
+			return HealthInvocation{}, false, fmt.Errorf("health report accepts at most one directory\n%s", healthUsage)
+		default:
+			options.Dir = arg
+			dirSet = true
+		}
+	}
+	return HealthInvocation{Report: &options}, false, nil
 }

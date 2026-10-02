@@ -31,31 +31,11 @@ type Chip struct {
 // Storage that cannot be read reads as not set up: a glance must not fail the
 // board, and doctor reports the damage.
 func LoadChip(projectPath string) Chip {
-	store := NewStore(projectPath)
-	cfg, err := store.LoadConfig()
+	d, err := LoadDashboard(projectPath)
 	if err != nil {
 		return Chip{State: ChipNotSetUp}
 	}
-	snap, found, err := store.LatestSnapshot()
-	if err != nil {
-		return Chip{State: ChipNotSetUp}
-	}
-	if !found {
-		return Chip{State: ChipNoCheck}
-	}
-	good := 0
-	for _, cs := range snap.Summary.Capabilities {
-		if cs.Classification == ClassificationGood {
-			good++
-		}
-	}
-	return Chip{
-		State:   ChipMeasured,
-		Overall: snap.Summary.Overall,
-		Label:   classificationText[snap.Summary.Overall],
-		Good:    good,
-		Signals: signalCount(cfg),
-	}
+	return d.Chip()
 }
 
 // Chip describes a loaded dashboard the same way LoadChip describes storage, so
@@ -69,27 +49,11 @@ func (d Dashboard) Chip() Chip {
 	}
 	c := Chip{State: ChipMeasured, Overall: d.Overall, Label: d.OverallText, Signals: len(d.Rows)}
 	for _, row := range d.Rows {
-		if row.Label == ClassificationGood {
+		if row.shownLabel() == ClassificationGood {
 			c.Good++
 		}
 	}
 	return c
-}
-
-// signalCount is the number of rows the dashboard lists: each configured
-// instance, or one placeholder for a capability that has none.
-func signalCount(cfg Config) int {
-	n := 0
-	for _, c := range Capabilities() {
-		instances := 0
-		for _, cc := range cfg.Capabilities {
-			if cc.Capability == c {
-				instances++
-			}
-		}
-		n += max(instances, 1)
-	}
-	return n
 }
 
 // LatestSnapshot returns the newest stored snapshot by the order LoadSnapshots

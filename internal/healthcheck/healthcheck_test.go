@@ -288,3 +288,159 @@ func TestRun_outputFailureWithoutStderr(t *testing.T) {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 }
+
+func reportPath(root string) string {
+	return filepath.Join(root, ".savepoint", "health", "report.md")
+}
+
+func runReport(root string) (string, error) {
+	var out bytes.Buffer
+	err := RunReport(ReportRequest{Dir: root}, &out)
+	return out.String(), err
+}
+
+// blockReport makes the report path a directory so writing it fails while the
+// rest of the health directory stays writable.
+func blockReport(t *testing.T, root string) {
+	t.Helper()
+	if err := os.MkdirAll(reportPath(root), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRun_rewritesReportForTheSavedSnapshot(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-fail.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+
+	if _, err := run(t, root, "O-001", runner); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(reportPath(root))
+	if err != nil {
+		t.Fatalf("no report after a check: %v", err)
+	}
+	if !strings.Contains(string(got), "savepoint health check O-001") {
+		t.Errorf("report does not name the checked Objective:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".savepoint", "health", ".gitignore")); err != nil {
+		t.Errorf("no ignore rule beside the report: %v", err)
+	}
+}
+
+func TestRun_reportWriteFailureIsOnlyAWarning(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+	blockReport(t, root)
+	var out, stderr bytes.Buffer
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+
+	err := Run(context.Background(), Request{Dir: root, Objective: "O-001", Runner: runner, Git: codehealth.GitRunner{}, Stderr: &stderr}, &out)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want the check to succeed", err)
+	}
+	if len(snapshots(t, root)) != 1 || !strings.Contains(out.String(), "Snapshot: ") {
+		t.Errorf("snapshot or verdict lost: snapshots = %d, output = %q", len(snapshots(t, root)), out.String())
+	}
+	if !strings.Contains(stderr.String(), "warning") || !strings.Contains(stderr.String(), "report") {
+		t.Errorf("stderr = %q, want a report warning", stderr.String())
+	}
+}
+
+func TestRunReport_rewritesDeletedReportWithoutNewSnapshot(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-fail.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+	if _, err := run(t, root, "O-001", runner); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(reportPath(root))
+	if err := os.Remove(reportPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	calls := len(runner.calls)
+
+	out, err := runReport(root)
+	if err != nil {
+		t.Fatalf("RunReport() error = %v", err)
+	}
+	after, _ := os.ReadFile(reportPath(root))
+	if string(before) != string(after) {
+		t.Errorf("rewritten report differs:\n--- before\n%s\n--- after\n%s", before, after)
+	}
+	if !strings.Contains(out, reportPath(root)) {
+		t.Errorf("output = %q, want the report path", out)
+	}
+	if len(snapshots(t, root)) != 1 || len(runner.calls) != calls {
+		t.Errorf("snapshots = %d, tool calls = %d; want no new snapshot and no tool run", len(snapshots(t, root)), len(runner.calls)-calls)
+	}
+}
+
+func TestRunReport_nothingToReportWritesNothing(t *testing.T) {
+	t.Run("not set up", func(t *testing.T) {
+		root := newProject(t)
+		_, err := runReport(root)
+		if !errors.Is(err, codehealth.ErrReportNotConfigured) {
+			t.Fatalf("RunReport() error = %v, want ErrReportNotConfigured", err)
+		}
+		if _, err := os.Stat(filepath.Join(root, ".savepoint", "health")); !os.IsNotExist(err) {
+			t.Errorf("health directory exists: %v", err)
+		}
+	})
+	t.Run("no snapshot", func(t *testing.T) {
+		root := newProject(t)
+		configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+		_, err := runReport(root)
+		if !errors.Is(err, codehealth.ErrReportNoSnapshot) {
+			t.Fatalf("RunReport() error = %v, want ErrReportNoSnapshot", err)
+		}
+		if _, err := os.Stat(reportPath(root)); !os.IsNotExist(err) {
+			t.Errorf("report exists without a snapshot: %v", err)
+		}
+		if len(snapshots(t, root)) != 0 {
+			t.Error("a snapshot was created")
+		}
+	})
+}
+
+func TestRunReport_unwritableReportIsAnError(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+	if _, err := run(t, root, "O-001", runner); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(reportPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	blockReport(t, root)
+
+	if _, err := runReport(root); err == nil {
+		t.Fatal("RunReport() error = nil, want a write error")
+	}
+}
+
+func TestRunReport_namesTheRoutersObjective(t *testing.T) {
+	root := newProject(t)
+	configure(t, root, fixture(t, "tests/go-pass.jsonl"))
+	runner := &recordingRunner{csv: []byte(fixture(t, "complexity/mixed.csv"))}
+	if _, err := run(t, root, "O-001", runner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runReport(root); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(reportPath(root))
+	if !strings.Contains(string(got), "savepoint health check O-001") {
+		t.Errorf("report does not name the router's Objective:\n%s", got)
+	}
+
+	writeFile(t, root, ".savepoint/router.md", "## Current state\n\n```yaml\nstate: design\nrelease: R-001\nobjective: none\ntask: none\nissue: none\n```\n")
+	if _, err := runReport(root); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = os.ReadFile(reportPath(root))
+	if !strings.Contains(string(got), "savepoint health check O-###") {
+		t.Errorf("report does not use the O-### placeholder:\n%s", got)
+	}
+}

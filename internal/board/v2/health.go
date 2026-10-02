@@ -23,7 +23,7 @@ type HealthFuncs struct {
 	// Freshness compares the measured code with the code now.
 	Freshness func(ctx context.Context, root string, recorded codehealth.RepositoryIdentity) codehealth.CodeFreshness
 	// Refresh runs one manual collection, reporting each signal as it starts.
-	Refresh func(ctx context.Context, root string, progress func(codehealth.Progress)) error
+	Refresh func(ctx context.Context, root string, progress func(codehealth.Progress)) (reportErr, err error)
 }
 
 // HealthOverlay is the Code Health popover. It is mutually exclusive
@@ -41,6 +41,8 @@ type HealthOverlay struct {
 	// History shows the last checks in place of the signals.
 	History bool
 	Notice  string
+	// ReportWarning outlives the reload that follows a refresh.
+	ReportWarning string
 	// Rerun is the official-check command to copy, built when the popover
 	// opens so rendering never looks anything up.
 	Rerun   string
@@ -70,7 +72,11 @@ type healthFreshnessMsg struct {
 
 type healthProgressMsg struct{ Progress codehealth.Progress }
 
-type healthRefreshDoneMsg struct{ Err error }
+type healthRefreshDoneMsg struct {
+	Err error
+	// ReportErr is a report that could not be rewritten after a good refresh.
+	ReportErr error
+}
 
 func (m Model) healthFuncs() HealthFuncs {
 	f := m.HealthFuncs
@@ -228,7 +234,7 @@ func (m *Model) startHealthRefresh() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	events := make(chan tea.Msg, 16)
 	m.Health.Refresh = &healthRefresh{Cancel: cancel, Events: events}
-	m.Health.Notice = ""
+	m.Health.Notice, m.Health.ReportWarning = "", ""
 	return tea.Batch(healthRefreshCmd(ctx, m.healthFuncs(), m.Root, events), waitHealthEvent(events))
 }
 
@@ -278,6 +284,9 @@ func (m Model) applyHealth(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.Err != nil:
 			h.Notice = fmt.Sprintf(textHealthRefreshFailed, msg.Err)
 		default:
+			if msg.ReportErr != nil {
+				h.ReportWarning = fmt.Sprintf(textHealthReportFailed, msg.ReportErr)
+			}
 			cmd = healthLoadCmd(m.healthFuncs(), m.Root)
 		}
 	}
