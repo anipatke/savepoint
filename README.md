@@ -283,7 +283,7 @@ Everything else is advisory; the checker may turn a warning into an Issue.
   blocks an official check.
 - The dashboard reads a bounded window of recent history (the ten newest
   official checks and anything saved after the oldest of them), so opening
-  Code Health stays quick as history grows. When older history was not read,
+  Code Health stays quick as history grows. When older history was not checked,
   the explanation says so. For a series present in every checked snapshot the
   trend, labels and sign-off match what full history gives. A signal added or
   removed within the older history can show a shorter trend (or "No trend

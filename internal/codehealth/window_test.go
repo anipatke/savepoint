@@ -1,7 +1,6 @@
 package codehealth
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -170,44 +169,6 @@ func TestLoadWindowStillFailsOnNamesAndUnreadableHeads(t *testing.T) {
 	}
 }
 
-// A head that does not give time and origin first is decoded whole instead.
-func TestLoadWindowDecodesAFileWhoseHeadIsInAnotherOrder(t *testing.T) {
-	store, root, _ := windowHistory(t, 40)
-	all, _ := store.LoadSnapshots()
-	oldest := all[0]
-	path := snapshotFileOf(t, root, oldest)
-	data, _ := os.ReadFile(path)
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		t.Fatal(err)
-	}
-	var b strings.Builder
-	b.WriteString("{")
-	for i, k := range []string{"results", "summary", "repository", "version", "id", "origin", "retention", "created_at"} {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		key, _ := json.Marshal(k)
-		b.Write(key)
-		b.WriteString(":")
-		b.Write(fields[k])
-	}
-	b.WriteString("}")
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := store.LoadWindow(); err != nil {
-		t.Errorf("a valid file in another field order failed the load: %v", err)
-	}
-	// And its damage is found, because the fallback validates it.
-	if err := os.WriteFile(path, []byte(strings.Replace(b.String(), `"retention"`, `"retentionx"`, 1)), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := store.LoadWindow(); err == nil {
-		t.Error("a damaged file with an unreadable head loaded")
-	}
-}
-
 // fullDashboard is what LoadDashboard gave before the window: every snapshot.
 func fullDashboard(t *testing.T, root string) Dashboard {
 	t.Helper()
@@ -273,10 +234,10 @@ func TestBasisWordsNamesTheWindowOnlyWhenHistoryWasCut(t *testing.T) {
 		t.Errorf("basisWords = %q, want %q", got, want)
 	}
 	s.cut = true
-	if got, want := basisWords(s), "Compared with the 3 most recent comparable official checks. 1 earlier official result not compared. 2 manual results shown, not counted. Older history was not read."; got != want {
+	if got, want := basisWords(s), "Compared with the 3 most recent comparable official checks. 1 earlier official result not compared. 2 manual results shown, not counted. Older history was not checked."; got != want {
 		t.Errorf("basisWords (cut) = %q, want %q", got, want)
 	}
-	if got, want := basisWords(series{cut: true}), "No comparable official history yet. Older history was not read."; got != want {
+	if got, want := basisWords(series{cut: true}), "No comparable official history yet. Older history was not checked."; got != want {
 		t.Errorf("basisWords (cut, empty) = %q, want %q", got, want)
 	}
 }

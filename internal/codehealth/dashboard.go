@@ -161,7 +161,7 @@ const (
 	textNoBasis          = "No comparable official history yet."
 	textBasisFormat      = "Compared with %d earlier comparable official %s."
 	textBasisCutFormat   = "Compared with the %d most recent comparable official %s."
-	textOlderNotRead     = " Older history was not read."
+	textOlderNotRead     = " Older history was not checked."
 	textTrendRange       = "%s over %d official checks, %s to %s"
 )
 

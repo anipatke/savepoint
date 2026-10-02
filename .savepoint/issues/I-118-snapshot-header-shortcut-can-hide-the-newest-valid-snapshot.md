@@ -27,6 +27,10 @@ history:
     kind: rechecked
     check: C-958
     note: "Original repeated timestamp/origin and representation reproductions pass; duplicate detection falls back to full decode. Technically proven for frozen finding, open pending CLEAR Check proof."
+  - at: '2026-10-02T06:33:20Z'
+    actor: {role: executor, session: repair-o032-20261002b}
+    kind: repair_attempted
+    note: "Owner-directed simplification: the 512-byte head shortcut (parseHead) is removed. LoadWindow reads each file and takes created_at/origin with json.Unmarshal, the decoder's own last-wins rule, validating only the window. Changes the T-097 bounded-read design: older bodies are now read, not decoded; dashboard 33 ms at 1,000 normal snapshots (was 13) and 0.56 s at 1,000 maximum-size (was 34 ms; full load 1.2 s). User text now says Older history was not checked."
 ---
 
 # I-118: Snapshot header shortcut can hide the newest valid snapshot

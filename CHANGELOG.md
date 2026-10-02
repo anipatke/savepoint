@@ -47,7 +47,8 @@ with no provider installed and no network (`make ci` exit 0; checksums OK).
 - All nine readers exercised together on a Go, JavaScript and Python mix. (T-093)
 - Performance: history load was linear in snapshot bytes (84 ms at 1,000
   normal snapshots; 1.2 s and 1.2 GB at 1,000 maximum-size ones). The dashboard
-  now reads a bounded window, 13 ms and 34 ms for the same cases. Render and Git
+  now validates only a bounded window and reads older files just for their time
+  and origin: 33 ms and 0.56 s (170 MB) for the same cases. Render and Git
   freshness are constant. One host (Ryzen 7 7800X3D, go1.26.2, Linux/WSL2, warm
   cache); not measured on Windows or macOS. (T-094, T-097, T-098)
 - Internal code health: diagnostic repair, test-stream and board reload
