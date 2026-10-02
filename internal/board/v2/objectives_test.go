@@ -350,109 +350,155 @@ func TestSidebarPriorityKeysAppendAndKeepSelection(t *testing.T) {
 		{key: "4", priority: "low"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.key, func(t *testing.T) {
-			root := writeNavigationProject(t)
-			model := sidebarBoard(t, root)
-			model.SidebarFocused = true
-			if tt.key == "2" {
-				// Give High two existing rows so the keyboard change proves it
-				// appends after that row rather than replacing its order.
-				if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "high", []string{"O-002", "O-004"}); err != nil {
-					t.Fatalf("seed High group: %v", err)
-				}
-				model = sidebarBoard(t, root)
-				model.SidebarFocused = true
-			}
+		t.Run(tt.key, func(t *testing.T) { checkSidebarPriorityKey(t, tt.key, tt.priority) })
+	}
+}
 
-			targetID := model.Objectives[model.ObjectiveCursor].ID()
-			if targetID != "O-003" {
-				t.Fatalf("focused Objective = %s, want router-selected O-003", targetID)
-			}
-			beforeFiles := snapshotProject(t, root)
-			beforeRouter, err := os.ReadFile(filepath.Join(root, "router.md"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			beforeNextLine := resume.NextLine(model.State.Next)
-			beforeCards := model.Cards
-			beforeStatus := model.State.Index.Objectives[targetID].Status
+func checkSidebarPriorityKey(t *testing.T, key string, priority data.ObjectivePriority) {
+	root := writeNavigationProject(t)
+	model := sidebarBoard(t, root)
+	model.SidebarFocused = true
+	if key == "2" {
+		// Give High two existing rows so the keyboard change proves it
+		// appends after that row rather than replacing its order.
+		if err := data.WriteObjectiveGroupOrderV2(model.State.Index, model.SelectedRelease, "high", []string{"O-002", "O-004"}); err != nil {
+			t.Fatalf("seed High group: %v", err)
+		}
+		model = sidebarBoard(t, root)
+		model.SidebarFocused = true
+	}
 
-			after := runSidebarRuneKey(t, model, tt.key)
-			reopened := sidebarBoard(t, root)
-			if got := reopened.State.Index.Objectives[targetID].Priority; got != tt.priority {
-				t.Errorf("reopened Objective %s priority = %q, want %q", targetID, got, tt.priority)
-			}
-			if got := after.State.Index.Objectives[targetID].Priority; got != tt.priority {
-				t.Errorf("Objective %s priority = %q, want %q", targetID, got, tt.priority)
-			}
-			if got := after.Objectives[after.ObjectiveCursor].ID(); got != targetID {
-				t.Errorf("cursor moved to %s after reload, want it to follow %s", got, targetID)
-			}
-			if after.SelectedObjective != targetID {
-				t.Errorf("selection = %s after reload, want %s", after.SelectedObjective, targetID)
-			}
-			if after.State.Index.Objectives[targetID].Status != beforeStatus {
-				t.Errorf("Objective status changed from %s to %s", beforeStatus, after.State.Index.Objectives[targetID].Status)
-			}
-			if !reflect.DeepEqual(beforeCards, after.Cards) {
-				t.Error("Task columns changed during Objective priority reorder")
-			}
-			if got := resume.NextLine(after.State.Next); got != beforeNextLine {
-				t.Errorf("Next line changed during Objective priority reorder: before %q, after %q", beforeNextLine, got)
-			}
-			afterRouter, err := os.ReadFile(filepath.Join(root, "router.md"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(beforeRouter, afterRouter) {
-				t.Errorf("router bytes changed during Objective priority reorder:\n before:\n%s\n after:\n%s", beforeRouter, afterRouter)
-			}
+	targetID := model.Objectives[model.ObjectiveCursor].ID()
+	if targetID != "O-003" {
+		t.Fatalf("focused Objective = %s, want router-selected O-003", targetID)
+	}
+	beforeFiles := snapshotProject(t, root)
+	base := newSidebarBaseline(t, root, model)
+	beforeStatus := model.State.Index.Objectives[targetID].Status
 
-			if tt.key == "3" {
-				if afterFiles := snapshotProject(t, root); !reflect.DeepEqual(beforeFiles, afterFiles) {
-					t.Error("setting the current Medium priority changed project files")
-				}
-				return
-			}
-			if got := after.State.Index.Objectives[targetID].Rank; got < 1 {
-				t.Errorf("Objective %s rank = %d, want a persisted positive rank", targetID, got)
-			}
-			if tt.key == "2" {
-				var highIDs []string
-				for _, row := range after.Objectives {
-					if row.Objective.Status != data.ColumnDone && sidebarRowPriority(row) == "high" {
-						highIDs = append(highIDs, row.ID())
-					}
-				}
-				if !slices.Equal(highIDs, []string{"O-002", "O-004", targetID}) {
-					t.Errorf("High group order = %v, want O-002, O-004, then %s", highIDs, targetID)
-				}
-				if got := after.State.Index.Objectives[targetID].Rank; got != 3 {
-					t.Errorf("appended Objective rank = %d, want 3", got)
-				}
+	after := runSidebarRuneKey(t, model, key)
+	reopened := sidebarBoard(t, root)
+	if got := reopened.State.Index.Objectives[targetID].Priority; got != priority {
+		t.Errorf("reopened Objective %s priority = %q, want %q", targetID, got, priority)
+	}
+	if got := after.State.Index.Objectives[targetID].Priority; got != priority {
+		t.Errorf("Objective %s priority = %q, want %q", targetID, got, priority)
+	}
+	assertSidebarFollows(t, "reload", after, targetID)
+	if after.State.Index.Objectives[targetID].Status != beforeStatus {
+		t.Errorf("Objective status changed from %s to %s", beforeStatus, after.State.Index.Objectives[targetID].Status)
+	}
+	base.assertCardsNextAndRouterUnchanged(t, "Objective priority reorder", after)
 
-				firstUp := runSidebarRuneKey(t, after, "K")
-				secondUp := runSidebarRuneKey(t, firstUp, "K")
-				down := runSidebarRuneKey(t, secondUp, "J")
-				for _, check := range []struct {
-					label string
-					model Model
-				}{{"first K", firstUp}, {"second K", secondUp}, {"J", down}} {
-					if check.model.Objectives[check.model.ObjectiveCursor].ID() != targetID || check.model.SelectedObjective != targetID {
-						t.Errorf("after %s, cursor/selection = %s/%s, want %s/%s", check.label, check.model.Objectives[check.model.ObjectiveCursor].ID(), check.model.SelectedObjective, targetID, targetID)
-					}
-				}
-				if got := objectiveRowIDs(firstUp.Objectives); !slices.Equal(got[:3], []string{"O-002", targetID, "O-004"}) {
-					t.Errorf("first K High order = %v, want O-002, %s, O-004", got[:3], targetID)
-				}
-				if got := objectiveRowIDs(secondUp.Objectives); !slices.Equal(got[:3], []string{targetID, "O-002", "O-004"}) {
-					t.Errorf("second K High order = %v, want %s, O-002, O-004", got[:3], targetID)
-				}
-				if got := objectiveRowIDs(down.Objectives); !slices.Equal(got[:3], []string{"O-002", targetID, "O-004"}) {
-					t.Errorf("J High order = %v, want O-002, %s, O-004", got[:3], targetID)
-				}
-			}
-		})
+	if key == "3" {
+		if afterFiles := snapshotProject(t, root); !reflect.DeepEqual(beforeFiles, afterFiles) {
+			t.Error("setting the current Medium priority changed project files")
+		}
+		return
+	}
+	if got := after.State.Index.Objectives[targetID].Rank; got < 1 {
+		t.Errorf("Objective %s rank = %d, want a persisted positive rank", targetID, got)
+	}
+	if key == "2" {
+		checkHighGroupAppendAndMove(t, after, targetID)
+	}
+}
+
+// assertSidebarFollows checks that the cursor and selection sit on id.
+func assertSidebarFollows(t *testing.T, when string, m Model, id string) {
+	t.Helper()
+	if got := m.Objectives[m.ObjectiveCursor].ID(); got != id {
+		t.Errorf("cursor moved to %s after %s, want it to follow %s", got, when, id)
+	}
+	if m.SelectedObjective != id {
+		t.Errorf("selection = %s after %s, want %s", m.SelectedObjective, when, id)
+	}
+}
+
+// sidebarBaseline is what an Objective reorder must leave alone: the Task
+// columns, the Next line, and the router file.
+type sidebarBaseline struct {
+	root     string
+	router   []byte
+	nextLine string
+	cards    any
+	statuses map[string]data.ColumnType
+}
+
+func newSidebarBaseline(t *testing.T, root string, model Model) sidebarBaseline {
+	t.Helper()
+	router, err := os.ReadFile(filepath.Join(root, "router.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sidebarBaseline{
+		root:     root,
+		router:   router,
+		nextLine: resume.NextLine(model.State.Next),
+		cards:    model.Cards,
+		statuses: objectiveStatusSnapshot(model.State.Index),
+	}
+}
+
+func (b sidebarBaseline) assertCardsNextAndRouterUnchanged(t *testing.T, what string, after Model) {
+	t.Helper()
+	if !reflect.DeepEqual(b.cards, after.Cards) {
+		t.Errorf("Task columns changed during %s", what)
+	}
+	if got := resume.NextLine(after.State.Next); got != b.nextLine {
+		t.Errorf("Next line changed during %s: before %q, after %q", what, b.nextLine, got)
+	}
+	afterRouter, err := os.ReadFile(filepath.Join(b.root, "router.md"))
+	if err != nil || !bytes.Equal(b.router, afterRouter) {
+		t.Errorf("router changed during %s: error %v, bytes equal %t", what, err, bytes.Equal(b.router, afterRouter))
+	}
+}
+
+func (b sidebarBaseline) assertStatusesUnchanged(t *testing.T, what string, after Model) {
+	t.Helper()
+	if got := objectiveStatusSnapshot(after.State.Index); !reflect.DeepEqual(b.statuses, got) {
+		t.Errorf("Objective statuses changed during %s: before %v, after %v", what, b.statuses, got)
+	}
+}
+
+func checkHighGroupAppendAndMove(t *testing.T, after Model, targetID string) {
+	t.Helper()
+	var highIDs []string
+	for _, row := range after.Objectives {
+		if row.Objective.Status != data.ColumnDone && sidebarRowPriority(row) == "high" {
+			highIDs = append(highIDs, row.ID())
+		}
+	}
+	if !slices.Equal(highIDs, []string{"O-002", "O-004", targetID}) {
+		t.Errorf("High group order = %v, want O-002, O-004, then %s", highIDs, targetID)
+	}
+	if got := after.State.Index.Objectives[targetID].Rank; got != 3 {
+		t.Errorf("appended Objective rank = %d, want 3", got)
+	}
+
+	firstUp := runSidebarRuneKey(t, after, "K")
+	secondUp := runSidebarRuneKey(t, firstUp, "K")
+	down := runSidebarRuneKey(t, secondUp, "J")
+	for _, check := range []struct {
+		label string
+		model Model
+	}{{"first K", firstUp}, {"second K", secondUp}, {"J", down}} {
+		if check.model.Objectives[check.model.ObjectiveCursor].ID() != targetID || check.model.SelectedObjective != targetID {
+			t.Errorf("after %s, cursor/selection = %s/%s, want %s/%s", check.label, check.model.Objectives[check.model.ObjectiveCursor].ID(), check.model.SelectedObjective, targetID, targetID)
+		}
+	}
+	for _, c := range []struct {
+		label string
+		model Model
+		want  []string
+	}{
+		{"first K", firstUp, []string{"O-002", targetID, "O-004"}},
+		{"second K", secondUp, []string{targetID, "O-002", "O-004"}},
+		{"J", down, []string{"O-002", targetID, "O-004"}},
+	} {
+		if got := objectiveRowIDs(c.model.Objectives); !slices.Equal(got[:3], c.want) {
+			t.Errorf("%s High order = %v, want %v", c.label, got[:3], c.want)
+		}
 	}
 }
 
@@ -477,13 +523,7 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 	if got := objectiveRowIDs(lowercaseNavigation.Objectives); !slices.Equal(got, beforeOrder) {
 		t.Errorf("lowercase k changed Objective order to %v", got)
 	}
-	beforeRouter, err := os.ReadFile(filepath.Join(root, "router.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	beforeNextLine := resume.NextLine(model.State.Next)
-	beforeCards := model.Cards
-	beforeStatuses := objectiveStatusSnapshot(model.State.Index)
+	base := newSidebarBaseline(t, root, model)
 
 	up := runSidebarRuneKey(t, model, "K")
 	wantUp := slices.Clone(beforeOrder)
@@ -492,12 +532,40 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 	if got := objectiveRowIDs(up.Objectives); !slices.Equal(got, wantUp) {
 		t.Errorf("K order = %v, want %v", got, wantUp)
 	}
-	if got := up.Objectives[up.ObjectiveCursor].ID(); got != targetID || up.SelectedObjective != targetID {
-		t.Errorf("after K, cursor/selection = %s/%s, want both %s", got, up.SelectedObjective, targetID)
+	assertSidebarCursorOn(t, "K", up, targetID)
+	assertLegacyRowsRenumbered(t, up, wantUp)
+	if reopened := sidebarBoard(t, root); !slices.Equal(objectiveRowIDs(reopened.Objectives), wantUp) {
+		t.Errorf("reopened sidebar order = %v, want persisted order %v", objectiveRowIDs(reopened.Objectives), wantUp)
 	}
+	base.assertCardsNextAndRouterUnchanged(t, "K", up)
+	base.assertStatusesUnchanged(t, "K", up)
+
+	down := runSidebarRuneKey(t, up, "J")
+	if got := objectiveRowIDs(down.Objectives); !slices.Equal(got, beforeOrder) {
+		t.Errorf("J order = %v, want %v", got, beforeOrder)
+	}
+	assertSidebarCursorOn(t, "J", down, targetID)
+	base.assertCardsNextAndRouterUnchanged(t, "J", down)
+	base.assertStatusesUnchanged(t, "J", down)
+
+	assertShiftKeysSwapWithinGroup(t, down, targetID)
+	assertGroupEdgesClamp(t, down)
+}
+
+func assertSidebarCursorOn(t *testing.T, key string, m Model, id string) {
+	t.Helper()
+	if got := m.Objectives[m.ObjectiveCursor].ID(); got != id || m.SelectedObjective != id {
+		t.Errorf("after %s, cursor/selection = %s/%s, want both %s", key, got, m.SelectedObjective, id)
+	}
+}
+
+// assertLegacyRowsRenumbered checks that rows which had no rank now carry a
+// contiguous one in the medium group.
+func assertLegacyRowsRenumbered(t *testing.T, m Model, order []string) {
+	t.Helper()
 	openRank := 0
-	for _, id := range wantUp {
-		objective := up.State.Index.Objectives[id]
+	for _, id := range order {
+		objective := m.State.Index.Objectives[id]
 		if objective.Status == data.ColumnDone {
 			continue
 		}
@@ -506,49 +574,17 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 			t.Errorf("legacy Objective %s = priority %s rank %d, want medium rank %d", id, objective.Priority, objective.Rank, openRank)
 		}
 	}
-	if reopened := sidebarBoard(t, root); !slices.Equal(objectiveRowIDs(reopened.Objectives), wantUp) {
-		t.Errorf("reopened sidebar order = %v, want persisted order %v", objectiveRowIDs(reopened.Objectives), wantUp)
-	}
-	if got := resume.NextLine(up.State.Next); got != beforeNextLine {
-		t.Errorf("Next line changed after K: before %q, after %q", beforeNextLine, got)
-	}
-	if !reflect.DeepEqual(beforeCards, up.Cards) {
-		t.Error("Task columns changed after K")
-	}
-	if got := objectiveStatusSnapshot(up.State.Index); !reflect.DeepEqual(beforeStatuses, got) {
-		t.Errorf("Objective statuses changed after K: before %v, after %v", beforeStatuses, got)
-	}
-	if afterRouter, err := os.ReadFile(filepath.Join(root, "router.md")); err != nil || !bytes.Equal(beforeRouter, afterRouter) {
-		t.Errorf("router changed after K: error %v, bytes equal %t", err, bytes.Equal(beforeRouter, afterRouter))
-	}
+}
 
-	down := runSidebarRuneKey(t, up, "J")
-	if got := objectiveRowIDs(down.Objectives); !slices.Equal(got, beforeOrder) {
-		t.Errorf("J order = %v, want %v", got, beforeOrder)
-	}
-	if got := down.Objectives[down.ObjectiveCursor].ID(); got != targetID || down.SelectedObjective != targetID {
-		t.Errorf("after J, cursor/selection = %s/%s, want both %s", got, down.SelectedObjective, targetID)
-	}
-	if got := resume.NextLine(down.State.Next); got != beforeNextLine {
-		t.Errorf("Next line changed after J: before %q, after %q", beforeNextLine, got)
-	}
-	if !reflect.DeepEqual(beforeCards, down.Cards) {
-		t.Error("Task columns changed after J")
-	}
-	if got := objectiveStatusSnapshot(down.State.Index); !reflect.DeepEqual(beforeStatuses, got) {
-		t.Errorf("Objective statuses changed after J: before %v, after %v", beforeStatuses, got)
-	}
-	if afterRouter, err := os.ReadFile(filepath.Join(root, "router.md")); err != nil || !bytes.Equal(beforeRouter, afterRouter) {
-		t.Errorf("router changed after J: error %v, bytes equal %t", err, bytes.Equal(beforeRouter, afterRouter))
-	}
-
+func assertShiftKeysSwapWithinGroup(t *testing.T, m Model, targetID string) {
+	t.Helper()
 	for _, tt := range []struct {
 		key   string
 		delta int
 	}{{key: "shift+up", delta: -1}, {key: "shift+down", delta: 1}} {
-		change, ok := sidebarObjectiveOrderChange(down.Objectives, down.ObjectiveCursor, tt.key)
-		want := make([]string, 0, len(beforeOrder)-1)
-		for _, row := range down.Objectives {
+		change, ok := sidebarObjectiveOrderChange(m.Objectives, m.ObjectiveCursor, tt.key)
+		var want []string
+		for _, row := range m.Objectives {
 			if row.Objective.Status != data.ColumnDone {
 				want = append(want, row.ID())
 			}
@@ -560,7 +596,10 @@ func TestSidebarGroupMovementRenumbersLegacyRowsAndClamps(t *testing.T) {
 			t.Errorf("%s order = %v, want in-group swap %v (ok=%t)", tt.key, change.ObjectiveIDs, want, ok)
 		}
 	}
+}
 
+func assertGroupEdgesClamp(t *testing.T, down Model) {
+	t.Helper()
 	first := down
 	first.ObjectiveCursor = 0
 	first.SelectedObjective = first.Objectives[0].ID()

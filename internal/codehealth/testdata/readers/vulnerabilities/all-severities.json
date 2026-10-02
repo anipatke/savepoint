@@ -1,0 +1,203 @@
+{
+ "version": "2.2.0",
+ "results": [
+  {
+   "source": {
+    "path": "/work/proj/go.sum",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "a",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-0"
+       ],
+       "max_severity": "10.0"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "b",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-1"
+       ],
+       "max_severity": "9.0"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "c",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-2"
+       ],
+       "max_severity": "8.9"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "d",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-3"
+       ],
+       "max_severity": "7.0"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "e",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-4"
+       ],
+       "max_severity": "6.9"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "f",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-5"
+       ],
+       "max_severity": "4.0"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "g",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-6"
+       ],
+       "max_severity": "3.9"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "h",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-7"
+       ],
+       "max_severity": "0.1"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "i",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-8"
+       ],
+       "max_severity": "0"
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "j",
+      "version": "1"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "ID-9"
+       ],
+       "max_severity": "abc"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

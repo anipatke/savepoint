@@ -65,6 +65,7 @@ func RunV2Checks(root string) *DiagnosticReport {
 	}
 
 	report.Project = append(report.Project, v2ConsistencyProblems(index)...)
+	report.Project = append(report.Project, healthSnapshotRefProblems(root, index)...)
 	for _, duplicate := range index.DuplicateObjectiveRanks {
 		file := root
 		if goal := index.Releases[duplicate.GoalID]; goal != nil {

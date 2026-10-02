@@ -158,3 +158,69 @@ func TestV2ConsistencyRepair(t *testing.T) {
 		}
 	}
 }
+
+func TestSuggestRepair_typedSentinelBeatsMessageWording(t *testing.T) {
+	err := fmt.Errorf("release PRD file not found: %w", data.ErrMissingFrontmatter)
+	if got, want := SuggestRepair(err), "Fix the YAML frontmatter between the --- delimiters"; got != want {
+		t.Errorf("SuggestRepair() = %q, want %q", got, want)
+	}
+	joined := errors.Join(data.ErrStructureProblem, data.ErrConfigNotFound)
+	if got, want := SuggestRepair(joined), "Run `savepoint init` to scaffold a new project"; got != want {
+		t.Errorf("SuggestRepair(joined) = %q, want typed order to pick %q", got, want)
+	}
+}
+
+func TestSuggestRepair_firstMatchingMessageRuleWins(t *testing.T) {
+	tests := []struct {
+		msg      string
+		contains string
+	}{
+		{"release defect stage is required", "Add stage: build, stage: test, or stage: audit while the defect"},
+		{"defect stage invalid in release", "Set the defect stage to build, test, or audit"},
+		{"epic directory not found for release", "Create the release directory"},
+		{"orphaned release task", "Create the release directory"},
+		{"config.yml not found and config.yml missing required field", "savepoint init"},
+		{"task stage field is only valid; task stage invalid", "Set stage to build, test, or audit"},
+		{"defect stage only valid", "Remove stage unless the defect status is in_progress"},
+		{"defect reference is empty and does not match", "format must be 'EPIC-slug/TASK-slug'"},
+		{"epic detail file not found", "Create an E##-Detail.md"},
+		{"", "Review the file and fix the reported issue"},
+	}
+	for _, tt := range tests {
+		got := SuggestRepair(errors.New(tt.msg))
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("SuggestRepair(%q) = %q, want containing %q", tt.msg, got, tt.contains)
+		}
+	}
+}
+
+func TestV2ProblemRepair_everyNamedMappingIsDistinctFromDefault(t *testing.T) {
+	fallback := V2ProblemRepair("no-such-diagnostic")
+	for name, repair := range v2ProblemRepairs {
+		if repair == "" || repair == fallback {
+			t.Errorf("V2ProblemRepair(%q) = %q, want a specific repair", name, repair)
+		}
+		if got := V2ProblemRepair(name); got != repair {
+			t.Errorf("V2ProblemRepair(%q) = %q, want %q", name, got, repair)
+		}
+	}
+}
+
+func TestV2DiagnosticName_specialCases(t *testing.T) {
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("bad release id: %w", data.ErrV2InvalidID), "v2-release-invalid-id"},
+		{fmt.Errorf("bad Goal id: %w", data.ErrV2InvalidID), "v2-release-invalid-id"},
+		{fmt.Errorf("bad task id: %w", data.ErrV2InvalidID), "v2-invalid-id"},
+		{fmt.Errorf("scope names missing release: %w", data.ErrV2CheckMissingScopeTarget), "v2-check-missing-release-scope-target"},
+		{fmt.Errorf("scope names missing task: %w", data.ErrV2CheckMissingScopeTarget), "v2-check-missing-scope-target"},
+		{errors.New("unrelated"), "v2-project-error"},
+	}
+	for _, tt := range tests {
+		if got := v2DiagnosticName(tt.err); got != tt.want {
+			t.Errorf("v2DiagnosticName(%q) = %q, want %q", tt.err, got, tt.want)
+		}
+	}
+}

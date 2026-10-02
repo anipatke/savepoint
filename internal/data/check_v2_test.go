@@ -2,6 +2,8 @@ package data
 
 import (
 	"errors"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -391,5 +393,52 @@ func TestDecodeCheckV2_noFrontmatter(t *testing.T) {
 	_, err := DecodeCheckV2("test.md", "# No frontmatter here")
 	if !errors.Is(err, ErrNoFrontmatter) {
 		t.Fatalf("DecodeCheckV2() error = %v, want ErrNoFrontmatter", err)
+	}
+}
+
+func TestDecodeCheckV2_healthSnapshot(t *testing.T) {
+	const head = "---\nid: C-001\nscope: {kind: task, id: T-001}\nresult: CLEAR\nchecked_by: {role: checker, session: s}\nexecuted_session: build-001\nchecked_at: '2026-09-14T00:00:00Z'\n"
+	const snapshot = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	tests := []struct {
+		name    string
+		field   string
+		want    string
+		wantErr bool
+	}{
+		{name: "absent", field: "", want: ""},
+		{name: "named", field: "health_snapshot: " + snapshot + "\n", want: snapshot},
+		{name: "empty", field: "health_snapshot: \"\"\n", wantErr: true},
+		{name: "blank", field: "health_snapshot: \"   \"\n", wantErr: true},
+		{name: "multi-line", field: "health_snapshot: \"a\\nb\"\n", wantErr: true},
+		{name: "over-long", field: "health_snapshot: " + strings.Repeat("a", MaxHealthSnapshotRefLen+1) + "\n", wantErr: true},
+		{name: "at the limit", field: "health_snapshot: " + strings.Repeat("a", MaxHealthSnapshotRefLen) + "\n", want: strings.Repeat("a", MaxHealthSnapshotRefLen)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check, err := DecodeCheckV2("test.md", head+tt.field+"---\n\n# Check")
+			if tt.wantErr {
+				if !errors.Is(err, ErrV2CheckMalformed) || !strings.Contains(err.Error(), "health_snapshot") {
+					t.Fatalf("DecodeCheckV2() error = %v, want a health_snapshot ErrV2CheckMalformed", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DecodeCheckV2() error = %v", err)
+			}
+			if check.HealthSnapshot != tt.want {
+				t.Errorf("HealthSnapshot = %q, want %q", check.HealthSnapshot, tt.want)
+			}
+		})
+	}
+}
+
+func TestDataDoesNotImportCodeHealth(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", ".").Output()
+	if err != nil {
+		t.Fatalf("go list -deps: %v", err)
+	}
+	if strings.Contains(string(out), "internal/codehealth") {
+		t.Fatal("internal/data depends on internal/codehealth; health records must stay separately owned")
 	}
 }

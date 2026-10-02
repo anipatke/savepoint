@@ -1,0 +1,86 @@
+{
+ "results": [
+  {
+   "source": {
+    "path": "/work/proj/go.mod",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "golang.org/x/net",
+      "version": "0.1.0"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "GO-2023-1",
+        "CVE-2023-1"
+       ],
+       "max_severity": "7.5"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "source": {
+    "path": "/work/proj/web/package-lock.json",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "lodash",
+      "version": "4.17.0"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "GHSA-a"
+       ],
+       "max_severity": "9.8"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "source": {
+    "path": "/work/proj/app/poetry.lock",
+    "type": "lockfile"
+   },
+   "packages": [
+    {
+     "package": {
+      "name": "flask",
+      "version": "2.0.0"
+     },
+     "vulnerabilities": [
+      {
+       "id": "x"
+      }
+     ],
+     "groups": [
+      {
+       "ids": [
+        "PYSEC-1"
+       ],
+       "max_severity": "5.3"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,6 @@
+{"Action":"start","Package":"example.com/m/broken"}
+{"Action":"output","Package":"example.com/m/broken","Output":"broken.go:3:1: syntax error\n"}
+{"Action":"fail","Package":"example.com/m/broken"}
+{"Action":"run","Package":"example.com/m/a","Test":"T"}
+{"Action":"pass","Package":"example.com/m/a","Test":"T"}
+{"Action":"pass","Package":"example.com/m/a"}

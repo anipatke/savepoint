@@ -8,13 +8,17 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"time"
 
 	"github.com/opencode/savepoint/cmd"
 	"github.com/opencode/savepoint/internal/board"
+	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/doctor"
+	"github.com/opencode/savepoint/internal/healthcheck"
 	savepointinit "github.com/opencode/savepoint/internal/init"
 	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
@@ -36,71 +40,75 @@ func main() {
 	}
 
 	if len(args) > 0 {
-		switch args[0] {
-		case "--help", "-h", "help":
-			fmt.Print(mainUsage)
-			os.Exit(0)
-		case "--version":
-			fmt.Println(version)
-			os.Exit(0)
-		case "init":
-			if err := cmd.RunInit(context.Background(), args[1:], os.Stdout, initRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "create-task":
-			if err := cmd.RunCreateTask(context.Background(), args[1:], os.Stdout, os.Stderr, createTaskRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "board":
-			if err := cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
-				return board.RunWithFilters(board.Filters{
-					Objective: opts.Objective,
-				})
-			}); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "doctor":
-			code, err := cmd.RunDoctor(context.Background(), args[1:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
-				return runDoctorChecks(opts)
-			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		case "upgrade-assets":
-			if err := cmd.RunUpgradeAssets(context.Background(), args[1:], os.Stdout, upgradeAssetsRunner); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		case "migrate":
-			code, err := cmd.RunMigrate(context.Background(), args[1:], os.Stdout, migrateRunner)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		case "resume":
-			code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			os.Exit(code)
-		default:
-			fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
-			os.Exit(2)
-		}
+		os.Exit(runCommand(args))
 	}
 	// A board refusal, such as an unmigrated project, is a routine message for
 	// the user, not a crash.
 	if err := board.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+// exitFor prints err, when there is one, and returns the exit status for a
+// command that reports only success or failure.
+func exitFor(err error) int {
+	if err == nil {
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, err)
+	return 1
+}
+
+// exitWith prints err, when there is one, and returns the command's own exit
+// code, which does not depend on whether an error was printed.
+func exitWith(code int, err error) int {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	return code
+}
+
+// runCommand runs the named subcommand and returns its exit status.
+func runCommand(args []string) int {
+	switch args[0] {
+	case "--help", "-h", "help":
+		fmt.Print(mainUsage)
+		return 0
+	case "--version":
+		fmt.Println(version)
+		return 0
+	case "init":
+		return exitFor(cmd.RunInit(context.Background(), args[1:], os.Stdout, initRunner))
+	case "create-task":
+		return exitFor(cmd.RunCreateTask(context.Background(), args[1:], os.Stdout, os.Stderr, createTaskRunner))
+	case "board":
+		return exitFor(cmd.RunBoard(context.Background(), args[1:], os.Stdout, func(opts cmd.BoardOptions) error {
+			return board.RunWithFilters(board.Filters{
+				Objective: opts.Objective,
+			})
+		}))
+	case "doctor":
+		code, err := cmd.RunDoctor(context.Background(), args[1:], os.Stdout, func(opts cmd.DoctorOptions) (int, error) {
+			return runDoctorChecks(opts)
+		})
+		return exitWith(code, err)
+	case "upgrade-assets":
+		return exitFor(cmd.RunUpgradeAssets(context.Background(), args[1:], os.Stdout, upgradeAssetsRunner))
+	case "migrate":
+		code, err := cmd.RunMigrate(context.Background(), args[1:], os.Stdout, migrateRunner)
+		return exitWith(code, err)
+	case "health":
+		// Ctrl-C cancels collection through the context so a running tool is stopped.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		return exitFor(cmd.RunHealth(ctx, args[1:], os.Stdout, cmd.HealthRunners{Setup: healthSetupRunner, Check: healthCheckRunner, Report: healthReportRunner}))
+	case "resume":
+		code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
+		return exitWith(code, err)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
+		return 2
 	}
 }
 
@@ -112,6 +120,9 @@ Commands:
   board [--objective <objective>]        Open the V2 board
   doctor                                Check project health
   resume [dir]                           Print the next V2 action
+  health setup [dir] [--apply]           Preview or save suggested health tools
+  health check O-### [dir]               Collect an official health snapshot for an Objective
+  health report [dir]                    Rewrite .savepoint/health/report.md from the newest snapshot
   migrate [dir] [--apply]                Convert a legacy project to V2
   upgrade-assets [dir]                   Refresh assets in an existing V2 project
 
@@ -303,7 +314,72 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 		}
 	}
 
+	// Discovery trouble never fails an init that already scaffolded.
+	if err := previewHealthSetup(ctx, opts.Dir, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: health tool suggestions unavailable: %s\n", err)
+	}
+
 	return nil
+}
+
+// healthSetupRunner is the production wiring for `health setup`. Discovery,
+// reconciliation, and rendering live in internal/codehealth.
+func healthSetupRunner(ctx context.Context, opts cmd.HealthSetupOptions) error {
+	root, plan, err := planHealthSetup(ctx, opts.Dir)
+	if err != nil {
+		return err
+	}
+	if !opts.Apply {
+		_, err = fmt.Fprint(os.Stdout, plan.Preview())
+		return err
+	}
+	changed, err := plan.Apply(codehealth.NewStore(root))
+	if err != nil {
+		return fmt.Errorf("health setup: %w", err)
+	}
+	_, err = fmt.Fprint(os.Stdout, plan.Applied(changed))
+	return err
+}
+
+// healthCheckRunner is the production wiring for `health check`; the
+// collection itself lives in internal/healthcheck.
+func healthCheckRunner(ctx context.Context, opts cmd.HealthCheckOptions) error {
+	return healthcheck.Run(ctx, healthcheck.Request{Dir: opts.Dir, Objective: opts.Objective, Stderr: os.Stderr}, os.Stdout)
+}
+
+// healthReportRunner is the production wiring for `health report`.
+func healthReportRunner(_ context.Context, opts cmd.HealthReportOptions) error {
+	return healthcheck.RunReport(healthcheck.ReportRequest{Dir: opts.Dir}, os.Stdout)
+}
+
+// previewHealthSetup prints what setup would suggest without writing anything.
+func previewHealthSetup(ctx context.Context, dir string, stdout io.Writer) error {
+	_, plan, err := planHealthSetup(ctx, dir)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(stdout, "\n"+plan.Preview())
+	return err
+}
+
+func planHealthSetup(ctx context.Context, dir string) (string, codehealth.SetupPlan, error) {
+	root, err := data.ResolveTarget(dir)
+	switch {
+	case errors.Is(err, data.ErrTargetMissing):
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: target directory does not exist: %s", dir)
+	case errors.Is(err, data.ErrTargetNotSavepoint):
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: target directory is not a Savepoint project: %s has no .savepoint directory", dir)
+	case err != nil:
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	if err := data.CheckRuntimeSchema(root); err != nil {
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	plan, err := codehealth.PlanProject(ctx, root, exec.LookPath)
+	if err != nil {
+		return "", codehealth.SetupPlan{}, fmt.Errorf("health setup: %w", err)
+	}
+	return root, plan, nil
 }
 
 func createTaskRunner(_ context.Context, opts cmd.CreateTaskOptions) (string, string, error) {

@@ -33,6 +33,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampDetailScroll()
 		m.clampIssueScroll()
 		return m, nil
+	case healthLoadedMsg, healthFreshnessMsg, healthProgressMsg, healthRefreshDoneMsg:
+		return m.applyHealth(msg)
 	case projectLoadedMsg:
 		return m.applyLoad(msg)
 	case v2FileChangeMsg:
@@ -82,7 +84,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// A status message shares the footer with the key hints. The next key
 	// dismisses it so the hints return; an action's own result replaces it.
 	m.StatusMessage = ""
-	if m.Help {
+	if m.Help && key != "ctrl+c" {
 		if key == "esc" || key == "q" || key == "?" {
 			m.Help = false
 		}
@@ -96,12 +98,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if key == "q" || key == "ctrl+c" {
+		m.cancelHealthRefresh()
 		if m.Watcher != nil {
 			_ = m.Watcher.Close()
 		}
 		return m, tea.Quit
 	}
 
+	if m.Health != nil {
+		return m, m.handleHealthKey(key)
+	}
 	if m.Detail != nil {
 		if action, ok := m.actionForKey(key); ok {
 			return m, m.runAction(action)
@@ -114,6 +120,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if action, ok := m.actionForKey(key); ok {
 		return m, m.runAction(action)
+	}
+	if key == healthKey {
+		return m, m.openHealth()
 	}
 	if key == goalSelectorKey || key == goalSelectorAlias {
 		m.openReleaseSelector()
@@ -340,7 +349,7 @@ func (m Model) detailUnderCursor() (RecordDetail, bool) {
 		return RecordDetail{}, false
 	}
 	if m.SidebarFocused {
-		return newObjectiveDetail(m.State.Index, m.Objectives[m.ObjectiveCursor].ID())
+		return newObjectiveDetail(m.State.Index, m.State.Health, m.Objectives[m.ObjectiveCursor].ID())
 	}
 	cards := m.Cards[m.FocusedColumn]
 	return newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
@@ -391,7 +400,7 @@ func (m *Model) refreshDetail() {
 	if m.Detail == nil {
 		return
 	}
-	detail, ok := reopenDetail(m.State.Index, *m.Detail)
+	detail, ok := reopenDetail(m.State.Index, m.State.Health, *m.Detail)
 	if !ok {
 		m.closeDetail()
 		return
@@ -660,11 +669,8 @@ func (m Model) snapshotReload() reloadSnapshot {
 // visible and names the temporary data problem alongside it; only an initial
 // failure has no board to preserve.
 func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.Seq != 0 {
-		if msg.Seq < m.lastLoadSeq {
-			return m, nil
-		}
-		m.lastLoadSeq = msg.Seq
+	if !m.acceptLoadSeq(msg.Seq) {
+		return m, nil
 	}
 	if msg.Failed() && !msg.Retry {
 		return m, retryLoadCmd(m.Root)
@@ -675,22 +681,7 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	preserveStatus := m.preserveReloadStatus
 	m.Loaded = true
 	if msg.Failed() {
-		if wasLoaded {
-			m.ReloadDiagnostic = msg.Diagnostic
-			return m, nil
-		}
-		m.Diagnostic = msg.Diagnostic
-		m.State = ProjectState{}
-		m.SelectedRelease = ""
-		m.Releases = nil
-		m.SelectedObjective = ""
-		m.Objectives = nil
-		m.ObjectiveCursor = 0
-		m.Cards = groupTaskCards(nil)
-		m.FocusedCard = 0
-		m.Detail = nil
-		m.DetailOffset = 0
-		m.Issues = nil
+		m.applyLoadFailure(msg.Diagnostic, wasLoaded)
 		return m, nil
 	}
 
@@ -707,37 +698,100 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 		m.FatalErr = err
 		return m, tea.Quit
 	}
-	m.Releases = orderedReleaseIDs(msg.State.Index)
-	m.SelectedRelease = restoredRelease(msg.State)
-	m.SelectedObjective = restoredObjectiveForRelease(m, snapshot, msg.State, wasLoaded, m.SelectedRelease)
-	m.Objectives = objectiveRowsForRelease(msg.State.Index, m.SelectedRelease)
-	m.Cards = groupTaskCardsForRelease(msg.State.Index, m.SelectedRelease, m.SelectedObjective)
+	m.restoreLoadedSelection(snapshot, wasLoaded)
+	m.noteVanishedSelection(snapshot, wasLoaded)
+	m.refreshDetail()
+	m.reconcileDetailAndIssues(snapshot)
+	return m, nil
+}
+
+// acceptLoadSeq records the sequence of a load result and reports whether it
+// is current. Unsequenced results are always accepted.
+func (m *Model) acceptLoadSeq(seq uint64) bool {
+	if seq == 0 {
+		return true
+	}
+	if seq < m.lastLoadSeq {
+		return false
+	}
+	m.lastLoadSeq = seq
+	return true
+}
+
+// applyLoadFailure names the data problem. A failed reload keeps the last
+// completed state visible; only an initial failure resets the board.
+func (m *Model) applyLoadFailure(diagnostic string, wasLoaded bool) {
+	if wasLoaded {
+		m.ReloadDiagnostic = diagnostic
+		return
+	}
+	m.Diagnostic = diagnostic
+	m.State = ProjectState{}
+	m.SelectedRelease = ""
+	m.Releases = nil
+	m.SelectedObjective = ""
+	m.Objectives = nil
+	m.ObjectiveCursor = 0
+	m.Cards = groupTaskCards(nil)
+	m.FocusedCard = 0
+	m.Detail = nil
+	m.DetailOffset = 0
+	m.Issues = nil
+}
+
+// restoreLoadedSelection rebuilds the release, Objective and card scope from
+// the freshly loaded state and restores cursors and focus from the snapshot.
+func (m *Model) restoreLoadedSelection(snapshot reloadSnapshot, wasLoaded bool) {
+	state := m.State
+	m.Releases = orderedReleaseIDs(state.Index)
+	m.SelectedRelease = restoredRelease(state)
+	m.SelectedObjective = restoredObjectiveForRelease(*m, snapshot, state, wasLoaded, m.SelectedRelease)
+	m.Objectives = objectiveRowsForRelease(state.Index, m.SelectedRelease)
+	m.Cards = groupTaskCardsForRelease(state.Index, m.SelectedRelease, m.SelectedObjective)
 	m.restoreReleaseCursor(snapshot, wasLoaded)
 	m.restoreObjectiveCursor(snapshot, wasLoaded)
 	m.restoreFocus(snapshot, wasLoaded)
 	m.restoreOverlayOrigins()
-	if wasLoaded && snapshot.SelectedObjective != "" && snapshot.RouterObjective == routerObjective(msg.State) &&
-		!objectiveExists(msg.State.Index, snapshot.SelectedObjective) {
+}
+
+// noteVanishedSelection reports a previously selected Objective or Goal that
+// the reload no longer contains.
+func (m *Model) noteVanishedSelection(snapshot reloadSnapshot, wasLoaded bool) {
+	if !wasLoaded {
+		return
+	}
+	state := m.State
+	if snapshot.SelectedObjective != "" && snapshot.RouterObjective == routerObjective(state) &&
+		!objectiveExists(state.Index, snapshot.SelectedObjective) {
 		m.noteStatus(fmt.Sprintf("Objective %s no longer exists; selection moved to %s.", snapshot.SelectedObjective, objectiveLabel(m.SelectedObjective)))
 	}
-	if wasLoaded && snapshot.SelectedRelease != "" && snapshot.RouterRelease == routerRelease(msg.State) &&
-		!releaseExists(msg.State.Index, snapshot.SelectedRelease) {
+	if snapshot.SelectedRelease != "" && snapshot.RouterRelease == routerRelease(state) &&
+		!releaseExists(state.Index, snapshot.SelectedRelease) {
 		m.noteStatus(fmt.Sprintf("%s %s no longer exists; selection cleared.", goalLabel, snapshot.SelectedRelease))
 	}
-	m.refreshDetail()
-	if snapshot.DetailID != "" && m.Detail == nil && recordExists(msg.State.Index, snapshot.DetailKind, snapshot.DetailID) == false {
+}
+
+// reconcileDetailAndIssues refreshes the Issues overlay and reports a detail
+// or Issue focus that disappeared in the reload.
+func (m *Model) reconcileDetailAndIssues(snapshot reloadSnapshot) {
+	index := m.State.Index
+	if snapshot.DetailID != "" && m.Detail == nil && !recordExists(index, snapshot.DetailKind, snapshot.DetailID) {
 		m.noteStatus(fmt.Sprintf("%s %s no longer exists; detail closed.", detailKindLabel(snapshot.DetailKind), snapshot.DetailID))
 	}
 	m.refreshIssues()
-	if snapshot.IssueScopedTask != "" && !taskExists(msg.State.Index, snapshot.IssueScopedTask) {
+	switch {
+	case snapshot.IssueScopedTask != "" && !taskExists(index, snapshot.IssueScopedTask):
 		m.closeIssues()
 		m.noteStatus(fmt.Sprintf("Task %s no longer exists; Issues overlay closed.", snapshot.IssueScopedTask))
-	} else if snapshot.IssueDetailID != "" && !issueExists(msg.State.Index, snapshot.IssueDetailID) {
-		m.noteStatus(fmt.Sprintf("Issue %s no longer exists; focus moved to a neighboring issue.", snapshot.IssueDetailID))
-	} else if snapshot.IssueSelectedID != "" && !issueExists(msg.State.Index, snapshot.IssueSelectedID) {
-		m.noteStatus(fmt.Sprintf("Issue %s no longer exists; focus moved to a neighboring issue.", snapshot.IssueSelectedID))
+	case snapshot.IssueDetailID != "" && !issueExists(index, snapshot.IssueDetailID):
+		m.noteIssueFocusMoved(snapshot.IssueDetailID)
+	case snapshot.IssueSelectedID != "" && !issueExists(index, snapshot.IssueSelectedID):
+		m.noteIssueFocusMoved(snapshot.IssueSelectedID)
 	}
-	return m, nil
+}
+
+func (m *Model) noteIssueFocusMoved(id string) {
+	m.noteStatus(fmt.Sprintf("Issue %s no longer exists; focus moved to a neighboring issue.", id))
 }
 
 func routerRelease(state ProjectState) string {
@@ -957,6 +1011,12 @@ func (m *Model) restoreOverlayOrigins() {
 		m.DetailOrigin.ObjectiveCursor = m.ObjectiveCursor
 		m.DetailOrigin.FocusedColumn = m.FocusedColumn
 		m.DetailOrigin.FocusedCard = m.FocusedCard
+	}
+	if m.Health != nil {
+		m.Health.Origin.SidebarFocused = m.SidebarFocused
+		m.Health.Origin.ObjectiveCursor = m.ObjectiveCursor
+		m.Health.Origin.FocusedColumn = m.FocusedColumn
+		m.Health.Origin.FocusedCard = m.FocusedCard
 	}
 	if m.Issues != nil {
 		m.Issues.Origin.SidebarFocused = m.SidebarFocused

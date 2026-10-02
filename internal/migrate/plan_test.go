@@ -166,14 +166,16 @@ func TestPlan_v1Basic_archivesCompletedTaskAndReservesNoID(t *testing.T) {
 	}
 }
 
+type goalSelectionCase struct {
+	name          string
+	routerRelease string
+	releaseStatus string
+	wantGenerated bool
+	wantReason    string
+}
+
 func TestPlan_routerSelectsLiveGoalOrPlansContinuationGoal(t *testing.T) {
-	tests := []struct {
-		name          string
-		routerRelease string
-		releaseStatus string
-		wantGenerated bool
-		wantReason    string
-	}{
+	tests := []goalSelectionCase{
 		{name: "live selection is kept", routerRelease: "v1", releaseStatus: "in_progress"},
 		{name: "missing selection", routerRelease: "", releaseStatus: "in_progress", wantReason: "only existing live Goal"},
 		{name: "unresolvable selection", routerRelease: "v9-missing", releaseStatus: "in_progress", wantReason: "only existing live Goal"},
@@ -181,68 +183,75 @@ func TestPlan_routerSelectsLiveGoalOrPlansContinuationGoal(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			root := t.TempDir()
-			writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
-			writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
-				"task-building", tc.routerRelease, "", "", `"Continue migrated work."`))
-			writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
-				"---\nname: V1\nstatus: "+tc.releaseStatus+"\n---\n\n# V1\n")
+		t.Run(tc.name, func(t *testing.T) { checkGoalSelectionCase(t, tc) })
+	}
+}
 
-			p := mustPlan(t, root)
-			selection := p.GoalSelection
-			if selection.GoalID == "" {
-				t.Fatal("GoalSelection.GoalID is empty")
-			}
-			if selection.Generated != tc.wantGenerated {
-				t.Fatalf("GoalSelection.Generated = %t, want %t: %+v", selection.Generated, tc.wantGenerated, selection)
-			}
-			if tc.wantReason != "" && !strings.Contains(selection.Reason, tc.wantReason) {
-				t.Errorf("GoalSelection.Reason = %q, want it to contain %q", selection.Reason, tc.wantReason)
-			}
+func checkGoalSelectionCase(t *testing.T, tc goalSelectionCase) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".savepoint", "config.yml"), "quality_gates: {}\n")
+	writeFile(t, filepath.Join(root, ".savepoint", "router.md"), routerFixtureContent(
+		"task-building", tc.routerRelease, "", "", `"Continue migrated work."`))
+	writeFile(t, filepath.Join(root, ".savepoint", "releases", "v1", "v1-PRD.md"),
+		"---\nname: V1\nstatus: "+tc.releaseStatus+"\n---\n\n# V1\n")
 
-			generated := 0
-			for _, target := range p.Targets {
-				if target.Generated {
-					generated++
-					if target.GlobalID != selection.GoalID || target.Kind != TargetRelease || target.ReleaseStatus != string(data.ColumnInProgress) {
-						t.Errorf("generated target = %+v, want the selected live Goal", target)
-					}
-					if target.Legacy.Path != "" {
-						t.Errorf("generated Goal Legacy.Path = %q, want no V1 source", target.Legacy.Path)
-					}
-				}
-			}
-			wantGeneratedCount := 0
-			if tc.wantGenerated {
-				wantGeneratedCount = 1
-				if selection.GoalID != "G-001" {
-					t.Errorf("fallback GoalID = %q, want next free G-001", selection.GoalID)
-				}
-			} else {
-				if selection.GoalID != "R-001" {
-					t.Errorf("kept GoalID = %q, want mapped V1 Goal R-001", selection.GoalID)
-				}
-			}
-			if generated != wantGeneratedCount {
-				t.Errorf("generated Goal targets = %d, want %d", generated, wantGeneratedCount)
-			}
+	p := mustPlan(t, root)
+	selection := p.GoalSelection
+	if selection.GoalID == "" {
+		t.Fatal("GoalSelection.GoalID is empty")
+	}
+	if selection.Generated != tc.wantGenerated {
+		t.Fatalf("GoalSelection.Generated = %t, want %t: %+v", selection.Generated, tc.wantGenerated, selection)
+	}
+	if tc.wantReason != "" && !strings.Contains(selection.Reason, tc.wantReason) {
+		t.Errorf("GoalSelection.Reason = %q, want it to contain %q", selection.Reason, tc.wantReason)
+	}
 
-			preview := FormatPreview(p)
-			if tc.wantReason != "" && (!strings.Contains(preview, tc.wantReason) || !strings.Contains(preview, selection.GoalID)) {
-				t.Errorf("preview does not explain Goal selection %s (%s):\n%s", selection.GoalID, tc.wantReason, preview)
-			}
-			if strings.Contains(preview, "router now selects no Release") {
-				t.Errorf("preview retains obsolete no-Release outcome:\n%s", preview)
-			}
+	assertGeneratedGoalTargets(t, p, tc.wantGenerated)
 
-			manifest := BuildManifest(p)
-			for _, identity := range manifest.Identities {
-				if identity.GlobalID == selection.GoalID && tc.wantGenerated {
-					t.Errorf("generated Goal has a fabricated V1 identity mapping: %+v", identity)
-				}
-			}
-		})
+	preview := FormatPreview(p)
+	if tc.wantReason != "" && (!strings.Contains(preview, tc.wantReason) || !strings.Contains(preview, selection.GoalID)) {
+		t.Errorf("preview does not explain Goal selection %s (%s):\n%s", selection.GoalID, tc.wantReason, preview)
+	}
+	if strings.Contains(preview, "router now selects no Release") {
+		t.Errorf("preview retains obsolete no-Release outcome:\n%s", preview)
+	}
+
+	manifest := BuildManifest(p)
+	for _, identity := range manifest.Identities {
+		if identity.GlobalID == selection.GoalID && tc.wantGenerated {
+			t.Errorf("generated Goal has a fabricated V1 identity mapping: %+v", identity)
+		}
+	}
+}
+
+// assertGeneratedGoalTargets checks that exactly the expected continuation Goal
+// was generated, and that it is the selected live Goal with no V1 source.
+func assertGeneratedGoalTargets(t *testing.T, p *ConversionPlan, wantGenerated bool) {
+	t.Helper()
+	selection := p.GoalSelection
+	generated := 0
+	for _, target := range p.Targets {
+		if !target.Generated {
+			continue
+		}
+		generated++
+		if target.GlobalID != selection.GoalID || target.Kind != TargetRelease || target.ReleaseStatus != string(data.ColumnInProgress) {
+			t.Errorf("generated target = %+v, want the selected live Goal", target)
+		}
+		if target.Legacy.Path != "" {
+			t.Errorf("generated Goal Legacy.Path = %q, want no V1 source", target.Legacy.Path)
+		}
+	}
+	wantGeneratedCount, wantID := 0, "R-001"
+	if wantGenerated {
+		wantGeneratedCount, wantID = 1, "G-001"
+	}
+	if selection.GoalID != wantID {
+		t.Errorf("GoalID = %q, want %s", selection.GoalID, wantID)
+	}
+	if generated != wantGeneratedCount {
+		t.Errorf("generated Goal targets = %d, want %d", generated, wantGeneratedCount)
 	}
 }
 

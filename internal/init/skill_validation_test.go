@@ -133,3 +133,19 @@ func TestSavepointSkillsHaveNonEmptyTriggerAndWorkflow(t *testing.T) {
 		}
 	}
 }
+
+// forEachSkillFile reads one file from both the live and template skill trees
+// and calls check with each tree's name, the file's path and its content. A
+// file that cannot be read is reported and skipped.
+func forEachSkillFile(t *testing.T, file func(root string) string, check func(tree, path, content string)) {
+	t.Helper()
+	for tree, root := range v2SkillRoots() {
+		path := file(root)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: read %s: %v", tree, path, err)
+			continue
+		}
+		check(tree, path, string(data))
+	}
+}

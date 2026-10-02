@@ -7,7 +7,7 @@ description: Runs an independent, fresh-session Check on an explicitly requested
 
 ## Purpose
 
-Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate. This is the only role that can write those verdicts or close Issues as `verified`; the owner may resolve an Issue as `accepted` with Space or reopen any resolved Issue with Backspace in the board's Issues list. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
+Turn recorded evidence into an independent, immutable verdict. A Task Check is an optional local review; the Full Objective Check is mandatory as the higher-level integration gate. This is the only role that can write those verdicts or close Issues as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one. The checker's authority is bounded on both sides: it can assess a requested Task Check without turning that local result into Objective completion, and it can never manufacture clearance by repairing the implementation, rewriting acceptance criteria to match what was built, or updating Design as a form of remediation. Correction always goes back to the planner or executor; this skill verifies the repair afterward, in a later run, and never edits its own prior record to do so.
 
 ## Goal Context
 
@@ -15,8 +15,8 @@ Every Savepoint project has at least one live Goal selected by the router, and e
 
 ## Trigger
 
-Use this skill when router `state` is `check` for an explicitly requested
-Task Check or for a mandatory Objective Check.
+Use this skill when the `Next` line starts with `Check`, or router `state` is `check`, for an explicitly requested
+Task Check or for a mandatory Objective Check. A pasted `Next` line is the selection.
 
 This session must be fresh: independent from the executor's conversation that built the work under review. The same model is allowed; the same session is not. Model names are optional — nothing here authenticates identity, it only refuses to treat the executor's own session, or the owner's or planner's self-report, as an independent Check.
 
@@ -41,6 +41,7 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 1. Confirm the session is fresh. If this session built the work under review, state that limitation; do not proceed as an independent Check unless the user explicitly asks to continue anyway.
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check.
+   For a Full Objective Check, after the full gate passes run `savepoint health check O-### [dir]` and record its snapshot ID as `health_snapshot` (see Code Health Evidence below). A Task Check never runs it.
 4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`. After writing the record, run `savepoint resume` to strict-load the complete V2 index, including the new Check.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is a direct repair under the recorded Issue by default, or new or newly selected work linked to the Objective only when the repair needs planning (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective outcome.
@@ -50,6 +51,12 @@ Load `agent-skills/references/check-method.md` completely and apply it as writte
 ## Verification Gates
 
 A requested Task Check uses Quick evidence and remains optional; it does not replace handoff gates or mandatory integration evidence. Full Objective Checks use Full evidence and require current successful evidence from the project's full gate — `quality_gates` in `.savepoint/config.yml`, or the fuller gate the project's `AGENTS.md` names. A recorded full result is reusable only for a metadata-only correction with the original run documented and code, tests, fixtures, dependencies, and gate definitions proven unchanged since that run; otherwise require a fresh full run.
+
+## Code Health Evidence
+
+Only a Full Objective Check collects Code Health. Run the full gate first, then `savepoint health check O-### [dir]`; the health tests and coverage read the gate's reports, so tests are not run twice. Record the printed snapshot ID in the Check's `health_snapshot` field. The command saves only an `official` snapshot; a manual snapshot never counts as Check evidence.
+
+The verdict is supporting evidence, not clearance. A verdict that blocks clearance (a failing test, a high or critical vulnerability, a required instance that failed or is stale, or an opt-in `blocking` rule) prevents `CLEAR`. A project with no health configuration records "Code Health not configured"; that is not a finding. Optional failures and warnings never create Issues automatically: open one only through the existing Issue capture judgment. A signal between the aim and the watch line in `.savepoint/health/config.json` is an observation, never an Issue and never a reason for `NEEDS WORK`; list what remains in the Check body. `savepoint health setup` is human-only. Method details are in `agent-skills/references/check-method.md`.
 
 ## Write Boundary
 
@@ -72,6 +79,7 @@ result: CLEAR|NEEDS WORK
 checked_by: {role: checker, session: review-001}
 executed_session: build-001
 checked_at: '2026-09-19T00:00:00Z'
+health_snapshot: optional-snapshot-id
 reviewed:
   base_commit: optional-base-sha
   head_commit: optional-head-sha
@@ -80,6 +88,8 @@ reviewed:
 issues: []
 supersedes: null
 ```
+
+`health_snapshot` is optional and set only by a Full Objective Check that ran `savepoint health check`; it holds the official snapshot ID and nothing else.
 
 `reviewed` is optional scope metadata, including for a `CLEAR` Check; omit the
 whole block when there is no review scope metadata to record. When the block is
@@ -115,8 +125,8 @@ something that blocks the verdict. A `NEEDS WORK` Check records the Issues it
 finds; see `agent-skills/references/issue-capture.md` for the artifact
 template and rules. This skill may close an Issue as
 `verified` after verifying Check proof. The owner may resolve an Issue as
-`accepted` with Space or reopen any resolved Issue with Backspace in the
-board's Issues list; these owner actions do not create a `CLEAR` Check.
+`accepted` or reopen a resolved one; these owner actions do not create a
+`CLEAR` Check.
 
 ## Rules
 

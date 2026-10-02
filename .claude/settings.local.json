@@ -47,7 +47,8 @@
       "Bash(echo \"exit: $?\")",
       "Bash(find / -maxdepth 3 -iname \"*savepoint-cutover*\")",
       "Read(//home/user/code/savepoint-cutover-backups/0e7c9ed/**)",
-      "Bash(sha256sum repository.bundle worktree.tar NOTE.md)"
+      "Bash(sha256sum repository.bundle worktree.tar NOTE.md)",
+      "Bash(git push *)"
     ]
   }
 }

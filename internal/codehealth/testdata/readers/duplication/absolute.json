@@ -1,0 +1,7 @@
+{
+  "statistics": {"total": {"lines": 200, "sources": 3, "clones": 2, "duplicatedLines": 40, "percentage": 20}},
+  "duplicates": [
+    {"lines": 25, "firstFile": {"name": "/work/proj/src/a.go", "start": 3}, "secondFile": {"name": "/work/proj/src/b.go", "start": 9}},
+    {"lines": 15, "firstFile": {"name": "/elsewhere/lib/c.go", "start": 1}, "secondFile": {"name": "/work/proj/src/a.go", "start": 50}}
+  ]
+}

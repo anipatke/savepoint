@@ -97,7 +97,11 @@ func detailLines(detail RecordDetail, width int) []string {
 	}
 	lines = append(lines, detailSection("EXCEPTION", exceptionLines(detail.Evidence), width)...)
 	lines = append(lines, detailSection("REPLAN", replanLines(detail.Evidence), width)...)
-	lines = append(lines, detailSection("CHECKS", checkHistoryLines(detail.Checks), width)...)
+	checkLines := checkHistoryLines(detail.Checks)
+	if detail.Health != "" {
+		checkLines = append(checkLines, detail.Health)
+	}
+	lines = append(lines, detailSection("CHECKS", checkLines, width)...)
 	if detail.StyleReview != nil {
 		lines = append(lines, detailSection("CODE STYLE ("+detail.StyleReview.CheckID+")", styleReviewLines(detail.StyleReview), width)...)
 	}

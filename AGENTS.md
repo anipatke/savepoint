@@ -99,7 +99,7 @@ changelogs.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation, and its owning Objective from `planned` to `in_progress` at the same time. That is the only Objective status change an agent makes.
 - Only the user may set a Task to `status: done` or retreat a Task to an earlier status.
-- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel with Space and reopen any resolved Issue with Backspace. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
+- Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel and reopen a resolved one. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
 
@@ -107,7 +107,7 @@ Use Issue capture when planning, implementation, or a Check surfaces a defect, d
 
 - Issues live at `.savepoint/issues/I-###-slug.md`.
 - See `agent-skills/references/issue-capture.md` for the artifact template, search-before-creating rule, resolution dispositions, and role boundaries.
-- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` with Space or reopen a resolved Issue with Backspace from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
+- The executor reports repair evidence without granting clearance. A checker closes a proven repair as `verified`; the owner may resolve an Issue as `accepted` or reopen a resolved one from the Issues panel, without claiming technical `CLEAR`; the planner closes a promoted repair as `escalated`. See `agent-skills/references/issue-capture.md`.
 
 ## Implementation
 
@@ -162,13 +162,15 @@ make ci                        # CI full gate plus distribution and package chec
 | Module | Purpose |
 |--------|---------|
 | `main.go` | Wires CLI commands, version output, and embedded V2 templates. Its resume path loads the V2 project and router, resolves `data.Next`, and renders the result. |
-| `cmd/` | Parses arguments and dispatches init, board, doctor, upgrade-assets, migrate, and resume commands. It leaves project records, gates, and rendering to `internal/` packages. |
+| `cmd/` | Parses arguments and dispatches init, board, doctor, upgrade-assets, migrate, resume, health setup, health check, and health report commands. It leaves project records, gates, and rendering to `internal/` packages. |
 | `internal/init/` | Validates targets and scaffolds `templates/project-v2`. Upgrade-assets checks the project schema through `internal/data` and safely refreshes managed guidance and assets. |
 | `internal/board/` | Owns schema-aware board dispatch and rejects filter flags that do not apply to the project. V2 board rendering lives in `internal/board/v2`. |
 | `internal/board/v2/` | Implements the V2 TUI and non-TTY board, using the shared `data.Next` projection for the next action. It renders Objective, Task, and Goal navigation and details. |
 | `internal/buildtool/` | Runs named Go build and test gates and prepares cross-platform binaries, archives, and checksums. |
-| `internal/doctor/` | Runs read-only project diagnostics and configured quality gates. It reports Goal readiness through the canonical `internal/data` resolver and formats repair guidance. |
+| `internal/doctor/` | Runs read-only project diagnostics and configured quality gates. It reports Goal readiness through the canonical `internal/data` resolver and formats repair guidance. It also reports a Check's `health_snapshot` that points to a missing or non-official snapshot. |
 | `internal/data/` | Loads projects and owns the shared schema-version check, V2 records, indexes, lifecycle and gate decisions, Goal completion, and the `Next` projection. The retained V1 readers are used by `internal/migrate` to parse conversion inputs. |
+| `internal/codehealth/` | Defines the versioned Code Health configuration and snapshot records, their closed vocabularies, validation, and canonical snapshot and comparison-series identities, and deterministic classification, baselines, and trend wording over supplied results. It also holds read-only discovery (`Discover`), which inspects a bounded set of project files and PATH and proposes configuration; nothing runs, installs, or writes. Its proposals exclude Savepoint's own records (`.savepoint/**`) and the usual dependency, build and generated paths for every tool, and the duplication proposal also excludes `templates/**` and `**/testdata/**`. Setup (`Plan`, `SetupPlan`) reconciles those proposals with an existing configuration, keeps confirmed entries as they are, renders a plain-language preview, and on apply writes only the health configuration. Collection (`Collect`) is separate: it runs the configured tools one at a time without a shell, reads their reports through registered readers, and saves one immutable snapshot. `DefaultReaders` registers the production readers, one for every approved provider, so a failed, timed-out, unavailable, absent, or malformed instance keeps its own outcome without a value and never reads as bad code. A pure gate (`Evaluate`) turns an official snapshot and the configuration into a plain verdict of which results block clearance, with a deterministic renderer. A read-only dashboard projection (`LoadDashboard`, `DashboardFreshness`) describes the newest saved snapshot for the board in plain strings: per-signal labels, reasons, trends, provenance, history, and whether the code has moved on. It reads only saved configuration and a bounded window of snapshots (`Store.LoadWindow`: the newest 10 official ones, everything newer, and the newest; older files are parsed only for time and origin, not validated), runs no tool, and adds no classification rule. |
+| `internal/healthcheck/` | Runs the `health check` command's behavior for one Objective: strict-loads the V2 index, loads the health configuration, runs official `Collect`, and prints the snapshot ID with the rendered verdict. It also runs `health report`, which rewrites the report from the newest snapshot without running a tool. It never produces a manual snapshot. |
 | `internal/resume/` | Renders a resolved `data.Next` projection and shared evidence wording to plain text. It performs no filesystem, subprocess, network, or TTY access. |
 | `internal/migrate/` | Previews and converts V1 project files into V2 files and a source manifest. Apply requires a Git work tree and checks planned paths for modified, untracked, or ignored files before writing directly; a partial failure reports written paths and Git undo commands. |
 | `internal/testutil/` | Provides shared Go test fixtures and filesystem helpers for internal packages. |
@@ -188,7 +190,9 @@ upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
 
 ## CLI Rules
 
-Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below.
+Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below. `savepoint health setup [dir] [--apply]` is human-only: it suggests health tools and, with `--apply`, saves them; agents never run it. `savepoint health report [dir]` is likewise human-only: it rewrites `.savepoint/health/report.md` from the newest snapshot.
+
+Exception: agents may run `savepoint health check O-### [dir]` only during a Full Objective Check, after the full gate, to collect one official Code Health snapshot and record its ID in the Check. Task Checks and all other activity never run it.
 
 Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the V2 index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.
 
@@ -197,31 +201,3 @@ In this repository the command is built from source: if `savepoint` is not on `P
 ## Reporting to the Owner
 
 The Context Log stays technical and precise — it's the record a Check session verifies later. Chat replies to the owner are a different audience: a few plain sentences, no jargon, no file/function dumps unless asked. Say what happened and what's next; leave the mechanism in the Context Log.
-
-## V2 Routing
-
-This section records the V2 routing contract for a project whose `config.yml` declares `schema_version: 2`. It is active in this migrated repository; in a legacy V1 scaffold it is not active until migration, while this repository's active table is the four-state table above.
-
-| Router `state` | Skill |
-|-----------------|-------|
-| idea | savepoint-idea |
-| design | savepoint-design |
-| task | savepoint-task |
-| check | savepoint-check |
-
-`REPLAN REQUIRED`, returned by an executor that hits a materially invalid plan, routes back into `savepoint-design`. It is not a fifth router state — the state stays `design` while the planner resolves what broke.
-
-Three shared references back these four skills: `agent-skills/references/check-method.md`, `agent-skills/references/issue-capture.md`, and `agent-skills/references/commands-and-procedures.md`. Each carries `triggerable: false` frontmatter and is non-triggerable on its own — it is loaded in full by the skill that owns it (`savepoint-check` loads `check-method.md`; `savepoint-design`, `savepoint-task`, and `savepoint-check` each enter `issue-capture.md` from their own workflow; `savepoint-design` loads `commands-and-procedures.md` for config reconciliation), not invoked directly.
-
-`E47` ships this table as the scaffold default for new V2 projects; E50 activates it here after migration. The V1 scaffold and its skills are gone (O-021); they remain only as byte-preserved history.
-
-## Legacy V1 compatibility (not active)
-
-The following contract is retained only for reading archived V1 projects and this repository's own historical records; it is not an active route in this schema-2 repository, and the V1 scaffold that once shipped it is gone (O-021).
-
-| task-building | savepoint-build-task |
-| audit-pending | savepoint-audit-epic |
-
-An explicit request uses `savepoint-audit-task` while `state` stays `task-building`; that is not a router state and not a new state here.
-
-Task `stage` (build/test/audit): **required** when `status: in_progress` — Task lifecycle rules are owned by `internal/data`; legacy `phase` is parse compatibility only and must not be used in new task guidance. Only the user may set a task to `status: done`.

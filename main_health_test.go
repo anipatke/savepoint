@@ -1,0 +1,246 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func writeGoManifest(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example\n\ngo 1.22\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func initGoProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeGoManifest(t, dir)
+	if result := runMainForTest(t, []string{"init", dir}, ""); result.err != nil {
+		t.Fatalf("init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	return dir
+}
+
+func TestMainHelpListsHealthSetup(t *testing.T) {
+	result := runMainForTest(t, []string{"--help"}, "")
+	if !strings.Contains(result.stdout, "health setup [dir] [--apply]") || !strings.Contains(result.stdout, "health report [dir]") {
+		t.Fatalf("help = %q", result.stdout)
+	}
+	result = runMainForTest(t, []string{"health", "setup", "--help"}, "")
+	if result.err != nil || !strings.Contains(result.stdout, "Usage: health setup [dir] [--apply]") {
+		t.Fatalf("health setup --help = %q, %v", result.stdout, result.err)
+	}
+}
+
+func TestMainInitEndsWithHealthPreviewAndWritesNoHealthConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeGoManifest(t, dir)
+
+	result := runMainForTest(t, []string{"init", dir}, "")
+	if result.err != nil {
+		t.Fatalf("init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	for _, want := range []string{"Health tools", "New:", "savepoint health setup --apply", "OSV-Scanner contacts OSV.dev"} {
+		if !strings.Contains(result.stdout, want) {
+			t.Errorf("init output missing %q", want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".savepoint", "health")); err == nil {
+		t.Fatal("init wrote health files")
+	}
+}
+
+func TestMainInitStillSucceedsWhenHealthDiscoveryFails(t *testing.T) {
+	dir := initGoProject(t)
+	health := filepath.Join(dir, ".savepoint", "health")
+	if err := os.MkdirAll(health, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(health, "config.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runMainForTest(t, []string{"init", dir, "--force"}, "")
+	if result.err != nil {
+		t.Fatalf("init --force failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	// The warning goes to stderr, which runMainForTest only captures on failure;
+	// the preview must be absent and the broken file untouched.
+	if strings.Contains(result.stdout, "Health tools") {
+		t.Errorf("preview printed despite a broken config:\n%s", result.stdout)
+	}
+	if got, _ := os.ReadFile(filepath.Join(health, "config.json")); string(got) != "{broken" {
+		t.Errorf("broken config was modified: %q", got)
+	}
+}
+
+func TestMainHealthSetupPreviewWritesNothing(t *testing.T) {
+	dir := initGoProject(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"health", "setup", dir}, "")
+	if result.err != nil {
+		t.Fatalf("health setup failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "Nothing was written") || !strings.Contains(result.stdout, "--apply") {
+		t.Fatalf("preview = %q", result.stdout)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+}
+
+func TestMainHealthSetupApplyWritesOnlyConfigAndRepeatsAsUnchanged(t *testing.T) {
+	dir := initGoProject(t)
+	before := snapshotDir(t, dir)
+
+	result := runMainForTest(t, []string{"health", "setup", dir, "--apply"}, "")
+	if result.err != nil {
+		t.Fatalf("apply failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	after := snapshotDir(t, dir)
+	configRel := filepath.Join(".savepoint", "health", "config.json")
+	for path := range after {
+		if _, existed := before[path]; !existed && path != configRel {
+			t.Errorf("apply wrote %s", path)
+		}
+	}
+	if _, ok := after[configRel]; !ok {
+		t.Fatal("apply did not write the health config")
+	}
+	if !strings.Contains(result.stdout, "Saved") {
+		t.Errorf("apply output = %q", result.stdout)
+	}
+
+	result = runMainForTest(t, []string{"health", "setup", dir, "--apply"}, "")
+	if result.err != nil {
+		t.Fatalf("second apply failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "No changes") {
+		t.Errorf("second apply output = %q", result.stdout)
+	}
+	assertSameSnapshot(t, after, snapshotDir(t, dir))
+}
+
+func TestMainHealthSetupRefusesMissingAndNonSavepointDirectories(t *testing.T) {
+	plain := t.TempDir()
+	writeGoManifest(t, plain)
+	for name, dir := range map[string]string{
+		"not a Savepoint project": plain,
+		"does not exist":          filepath.Join(plain, "nope"),
+	} {
+		result := runMainForTest(t, []string{"health", "setup", dir, "--apply"}, "")
+		if result.err == nil {
+			t.Errorf("%s: setup succeeded, want a failure", name)
+			continue
+		}
+		if !strings.Contains(result.stderr, name) {
+			t.Errorf("%s: stderr = %q", name, result.stderr)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(plain, ".savepoint")); err == nil {
+		t.Fatal("a refused setup created .savepoint")
+	}
+}
+
+func TestMainHealthRequiresSetupSubcommand(t *testing.T) {
+	if result := runMainForTest(t, []string{"health"}, ""); result.err == nil {
+		t.Fatal("bare health succeeded")
+	}
+}
+
+func TestMainHelpListsHealthCheck(t *testing.T) {
+	result := runMainForTest(t, []string{"--help"}, "")
+	if !strings.Contains(result.stdout, "health check O-### [dir]") {
+		t.Fatalf("help = %q", result.stdout)
+	}
+	result = runMainForTest(t, []string{"health", "--help"}, "")
+	if result.err != nil || !strings.Contains(result.stdout, "health setup") || !strings.Contains(result.stdout, "health check O-### [dir]") {
+		t.Fatalf("health --help = %q, %v", result.stdout, result.err)
+	}
+}
+
+func TestMainHealthCheckRefusesBadInputAndUnconfiguredProjects(t *testing.T) {
+	dir := initGoProject(t)
+	for name, args := range map[string][]string{
+		"missing ID":        {"health", "check"},
+		"malformed ID":      {"health", "check", "T-001"},
+		"unknown flag":      {"health", "check", "O-001", "--manual"},
+		"unknown Objective": {"health", "check", "O-999", dir},
+	} {
+		if result := runMainForTest(t, args, ""); result.err == nil {
+			t.Errorf("%s: health check succeeded, want a failure", name)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".savepoint", "health", "snapshots")); err == nil {
+		t.Fatal("a refused health check saved a snapshot")
+	}
+}
+
+func TestMainUpgradeAssetsPreservesAdoptedHealthAndAuthoredContent(t *testing.T) {
+	dir := initGoProject(t)
+	if result := runMainForTest(t, []string{"health", "setup", dir, "--apply"}, ""); result.err != nil {
+		t.Fatalf("setup failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+
+	// Owner-authored state that an asset upgrade must carry through byte for byte.
+	authored := map[string]string{
+		filepath.Join(".savepoint", "health", "config.json"):          "{\"version\":1,\"capabilities\":[],\"owner\":\"edited\"}\n",
+		filepath.Join(".savepoint", "health", "snapshots", "a1.json"): "{\"id\":\"a1\"}\n",
+		filepath.Join(".savepoint", "health", "reports", "keep.md"):   "# owner report\n",
+		filepath.Join(".savepoint", "Design.md"):                      "# My edited Design\n",
+		filepath.Join(".savepoint", "Health-Check.md"):                "# my health policy\n",
+		filepath.Join("agent-skills", "savepoint-task", "SKILL.md"):   "my edited skill\n",
+		filepath.Join("notes", "unmanaged.txt"):                       "unmanaged\n",
+	}
+	for rel, content := range authored {
+		path := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	configBefore, err := os.ReadFile(filepath.Join(dir, ".savepoint", "config.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before := snapshotDir(t, dir)
+	if result := runMainForTest(t, []string{"upgrade-assets", dir, "--dry-run"}, ""); result.err != nil {
+		t.Fatalf("dry-run failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	assertSameSnapshot(t, before, snapshotDir(t, dir))
+
+	result := runMainForTest(t, []string{"upgrade-assets", dir}, "")
+	if result.err != nil {
+		t.Fatalf("upgrade failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	for rel, want := range authored {
+		got, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			t.Fatalf("%s: %v", rel, err)
+		}
+		if string(got) != want {
+			t.Errorf("%s changed: got %q, want %q", rel, got, want)
+		}
+	}
+	configAfter, err := os.ReadFile(filepath.Join(dir, ".savepoint", "config.yml"))
+	if err != nil || string(configAfter) != string(configBefore) {
+		t.Errorf("config.yml changed or vanished: err = %v", err)
+	}
+	if !strings.Contains(result.stdout, "Conflicts: 1") || !strings.Contains(result.stdout, "incoming written to .new") {
+		t.Errorf("edited skill conflict not reported with its recovery path:\n%s", result.stdout)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "agent-skills", "savepoint-task", "SKILL.md.new")); err != nil {
+		t.Errorf("incoming skill sidecar missing: %v", err)
+	}
+
+	after := snapshotDir(t, dir)
+	if result := runMainForTest(t, []string{"upgrade-assets", dir}, ""); result.err != nil {
+		t.Fatalf("repeat upgrade failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	assertSameSnapshot(t, after, snapshotDir(t, dir))
+}
