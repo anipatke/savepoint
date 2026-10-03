@@ -363,7 +363,7 @@ func (d *discoverer) propose(c component) []Proposal {
 				add(d.reportProposal(c, CapabilityCoverage, ProviderVitestV8, "@vitest/coverage-v8 is installed, so Vitest can write a JSON coverage report."))
 			} else {
 				add(Proposal{Config: CapabilityConfig{Capability: CapabilityCoverage, Provider: ProviderVitestV8},
-					Gap: GapUnsupportedStack, Reason: "Vitest coverage needs @vitest/coverage-v8, which is not in package.json"})
+					Gap: GapUnsupportedStack, Reason: "Vitest coverage needs @vitest/coverage-v8, which is not in package.json. Install it at the same version as vitest (npm install -D @vitest/coverage-v8@<your vitest version>); a different version fails"})
 			}
 		}
 	}
@@ -388,7 +388,40 @@ func (d *discoverer) propose(c component) []Proposal {
 		osv.Reason = "no supported lockfile found for OSV-Scanner; " + osv.Reason
 	}
 	add(osv)
+	d.separateReports(out)
 	return out
+}
+
+// separateReports gives each report-only proposal in a component its own report
+// path. Two runners that default to the same file, such as Vitest and pytest
+// both writing junit.xml, would overwrite each other and each be read as the
+// other's result. The first proposal keeps the conventional name; a later one
+// is prefixed with its runner.
+func (d *discoverer) separateReports(props []Proposal) {
+	taken := map[string]bool{}
+	for i := range props {
+		p := &props[i]
+		report := p.Config.Report
+		if _, reportOnly := reportOnlyProviders[p.Config.Provider]; !reportOnly || report == "" {
+			continue
+		}
+		if !taken[report] {
+			taken[report] = true
+			continue
+		}
+		runner := strings.SplitN(string(p.Config.Provider), "-", 2)[0]
+		renamed := path.Join(path.Dir(report), runner+"-"+path.Base(report))
+		p.Config.Report = renamed
+		p.GateFlag = strings.ReplaceAll(p.GateFlag, report, renamed)
+		p.Reason = strings.ReplaceAll(p.Reason, report, renamed)
+		taken[renamed] = true
+		if _, err := os.Stat(d.abs(renamed)); err == nil {
+			p.Gap = GapNone
+		} else {
+			p.Gap = GapNoReportYet
+		}
+		p.Reason += " It has its own report file because " + report + " is already used by another test runner."
+	}
 }
 
 func (c component) hasLockfile() bool {
@@ -440,7 +473,7 @@ func (d *discoverer) executedProposal(c component, cap Capability, p ProviderKey
 	}
 	if _, err := d.lookPath(ex.Executable); err != nil {
 		prop.Gap = GapMissingExecutable
-		prop.Reason += " " + ex.Executable + " is not on PATH; install it yourself, Savepoint does not."
+		prop.Reason += " " + ex.Executable + " is not on PATH; install it yourself, Savepoint does not (" + ex.Install + ")."
 	}
 	return prop
 }

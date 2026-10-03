@@ -12,6 +12,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: observed
     note: 'Observed with I-125 and I-126: a migrating user had no guidance that savepoint is a dev tool or that npx prefers a local install. Not repaired; deferred by owner.'
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: executor, session: user-request}
+    kind: repair_attempted
+    note: 'README Upgrading now says: update or remove an existing savepoint dependency (npm install -D savepoint@latest, or npx savepoint@latest), that npx runs the project copy first so an old 1.x install runs instead, and that doctor, migrate and upgrade-assets warn about one (I-126). Short, same tone. Not run: a read-through by the owner.'
 ---
 # I-127: README does not say where the savepoint package belongs or why npx can pick a stale copy
 

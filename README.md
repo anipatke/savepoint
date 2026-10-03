@@ -84,6 +84,13 @@ It runs no analysis of its own, installs nothing, and is supporting evidence,
 not proof the code is correct or secure. Missing or broken reports show as
 "Unknown", never as "fine". See `savepoint health setup` to get started.
 
+You bring the tools and the reports. `savepoint health setup` lists what it
+found, how to install anything missing (`lizard` from pip, `jscpd` from npm,
+`osv-scanner` from its releases), and the command that writes each test or
+coverage report, such as `vitest run --reporter=junit --outputFile=junit.xml`.
+Run those first, then `savepoint health check`. Add the generated files
+(`junit.xml`, `coverage/`) to `.gitignore`.
+
 ## What's in your repo
 
 ```text
@@ -111,6 +118,11 @@ without a server.
 Coming from V1? `npx savepoint migrate` shows a preview and writes nothing
 until you add `--apply`. Already on V2? `npx savepoint upgrade-assets --dry-run`
 shows what would change. Skills you've edited are kept.
+
+Already have `savepoint` in `package.json`? Update it (`npm install -D
+savepoint@latest`) or remove it and use `npx savepoint@latest`. `npx` runs the
+copy in your project first, so an old 1.x install runs instead of this one.
+`doctor`, `migrate` and `upgrade-assets` warn you when they find one.
 
 ## FAQ
 

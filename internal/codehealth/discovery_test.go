@@ -517,3 +517,60 @@ func TestDiscoverUnrepresentableNameBecomesNote(t *testing.T) {
 		t.Errorf("expected a note for the over-long instance name, got %s", summary(got))
 	}
 }
+
+func TestDiscoverMissingExecutableReasonSaysHowToInstall(t *testing.T) {
+	root := tree(t, map[string]string{"go.mod": "module x\n"})
+	got := discover(t, root, "lizard", "jscpd", "osv-scanner")
+	for p, want := range map[ProviderKey]string{
+		ProviderLizardCSV:      "pip install lizard",
+		ProviderJscpdJSON:      "npm install -g jscpd",
+		ProviderOSVScannerJSON: "https://google.github.io/osv-scanner/installation/",
+	} {
+		if x := find(t, got, ".", p); !strings.Contains(x.Reason, want) {
+			t.Errorf("%s reason %q does not say how to install (%q)", p, x.Reason, want)
+		}
+	}
+}
+
+func TestDiscoverVitestCoverageGapSaysHowToAddThePackage(t *testing.T) {
+	root := tree(t, map[string]string{
+		"package.json":     `{"scripts":{"test":"vitest run"}}`,
+		"vitest.config.ts": "export default {}\n",
+	})
+	p := find(t, discover(t, root), ".", ProviderVitestV8)
+	for _, want := range []string{"npm install -D @vitest/coverage-v8@", "same version as vitest"} {
+		if !strings.Contains(p.Reason, want) {
+			t.Errorf("coverage gap reason %q is missing %q", p.Reason, want)
+		}
+	}
+}
+
+func TestDiscoverVitestCoverageCommandStillWritesAReportWhenTestsFail(t *testing.T) {
+	root := tree(t, map[string]string{
+		"package.json": `{"devDependencies":{"vitest":"^5","@vitest/coverage-v8":"^5"}}`,
+	})
+	if p := find(t, discover(t, root), ".", ProviderVitestV8); !strings.Contains(p.GateFlag, "--coverage.reportOnFailure=true") {
+		t.Errorf("coverage command %q writes no report while a test fails", p.GateFlag)
+	}
+}
+
+func TestDiscoverTwoTestRunnersGetSeparateReportFiles(t *testing.T) {
+	root := tree(t, map[string]string{
+		"package.json":   `{"devDependencies":{"vitest":"^5"}}`,
+		"pyproject.toml": "[tool.pytest.ini_options]\naddopts = \"-q\"\n",
+	})
+	got := discover(t, root)
+	js, py := find(t, got, ".", ProviderVitestJUnit), find(t, got, ".", ProviderPytestJUnit)
+	if js.Config.Report == py.Config.Report {
+		t.Fatalf("both runners were given %q; each would overwrite the other", js.Config.Report)
+	}
+	if js.Config.Report != "junit.xml" || py.Config.Report != "pytest-junit.xml" {
+		t.Errorf("reports = %q and %q, want junit.xml and pytest-junit.xml", js.Config.Report, py.Config.Report)
+	}
+	if py.GateFlag != "pytest --junitxml=pytest-junit.xml" {
+		t.Errorf("pytest command %q does not write the proposed report", py.GateFlag)
+	}
+	if !strings.Contains(py.Reason, "pytest-junit.xml") || strings.Contains(py.Reason, "writes junit.xml") {
+		t.Errorf("pytest reason still names the shared path: %q", py.Reason)
+	}
+}

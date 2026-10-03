@@ -163,3 +163,53 @@ func snapshotTree(t *testing.T, root string) string {
 	}
 	return b.String()
 }
+
+func TestDoctorReportsInstancesSharingAReportFileAsAdvisory(t *testing.T) {
+	project := t.TempDir()
+	root := filepath.Join(project, ".savepoint")
+	writeCompleteV2Project(t, root)
+	baseline := RunV2Checks(root)
+
+	cfg := `{"version":1,"capabilities":[` +
+		`{"capability":"tests","provider":"pytest-junit","report":"junit.xml"},` +
+		`{"capability":"tests","provider":"vitest-junit","report":"junit.xml"}]}`
+	testutil.WriteFile(t, filepath.Join(root, "health", "config.json"), cfg)
+	report := RunV2Checks(root)
+
+	var found *HealthFinding
+	for _, f := range report.HealthFindings() {
+		if strings.Contains(f.Message, "health-report-shared") {
+			f := f
+			found = &f
+		}
+	}
+	if found == nil {
+		t.Fatalf("no shared-report finding in %+v", report.HealthFindings())
+	}
+	if found.Category != HealthPendingReview || !strings.Contains(found.Message, "junit.xml") || found.Repair == "" {
+		t.Errorf("finding = %+v", *found)
+	}
+	if report.HasProblems() != baseline.HasProblems() {
+		t.Errorf("HasProblems() changed from %v to %v; it must stay advisory", baseline.HasProblems(), report.HasProblems())
+	}
+}
+
+func TestDoctorIgnoresMissingOrDistinctHealthReports(t *testing.T) {
+	project := t.TempDir()
+	root := filepath.Join(project, ".savepoint")
+	writeCompleteV2Project(t, root)
+	for _, f := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(f.Message, "health-report-shared") {
+			t.Errorf("finding without a health configuration: %+v", f)
+		}
+	}
+	cfg := `{"version":1,"capabilities":[` +
+		`{"capability":"tests","provider":"pytest-junit","report":"pytest-junit.xml"},` +
+		`{"capability":"tests","provider":"vitest-junit","report":"junit.xml"}]}`
+	testutil.WriteFile(t, filepath.Join(root, "health", "config.json"), cfg)
+	for _, f := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(f.Message, "health-report-shared") {
+			t.Errorf("finding for distinct report files: %+v", f)
+		}
+	}
+}

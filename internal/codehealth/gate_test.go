@@ -244,3 +244,74 @@ func TestEvaluateKeepsEvidenceLimitations(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderSaysWhenNothingWasMeasured(t *testing.T) {
+	cfg := gateConfig(
+		CapabilityConfig{Capability: CapabilityComplexity, Provider: ProviderLizardCSV, Executable: "lizard"},
+		CapabilityConfig{Capability: CapabilityTests, Provider: ProviderVitestJUnit, Report: "junit.xml"},
+		CapabilityConfig{Capability: CapabilityTests, Provider: ProviderPytestJUnit, Report: "pytest-junit.xml"},
+	)
+	s := gateSnapshot(ClassificationUnknown,
+		gateResult(CapabilityComplexity, ProviderLizardCSV, OutcomeUnavailable, FreshnessUnknown, 0),
+		gateResult(CapabilityTests, ProviderVitestJUnit, OutcomeAbsent, FreshnessUnknown, 0),
+		gateResult(CapabilityTests, ProviderPytestJUnit, OutcomeAbsent, FreshnessUnknown, 0),
+		CapabilityResult{Capability: CapabilityCoverage, Outcome: OutcomeNotConfigured, Freshness: FreshnessUnknown},
+	)
+	for i := range s.Results {
+		s.Results[i].Name = []string{"", "a", "b", ""}[i]
+	}
+	cfg.Capabilities[1].Name, cfg.Capabilities[2].Name = "a", "b"
+	v, err := Evaluate(s, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.NoData() {
+		t.Fatal("NoData() = false for a report in which nothing was measured")
+	}
+	out := v.Render()
+	for _, want := range []string{
+		"Code Health does not block clearance.\nNo signal produced data, so nothing was judged. Do not read this as a pass.\n",
+		"the tool was unavailable. Install lizard (pip install lizard), then run the check again.",
+		"no report was found. Run your tests so they write the report first, for example: vitest run --reporter=junit --outputFile=junit.xml.",
+		"for example: pytest --junitxml=pytest-junit.xml.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("render is missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "healthy") {
+		t.Errorf("render says healthy:\n%s", out)
+	}
+}
+
+func TestNoDataLineAbsentOnceAnythingIsMeasured(t *testing.T) {
+	cfg := gateConfig(
+		CapabilityConfig{Capability: CapabilityTests, Provider: ProviderGoTestJSON},
+		CapabilityConfig{Capability: CapabilityCoverage, Provider: ProviderGoCoverProfile},
+	)
+	s := gateSnapshot(ClassificationGood,
+		gateResult(CapabilityTests, ProviderGoTestJSON, OutcomeAvailable, FreshnessFresh, 0),
+		gateResult(CapabilityCoverage, ProviderGoCoverProfile, OutcomeAbsent, FreshnessUnknown, 0),
+	)
+	v, err := Evaluate(s, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.NoData() || strings.Contains(v.Render(), "No signal produced data") {
+		t.Errorf("one measured result must clear the no-data line:\n%s", v.Render())
+	}
+	if (Verdict{}).NoData() {
+		t.Error("an empty verdict is the no-results case, not no-data")
+	}
+}
+
+func TestRemedyOmittedWhenNothingSpecificCanBeSaid(t *testing.T) {
+	r := ResultVerdict{Provider: ProviderGoTestJSON, Kind: KindCollectionFailure, Outcome: OutcomeFailed}
+	if got := r.remedy(); got != "" {
+		t.Errorf("remedy for a generic failure = %q", got)
+	}
+	r = ResultVerdict{Provider: ProviderLizardCSV, Kind: KindNoFinding, Outcome: OutcomeUnavailable}
+	if got := r.remedy(); got != "" {
+		t.Errorf("remedy for a measured result = %q", got)
+	}
+}

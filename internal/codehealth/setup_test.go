@@ -290,3 +290,86 @@ func TestUnsupportedProposalsAreListedNotAdded(t *testing.T) {
 		t.Fatal("preview does not list what was skipped")
 	}
 }
+
+func TestMissingToolAttentionSaysHowToInstall(t *testing.T) {
+	root := goProject(t)
+	store := NewStore(root)
+	if _, err := planFor(t, root).Apply(store); err != nil {
+		t.Fatal(err)
+	}
+	out := planFor(t, root, "lizard").Preview()
+	if !strings.Contains(out, "lizard is not on PATH; install it yourself, Savepoint does not (pip install lizard)") {
+		t.Errorf("attention line has no install hint:\n%s", out)
+	}
+}
+
+func TestAbsentReportAttentionNamesTheCommandThatWritesIt(t *testing.T) {
+	cfg := Config{Version: ConfigVersion, Capabilities: []CapabilityConfig{
+		{Capability: CapabilityTests, Provider: ProviderVitestJUnit, Report: "junit.xml"},
+		{Capability: CapabilityTests, Provider: ProviderPytestJUnit, Report: "pytest-junit.xml"},
+	}}
+	plan := Plan(&cfg, nil, Probe{LookPath: func(string) (string, error) { return "", nil }, Exists: func(string) bool { return false }})
+	out := plan.Preview()
+	for _, want := range []string{"vitest run --reporter=junit --outputFile=junit.xml", "pytest --junitxml=pytest-junit.xml"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("preview does not give the command %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestSetupWarnsWhenTwoInstancesShareAReportFile(t *testing.T) {
+	cfg := Config{Version: ConfigVersion, Capabilities: []CapabilityConfig{
+		{Capability: CapabilityTests, Provider: ProviderPytestJUnit, Report: "junit.xml"},
+		{Capability: CapabilityTests, Provider: ProviderVitestJUnit, Report: "junit.xml"},
+	}}
+	plan := Plan(&cfg, nil, Probe{LookPath: func(string) (string, error) { return "", nil }, Exists: func(string) bool { return true }})
+	if len(plan.Warnings) != 1 {
+		t.Fatalf("warnings = %v, want one", plan.Warnings)
+	}
+	for _, want := range []string{"pytest-junit", "vitest-junit", "junit.xml", "own report file", "vitest-junit.xml"} {
+		if !strings.Contains(plan.Warnings[0], want) {
+			t.Errorf("warning %q is missing %q", plan.Warnings[0], want)
+		}
+	}
+	if !strings.Contains(plan.Preview(), "Warnings:") {
+		t.Error("preview has no warnings section")
+	}
+	if len(plan.New) != 0 || len(plan.Attention) != 0 {
+		t.Errorf("a warning must not edit or drop configured entries: %+v", plan)
+	}
+}
+
+func TestSharedReportsIgnoresDistinctAndEmptyPaths(t *testing.T) {
+	cfg := Config{Version: ConfigVersion, Capabilities: []CapabilityConfig{
+		{Capability: CapabilityTests, Provider: ProviderVitestJUnit, Report: "junit.xml"},
+		{Capability: CapabilityTests, Provider: ProviderPytestJUnit, Report: "pytest-junit.xml"},
+		{Capability: CapabilityComplexity, Provider: ProviderLizardCSV, Executable: "lizard"},
+	}}
+	if got := SharedReports(cfg); len(got) != 0 {
+		t.Errorf("SharedReports() = %+v, want none", got)
+	}
+}
+
+func TestSetupSaysWhichGeneratedReportsGitDoesNotIgnore(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Version: ConfigVersion, Capabilities: []CapabilityConfig{
+		{Capability: CapabilityTests, Provider: ProviderVitestJUnit, Report: "junit.xml"},
+		{Capability: CapabilityCoverage, Provider: ProviderVitestV8, Report: "coverage/coverage-final.json"},
+		{Capability: CapabilityTests, Provider: ProviderGoTestJSON, Report: "go-test.json"},
+	}}
+	if got := unignoredReports(root, cfg); !reflect.DeepEqual(got, []string{"junit.xml", "coverage/", "go-test.json"}) {
+		t.Errorf("without a .gitignore: %v", got)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("# build\nnode_modules\n/coverage/\n*.json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := unignoredReports(root, cfg); !reflect.DeepEqual(got, []string{"junit.xml"}) {
+		t.Errorf("with coverage/ and *.json ignored: %v, want only junit.xml", got)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("junit.xml\ncoverage\ngo-test.json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := unignoredReports(root, cfg); len(got) != 0 {
+		t.Errorf("with everything ignored: %v", got)
+	}
+}

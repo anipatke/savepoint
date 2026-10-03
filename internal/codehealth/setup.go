@@ -44,6 +44,12 @@ type SetupPlan struct {
 	Unchanged    []CapabilityConfig
 	Attention    []Attention
 	NotSuggested []Proposal
+	// Warnings are problems with the configuration as it stands, such as two
+	// instances reading one report file. Setup never rewrites configured entries.
+	Warnings []string
+	// Generated lists report files and directories that your own gate writes and
+	// Git does not ignore yet.
+	Generated []string
 
 	merged  Config
 	invalid error
@@ -80,6 +86,9 @@ func Plan(existing *Config, proposals []Proposal, probe Probe) SetupPlan {
 	if len(plan.New) > 0 {
 		plan.invalid = plan.merged.Validate()
 	}
+	for _, shared := range SharedReports(plan.merged) {
+		plan.Warnings = append(plan.Warnings, shared.Warning())
+	}
 	return plan
 }
 
@@ -97,10 +106,18 @@ func (pr Probe) problem(cc CapabilityConfig) string {
 	switch {
 	case cc.Executable != "":
 		if _, err := pr.LookPath(cc.Executable); err != nil {
-			return cc.Executable + " is not on PATH"
+			problem := cc.Executable + " is not on PATH"
+			if hint := installHint(cc.Provider); hint != "" {
+				problem += "; install it yourself, Savepoint does not (" + hint + ")"
+			}
+			return problem
 		}
 	case cc.Report != "" && !pr.Exists(cc.Report):
-		return "no report found at " + cc.Report + " yet; your own gate writes it"
+		problem := "no report found at " + cc.Report + " yet; your own gate writes it"
+		if gate := reportGate(cc.Provider); gate != "" {
+			problem += ", for example: " + reportCommandFor(gate, cc.Provider, cc.Report)
+		}
+		return problem
 	}
 	for _, pattern := range cc.Scope {
 		if dir := scopeDir(pattern); dir != "" && !pr.Exists(dir) {
@@ -140,7 +157,9 @@ func PlanProject(ctx context.Context, root string, lookPath LookPath) (SetupPlan
 	default:
 		return SetupPlan{}, fmt.Errorf("existing health configuration cannot be used; fix or remove it first: %w", err)
 	}
-	return Plan(existing, proposals, ProjectProbe(root, lookPath)), nil
+	plan := Plan(existing, proposals, ProjectProbe(root, lookPath))
+	plan.Generated = unignoredReports(root, plan.merged)
+	return plan, nil
 }
 
 // Apply saves the configuration with the new proposals added. It reports
@@ -236,6 +255,15 @@ func (p SetupPlan) writeBody(b *strings.Builder) {
 	}
 	if p.usesOSV() {
 		b.WriteString("\nOSV-Scanner contacts OSV.dev: the scanner, not Savepoint, sends your package names and versions there.\n")
+	}
+	if len(p.Warnings) > 0 {
+		b.WriteString("\nWarnings:\n")
+		for _, w := range p.Warnings {
+			fmt.Fprintf(b, "  ! %s\n", w)
+		}
+	}
+	if len(p.Generated) > 0 {
+		fmt.Fprintf(b, "\nYour own gate writes these report files, and Git does not ignore them yet: %s. Add them to .gitignore unless you mean to commit them.\n", strings.Join(p.Generated, ", "))
 	}
 	if p.invalid != nil {
 		fmt.Fprintf(b, "\nThe new tools conflict with your configuration and cannot be added: %v\n", p.invalid)

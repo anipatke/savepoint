@@ -477,3 +477,42 @@ func TestRunV2ChecksFullyValidGoalProjectHasNoMissingGoalOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestDoctorReportsStaleSavepointDependencyWithoutFailing(t *testing.T) {
+	project := t.TempDir()
+	root := filepath.Join(project, ".savepoint")
+	writeCompleteV2Project(t, root)
+	baseline := RunV2Checks(root)
+
+	testutil.WriteFile(t, filepath.Join(project, "package.json"), `{"dependencies":{"savepoint":"^1.3.0"}}`)
+	report := RunV2Checks(root)
+
+	var found *HealthFinding
+	for _, f := range report.HealthFindings() {
+		if strings.Contains(f.Message, "stale-savepoint-dependency") {
+			f := f
+			found = &f
+		}
+	}
+	if found == nil {
+		t.Fatalf("no stale-dependency finding in %+v", report.HealthFindings())
+	}
+	if found.Category != HealthPendingReview || !strings.Contains(found.Message, "^1.3.0") || !strings.Contains(found.Repair, "npm install -D savepoint@latest") {
+		t.Errorf("finding = %+v, want an advisory finding naming the range and the repair", *found)
+	}
+	if report.HasProblems() != baseline.HasProblems() {
+		t.Errorf("HasProblems() = %v with the stale dependency, %v without; it must stay advisory", report.HasProblems(), baseline.HasProblems())
+	}
+}
+
+func TestDoctorIgnoresCurrentSavepointDependency(t *testing.T) {
+	project := t.TempDir()
+	root := filepath.Join(project, ".savepoint")
+	writeCompleteV2Project(t, root)
+	testutil.WriteFile(t, filepath.Join(project, "package.json"), `{"devDependencies":{"savepoint":"^2.1.3"}}`)
+	for _, f := range RunV2Checks(root).HealthFindings() {
+		if strings.Contains(f.Message, "stale-savepoint-dependency") {
+			t.Errorf("unexpected finding for a current dependency: %+v", f)
+		}
+	}
+}

@@ -80,7 +80,27 @@ jobs:
             npm install
           fi
 
-      - run: npm publish
+      # npm gives every publish the "latest" tag unless told otherwise, so a
+      # maintenance release on an older major (1.x while 2.x is current) would
+      # become what `npx savepoint` installs. Publish an older major under its
+      # own tag, v<major>, and leave "latest" alone. Same or newer majors, and
+      # the first publish, still use "latest".
+      - name: Choose npm dist-tag
+        id: disttag
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          LOCAL="${{ steps.check.outputs.version }}"
+          LATEST=$(npm view savepoint dist-tags.latest 2>/dev/null || true)
+          LOCAL_MAJOR="${LOCAL%%.*}"
+          LATEST_MAJOR="${LATEST%%.*}"
+          TAG=latest
+          if [ -n "$LATEST_MAJOR" ] && [ "$LOCAL_MAJOR" -lt "$LATEST_MAJOR" ]; then
+            TAG="v$LOCAL_MAJOR"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Publishing $LOCAL under dist-tag $TAG (latest is ${LATEST:-unset})."
+
+      - run: npm publish --tag "${{ steps.disttag.outputs.tag }}"
         if: steps.check.outputs.publish == 'true'
         env:
           VERSION: v${{ steps.check.outputs.version }}

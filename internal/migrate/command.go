@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/legacydep"
 )
 
 // Distinct migrate target diagnostics, so a caller (and a test) can tell a
@@ -153,6 +154,7 @@ func RunCommand(opts CommandOptions) (int, error) {
 			return 0, nil
 		}
 		fmt.Fprint(opts.Stdout, opts.preview(plan))
+		opts.warnLegacyDependency(root)
 		return 0, nil
 	}
 
@@ -171,6 +173,7 @@ func RunCommand(opts CommandOptions) (int, error) {
 			return 1, err
 		}
 		fmt.Fprint(opts.Stdout, opts.preview(plan))
+		opts.warnLegacyDependency(root)
 		return 0, nil
 	}
 
@@ -190,7 +193,17 @@ func RunCommand(opts CommandOptions) (int, error) {
 		return 1, err
 	}
 	fmt.Fprintln(opts.Stdout, applyOutcomeMessage(result, plan))
+	opts.warnLegacyDependency(root)
 	return 0, nil
+}
+
+// warnLegacyDependency tells the user when the project still depends on an old
+// Savepoint, which `npx savepoint` would run instead of this release. It only
+// reads package.json; it never edits it.
+func (o CommandOptions) warnLegacyDependency(root string) {
+	if found, ok := legacydep.Detect(root); ok {
+		fmt.Fprintf(o.Stdout, "\nWarning: %s\n%s\n", found.Message(), found.Repair())
+	}
 }
 
 // NewOperationID generates the run identifier shown in migration previews.

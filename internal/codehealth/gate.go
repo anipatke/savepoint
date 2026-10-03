@@ -46,6 +46,10 @@ type ResultVerdict struct {
 	Disposition Disposition
 	Kind        Kind
 	Reason      string
+	// Outcome and Report let a collection failure name what fixes it. Both are
+	// empty for a result the snapshot has no entry for.
+	Outcome Outcome
+	Report  string
 }
 
 // Verdict is the policy outcome for one official snapshot. It says only
@@ -53,6 +57,15 @@ type ResultVerdict struct {
 type Verdict struct {
 	SnapshotID string
 	Results    []ResultVerdict
+}
+
+// NoData reports whether nothing was measured: every result is a collection
+// failure or not configured. A report like that blocks nothing because it found
+// nothing, not because the code is fine.
+func (v Verdict) NoData() bool {
+	return len(v.Results) > 0 && !slices.ContainsFunc(v.Results, func(r ResultVerdict) bool {
+		return r.Kind != KindCollectionFailure && r.Kind != KindNotConfigured
+	})
 }
 
 // Blocks reports whether any result blocks clearance.
@@ -163,6 +176,7 @@ func judge(r CapabilityResult, cc CapabilityConfig, class Classification) Result
 		rv.Kind = KindCollectionFailure
 		rv.Reason = failureStatements[r.Outcome]
 		rv.Disposition = failureDisposition(cc.Required)
+		rv.Outcome, rv.Report = r.Outcome, cc.Report
 		return rv
 	}
 	var statements []statement
@@ -231,6 +245,8 @@ func count(n float64) string { return fmt.Sprintf("%.0f", n) }
 // Headlines are the only statements about the whole report. Neither says clear
 // or healthy: clearance belongs to the independent checker.
 const (
+	textNoData = "No signal produced data, so nothing was judged. Do not read this as a pass."
+
 	headlineBlocks    = "Code Health blocks clearance."
 	headlineNoBlock   = "Code Health does not block clearance."
 	headlineNoResults = "Code Health has no results."
@@ -263,6 +279,10 @@ func (v Verdict) Render() string {
 		b.WriteString(headlineNoBlock)
 	}
 	b.WriteString("\n")
+	if v.NoData() {
+		b.WriteString(textNoData)
+		b.WriteString("\n")
+	}
 	for _, r := range v.Results {
 		b.WriteString(r.line())
 		b.WriteString("\n")
@@ -285,5 +305,28 @@ func (r ResultVerdict) line() string {
 	if r.Disposition == DispositionNotConfigured {
 		return fmt.Sprintf("- %s: %s", label, dispositionLabels[r.Disposition])
 	}
-	return fmt.Sprintf("- %s [%s]: %s; %s: %s.", label, need, dispositionLabels[r.Disposition], kindLabels[r.Kind], r.Reason)
+	line := fmt.Sprintf("- %s [%s]: %s; %s: %s.", label, need, dispositionLabels[r.Disposition], kindLabels[r.Kind], r.Reason)
+	if remedy := r.remedy(); remedy != "" {
+		line += " " + remedy
+	}
+	return line
+}
+
+// remedy says what to do about a collection failure, from what the catalogue
+// knows about the provider. It is empty when nothing specific can be said.
+func (r ResultVerdict) remedy() string {
+	if r.Kind != KindCollectionFailure {
+		return ""
+	}
+	switch r.Outcome {
+	case OutcomeUnavailable:
+		if ex, ok := executedProviders[r.Provider]; ok && ex.Executable != "" {
+			return fmt.Sprintf("Install %s (%s), then run the check again.", ex.Executable, ex.Install)
+		}
+	case OutcomeAbsent:
+		if gate := reportGate(r.Provider); gate != "" {
+			return fmt.Sprintf("Run your tests so they write the report first, for example: %s.", reportCommandFor(gate, r.Provider, r.Report))
+		}
+	}
+	return ""
 }

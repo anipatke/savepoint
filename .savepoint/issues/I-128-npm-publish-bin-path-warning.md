@@ -12,6 +12,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: observed
     note: 'Observed in the 2.1.1 and 2.1.2 Publish Package logs. Registry metadata checked: bin is intact (savepoint -> bin/savepoint.js). Not repaired; deferred by owner.'
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: executor, session: user-request}
+    kind: repair_attempted
+    note: 'package.json bin is now bin/savepoint.js. Reproduced the warning with the old ./bin/savepoint.js spelling in a scratch package (npm publish --dry-run prints auto-corrected / bin[savepoint] was invalid and removed) and confirmed the new spelling prints none. npm test passes. Not run: a real publish; confirm the next Publish Package log has no warning.'
 ---
 # I-128: Every npm publish warns that the bin script name was invalid and removed
 

@@ -909,3 +909,34 @@ func helperArgs(args []string) []string {
 	}
 	return nil
 }
+
+func TestMainWarnsAboutStaleSavepointDependencyOnMigrateAndUpgradeAssets(t *testing.T) {
+	dir := t.TempDir()
+	if result := runMainForTest(t, []string{"init", dir}, ""); result.err != nil {
+		t.Fatalf("savepoint init failed: %v\nstderr: %s", result.err, result.stderr)
+	}
+	for _, command := range [][]string{{"migrate", dir}, {"upgrade-assets", dir}} {
+		clean := runMainForTest(t, command, "")
+		if strings.Contains(clean.stdout, "Warning: package.json pins savepoint") {
+			t.Fatalf("%v warned without a package.json: %q", command, clean.stdout)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"dependencies":{"savepoint":"^1.3.0"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range [][]string{{"migrate", dir}, {"upgrade-assets", dir}} {
+		result := runMainForTest(t, command, "")
+		if result.err != nil {
+			t.Fatalf("%v failed: %v\nstderr: %s", command, result.err, result.stderr)
+		}
+		for _, want := range []string{"Warning: package.json pins savepoint ^1.3.0 in dependencies", "npm install -D savepoint@latest"} {
+			if !strings.Contains(result.stdout, want) {
+				t.Errorf("%v output missing %q:\n%s", command, want, result.stdout)
+			}
+		}
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "package.json"))
+	if string(raw) != `{"dependencies":{"savepoint":"^1.3.0"}}` {
+		t.Errorf("package.json was edited: %s", raw)
+	}
+}

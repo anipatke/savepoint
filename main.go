@@ -20,6 +20,7 @@ import (
 	"github.com/opencode/savepoint/internal/doctor"
 	"github.com/opencode/savepoint/internal/healthcheck"
 	savepointinit "github.com/opencode/savepoint/internal/init"
+	"github.com/opencode/savepoint/internal/legacydep"
 	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
 )
@@ -186,6 +187,13 @@ func upgradeAssetsRunner(ctx context.Context, opts cmd.UpgradeAssetsOptions) err
 	}
 
 	fmt.Print(report.Format())
+	projectDir := opts.Dir
+	if root, err := data.FindProjectRoot(opts.Dir); err == nil {
+		projectDir = root
+	}
+	if found, ok := legacydep.Detect(projectDir); ok {
+		fmt.Printf("\nWarning: %s\n%s\n", found.Message(), found.Repair())
+	}
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/legacydep"
 	"github.com/opencode/savepoint/internal/resume"
 )
 
@@ -53,6 +54,15 @@ func RunV2Checks(root string) *DiagnosticReport {
 		})
 	}
 
+	if found, ok := legacydep.Detect(filepath.Dir(root)); ok {
+		report.Project = append(report.Project, Problem{
+			File:     found.File,
+			Message:  "[stale-savepoint-dependency] " + found.Message(),
+			Repair:   found.Repair(),
+			Category: HealthPendingReview,
+		})
+	}
+
 	index, err := data.LoadV2Index(root)
 	if err != nil {
 		name := v2DiagnosticName(err)
@@ -66,6 +76,7 @@ func RunV2Checks(root string) *DiagnosticReport {
 
 	report.Project = append(report.Project, v2ConsistencyProblems(index)...)
 	report.Project = append(report.Project, healthSnapshotRefProblems(root, index)...)
+	report.Project = append(report.Project, healthSharedReportProblems(root)...)
 	for _, duplicate := range index.DuplicateObjectiveRanks {
 		file := root
 		if goal := index.Releases[duplicate.GoalID]; goal != nil {

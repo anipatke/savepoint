@@ -67,3 +67,25 @@ func healthSnapshotRefProblems(root string, index *data.V2Index) []Problem {
 	}
 	return problems
 }
+
+const healthReportShared = "health-report-shared"
+
+// healthSharedReportProblems reports configured Code Health instances that
+// read the same report file. It only reads the configuration, and a missing or
+// unreadable one is not a finding here: doctor never requires Code Health.
+func healthSharedReportProblems(root string) []Problem {
+	cfg, err := codehealth.NewStore(filepath.Dir(root)).LoadConfig()
+	if err != nil {
+		return nil
+	}
+	var problems []Problem
+	for _, shared := range codehealth.SharedReports(cfg) {
+		problems = append(problems, Problem{
+			File:     filepath.Join(root, "health", "config.json"),
+			Message:  "[" + healthReportShared + "] " + shared.Warning(),
+			Repair:   "Edit the report path of one instance in .savepoint/health/config.json and make the matching command write that file.",
+			Category: HealthPendingReview,
+		})
+	}
+	return problems
+}

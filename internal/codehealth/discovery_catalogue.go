@@ -99,22 +99,25 @@ var reportOnlyProviders = map[ProviderKey]reportOnly{
 	ProviderVitestJUnit:    {"junit.xml", "vitest run --reporter=junit --outputFile=junit.xml"},
 	ProviderPytestJUnit:    {"junit.xml", "pytest --junitxml=junit.xml"},
 	ProviderGoCoverProfile: {"coverage.out", "go test -coverprofile=coverage.out ./..."},
-	ProviderVitestV8:       {"coverage/coverage-final.json", "vitest run --coverage --coverage.provider=v8 --coverage.reporter=json"},
-	ProviderCoveragePyJSON: {"coverage.json", "coverage run -m pytest && coverage json -o coverage.json"},
+	ProviderVitestV8:       {"coverage/coverage-final.json", "vitest run --coverage --coverage.provider=v8 --coverage.reporter=json --coverage.reportOnFailure=true"},
+	ProviderCoveragePyJSON: {"coverage.json", "coverage run -m pytest; coverage json -o coverage.json"},
 }
 
 // executed describes a provider Savepoint runs. Args builds the argument vector
 // from the target directory, the report path, and the translated exclusions.
 type executed struct {
 	Executable string
-	Reason     string
-	Report     func(instance string) string
-	Args       func(target, report string, exclusions []string) []string
+	// Install says how to get the executable; Savepoint never installs it.
+	Install string
+	Reason  string
+	Report  func(instance string) string
+	Args    func(target, report string, exclusions []string) []string
 }
 
 var executedProviders = map[ProviderKey]executed{
 	ProviderLizardCSV: {
 		Executable: "lizard",
+		Install:    "pip install lizard",
 		Reason:     "Lizard measures the highest cyclomatic complexity across Go, JavaScript, TypeScript, and Python.",
 		Report:     func(i string) string { return reportsDir + "/" + i + "-lizard.csv" },
 		Args: func(target, report string, ex []string) []string {
@@ -127,6 +130,7 @@ var executedProviders = map[ProviderKey]executed{
 	},
 	ProviderJscpdJSON: {
 		Executable: "jscpd",
+		Install:    "npm install -g jscpd",
 		Reason:     "jscpd measures the share of duplicated lines across Go, JavaScript, TypeScript, and Python.",
 		Report:     func(i string) string { return reportsDir + "/" + i + "/jscpd-report.json" },
 		Args: func(target, report string, ex []string) []string {
@@ -138,6 +142,7 @@ var executedProviders = map[ProviderKey]executed{
 	},
 	ProviderOSVScannerJSON: {
 		Executable: "osv-scanner",
+		Install:    "see https://google.github.io/osv-scanner/installation/",
 		Reason:     "OSV-Scanner lists known vulnerabilities in resolved dependencies. It runs in its normal online mode: the scanner, not Savepoint, sends package names and versions to OSV.dev.",
 		Report:     func(i string) string { return reportsDir + "/" + i + "-osv.json" },
 		Args: func(target, report string, ex []string) []string {
@@ -161,4 +166,14 @@ func lizardExclude(pattern string) string {
 		p = "*/" + p
 	}
 	return p
+}
+
+// installHint says how to get the executable behind an executed provider, or "".
+func installHint(p ProviderKey) string {
+	return executedProviders[p].Install
+}
+
+// reportGate is the command that writes a report-only provider's report, or "".
+func reportGate(p ProviderKey) string {
+	return reportOnlyProviders[p].Gate
 }
