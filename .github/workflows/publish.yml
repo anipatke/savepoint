@@ -64,7 +64,8 @@ jobs:
       # npm gives every publish the "latest" tag unless told otherwise, so a
       # maintenance release on an older major (1.x while 2.x is current) would
       # become what `npx savepoint` installs. Publish an older major under its
-      # own tag, v<major>, and leave "latest" alone. Same or newer majors, and
+      # own tag, legacy-<major> (npm rejects v<major>, which reads as a version
+      # range), and leave "latest" alone. Same or newer majors, and
       # the first publish, still use "latest".
       - name: Choose npm dist-tag
         id: disttag
@@ -76,7 +77,7 @@ jobs:
           LATEST_MAJOR="${LATEST%%.*}"
           TAG=latest
           if [ -n "$LATEST_MAJOR" ] && [ "$LOCAL_MAJOR" -lt "$LATEST_MAJOR" ]; then
-            TAG="v$LOCAL_MAJOR"
+            TAG="legacy-$LOCAL_MAJOR"
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Publishing $LOCAL under dist-tag $TAG (latest is ${LATEST:-unset})."
