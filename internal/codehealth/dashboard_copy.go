@@ -356,29 +356,34 @@ var rowSignOff = map[Disposition]string{
 	DispositionReported: textSignOffAdvisory,
 }
 
-// headlineText counts the signals whose value is not Good. With nothing judged
+// headlineText counts the signals (one per capability, by its worst instance)
+// whose value is not Good. With nothing judged
 // at all it says so rather than claiming all is fine. When every value is fine
 // but the snapshot's overall label is not Good (stale, partial or thin history),
 // it says to re-run, the one thing that clears it.
 func headlineText(rows []DashboardRow, overall Classification) string {
-	look, judged := 0, 0
+	judged := 0
 	for _, row := range rows {
-		if row.shownLabel() != ClassificationGood {
-			look++
-		}
 		if row.Label != ClassificationUnknown {
 			judged++
+		}
+	}
+	signals := signalRows(rows)
+	look := 0
+	for _, row := range signals {
+		if row.shownLabel() != ClassificationGood {
+			look++
 		}
 	}
 	switch {
 	case judged == 0:
 		return textHeadlineNone
 	case look == 0 && overall != ClassificationGood:
-		return fmt.Sprintf(textHeadlineConfirm, len(rows))
+		return fmt.Sprintf(textHeadlineConfirm, len(signals))
 	case look == 0:
-		return fmt.Sprintf(textHeadlineAllFine, len(rows))
+		return fmt.Sprintf(textHeadlineAllFine, len(signals))
 	}
-	return fmt.Sprintf(textHeadlineSomeLook, look, len(rows), pluralize(look, "needs", "need"))
+	return fmt.Sprintf(textHeadlineSomeLook, look, len(signals), pluralize(look, "needs", "need"))
 }
 
 // whenText writes a stored time in the machine's local zone. An unreadable

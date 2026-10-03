@@ -229,3 +229,19 @@ func TestChipCountsGoodByValueLikeTheDashboard(t *testing.T) {
 		t.Errorf("LoadChip() = %+v, want 4/5 and the dashboard's own chip %+v", got, d.Chip())
 	}
 }
+
+func TestHeadlineCountsSignalsNotInstances(t *testing.T) {
+	good := func(c Capability) DashboardRow { return DashboardRow{Capability: c, Label: ClassificationGood} }
+	rows := []DashboardRow{
+		good(CapabilityTests), {Capability: CapabilityTests, Label: ClassificationNeedsAttention},
+		good(CapabilityCoverage), good(CapabilityComplexity), good(CapabilityDuplication),
+		{Capability: CapabilityDependencyVulnerability, Label: ClassificationNeedsAttention},
+	}
+	if got, want := headlineText(rows, ClassificationNeedsAttention), "2 of 5 need a look"; got != want {
+		t.Errorf("headline = %q, want %q", got, want)
+	}
+	allGood := []DashboardRow{good(CapabilityTests), good(CapabilityTests), good(CapabilityCoverage)}
+	if got, want := headlineText(allGood, ClassificationGood), "All 2 look fine"; got != want {
+		t.Errorf("all-good headline = %q, want %q", got, want)
+	}
+}

@@ -49,24 +49,33 @@ func (d Dashboard) Chip() Chip {
 		return Chip{State: ChipNoCheck}
 	}
 	c := Chip{State: ChipMeasured, Overall: d.Overall, Label: d.OverallText}
-	worst := map[Capability]DashboardRow{}
-	var order []Capability
-	for _, row := range d.Rows {
-		at, seen := worst[row.Capability]
-		if !seen {
-			order = append(order, row.Capability)
-		}
-		if !seen || WorseInstance(row, at) {
-			worst[row.Capability] = row
-		}
-	}
-	c.Signals = len(order)
-	for _, capability := range order {
-		if worst[capability].shownLabel() == ClassificationGood {
+	signals := signalRows(d.Rows)
+	c.Signals = len(signals)
+	for _, row := range signals {
+		if row.shownLabel() == ClassificationGood {
 			c.Good++
 		}
 	}
 	return c
+}
+
+// signalRows reduces dashboard rows, one per configured instance, to one per
+// signal: the worst instance, in the order each signal first appears. Counts
+// shown to the user are counts of signals, never of instances.
+func signalRows(rows []DashboardRow) []DashboardRow {
+	var out []DashboardRow
+	at := map[Capability]int{}
+	for _, row := range rows {
+		i, seen := at[row.Capability]
+		switch {
+		case !seen:
+			at[row.Capability] = len(out)
+			out = append(out, row)
+		case WorseInstance(row, out[i]):
+			out[i] = row
+		}
+	}
+	return out
 }
 
 // WorseInstance orders instances of one signal: blocking first, then by label

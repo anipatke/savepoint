@@ -1,6 +1,7 @@
 package codehealth
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -127,8 +128,8 @@ func TestDashboardSignOffEvaluateErrorKeepsDashboard(t *testing.T) {
 func TestDashboardHeadline(t *testing.T) {
 	rows := func(labels ...Classification) []DashboardRow {
 		var out []DashboardRow
-		for _, l := range labels {
-			out = append(out, DashboardRow{Label: l})
+		for i, l := range labels {
+			out = append(out, DashboardRow{Capability: Capability(fmt.Sprintf("signal-%d", i)), Label: l})
 		}
 		return out
 	}

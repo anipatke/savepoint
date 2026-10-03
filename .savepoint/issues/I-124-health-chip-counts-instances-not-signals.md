@@ -17,6 +17,14 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'Reproduced on the real deep-time data: LoadChip gave Good:1 Signals:6 before and Good:1 Signals:5 after. Dashboard.Chip now groups rows by capability and counts a signal Good only when its worst instance is Good. The worst-instance ordering moved to codehealth.WorseInstance and the popover uses it, so chip and popover share one rule. TestDashboardChipCountsSignalsNotInstances covers every-instance-good (5/5) and one-bad-instance (4/5). The old chip test built rows without a Capability, so it now sets them. Full go test ./... passes. Not run: the board rendered on deep-time, and the narrow-width chip tests only via the existing suite.'
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: owner, session: user-request}
+    kind: reopened
+    note: 'After 2.1.2, deep-time still showed "Official check · 4 of 6 need a look". The first repair fixed only the header chip; the dashboard headline (headlineText in dashboard_copy.go) still counted instances. With coverage now configured, deep-time has 6 rows for 5 signals.'
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: executor, session: user-request}
+    kind: repair_attempted
+    note: 'Added signalRows (one row per signal, the worst instance) and used it in both Dashboard.Chip and headlineText. Real deep-time data: headline "4 of 6 need a look" before, "3 of 5 need a look" after; chip stays 2/5. New TestHeadlineCountsSignalsNotInstances; the old headline table test now gives its rows distinct capabilities. Full go test ./... passes. Not run: the rendered board. Other row counts in internal/board were searched; the remaining len(rows) uses are Issues lists, not health.'
 ---
 # I-124: Header health chip counts configured instances, so it shows /6 instead of /5
 
