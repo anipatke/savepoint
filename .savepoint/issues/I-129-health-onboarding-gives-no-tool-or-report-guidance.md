@@ -12,6 +12,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: observed
     note: 'Owner called this an onboarding improvement opportunity after a deep-time health check returned no data for any signal. Not repaired.'
+  - at: '2026-10-03T00:00:00Z'
+    actor: {role: executor, session: user-request}
+    kind: observed
+    note: 'Further onboarding evidence from deep-time. (1) pytest-junit and vitest-junit shared junit.xml; with pytest not installed, the pytest line reported 3 failing, the vitest report failures counted twice, and the headline blocked clearance. (2) Coverage was Not suggested because @vitest/coverage-v8 was absent; the message gave no install command or version rule (it must equal the vitest version, 5.0.3 here). (3) The suggested report command, vitest run --coverage --coverage.provider=v8 --coverage.reporter=json, wrote no report while any test failed, because Vitest skips coverage on failure unless --coverage.reportOnFailure=true; the result is the same silent no report found. (4) junit.xml and coverage/ are generated at the project root and are not gitignored. Not repaired.'
 ---
 # I-129: Code Health onboarding gives no guidance on installing tools or producing test reports
 
@@ -31,6 +35,9 @@ Both test providers were configured with the same report path, `junit.xml`; if b
 
 - `health setup` preview lists, for each proposed tool that is not on PATH, how to get it (for example `pip install lizard`, `npm i -g jscpd`, the osv-scanner install page), and for each test provider the command that writes its report at the configured path.
 - `health check` and `health report` turn "unavailable" and "no report" into the same actionable hint, and say plainly when no signal produced data, not only "does not block clearance". Decide whether an all-empty check should still save an official snapshot.
-- Two test providers cannot be proposed with the same report path.
+- Two test providers cannot be proposed with the same report path, and a provider whose runner is not installed is not counted from another provider's report.
+- A "Not suggested" reason for a missing package says how to add it, including the version rule (for Vitest coverage, the same version as vitest).
+- The suggested Vitest coverage command includes `--coverage.reportOnFailure=true`, so a first run with a failing test still produces a report; check the other suggested report commands for the same trap.
+- Setup suggests ignoring the generated report paths (`junit.xml`, `coverage/`), or says plainly that they are generated files.
 - README Code Health section lists the tool prerequisites. Coordinate wording with I-127.
 - Each of these is shown by a test on a project with no tools and no reports, and the existing health tests keep passing.
