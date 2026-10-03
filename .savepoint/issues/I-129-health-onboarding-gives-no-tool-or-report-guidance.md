@@ -2,11 +2,16 @@
 id: I-129
 title: Code Health onboarding gives no guidance on installing tools or producing test reports
 type: other
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: deep-time-migration-2026-10-03}
   at: '2026-10-03T00:00:00Z'
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user-request}
+  at: '2026-10-03T03:10:00Z'
+  reason: 'Owner accepted after the executor recheck on released Savepoint 2.1.4 (see the rechecked history entry). Not a CLEAR Check.'
 history:
   - at: '2026-10-03T00:00:00Z'
     actor: {role: executor, session: user-request}
@@ -24,6 +29,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: rechecked
     note: 'Rechecked with the published 2.1.4 in a clean scratch project (vitest and pytest declared, lockfile present, none of lizard, jscpd, osv-scanner or pytest on PATH, no reports). health setup: install hint for each missing tool, pytest-junit.xml separate from junit.xml, the vitest coverage package instruction, and the not-ignored report files note. After setup --apply, health check O-001 prints ''No signal produced data, so nothing was judged. Do not read this as a pass.'' and a remedy on every failure line (Install lizard (pip install lizard), jscpd (npm install -g jscpd), the osv-scanner install page; the exact pytest and vitest report commands). Not run: reportOnFailure end to end in a project with a failing test beyond the earlier deep-time run, which wrote coverage-final.json. Executor evidence only; it does not claim verified. The Issue stays open for a checker or an explicit owner decision.'
+  - at: '2026-10-03T03:10:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: 'Owner directed: accept I-129. Recorded as accepted, not verified; no CLEAR Check backs it.'
 ---
 # I-129: Code Health onboarding gives no guidance on installing tools or producing test reports
 

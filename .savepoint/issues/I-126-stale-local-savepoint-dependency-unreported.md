@@ -2,11 +2,16 @@
 id: I-126
 title: Migrate, upgrade-assets and doctor do not warn about a stale local savepoint dependency
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: deep-time-migration-2026-10-03}
   at: '2026-10-03T00:00:00Z'
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user-request}
+  at: '2026-10-03T03:10:00Z'
+  reason: 'Owner accepted after the executor recheck on released Savepoint 2.1.4 (see the rechecked history entry). Not a CLEAR Check.'
 history:
   - at: '2026-10-03T00:00:00Z'
     actor: {role: executor, session: user-request}
@@ -20,6 +25,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: rechecked
     note: 'Rechecked with the published 2.1.4 in a scratch project with package.json pinning savepoint ^1.3.0: doctor reports an advisory [stale-savepoint-dependency] finding with the repair; migrate and upgrade-assets --dry-run each print the Warning and repair; package.json is unchanged afterwards. With a devDependency ^2.1.4, neither doctor nor migrate warns. An early apparent miss on upgrade-assets --dry-run was my shell quoting, not the product; rerun correctly it warns. Executor evidence only; it does not claim verified. The Issue stays open for a checker or an explicit owner decision.'
+  - at: '2026-10-03T03:10:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: 'Owner directed: accept I-126. Recorded as accepted, not verified; no CLEAR Check backs it.'
 ---
 # I-126: Migrate, upgrade-assets and doctor do not warn about a stale local savepoint dependency
 

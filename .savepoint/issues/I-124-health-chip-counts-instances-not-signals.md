@@ -2,12 +2,17 @@
 id: I-124
 title: Header health chip counts configured instances, so it shows /6 instead of /5
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: deep-time-migration-2026-10-03}
   at: '2026-10-03T00:00:00Z'
 tasks: [T-076, T-079]
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user-request}
+  at: '2026-10-03T03:10:00Z'
+  reason: 'Owner accepted after the executor recheck on released Savepoint 2.1.4 (see the rechecked history entry). Not a CLEAR Check.'
 history:
   - at: '2026-10-03T00:00:00Z'
     actor: {role: executor, session: user-request}
@@ -29,6 +34,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: rechecked
     note: 'Rechecked on the released 2.1.4 in deep-time through a real pseudo-terminal board: header chip shows ''♥ Health 3/5'', and the Health popover (H) shows ''3 Oct 10:25 · Official check · 2 of 5 need a look'' with five signal rows, the tests row labelled ''Tests failing ×2'' and ''worst of 2''. Chip and headline agree (3 Good, 2 need a look, 5 signals). Before the repair the same project showed /6 and ''4 of 6''. Executor evidence only; it does not claim verified. The Issue stays open for a checker or an explicit owner decision.'
+  - at: '2026-10-03T03:10:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: 'Owner directed: accept I-124. Recorded as accepted, not verified; no CLEAR Check backs it.'
 ---
 # I-124: Header health chip counts configured instances, so it shows /6 instead of /5
 
