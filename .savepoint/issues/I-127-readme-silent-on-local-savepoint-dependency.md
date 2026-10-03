@@ -2,11 +2,16 @@
 id: I-127
 title: README does not say where the savepoint package belongs or why npx can pick a stale copy
 type: drift
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: deep-time-migration-2026-10-03}
   at: '2026-10-03T00:00:00Z'
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user-request}
+  at: '2026-10-03T03:30:00Z'
+  reason: 'Owner accepted on direction after the executor repair (see the repair_attempted history entry). Not a CLEAR Check.'
 history:
   - at: '2026-10-03T00:00:00Z'
     actor: {role: executor, session: user-request}
@@ -16,6 +21,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'README Upgrading now says: update or remove an existing savepoint dependency (npm install -D savepoint@latest, or npx savepoint@latest), that npx runs the project copy first so an old 1.x install runs instead, and that doctor, migrate and upgrade-assets warn about one (I-126). Short, same tone. Not run: a read-through by the owner.'
+  - at: '2026-10-03T03:30:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: 'Owner directed: mark I-127 resolved. Recorded as accepted, not verified. README wording accepted by the owner without a separate read-through record.'
 ---
 # I-127: README does not say where the savepoint package belongs or why npx can pick a stale copy
 

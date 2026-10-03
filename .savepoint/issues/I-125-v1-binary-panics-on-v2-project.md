@@ -2,11 +2,16 @@
 id: I-125
 title: Savepoint 1.x panics on a V2 project instead of pointing to V2
 type: defect
-status: open
+status: resolved
 source:
   kind: report
   actor: {role: owner, session: deep-time-migration-2026-10-03}
   at: '2026-10-03T00:00:00Z'
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: user-request}
+  at: '2026-10-03T03:30:00Z'
+  reason: 'Owner accepted on direction after the executor recheck (see the rechecked history entry). Not a CLEAR Check.'
 history:
   - at: '2026-10-03T00:00:00Z'
     actor: {role: executor, session: user-request}
@@ -20,6 +25,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: rechecked
     note: 'Released as savepoint@1.3.2 (tag v1.3.2, branch release/1.3.x, commit 2fc470a), published by CI under dist-tag legacy-1; latest stayed 2.1.4. Two defects were caught on the way: the guard lived in its own file but the 1.x build tool compiles main.go alone (undefined: v2ProjectNotice in make ci), so it was moved into main.go; and npm rejects v1 as a dist-tag (a valid semver range), which failed the first publish before anything reached the registry, so the workflow now uses legacy-<major> on master and the 1.x branch. Checked on the published package: npx savepoint@1.3.2 health check in a V2 project prints the V2 notice and exits 1; plain npx savepoint is still 2.1.4; ^1.3.0 now resolves to 1.3.2; --version prints v1.3.2. 1.x go test and make ci pass. Caveat: a project whose lockfile pins 1.3.0 only receives 1.3.2 after npm update. Executor evidence only; the Issue stays open for a checker or an owner decision.'
+  - at: '2026-10-03T03:30:00Z'
+    actor: {role: executor, session: user-request}
+    kind: owner_decision
+    note: 'Owner directed: mark I-125 resolved. Recorded as accepted, not verified. 1.3.2 is released and checked on the published package.'
 ---
 # I-125: Savepoint 1.x panics on a V2 project instead of pointing to V2
 
