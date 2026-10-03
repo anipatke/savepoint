@@ -25,6 +25,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'Added signalRows (one row per signal, the worst instance) and used it in both Dashboard.Chip and headlineText. Real deep-time data: headline "4 of 6 need a look" before, "3 of 5 need a look" after; chip stays 2/5. New TestHeadlineCountsSignalsNotInstances; the old headline table test now gives its rows distinct capabilities. Full go test ./... passes. Not run: the rendered board. Other row counts in internal/board were searched; the remaining len(rows) uses are Issues lists, not health.'
+  - at: '2026-10-03T00:40:00Z'
+    actor: {role: executor, session: user-request}
+    kind: rechecked
+    note: 'Rechecked on the released 2.1.4 in deep-time through a real pseudo-terminal board: header chip shows ''♥ Health 3/5'', and the Health popover (H) shows ''3 Oct 10:25 · Official check · 2 of 5 need a look'' with five signal rows, the tests row labelled ''Tests failing ×2'' and ''worst of 2''. Chip and headline agree (3 Good, 2 need a look, 5 signals). Before the repair the same project showed /6 and ''4 of 6''. Executor evidence only; it does not claim verified. The Issue stays open for a checker or an explicit owner decision.'
 ---
 # I-124: Header health chip counts configured instances, so it shows /6 instead of /5
 

@@ -16,6 +16,10 @@ history:
     actor: {role: executor, session: user-request}
     kind: repair_attempted
     note: 'Repaired in code. New internal/legacydep reads package.json (dependencies, devDependencies, optionalDependencies, peerDependencies) and node_modules/savepoint/package.json; a finding means the declared range admits only versions below 2, or the installed copy is below 2. doctor reports it as an advisory Pending Review finding that does not change HasProblems; migrate (preview, already-V2, apply) and upgrade-assets print a Warning with the repair. It never edits package files. Tests cover ranges (^1.3.0, ~1.2, 1.x flagged; >=1, ^1 || ^2, latest, ^2 not), installed-only copies, no package.json, a read-only check, and the three commands end to end. go test ./... passes. Not run: the rendered board.'
+  - at: '2026-10-03T00:40:00Z'
+    actor: {role: executor, session: user-request}
+    kind: rechecked
+    note: 'Rechecked with the published 2.1.4 in a scratch project with package.json pinning savepoint ^1.3.0: doctor reports an advisory [stale-savepoint-dependency] finding with the repair; migrate and upgrade-assets --dry-run each print the Warning and repair; package.json is unchanged afterwards. With a devDependency ^2.1.4, neither doctor nor migrate warns. An early apparent miss on upgrade-assets --dry-run was my shell quoting, not the product; rerun correctly it warns. Executor evidence only; it does not claim verified. The Issue stays open for a checker or an explicit owner decision.'
 ---
 # I-126: Migrate, upgrade-assets and doctor do not warn about a stale local savepoint dependency
 
