@@ -125,7 +125,7 @@ func marginedDimension(outer, margin int) int {
 // project.
 func (m Model) renderDiagnostic(w int) string {
 	body := lipgloss.NewStyle().Width(w).Render(m.Diagnostic)
-	explain := lipgloss.NewStyle().Width(w).Render("No board is drawn: this project's records did not load.")
+	explain := lipgloss.NewStyle().Width(w).Render("No board is drawn: this project's records did not load. Fix the record named above, or run `savepoint doctor` for a full report.")
 	return lipgloss.JoinVertical(lipgloss.Left,
 		styles.HeaderFrame.Width(w).Render(styles.HeaderIcon.Render("▣")+"  "+styles.HeaderText.Render(diagnosticHeading)),
 		body,
