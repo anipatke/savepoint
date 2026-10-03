@@ -27,6 +27,13 @@ func main() {
 		board.SetDebug(true)
 	}
 
+	if len(args) == 0 || (args[0] != "--version" && args[0] != "init") {
+		if notice, ok := v2ProjectNotice(".", args); ok {
+			fmt.Fprint(os.Stderr, notice)
+			os.Exit(1)
+		}
+	}
+
 	if len(args) > 0 {
 		switch args[0] {
 		case "--version":
