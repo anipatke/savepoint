@@ -2,11 +2,15 @@
 id: T-111
 title: Run CI on every pushed branch
 objective: O-038
-status: in_progress
-stage: audit
+status: done
 depends_on: []
 owner_validation: {required: true}
 planned_by: {role: planner, session: plan-o038-2026-10-04}
+check_waiver:
+  task: T-111
+  reason: Owner waived the optional Task Check; trivial one-line CI change.
+  actor: {role: owner, session: exec-t111-2026-10-04}
+  recorded_at: '2026-10-04T05:18:27Z'
 ---
 
 # Run CI on every pushed branch
@@ -62,7 +66,7 @@ Per-criterion evidence:
 1. **Push trigger.** Met. `.github/workflows/ci.yml` changed `push.branches: [master, v2, v2.1, v2.20]` to `push.branches: ['**']`. A YAML parse gives `{'push': {'branches': ['**']}, 'pull_request': {'branches': ['master', 'v2', 'v2.1']}}`, so the pull-request trigger is unchanged. Jobs and permissions are untouched; the diff is one line. With only a `branches` filter, GitHub ignores tag pushes, as it did with the old list. Tag pushes stay with `publish.yml` (`push.tags: ["v*"]`, which runs its own `make ci` validate job). Implementation Plan step 1 is confirmed, so no REPLAN REQUIRED.
 2. **No other files changed.** Met. The only non-record change is `.github/workflows/ci.yml`. Besides that, only this Task's lifecycle and evidence and the O-038 `status: in_progress` line changed.
 3. **Gate and CI evidence.** Met. `make build && make test-fast` exited 0. On the owner's instruction the change was committed and pushed as `0ad598ce73ca39f15cf9fce610280691a66e9631` on `v2.20`. The push triggered CI run https://github.com/anipatke/savepoint/actions/runs/37179190078 (event `push`, workflow `CI`), which concluded `success`: `ci` success, `windows-tests` success.
-4. **Verification Policy.** Evidence is recorded here. No optional Task Check has been requested and no owner waiver has been given. The mandatory Full Objective Check is still pending.
+4. **Verification Policy.** Evidence is recorded here. The owner waived the optional Task Check (see `check_waiver` frontmatter). The mandatory Full Objective Check is still pending.
 
 Files read: `.github/workflows/ci.yml`, `.github/workflows/publish.yml`, the O-038 Objective (all Context Files). No extra reads.
 Files changed: `.github/workflows/ci.yml`, this Task file, and the O-038 Objective status line.
