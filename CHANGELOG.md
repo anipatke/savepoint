@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.2.1
+
+### Changed
+
+- The Advanced Options screen heading now reads **ADVANCED OPTIONS (EXPERIMENTAL)**.
+
 ## v2.2.0 — Advanced Options and parallel planning
 
 ### Added

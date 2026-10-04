@@ -16,7 +16,7 @@ const (
 	// optionsKey opens Advanced Options from the board.
 	optionsKey = "o"
 
-	optionsTitle           = "ADVANCED OPTIONS"
+	optionsTitle           = "ADVANCED OPTIONS (EXPERIMENTAL)"
 	parallelPlanningLabel  = "Parallel planning"
 	parallelPlanningDetail = "Saves your choice for optional suggestions about which Tasks could run side by side in separate worktrees. Only the choice is saved now; no suggestions appear yet. They arrive later. You can ignore them: they never block work, change Code Health, or decide what is done."
 	optionsStorageNote     = "Saved in .savepoint/config.yml."
