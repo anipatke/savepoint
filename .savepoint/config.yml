@@ -39,3 +39,5 @@ theme:
         epic: "#B1A1DF" # Vibe Purple
     borders: "subtle" # subtle | sharp | none
 schema_version: 2
+features:
+    parallel_planning: false

@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — Advanced Options
+
+### Added
+
+- **Advanced Options.** Press `o` on the board to open a settings screen with
+  one option, **Parallel planning**, off by default. `enter` or `space` saves it
+  to `features.parallel_planning` in `.savepoint/config.yml`; `esc`, `q` or `o`
+  closes the screen and returns focus to where you were.
+- New projects start with `features.parallel_planning: false`. Existing
+  projects with no `features` key stay off, and upgrading never rewrites your
+  `config.yml`, so an explicit choice survives.
+- Saving changes only that one line: comments, key order and unrelated keys are
+  kept. If `config.yml` changed since the board loaded it, the save is refused
+  and explained, and the screen shows the file as it now stands.
+
+### Notes
+
+- The option only records your preference. It is the switch for optional
+  advice about which Tasks could run side by side in separate worktrees, which
+  arrives in a later release; nothing is suggested or created yet. It never
+  blocks work, changes Code Health, or decides what is done.
+- You can edit the file by hand instead:
+
+  ```yaml
+  features:
+    parallel_planning: true
+  ```
+
 ## v2.1.0 — Code Health
 
 Released 2026-10-03.

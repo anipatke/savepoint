@@ -24,3 +24,8 @@ theme:
     done: "#A4C639"
     blocked: "#FF4444"
   borders: "subtle"
+
+# Optional features. Off by default; change them from the board's Advanced
+# Options screen (press o) or edit this file.
+features:
+  parallel_planning: false

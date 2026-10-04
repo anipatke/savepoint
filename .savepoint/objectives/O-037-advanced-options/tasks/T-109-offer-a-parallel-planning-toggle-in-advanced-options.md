@@ -2,9 +2,11 @@
 id: T-109
 title: "Offer a parallel planning toggle in Advanced Options"
 objective: O-037
-status: planned
+status: done
 depends_on: [{task: T-108, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+  required: true
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-advisory-replan-2026-10-03}
 complexity_tier: medium
 complexity_reason: "A settings overlay must save explicitly and retain reload/focus behavior."
@@ -33,6 +35,13 @@ planned_writes:
   - "internal/board/v2/load.go"
   - "internal/board/v2/load_test.go"
   - "internal/board/v2/watch.go"
+check_waiver:
+  task: T-109
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-03T22:00:54Z"
 ---
 
 # Offer a parallel planning toggle in Advanced Options
@@ -95,7 +104,22 @@ Fresh make test-full for configuration replacement/path and reload-watch behavio
 
 ## Technical Evidence
 
-Pending execution: record actual reads/writes, logged extra reads, per-criterion cases/results, command/time/toolchain, full gate and limitations. No self-clearance.
+Executor session: claude-sonnet-5-5, 2026-10-03. No self-clearance; no Check or owner waiver recorded.
+
+**Files changed.** New: `internal/board/v2/options.go`, `internal/board/v2/options_test.go`. Edited: `model.go` (Options field), `update.go` (key dispatch, `optionsSavedMsg` case, overlay-origin restore, `quit()` helper extracted from the q/ctrl+c branch and reused by the options screen), `view.go` (overlay render, hints), `help.go` (help row), `load.go` (`ProjectState.Features` read once per load). `io.go`, `watch.go`, `footer_test.go`, `load_test.go` needed no change: `config.yml` was already in `v2WatchFiles`, and the save command lives in `options.go`.
+
+**Logged extra reads** (outside Context Files, all read-only, for conventions or fixtures): T-108 task file head and the O-037 Objective diff (dependency/start check); `internal/board/v2/releases.go`, `actions.go`, `health.go`, `width.go` (overlay renderer, used keys, `fitLine`); `internal/styles/styles.go` (style names); test helpers in `fixture_test.go`, `view_test.go`, `columns_view_test.go`, `objectives_test.go`, `releases_test.go`, `boundary_test.go`, `objective_close_test.go`, `watch_test.go` (helpers and one failing footer assertion); `templates/project-v2/.savepoint` listing.
+
+**Per-criterion results.**
+- Settings action opens a keyboard Advanced Options screen with exactly the one real option and an explanation that suggestions can be ignored: `o` opens it (documented in Help and the footer). `TestOptionsOpensWithParallelPlanningOffAndExplainsIt` (one `Parallel planning:` row, text present), `TestOptionsKeyIsDocumentedInFooterAndHelp`. PASS.
+- Load/reload reads the saved preference; toggles persist through explicit commands; saved state shown only after success; actionable stale/failed messages: `loadFeatureState` runs only in `loadProject`; `writeParallelPlanningCmd` wraps `data.WriteParallelPlanning`; "Saved." appears only when the read-back matches. `TestOptionsToggleSavesAndSurvivesRestart`, `TestOptionsStaleSaveIsRefusedAndExplained` (refusal, file untouched, retry succeeds and keeps the external edit), `TestOptionsUnwritableConfigReportsAndSavesNothing` (skipped on Windows or root), `TestOptionsUnreadableConfigRefusesToggleWithoutWriting`, `TestOptionsMalformedPreferenceIsReportedNotHealed`, `TestOptionsSecondToggleWhileSavingIsIgnored`. PASS.
+- Survives restart, refreshes after external config.yml edits; Esc/close returns focus; overlay and sizing follow board patterns: `TestOptionsRefreshesAfterAnExternalConfigEdit`, `TestOptionsCloseReturnsFocusToTheOriginSurface` (esc, q, o; sidebar and column origins), `TestOptionsFitsTheTerminal` (100x30, 60x20, 40x14), `TestOptionsCtrlCStillQuits`. PASS.
+- No Code Health change, provider execution, destructive cleanup, shell calls or rendering IO; turning the option off preserves other records: `TestOptionsToggleLeavesSavedPlansAndCodeHealthAlone` (every non-config file byte-identical, header chip and closed board render identical). The only file written is config.yml, through the T-108 writer. PASS.
+- Evidence and fresh full gate: below. Optional Task Check waiver not recorded (owner has not instructed one).
+
+**Commands.** `make build && make test-fast`: pass. `make test-full`: exit 0, started 2026-10-03T21:59:45Z, finished 2026-10-03T22:00:02Z, go1.26.2 linux/amd64. A first fast run failed `TestSpaceOnDoneObjectiveDoesNothingAndKeysRestoreHints` because my `o:options` hint pushed `?:help` out of the truncated 120-column footer; fixed by placing `o:options` last, then both gates were rerun.
+
+**Limitations.** Native Windows CI evidence is not produced here (owner supplies it per Technical Verification). Owner validation of the screen is still required; I ran no interactive TUI session and used only temporary fixtures, never the real project's settings. The footer hint `o:options` is the first thing truncated on narrow terminals; Help always lists it. The unwritable-config test is skipped when run as root or on Windows.
 
 ## Drift Notes
 

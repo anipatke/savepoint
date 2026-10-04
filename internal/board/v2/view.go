@@ -78,6 +78,9 @@ func (m Model) View() string {
 		if m.ReleaseOverlay {
 			content = m.renderReleaseOverlay(content, w, h)
 		}
+		if m.Options != nil {
+			content = m.renderOptionsOverlay(content, w, h)
+		}
 		if m.Health != nil && !m.Help {
 			content = m.renderHealthOverlay(content, w, h)
 		}
@@ -460,6 +463,8 @@ func (m Model) hints() string {
 		return "esc/q:close"
 	case m.ReleaseOverlay:
 		return "↑↓ / j k:Goal  enter:select  v:detail  esc/q:cancel"
+	case m.Options != nil:
+		return "enter/space:toggle  esc/q:close"
 	case m.Health != nil && m.Health.Refresh != nil:
 		return "esc:cancel refresh  ?:help  q:cancel and quit"
 	case m.Health != nil:
@@ -477,11 +482,11 @@ func (m Model) hints() string {
 	case m.Detail != nil:
 		return joinHints("↑↓:scroll  esc:close", m.focusedActionText(), "?:help  q:quit")
 	case !m.sidebarVisible():
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit  o:options")
 	case m.SidebarFocused:
-		return joinHints("↑↓:objective  →:cards", m.releaseHint(), m.detailHint("v:detail"), "i:issues", "H:health", m.clearObjectiveHint(), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓:objective  →:cards", m.releaseHint(), m.detailHint("v:detail"), "i:issues", "H:health", m.clearObjectiveHint(), m.focusedActionText(), "?:help  q:quit  o:options")
 	default:
-		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit")
+		return joinHints("↑↓←→:card  space:advance  backspace:retreat  i:issues  H:health", m.releaseHint(), m.detailHint("enter:detail"), m.focusedActionText(), "?:help  q:quit  o:options")
 	}
 }
 

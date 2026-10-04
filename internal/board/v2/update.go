@@ -45,6 +45,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadCmd(m.Root)
 		}
 		return m, tea.Batch(loadCmd(m.Root), watchV2Files(m.Watcher, m.Root))
+	case optionsSavedMsg:
+		return m.applyOptionsSaved(msg)
 	case actionMsg:
 		if msg.err != nil {
 			if msg.releaseRollback {
@@ -93,16 +95,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.ReleaseOverlay {
 		return m.handleReleaseKey(key)
 	}
+	if m.Options != nil {
+		return m.handleOptionsKey(key)
+	}
 	if key == "?" {
 		m.Help = true
 		return m, nil
 	}
 	if key == "q" || key == "ctrl+c" {
-		m.cancelHealthRefresh()
-		if m.Watcher != nil {
-			_ = m.Watcher.Close()
-		}
-		return m, tea.Quit
+		return m.quit()
 	}
 
 	if m.Health != nil {
@@ -123,6 +124,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if key == healthKey {
 		return m, m.openHealth()
+	}
+	if key == optionsKey {
+		m.openOptions()
+		return m, nil
 	}
 	if key == goalSelectorKey || key == goalSelectorAlias {
 		m.openReleaseSelector()
@@ -152,6 +157,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.handleColumnKey(key)
 	return m, nil
+}
+
+// quit stops any health refresh and the watcher, then ends the program.
+func (m Model) quit() (tea.Model, tea.Cmd) {
+	m.cancelHealthRefresh()
+	if m.Watcher != nil {
+		_ = m.Watcher.Close()
+	}
+	return m, tea.Quit
 }
 
 // handleReleaseKey owns the selector while it is open. In particular q is a
@@ -1017,6 +1031,12 @@ func (m *Model) restoreOverlayOrigins() {
 		m.Health.Origin.ObjectiveCursor = m.ObjectiveCursor
 		m.Health.Origin.FocusedColumn = m.FocusedColumn
 		m.Health.Origin.FocusedCard = m.FocusedCard
+	}
+	if m.Options != nil {
+		m.Options.Origin.SidebarFocused = m.SidebarFocused
+		m.Options.Origin.ObjectiveCursor = m.ObjectiveCursor
+		m.Options.Origin.FocusedColumn = m.FocusedColumn
+		m.Options.Origin.FocusedCard = m.FocusedCard
 	}
 	if m.Issues != nil {
 		m.Issues.Origin.SidebarFocused = m.SidebarFocused

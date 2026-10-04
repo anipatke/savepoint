@@ -28,9 +28,12 @@ type QualityGates struct {
 }
 
 type Config struct {
-	Theme         Theme         `yaml:"theme"`
-	QualityGates  QualityGates  `yaml:"quality_gates"`
-	AgentLauncher AgentLauncher `yaml:"agent_launcher"`
+	Theme         Theme              `yaml:"theme"`
+	QualityGates  QualityGates       `yaml:"quality_gates"`
+	AgentLauncher AgentLauncher      `yaml:"agent_launcher"`
+	Features      FeaturePreferences `yaml:"features"`
+
+	source FeatureSource
 }
 
 var defaultTheme = Theme{
@@ -68,10 +71,15 @@ func (r *ConfigReader) Read(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
+	return parseConfig(data)
+}
+
+func parseConfig(data []byte) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config YAML: %w", err)
 	}
+	config.source = newFeatureSource(data)
 
 	config.Theme = fillThemeDefaults(config.Theme)
 	config.AgentLauncher = fillLauncherDefaults(config.AgentLauncher)

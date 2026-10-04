@@ -372,3 +372,10 @@ func TestV2ScaffoldResumesWithItsProjectGoalSelected(t *testing.T) {
 		t.Fatalf("fresh V2 scaffold resume unexpectedly asks for a Goal: %q", output.String())
 	}
 }
+
+func TestV2ScaffoldConfigShipsParallelPlanningOff(t *testing.T) {
+	content := readTemplate(t, filepath.Join("..", ".."), "templates", "project-v2", ".savepoint", "config.yml")
+
+	assertContains(t, content, "features:\n  parallel_planning: false\n")
+	assertNotContains(t, content, "parallel_planning: true")
+}

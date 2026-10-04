@@ -91,6 +91,18 @@ coverage report, such as `vitest run --reporter=junit --outputFile=junit.xml`.
 Run those first, then `savepoint health check`. Add the generated files
 (`junit.xml`, `coverage/`) to `.gitignore`.
 
+## Advanced Options
+
+Press `o` on the board to open Advanced Options. It has one setting, **Parallel
+planning**, off by default. Turning it on saves `features.parallel_planning:
+true` in `.savepoint/config.yml`; turning it off saves `false`. You can also
+edit that file by hand.
+
+It records a preference for optional advice, delivered later, about which
+planned Tasks could run side by side in separate Git worktrees. Today it
+suggests nothing and creates nothing, and it never blocks work, changes Code
+Health, or decides what is done. Sequential work stays the default.
+
 ## What's in your repo
 
 ```text

@@ -28,7 +28,10 @@ type ProjectState struct {
 	// HealthChip is the header's glance at overall health, read once per load
 	// from saved data, so rendering never touches the filesystem.
 	HealthChip codehealth.Chip
-	Next       data.Next
+	// Features is the saved optional-feature choice, read once per load so
+	// Advanced Options renders and refreshes from the same path as the board.
+	Features FeatureState
+	Next     data.Next
 }
 
 // objectiveCount and taskCount report what the load put into the index. A nil
@@ -163,6 +166,7 @@ func loadProject(root string) projectLoadedMsg {
 		Issues:      issueCatalog(index),
 		Health:      loadHealthLabels(root, index),
 		HealthChip:  codehealth.LoadChip(filepath.Dir(root)),
+		Features:    loadFeatureState(root),
 		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
 	}}
 }

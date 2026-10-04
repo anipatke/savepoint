@@ -35,6 +35,7 @@ func renderHelp(model Model, width, height int) string {
 		helpRow("enter / v", "open the focused record"),
 		helpRow("i / I", "open Issues"),
 		helpRow(healthKey, "open Code Health"),
+		helpRow(optionsKey, "open Advanced Options (optional features); enter/space toggles, esc closes"),
 		helpRow("?", "close this help"),
 	)
 	if model.Health != nil {

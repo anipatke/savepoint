@@ -108,6 +108,9 @@ type Model struct {
 	// refresh commands; nil fields use the real ones.
 	Health      *HealthOverlay
 	HealthFuncs HealthFuncs
+	// Options is the open Advanced Options screen, or nil. Its origin restores
+	// the surface that had focus when o opened it.
+	Options *OptionsOverlay
 	// Help is the keyboard reference overlay. It changes no cursor or project
 	// state, and its action rows are derived from the currently focused record.
 	Help bool

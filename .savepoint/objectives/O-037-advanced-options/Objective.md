@@ -1,7 +1,7 @@
 ---
 id: O-037
 title: Choose optional features in Advanced Options
-status: planned
+status: in_progress
 depends_on: [O-032]
 release: G-001
 priority: medium

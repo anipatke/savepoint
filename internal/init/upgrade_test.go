@@ -1623,3 +1623,45 @@ func TestUpgradeDeliversGoalRetrospectiveRuleToDesignSkill(t *testing.T) {
 	}
 	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "### Goal Workflow Retrospective")
 }
+
+// TestUpgradePreservesOwnerConfigAndFeatureChoices upgrades projects whose
+// config.yml predates the features key, carries an explicit choice, or holds
+// comments and unrelated keys. Upgrade must leave every byte of config.yml and
+// every edited asset alone and create no worktree or advice record.
+func TestUpgradePreservesOwnerConfigAndFeatureChoices(t *testing.T) {
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	configs := map[string]string{
+		"no features key":         "# mine\nschema_version: 2\nquality_gates:\n  test: make check\ncustom_key: [1, 2]\n",
+		"explicit on":             "schema_version: 2\nfeatures:\n  parallel_planning: true # keep\n  other: 1\n",
+		"explicit off, CRLF":      "schema_version: 2\r\nfeatures:\r\n  parallel_planning: false\r\n",
+		"quoted value and extras": "schema_version: 2\nfeatures:\n  parallel_planning: 'true'\nunknown: {a: b}\n",
+	}
+	for name, config := range configs {
+		t.Run(name, func(t *testing.T) {
+			dir := savepointProject(t)
+			testutil.WriteFile(t, filepath.Join(dir, ".savepoint", "config.yml"), config)
+			const edited = "# savepoint-task with my own edits"
+			testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)), edited)
+			manifest := NewManifest()
+			manifest.Record(realTaskSkill, []byte("# savepoint-task before the review"))
+			if err := manifest.Save(dir); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := upgradeAssetsFromTree(templates, dir, false, false); err != nil {
+				t.Fatalf("upgrade error = %v", err)
+			}
+			if got := string(mustReadFile(t, filepath.Join(dir, ".savepoint", "config.yml"))); got != config {
+				t.Errorf("config.yml changed by upgrade: %q", got)
+			}
+			if got := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)))); got != edited {
+				t.Errorf("edited asset changed by upgrade: %q", got)
+			}
+			for _, absent := range []string{".worktrees", "worktrees", filepath.Join(".savepoint", "lanes"), filepath.Join(".savepoint", "advice")} {
+				if _, err := os.Stat(filepath.Join(dir, absent)); !os.IsNotExist(err) {
+					t.Errorf("upgrade created %s (stat err = %v)", absent, err)
+				}
+			}
+		})
+	}
+}
