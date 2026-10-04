@@ -1,7 +1,7 @@
 ---
 id: O-038
 title: Review the optional parallel workflow
-status: planned
+status: in_progress
 depends_on: [O-037, O-033]
 release: G-001
 priority: medium

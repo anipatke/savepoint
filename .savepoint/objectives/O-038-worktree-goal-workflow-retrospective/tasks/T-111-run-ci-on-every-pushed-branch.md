@@ -2,7 +2,8 @@
 id: T-111
 title: Run CI on every pushed branch
 objective: O-038
-status: planned
+status: in_progress
+stage: audit
 depends_on: []
 owner_validation: {required: true}
 planned_by: {role: planner, session: plan-o038-2026-10-04}
@@ -54,7 +55,19 @@ Use `make build && make test-fast` for handoff. Native platform evidence is the 
 
 ## Technical Evidence
 
-Pending execution.
+Executed 2026-10-04T05:06Z, go1.26.2 linux/amd64, main checkout on branch `v2.20` (not a worktree lane). Session: exec-t111-2026-10-04.
+
+Per-criterion evidence:
+
+1. **Push trigger.** Met. `.github/workflows/ci.yml` changed `push.branches: [master, v2, v2.1, v2.20]` to `push.branches: ['**']`. A YAML parse gives `{'push': {'branches': ['**']}, 'pull_request': {'branches': ['master', 'v2', 'v2.1']}}`, so the pull-request trigger is unchanged. Jobs and permissions are untouched; the diff is one line. With only a `branches` filter, GitHub ignores tag pushes, as it did with the old list. Tag pushes stay with `publish.yml` (`push.tags: ["v*"]`, which runs its own `make ci` validate job). Implementation Plan step 1 is confirmed, so no REPLAN REQUIRED.
+2. **No other files changed.** Met. The only non-record change is `.github/workflows/ci.yml`. Besides that, only this Task's lifecycle and evidence and the O-038 `status: in_progress` line changed.
+3. **Gate and CI evidence.** Partly met. `make build && make test-fast` exited 0. The post-push CI run (URL, revision, `ci` and `windows-tests` results) is an outstanding owner action. It is not claimed here.
+4. **Verification Policy.** Evidence is recorded here. No optional Task Check has been requested and no owner waiver has been given. The mandatory Full Objective Check is still pending.
+
+Files read: `.github/workflows/ci.yml`, `.github/workflows/publish.yml`, the O-038 Objective (all Context Files). No extra reads.
+Files changed: `.github/workflows/ci.yml`, this Task file, and the O-038 Objective status line.
+
+Limitations: GitHub has not yet run the new trigger. Its actual behavior on a push, including on a branch that was never on the old list, still needs to be confirmed from a real Actions run.
 
 ## Drift Notes
 
