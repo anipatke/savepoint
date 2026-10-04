@@ -2,20 +2,31 @@
 id: I-136
 title: Sanitize authored lane heading controls
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-965
   actor: {role: checker, session: check-o033-20261004}
   at: '2026-10-04T03:26:27Z'
 tasks: [T-104, T-105]
-checks: [C-965]
+checks: [C-965, C-966]
+resolution:
+  disposition: verified
+  check: C-966
+  actor: {role: checker, session: check-o033-recheck-20261004}
+  at: '2026-10-04T03:46:04Z'
+  reason: Loaded lane title containing ESC[2J and BEL is sanitized; isolated original heading reproduction and Unicode/geometry matrices pass.
 history:
   - at: '2026-10-04T03:26:27Z'
     actor: {role: checker, session: check-o033-20261004}
     kind: observed
     check: C-965
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T03:46:04Z'
+    actor: {role: checker, session: check-o033-recheck-20261004}
+    kind: rechecked
+    check: C-966
+    note: Loaded lane title containing ESC[2J and BEL is sanitized; isolated original heading reproduction and Unicode/geometry matrices pass.
 ---
 
 # I-136: Sanitize authored lane heading controls
@@ -35,3 +46,9 @@ In an enabled temporary board, author a lane title in YAML as "Core\x1b[2J\x07".
 ## Proof Needed
 
 Strip authored terminal controls before rendering headings while preserving generated style escapes and Unicode text. Replay the clear-screen/BEL heading through interactive board, detail, plain and resume; use existing eight text-class/width matrix and heading/focus/count checks. Frozen M5/M6; no generic terminal overhaul.
+
+## Independent Recheck — C-966
+
+Loaded lane title containing ESC[2J and BEL is sanitized; isolated original heading reproduction and Unicode/geometry matrices pass.
+
+Verified within the original C-965 scope by CLEAR Check C-966 on 19a6807. Original evidence remains above.

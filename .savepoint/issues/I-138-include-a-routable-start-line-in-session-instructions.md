@@ -2,20 +2,31 @@
 id: I-138
 title: Include a routable Start line in session instructions
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-965
   actor: {role: checker, session: check-o033-20261004}
   at: '2026-10-04T03:26:27Z'
 tasks: [T-105, T-107]
-checks: [C-965]
+checks: [C-965, C-966]
+resolution:
+  disposition: verified
+  check: C-966
+  actor: {role: checker, session: check-o033-recheck-20261004}
+  at: '2026-10-04T03:46:04Z'
+  reason: Copied T-004 block now includes standalone exact Start selection while shared router still names T-002.
 history:
   - at: '2026-10-04T03:26:27Z'
     actor: {role: checker, session: check-o033-20261004}
     kind: observed
     check: C-965
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T03:46:04Z'
+    actor: {role: checker, session: check-o033-recheck-20261004}
+    kind: rechecked
+    check: C-966
+    note: Copied T-004 block now includes standalone exact Start selection while shared router still names T-002.
 ---
 
 # I-138: Include a routable Start line in session instructions
@@ -35,3 +46,9 @@ With router selecting T-002 and a recommended parallel T-004, copy the generated
 ## Proof Needed
 
 Emit a standalone Start/Next selection line for the intended Task plus the skill instruction separately. Test router T-002 versus copied T-004; name Goal/Objective/Task, scopes and prerequisite/worktree restrictions unchanged. Safe sanitation remains required. Replay eligible group/active, blocked/unknown/singleton and all formatter surfaces from frozen M6. No router write in the worktree.
+
+## Independent Recheck — C-966
+
+Copied T-004 block now includes standalone exact Start selection while shared router still names T-002.
+
+Verified within the original C-965 scope by CLEAR Check C-966 on 19a6807. Original evidence remains above.

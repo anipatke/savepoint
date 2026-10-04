@@ -1,7 +1,7 @@
 ---
 id: O-033
 title: Show which Tasks can safely run in parallel worktrees
-status: in_progress
+status: done
 depends_on: [O-037]
 release: G-001
 priority: medium
