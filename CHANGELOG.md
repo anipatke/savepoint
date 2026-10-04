@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.2.2
+
+### Changed
+
+- **Workflow retrospectives are optional.** The planning guidance no longer
+  adds a final retrospective Objective to every Goal. The planner adds one only
+  when the owner asks; it is verified like any other Objective with no extra
+  Check, and it never holds a Goal open — an unfinished retrospective moves to
+  another live Goal instead.
+
 ## v2.2.1
 
 ### Changed

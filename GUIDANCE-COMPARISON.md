@@ -32,7 +32,7 @@ The scaffold Idea (87 words), Design (265), Guardrails (644), config (52), initi
 |---|---|---|
 | Routing, selection, terminology, owner authority, verification policy, CLI permissions, worktree constraints | Project AGENTS | Router and skills point to its named sections |
 | Intent intake and focused product questions | Idea skill | Router/AGENTS activate Idea |
-| Current-Objective planning, readiness, decision interview, artifact templates, Goal creation and retrospective | Design skill | Router/AGENTS activate Design |
+| Current-Objective planning, readiness, decision interview, artifact templates, Goal creation and optional retrospective | Design skill | Router/AGENTS activate Design |
 | Scoped execution, stage progress, extra reads, replan and waiver evidence | Task skill | Router/AGENTS activate Task |
 | Independent verdict and exact Check/acceptance/exception record shapes | Check skill | Router/AGENTS activate Check |
 | Quick/Full procedures, frozen scope, matrices, health collection, materiality, recheck convergence | Check method | Check loads it in full and applies the selected mode |
@@ -107,7 +107,7 @@ No new skill, reference, router state, record type, runtime field, command, or a
 | Goal diagnostics/history repeated in Design | Compressed to summary plus explicit AGENTS / Required Goal Context reference; planner creation rules remain local |
 | New Goal first-unused global G identity, stable identity, duplicate refusal, four sections and release membership | Design / Required Goal Context creation steps, retained |
 | No second membership list or Goal nesting/Task ownership; derived completion | Same creation steps and Objective-template membership text, retained |
-| Final Goal retrospective, explicit no-change outcome, packaged-skill suggestions as Issues, no new state/list | Design / Goal Workflow Retrospective, byte-identical |
+| Optional, owner-requested Goal retrospective, explicit no-change outcome, packaged-skill suggestions as Issues, no new state/list, never holds a Goal open | Design / Optional Workflow Retrospective (made optional after this comparison) |
 | Objective artifact metadata, allowed statuses, dependency shape, freshness actor/date/basis and body headings | Entire Objective artifact fence, byte-identical |
 | Task artifact required title/objective/status/dependency/owner_validation/planned_by and every body heading | Task frontmatter fence byte-identical; complete worked-example body retained in shorter prose |
 | Exact Context File paths, no globs/directory entries; design/guardrail references and scoped implementation plan | Task artifact, retained |

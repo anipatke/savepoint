@@ -93,11 +93,11 @@ When adding another Goal:
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. A Goal is complete when every member Objective is complete; completion is derived, not a publishing action.
 
-### Goal Workflow Retrospective
+### Optional Workflow Retrospective
 
-Once a Goal's other Objectives are planned, add one final workflow-retrospective Objective to that Goal. The planner owns it and records its outcome in that Objective, including a "no change, because…" conclusion when nothing needs to change. It reviews the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in.
+A workflow retrospective is optional. Add one only when the owner asks for it; do not add one to a Goal by default. When the owner asks, the planner may add a workflow-retrospective Objective to the Goal and records its outcome in that Objective, including a "no change, because…" conclusion when nothing needs to change. It may review the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in.
 
-What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It adds no field, state, command, or Goal-owned Task list, and a Goal is still complete when every member Objective is complete.
+What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It is verified like any other Objective under AGENTS.md's Verification Policy, with no additional Check. It adds no field, state, command, or Goal-owned Task list, and it never holds a Goal open: if it is unfinished when the Goal's other Objectives are complete, move it to another live Goal by changing its `release:` rather than delaying the Goal.
 
 ## Objective Artifact Template
 
