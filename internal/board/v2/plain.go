@@ -5,6 +5,9 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
 // plainNonTTYNotice tells a reader piping the board why they are looking at
@@ -89,6 +92,17 @@ func renderPlain(state ProjectState, selected string) string {
 				fmt.Fprintf(&b, "  [%s]", strings.Join(labels, "  "))
 			}
 			b.WriteByte('\n')
+		}
+	}
+	// Advice is per Objective: a Goal-wide view names no Objective, so it
+	// compares nothing across Objectives.
+	if selected != "" && state.Features.ParallelPlanning {
+		projection := data.ResolveConcurrencyV2(state.Index, selected, data.ConcurrencyOptionsV2{Enabled: true})
+		if parallel := resume.ParallelLines(state.Index, projection, ""); len(parallel) > 0 {
+			fmt.Fprintln(&b)
+			for _, line := range parallel {
+				fmt.Fprintln(&b, line)
+			}
 		}
 	}
 	fmt.Fprintln(&b)

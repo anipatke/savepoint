@@ -159,6 +159,7 @@ func loadProject(root string) projectLoadedMsg {
 		return projectLoadedMsg{Diagnostic: err.Error()}
 	}
 
+	features := loadFeatureState(root)
 	return projectLoadedMsg{State: ProjectState{
 		Index:       index,
 		Router:      router,
@@ -166,8 +167,8 @@ func loadProject(root string) projectLoadedMsg {
 		Issues:      issueCatalog(index),
 		Health:      loadHealthLabels(root, index),
 		HealthChip:  codehealth.LoadChip(filepath.Dir(root)),
-		Features:    loadFeatureState(root),
-		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router}),
+		Features:    features,
+		Next:        data.ResolveNext(data.NextInput{Index: index, Router: router, ParallelPlanning: features.ParallelPlanning}),
 	}}
 }
 

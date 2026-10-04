@@ -74,21 +74,38 @@ func renderColumn(label string, cards []TaskCard, width, height int, cursor colu
 
 	rendered := make([]string, len(cards))
 	heights := make([]int, len(cards))
+	headings := make([]string, len(cards))
+	headingH := make([]int, len(cards))
+	newGroup := make([]bool, len(cards))
 	for i, card := range cards {
 		rendered[i] = renderCard(card, textW, cursor.highlights(i))
 		heights[i] = strings.Count(rendered[i], "\n") + 1
+		if card.Heading.Present() {
+			headings[i] = renderLaneHeading(card.Heading, textW)
+			headingH[i] = strings.Count(headings[i], "\n") + 1
+			newGroup[i] = i == 0 || cards[i-1].Heading.Key != card.Heading.Key
+		}
 	}
 
 	budget := bodyH - columnHeaderLines
 	if budget < 1 {
 		budget = 1
 	}
-	start, end := visibleWindow(heights, budget, focusedIndex(cursor.Holds, cursor.Card, len(cards)))
+	start, end := visibleLaneWindow(heights, headingH, newGroup, budget, focusedIndex(cursor.Holds, cursor.Card, len(cards)))
 
 	if start > 0 {
 		lines = append(lines, scrollIndicator("↑", start, "above"))
 	}
-	lines = append(lines, rendered[start:end]...)
+	for i := start; i < end; i++ {
+		// A heading opens its group, and the first visible card repeats its
+		// group's heading so a window that begins mid-lane keeps its context.
+		// A lone card too tall for the budget drops the heading, because the
+		// card is what must stay visible.
+		if headings[i] != "" && (i == start || newGroup[i]) && !headingCrowdsOut(heights, headingH, start, end, budget, i) {
+			lines = append(lines, headings[i])
+		}
+		lines = append(lines, rendered[i])
+	}
 	if end < len(cards) {
 		lines = append(lines, scrollIndicator("↓", len(cards)-end, "more"))
 	}
@@ -125,8 +142,17 @@ func focusedIndex(holdsCursor bool, cursor, total int) int {
 // always returned — a card taller than the whole budget is clipped by the
 // frame rather than dropped.
 func visibleWindow(heights []int, budget, mustShow int) (int, int) {
+	return visibleLaneWindow(heights, nil, nil, budget, mustShow)
+}
+
+// visibleLaneWindow is visibleWindow for cards under lane headings.
+// headingH[i] is the height of card i's heading, and newGroup[i] says the card
+// opens its group. A heading costs its lines wherever it is drawn: above a
+// group's first card, and above the window's first card even mid-group. Nil
+// slices mean no headings, which is visibleWindow exactly.
+func visibleLaneWindow(heights, headingH []int, newGroup []bool, budget, mustShow int) (int, int) {
 	for start := 0; ; start++ {
-		end := fitFrom(heights, start, budget)
+		end := fitFrom(heights, headingH, newGroup, start, budget)
 		if end > mustShow || end == len(heights) {
 			return start, end
 		}
@@ -135,7 +161,7 @@ func visibleWindow(heights []int, budget, mustShow int) (int, int) {
 
 // fitFrom reports how far a window starting at start reaches within budget,
 // counting the indicator lines that window itself makes necessary.
-func fitFrom(heights []int, start, budget int) int {
+func fitFrom(heights, headingH []int, newGroup []bool, start, budget int) int {
 	used := 0
 	if start > 0 {
 		used++ // "n above"
@@ -146,16 +172,56 @@ func fitFrom(heights []int, start, budget int) int {
 		if end+1 < len(heights) {
 			below = 1 // "n more"
 		}
-		if used+heights[end]+below > budget {
+		cost := heights[end]
+		if headingH != nil && (end == start || newGroup[end]) {
+			cost += headingH[end]
+		}
+		if used+cost+below > budget {
 			break
 		}
-		used += heights[end]
+		used += cost
 		end++
 	}
 	if end == start && start < len(heights) {
 		end = start + 1
 	}
 	return end
+}
+
+// headingCrowdsOut reports whether drawing card i's heading would push the
+// only visible card past the budget. It is true for a single-card window whose
+// card, indicators and heading together exceed the budget.
+func headingCrowdsOut(heights, headingH []int, start, end, budget, i int) bool {
+	if end-start != 1 {
+		return false
+	}
+	used := heights[i] + headingH[i]
+	if start > 0 {
+		used++
+	}
+	if end < len(heights) {
+		used++
+	}
+	return used > budget
+}
+
+// renderLaneHeading draws a lane heading as plain rows over the cards: the
+// lane title, wrapped within the column, and its readiness when the canonical
+// projection gave one. It is never a card and takes no cursor.
+func renderLaneHeading(h LaneHeading, width int) string {
+	textW := max(width-2, 1)
+	var lines []string
+	for i, line := range wrapTitleLines(h.Title, textW, 2) {
+		prefix := "  "
+		if i == 0 {
+			prefix = "▸ "
+		}
+		lines = append(lines, styles.LaneHeading.Render(prefix+line))
+	}
+	if h.Readiness != "" {
+		lines = append(lines, styles.CardMeta.Render("  "+truncateCells(h.Readiness, textW)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // columnTextWidth is the width text and cards get inside a column's frame,

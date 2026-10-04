@@ -383,7 +383,7 @@ func assertBoardAndResumeNameNothingSelected(t *testing.T, final Model) {
 		}
 	}
 	var resumeOutput bytes.Buffer
-	if err := resume.Render(&resumeOutput, final.State.Next); err != nil {
+	if err := resume.Render(&resumeOutput, final.State.Next, final.State.Index); err != nil {
 		t.Fatalf("resume.Render() error = %v", err)
 	}
 	for _, want := range []string{

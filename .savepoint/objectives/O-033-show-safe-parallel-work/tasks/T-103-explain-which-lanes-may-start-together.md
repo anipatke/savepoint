@@ -2,9 +2,11 @@
 id: T-103
 title: "Explain which lanes may start together"
 objective: O-033
-status: planned
+status: done
 depends_on: [{task: T-102, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+  required: false
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: high
 complexity_reason: "Conservative compatibility combines lifecycle gates, transitive dependencies, reviewed scopes and recorded active work."
@@ -26,6 +28,13 @@ planned_writes:
   - "internal/data/concurrency_v2_test.go"
   - "internal/data/next.go"
   - "internal/data/next_test.go"
+check_waiver:
+  task: T-103
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T02:56:57Z"
 ---
 
 # Explain which lanes may start together
@@ -95,7 +104,25 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Executed 2026-10-04 (go1.26.2 linux/amd64). Predecessor interfaces confirmed: `FeaturePreferences`/`Config.ParallelPlanningEnabled` (T-108) and `TaskPlanV2`, `ObjectivePlanV2`, `V2Index.UnusablePlans/PlanIndependence/PlanDiagnostics`, `ComparePlanPaths` (T-102) matched the plan; no REPLAN REQUIRED.
+
+Implementation: `internal/data/concurrency_v2.go` adds `ResolveConcurrencyV2(index, objectiveID, ConcurrencyOptionsV2{Enabled, Selection})` returning `*ConcurrencyV2` (lanes by column, candidates, pairs with reasons, first-fit groups, notes, diagnostics, withheld). `internal/data/next.go` adds `NextInput.ParallelPlanning` and `Next.Concurrency`, attached for any resolved Objective and consumed by nothing in Next selection.
+
+Per-criterion evidence (all in `internal/data/concurrency_v2_test.go`):
+- Preference off/absent, metadata kept: `offOrAbsentKeepsMembershipOnly` (membership identical on/off, no advice off); `TestResolveNext_concurrencyIsAdviceOnly` (Next identical on/off apart from `Concurrency`). Unusable metadata degrades: `ungroupableTasksAreExplained`.
+- Reuses ResolveTaskStart/Objective gates; stale selection and replan withhold: `prerequisitesUseOrdinaryStartGate` (clear, waived, none, needs-work, waiver never satisfies accepted), `objectiveDependencyBlocksEveryTask`, `replanAndStaleSelectionWithholdLaunchAdvice`.
+- One Task per lane; no dependency-path/shared-write/unexplained overlap; shared reads allowed; explanations bind to their overlap only: `oneTaskPerLane`, `dependenciesNeverTogether` (indirect path, path through a done Task), `sharedWriteAndOverlapAreWithheld`, `independentLanesStartTogether`, `independenceExplanationsAffectOnlyTheirOverlap`, `staleExplanationWithholdsAndSaysSo` (loaded project, digest current vs stale).
+- Remaining lane scopes, active work, unknown/alias safety, no filesystem/worktree input: `remainingLaneScopeConflictsWithhold`, `recordedActiveWork` (disjoint, shared write, unknown, unlaned, same lane), `sharedWriteAndOverlapAreWithheld` (case alias, missing reads/writes). The projection takes only the index and options.
+- Pairwise-compatible groups; singleton/empty claim nothing: `incompatibleTriangleNeverGroupsAConflictingPair`, `singletonAndEmptyClaimNothing`, `isDeterministic` (20 runs).
+- Stable membership in every column, Objective-namespaced (`Ref()`), consumable by board/resume without duplicated logic; future constraints explained without start-ready claims: `offOrAbsentKeepsMembershipOnly`, `ungroupableTasksAreExplained`, start_blocked notes in the dependency tests.
+
+Commands: `go vet ./internal/data`; `go test ./internal/data -run 'Concurrency|ResolveNext'` (pass); `make build && make test-full` at 2026-10-04T02:54Z (pass, all packages, including windows/darwin cross-builds).
+
+Reads: all listed Context Files except `config.go` fully read via `Config` struct only and `project.go` V2Index definition only. Extra reads: `internal/data/concurrency_plan_v2_test.go` and `internal/data/dependency_test.go`/`gate_v2_test.go` helpers (fixture helpers `writePlanProject`, `newV2TestIndex`, `mustCheck`), `agent-skills/savepoint-task/SKILL.md` (skill not exposed as a tool).
+
+Changes: `internal/data/concurrency_v2.go`, `internal/data/concurrency_v2_test.go` (new), `internal/data/next.go`; this Task file. Actual scope matches `planned_writes` except `next_test.go`, where the Next-attachment test lives in `concurrency_v2_test.go`.
+
+Limitations: `main.go` resume and `internal/board/v2/load.go` still call `ResolveNext` without `ParallelPlanning`, so `Next.Concurrency` carries membership only until the board/resume Tasks pass the saved preference. Any selection diagnostic (including an unknown Issue) and any recorded replan on an unfinished Task of the Objective withholds all launch advice; this is a conservative reading of "missing/stale selections and recorded replan". Grouping is first-fit by lane order, not optimal. No Task Check requested and no owner waiver recorded; the native windows-tests CI evidence is for the Full Check.
 
 ## Drift Notes
 

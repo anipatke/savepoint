@@ -1666,3 +1666,72 @@ func mustWriteTaskV2(t *testing.T, task *TaskV2) {
 		t.Fatalf("WriteTaskV2() error = %v", err)
 	}
 }
+
+const plannedMetadataFrontmatter = `lane: core
+planned_reads: []
+planned_writes:
+  - internal/data/new_file.go   # anticipated
+unknown_block:
+  keep: [1, 2]
+`
+
+// withoutManagedLines drops the top-level lines a managed write may change so
+// the remaining bytes can be compared exactly.
+func withoutManagedLines(content string, keys ...string) string {
+	var kept []string
+	for _, line := range strings.Split(content, "\n") {
+		managed := false
+		for _, key := range keys {
+			managed = managed || strings.HasPrefix(line, key+":")
+		}
+		if !managed {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
+}
+
+func TestWriteTaskV2_preservesPlanningMetadataByteForByte(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "T-005.md")
+	content := "---\nid: T-005\ntitle: \"Plan\"\nobjective: O-002\nplanned_by: {role: planner, session: s}\nstatus: planned\n" +
+		plannedMetadataFrontmatter + "---\n\n# Task\n\nAuthored body.\n"
+	writeTestFile(t, path, content)
+
+	task := mustDecodeTaskV2(t, path, content)
+	task.Status = ColumnInProgress
+	task.Stage = StageBuild
+	mustWriteTaskV2(t, task)
+
+	result := string(readTestBytes(t, path))
+	if got, want := withoutManagedLines(result, "status", "stage"), withoutManagedLines(content, "status", "stage"); got != want {
+		t.Errorf("status write changed unmanaged bytes:\n got: %q\nwant: %q", got, want)
+	}
+	reparsed := mustDecodeTaskV2(t, path, result)
+	if !reparsed.Plan.Reads.Declared() || reparsed.Plan.Lane != "core" || !reparsed.Plan.Writes.Contains("internal/data/new_file.go") {
+		t.Errorf("Plan = %+v, want lane, empty reads and writes kept", reparsed.Plan)
+	}
+}
+
+func TestWriteObjectiveGroupOrderV2_preservesLanesAndIndependenceByteForByte(t *testing.T) {
+	root := writeObjectiveOrderProjectFixture(t)
+	extra := "lanes:\n  - key: core\n    title: \"Lane / Core\"\nindependence: []\nunknown_block:\n  keep: true\n"
+	path := writeObjectiveOrderRecordFixture(t, root, "O-001", ObjectivePriorityHigh, 3, extra, "# Body\n\nKeep.\n")
+	writeObjectiveOrderRecordFixture(t, root, "O-002", ObjectivePriorityHigh, 1, "", "# O-002\n")
+	before := string(readTestBytes(t, path))
+	index, err := LoadV2Index(root)
+	if err != nil {
+		t.Fatalf("LoadV2Index() error = %v", err)
+	}
+
+	if err := WriteObjectiveGroupOrderV2(index, "R-001", ObjectivePriorityHigh, []string{"O-001", "O-002"}); err != nil {
+		t.Fatalf("WriteObjectiveGroupOrderV2() error = %v", err)
+	}
+	after := string(readTestBytes(t, path))
+	if after == before {
+		t.Fatal("rank did not change; the fixture proves nothing")
+	}
+	if got, want := withoutManagedLines(after, "rank", "priority"), withoutManagedLines(before, "rank", "priority"); got != want {
+		t.Errorf("order write changed unmanaged bytes:\n got: %q\nwant: %q", got, want)
+	}
+}

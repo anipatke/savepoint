@@ -1,0 +1,6 @@
+version: 1
+skills:
+    agent-skills/savepoint-check/SKILL.md: 7bd88fecce631efcba56ec23d4a070e5a2e140930947d2bc546becbc3483d392
+    agent-skills/savepoint-design/SKILL.md: 04b2b0f819c8cbed453262a8e5ba14645fffff8db4a25a761ca853623a2ad57c
+    agent-skills/savepoint-idea/SKILL.md: b1c880e404f6f9d80da64d7ec2b339b718f0277b8bab98eed0b39c57a06740c5
+    agent-skills/savepoint-task/SKILL.md: 688ef06161f4e9b9f2257d0d079d0b61fcd144308daffe169cef72d9cf0dc158

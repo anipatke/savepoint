@@ -101,6 +101,7 @@ func detailLines(detail RecordDetail, width int) []string {
 	if detail.Health != "" {
 		checkLines = append(checkLines, detail.Health)
 	}
+	lines = append(lines, detailSection("PARALLEL PLANNING", detail.Parallel, width)...)
 	lines = append(lines, detailSection("CHECKS", checkLines, width)...)
 	if detail.StyleReview != nil {
 		lines = append(lines, detailSection("CODE STYLE ("+detail.StyleReview.CheckID+")", styleReviewLines(detail.StyleReview), width)...)

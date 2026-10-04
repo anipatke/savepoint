@@ -3,6 +3,8 @@ package data
 import (
 	"fmt"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TaskDependencyRequirement is the clearance a V2 Task dependency needs
@@ -39,7 +41,10 @@ type TaskV2 struct {
 	// never reads this legacy packaging field as an ownership edge.
 	Release  string
 	Evidence *Evidence
-	Source   V2SourceDocument
+	// Plan is optional advisory parallel-planning metadata. It never feeds a
+	// lifecycle or dependency gate.
+	Plan   TaskPlanV2
+	Source V2SourceDocument
 }
 
 type taskDependencyV2Frontmatter struct {
@@ -56,6 +61,9 @@ type taskV2Frontmatter struct {
 	Stage                 ProgressStage                 `yaml:"stage"`
 	DependsOn             []taskDependencyV2Frontmatter `yaml:"depends_on"`
 	Release               string                        `yaml:"release"`
+	Lane                  yaml.Node                     `yaml:"lane"`
+	PlannedReads          yaml.Node                     `yaml:"planned_reads"`
+	PlannedWrites         yaml.Node                     `yaml:"planned_writes"`
 	evidenceV2Frontmatter `yaml:",inline"`
 }
 
@@ -136,6 +144,7 @@ func DecodeTaskV2(path, content string) (*TaskV2, error) {
 		DependsOn: dependsOn,
 		Release:   fields.Release,
 		Evidence:  evidence,
+		Plan:      decodeTaskPlan(path, fields.ID, fields.Lane, fields.PlannedReads, fields.PlannedWrites),
 		Source:    doc,
 	}, nil
 }

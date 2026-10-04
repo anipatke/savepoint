@@ -2,9 +2,11 @@
 id: T-102
 title: "Save lane plans without changing existing Tasks"
 objective: O-033
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+  required: false
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: high
 complexity_reason: "Optional advisory metadata validation must preserve authored records and avoid blocking ordinary lifecycle behavior."
@@ -30,6 +32,13 @@ planned_writes:
   - "internal/data/write_test.go"
   - "internal/data/concurrency_plan_v2.go"
   - "internal/data/concurrency_plan_v2_test.go"
+check_waiver:
+  task: T-102
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T02:49:16Z"
 ---
 
 # Save lane plans without changing existing Tasks
@@ -96,7 +105,25 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Executed 2026-10-04 by the task executor session; Go go1.26.2 linux/amd64.
+
+**Commands:** `make build && make test-full` at 2026-10-04T02:47:22Z–02:47:43Z, exit 0 (re-run once more, exit 0). Iteration used `go test ./internal/data -run ...`. Native Windows evidence is not produced here (owner-supplied CI per Technical Verification).
+
+**Design choices (new persisted shapes, the Task left them open):** Objective `lanes: [{key, title}]` and `independence: [{tasks: [T-a, T-b], overlaps: [{writer, reader, path}], reason, reviewed}]`; Task `lane`, `planned_reads`, `planned_writes`. `reviewed` is `sha256:` of both Tasks' sorted manifests (`PlanReviewDigest`). Decoders keep these as raw YAML nodes so a malformed advisory value can never fail a record load.
+
+**Per-criterion outcomes:**
+1. Nonfatal diagnostics: `TestDecodeTaskV2_malformedPlanIsNonfatalAndNamed` (16 malformed shapes load, name record and file), `TestLoadV2Index_advisoryProblemsNameRecordsAndKeepLifecycleGates` (unresolved lane/glob mark only those Tasks unusable; dependency gate unchanged). Required-record failures untouched; existing suite green.
+2. Lanes: `TestDecodeObjectiveV2_lanesAreNonfatalAndStable` (unique keys, titles, order, duplicates/bad keys diagnosed); `TestLoadV2Index_laneReferencesResolveOnlyInOwner`. Membership is derived from Task `lane`; no list or global ID added.
+3. Manifests: `TestDecodeTaskV2_planOmittedIsUnknownAndEmptyIsReviewed`, `..._planReturnsCopies`, malformed-path table (glob, directory, absolute, drive, UNC, backslash, traversal, dot/empty segment, trailing dot, case alias, non-list, null, non-string), `TestComparePlanPaths_neverCertifiesCaseAliases`. New-file paths accepted with no filesystem access.
+4. Independence: `TestLoadV2Index_independenceBindsToReviewedManifests` (valid kept; stale-after-edit, unreviewed, empty reason, wrong direction, path absent, third task, missing task, duplicate declaration, shared write all diagnosed and dropped without blocking load).
+5. Old Tasks / preservation: `TestLoadV2Index_oldProjectsAreCleanAndUnknown`; `TestWriteTaskV2_preservesPlanningMetadataByteForByte` and `TestWriteObjectiveGroupOrderV2_preservesLanesAndIndependenceByteForByte` (all bytes outside managed fields identical). No production writer needed changing.
+6. Typed immutable values and pure helpers: `TaskPlanV2`, `PlanScopeV2` (copy accessors), `ObjectivePlanV2`, `PlanIndependenceV2`, `ValidatePlanPath`, `ComparePlanPaths`, `PlanReviewDigest`; index exposes `PlanDiagnostics`, `UnusablePlans`, `PlanIndependence`. No scheduling, board change, backfill or schema version.
+7. This evidence and gate recorded. No Task Check requested and no waiver recorded; Full Objective Check remains mandatory.
+
+**Files read:** the ten Context Files in part (task_v2.go, objective_v2.go, write_splice.go, project.go head, dependency.go excerpt, write_test.go excerpts, discover_test.go fixtures). No extra reads beyond Context Files except discover_test.go helper lines (fixture helpers) and errors.go grep.
+**Files changed:** internal/data/task_v2.go, objective_v2.go, project.go, write_test.go; new concurrency_plan_v2.go and concurrency_plan_v2_test.go. Within planned_writes; project_test.go, task_v2_test.go and objective_v2_test.go were not needed.
+
+**Limitations:** Case aliasing is ASCII/Unicode lower-case only; Unicode normalization and symlink aliases are not detected (never certified, but not diagnosed either). Lane key charset (lowercase, digits, hyphen) and the independence/digest shapes are this Task's choices and are not in the Objective text; T-103+ should adopt them. Native Windows not run.
 
 ## Drift Notes
 

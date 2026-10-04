@@ -54,7 +54,10 @@ type ObjectiveV2 struct {
 	DependsOn []string  // O-### references
 	Release   ReleaseID // optional R-### or G-### Goal reference
 	Evidence  *Evidence
-	Source    V2SourceDocument
+	// Plan is optional advisory lane and independence metadata. It never
+	// feeds a lifecycle or dependency gate.
+	Plan   ObjectivePlanV2
+	Source V2SourceDocument
 }
 
 type objectiveV2Frontmatter struct {
@@ -65,6 +68,8 @@ type objectiveV2Frontmatter struct {
 	Rank                  yaml.Node  `yaml:"rank"`
 	DependsOn             []string   `yaml:"depends_on"`
 	Release               string     `yaml:"release"`
+	Lanes                 yaml.Node  `yaml:"lanes"`
+	Independence          yaml.Node  `yaml:"independence"`
 	evidenceV2Frontmatter `yaml:",inline"`
 }
 
@@ -125,6 +130,7 @@ func DecodeObjectiveV2(path, content string) (*ObjectiveV2, error) {
 		DependsOn: dependsOn,
 		Release:   ReleaseID(fields.Release),
 		Evidence:  evidence,
+		Plan:      decodeObjectivePlan(path, fields.ID, fields.Lanes, fields.Independence),
 		Source:    doc,
 	}, nil
 }

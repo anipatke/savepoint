@@ -2,7 +2,8 @@
 id: T-105
 title: "Show reasons and copyable worktree instructions"
 objective: O-033
-status: planned
+status: in_progress
+stage: audit
 depends_on: [{task: T-103, requires: clear}, {task: T-104, requires: clear}]
 owner_validation: {required: true}
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
@@ -106,7 +107,26 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Executed 2026-10-04 by the task executor on branch v2.20 (not a worktree lane). Toolchain go1.26.2 linux/amd64.
+
+Gate: `make build && make test-fast` — passed (exit 0). `make test-full` not run (not migration/platform-sensitive). Iteration: `go test ./internal/board/v2 -run ParallelAdvice`.
+
+Design as built: `internal/resume/concurrency.go` holds the one pure formatter, `ParallelLines(index, projection, focus)`. It words data.ResolveConcurrencyV2 output only; safety stays in internal/data. Resume (`renderTextWith`, now `Render(w, next, index)`), Objective/Task detail (`withParallel`, a PARALLEL PLANNING section) and the plain board (selected Objective only) all call it. `main.go` and `loadProject` now pass the saved `features.parallel_planning` into `ResolveNext`, so Next.Concurrency is filled; NextLine is untouched.
+
+Per criterion (tests in `internal/board/v2/parallel_advice_test.go`, `internal/resume/concurrency_test.go`):
+1. Off removes advice, records kept; on is framed as optional, run on main/other worktree allowed — `TestParallelAdviceIsAbsentWhileTheOptionIsOffAndKeepsRecords`, `TestParallelLinesAreEmptyWhenOffOrMissing`, instruction text asserted in `TestParallelAdviceAgreesAcrossResumeDetailsAndPlainBoard`.
+2. One formatter, parity — the T-002 instruction block is byte-identical in Objective detail, Task detail, resume and plain board (same test).
+3. Instruction content: Objective/Task/lane, Start line, reads/writes, prerequisites, owner-prepared setup — asserted line by line; no guessed path or git command asserted absent.
+4. savepoint-task, router/Goal preserved, no identity allocation, local commit, no push/merge, merge and Checks on main — asserted in the same test. No clipboard, shell or branch/worktree creation exists in the code.
+5. Blocked/later/no-lane Tasks give constraints, never a Start instruction — `TestParallelAdviceExplainsBlockedAndLaterTasksWithoutAdvertisingThem`, `TestParallelAdviceWithholdsInstructionsForABlockedFocusedTask`. Terminal controls stripped — `TestParallelAdviceKeepsTheNextLineAndStripsTerminalControls`, `TestParallelLinesStateWithheldAdviceAsOptionalAndSanitised`.
+6. NextLine unchanged on/off (same test); Goal-wide board shows no cross-Objective advice — `TestParallelAdviceNamesNoCrossObjectiveOpportunityGoalWide`. Namespaced lane membership was already shown by T-104 headings; nothing added to plain output.
+7. Evidence and gate recorded here; no Task Check requested and no waiver recorded; Full Objective Check remains mandatory.
+
+Reads: the Context Files, plus as extra reads `main.go` (resume wiring), `internal/board/v2/{load.go,options.go,update.go,fixture_test.go,lanes_test.go,lanes.go,width.go}`, `internal/data/concurrency_plan_v2.go`, `internal/data/concurrency_v2_test.go`, `main_resume_matrix_test.go`, `internal/board/v2/releases_test.go`, `internal/init/v2_scaffold_test.go` (Render signature call sites).
+
+Changes: new `internal/resume/{concurrency.go,concurrency_test.go}`, `internal/board/v2/parallel_advice_test.go`; edited `internal/resume/resume.go`, `internal/board/v2/{detail.go,detail_view.go,plain.go,update.go,load.go}`, `main.go`, and the three test files that call `resume.Render`. Against manifests: `next_panel.go`, `run_test.go`, `detail_test.go`, `resume_test.go` (apart from the Render call) were not needed; `main.go`, `load.go` and `update.go` were not in planned_writes. Advisory only.
+
+Limitations: the interactive TUI detail overlay was exercised through the detail value and `detailLines`, not by a person in a real terminal; native Windows not run (Full Objective Check); copy/paste into a text editor is owner validation and is not inferred from tests. Instruction blocks wrap in a narrow overlay. An unreadable config.yml leaves resume's advice off silently.
 
 ## Drift Notes
 

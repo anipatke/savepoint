@@ -2,21 +2,32 @@
 id: I-132
 title: Preserve mixed config line endings when saving
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-963
   actor: {role: checker, session: check-o037-20261004}
   at: '2026-10-04T02:31:20Z'
 tasks: [T-108]
-checks: [C-963]
+checks: [C-963, C-964]
 guardrail_ids: [FS-01, TEST-03]
+resolution:
+  disposition: verified
+  check: C-964
+  actor: {role: checker, session: recheck-o037-20261004}
+  at: '2026-10-04T02:43:55Z'
+  reason: 'Original mixed-ending reproduction and both-separator off/on round-trip matrix preserve unrelated bytes.'
 history:
   - at: '2026-10-04T02:31:20Z'
     actor: {role: checker, session: check-o037-20261004}
     kind: observed
     check: C-963
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T02:43:55Z'
+    actor: {role: checker, session: recheck-o037-20261004}
+    kind: rechecked
+    check: C-964
+    note: 'CLEAR. Original mixed-ending reproduction and both-separator off/on round-trip matrix preserve unrelated bytes.'
 ---
 
 # I-132: Preserve mixed config line endings when saving

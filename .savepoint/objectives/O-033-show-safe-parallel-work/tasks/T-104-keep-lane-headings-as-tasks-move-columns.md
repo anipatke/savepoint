@@ -2,9 +2,11 @@
 id: T-104
 title: "Keep lane headings as Tasks move columns"
 objective: O-033
-status: planned
+status: done
 depends_on: [{task: T-103, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+  required: true
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: high
 complexity_reason: "Grouping must preserve card navigation, counts, reload selection and measured terminal geometry."
@@ -36,6 +38,13 @@ planned_writes:
   - "internal/board/v2/update.go"
   - "internal/board/v2/load.go"
   - "internal/board/v2/load_test.go"
+check_waiver:
+  task: T-104
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T03:01:40Z"
 ---
 
 # Keep lane headings as Tasks move columns
@@ -106,7 +115,26 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Executed 2026-10-04 by the task executor on branch v2.20 (not a worktree lane). Toolchain go1.26.2 linux/amd64.
+
+Gate: `make build && make test-fast` — passed (exit 0), re-run once after the final test addition with the same result. Iteration: `go test ./internal/board/v2 -run 'Lane|Heading|Legacy|GoalWide|TurningTheOption|Compact'`. `make test-full` was not run (not migration/platform-sensitive for this Task).
+
+Design as built: cards stay one flat slice per column, so counts, keyboard index and status writes are unchanged. Each `TaskCard` carries a resolved `LaneHeading` (`lanes.go`), set while cards are grouped (`groupTaskCardsWithLanes`, called through `Model.groupCards` only from load/selection code). `renderColumn` draws headings as non-card rows; window budgeting counts them (`visibleLaneWindow`). Readiness wording comes from `data.ResolveConcurrencyV2` per Objective; rendering does no IO or safety decision.
+
+Per criterion (tests in `internal/board/v2/lanes_test.go`):
+1. Option off/default renders existing board, saved lanes ignored; toggling preserves state — `TestLaneHeadingsStayOffWhileTheOptionIsOffEvenWithSavedLanes`, `TestTurningTheOptionOffRestoresTheOrdinaryBoard`. Toggling only changes the view; no status action reads headings; Code Health code untouched. Failure case: no-lane project stays ungrouped when on — `TestLegacyObjectiveWithoutLanesKeepsItsLayoutWhenEnabled`.
+2. Headings follow saved membership in all three columns, empty ones omitted, ungrouped work exposed in mixed projects — `TestLaneHeadingsFollowMembershipAcrossEveryColumn`, `TestHeadingPersistsWhileATaskMovesThroughEveryColumn`.
+3. Headings not selectable, no effect on counts; focus kept by Task identity across regrouping — `TestLaneHeadingsAreNotSelectableAndFocusFollowsTaskIdentity` and the count assertions in the membership test.
+4. Stable lane order, one sort shared by all columns; Goal-wide headings namespaced by Objective, same lane key in two Objectives kept apart, no cross-Objective readiness — `TestGoalWideHeadingsNamespaceByObjective`.
+5. Readiness from the canonical projection — `TestLaneReadinessComesFromTheProjection`.
+6. Focused card visible with heading height budgeted, window mid-lane repeats heading, long titles wrap, compact/narrow widths (40x24, 30x20, 47x30, 80x24, 120x48, 160x60) — `TestVisibleLaneWindowCountsHeadingHeightAndKeepsFocusVisible`, `TestRenderColumnRepeatsTheHeadingWhenTheWindowStartsMidLane`, `TestRenderColumnCompactHeightDropsAHeadingBeforeClippingTheFocusedCard`, `TestLongHeadingTitlesWrapWithinTheColumn`, `TestCompactAndNarrowBoardsKeepGroupedColumnsInsideTheTerminal`, `TestRenderColumnWithoutHeadingsIsUnchanged`. Existing badges, card geometry and focus styles untouched.
+7. Evidence and gate recorded here; no Task Check requested and no waiver recorded; Full Objective Check remains mandatory.
+
+Reads: the Context Files listed above, plus `agent-skills/savepoint-task/SKILL.md`, `AGENTS.md` (not extra reads), and, as extra reads: `internal/board/v2/objectives.go` (taskIDsInReleaseView, to keep release scoping) and `internal/board/v2/options.go` (FeatureState and the save/reload path, to confirm a toggle regroups through the normal reload), `internal/board/v2/fixture_test.go` and `internal/styles/styles.go` (test fixtures and the one new style).
+
+Changes: `internal/board/v2/{card.go,column.go,update.go,lanes.go,lanes_test.go}`, `internal/styles/styles.go` (adds `LaneHeading`). Against manifests: new files `lanes.go`/`lanes_test.go` and `styles.go` were not in planned_writes; `view.go`, `model.go`, `load.go`, `width.go` and their tests needed no change. Advisory only.
+
+Limitations: not run on native Windows (mandatory at the Full Objective Check); no visual check in a real terminal by a person — owner validation is required and not inferred from tests. Readiness for a lane in the Planned column shows lane-level state (for example "in progress" while that lane has running work), and `wrapTitleLines` caps headings at two lines plus a readiness line. Pre-existing gofmt drift in `internal/styles/{palette,styles}.go` is not from this Task.
 
 ## Drift Notes
 

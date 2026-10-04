@@ -302,3 +302,7 @@ var (
 				Foreground(clrPurple).
 				Bold(true)
 )
+
+// LaneHeading labels a saved lane over its cards: bold warm text, so it reads
+// as a label without competing with the focus accent.
+var LaneHeading = lipgloss.NewStyle().Foreground(clrText).Bold(true)

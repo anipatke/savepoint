@@ -753,7 +753,7 @@ func TestRender_propagatesWriterError(t *testing.T) {
 	wantErr := errors.New("disk full")
 	next := data.Next{Kind: data.NextNothingSelected}
 
-	err := Render(failingWriter{err: wantErr}, next)
+	err := Render(failingWriter{err: wantErr}, next, nil)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Render() error = %v, want %v", err, wantErr)
 	}
@@ -782,7 +782,7 @@ func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
 func assertRenderEquals(t *testing.T, next data.Next, want string) {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Render(&buf, next); err != nil {
+	if err := Render(&buf, next, nil); err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
 	want = NextLine(next) + "\n" + want

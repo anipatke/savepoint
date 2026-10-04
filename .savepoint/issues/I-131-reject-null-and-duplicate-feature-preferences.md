@@ -2,21 +2,32 @@
 id: I-131
 title: Reject null and duplicate feature preferences
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-963
   actor: {role: checker, session: check-o037-20261004}
   at: '2026-10-04T02:31:20Z'
 tasks: [T-108]
-checks: [C-963]
+checks: [C-963, C-964]
 guardrail_ids: [DATA-03, CFG-01]
+resolution:
+  disposition: verified
+  check: C-964
+  actor: {role: checker, session: recheck-o037-20261004}
+  at: '2026-10-04T02:43:55Z'
+  reason: 'Null/empty and duplicate booleans refused through reader/direct node; malformed writes preserve bytes.'
 history:
   - at: '2026-10-04T02:31:20Z'
     actor: {role: checker, session: check-o037-20261004}
     kind: observed
     check: C-963
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T02:43:55Z'
+    actor: {role: checker, session: recheck-o037-20261004}
+    kind: rechecked
+    check: C-964
+    note: 'CLEAR. Null/empty and duplicate booleans refused through reader/direct node; malformed writes preserve bytes.'
 ---
 
 # I-131: Reject null and duplicate feature preferences

@@ -362,7 +362,7 @@ func TestV2ScaffoldResumesWithItsProjectGoalSelected(t *testing.T) {
 	}
 	next := data.ResolveNext(data.NextInput{Index: index, Router: router})
 	var output bytes.Buffer
-	if err := resume.Render(&output, next); err != nil {
+	if err := resume.Render(&output, next, nil); err != nil {
 		t.Fatalf("resume.Render() on fresh V2 scaffold error = %v", err)
 	}
 	if !strings.Contains(output.String(), "Next action:") {

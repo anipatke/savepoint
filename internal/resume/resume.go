@@ -37,8 +37,11 @@ var nextActionCopy = struct {
 // straight off next, the value data.ResolveNext already resolved (E48-Detail
 // §"Resume reads; it does not act."). Render carries no ANSI styling and
 // produces byte-identical output for the same next on every call.
-func Render(w io.Writer, next data.Next) error {
-	_, err := io.WriteString(w, renderText(next))
+//
+// index supplies the Task records the optional parallel-planning section
+// words; it may be nil, which omits that section.
+func Render(w io.Writer, next data.Next, index *data.V2Index) error {
+	_, err := io.WriteString(w, renderTextWith(next, index))
 	return err
 }
 
@@ -194,6 +197,10 @@ func IssueContextLine(issue *data.IssueV2) string {
 // renderText builds the shared Next line and full narrative as a string, so
 // exact-text and determinism tests never have to go through an io.Writer.
 func renderText(next data.Next) string {
+	return renderTextWith(next, nil)
+}
+
+func renderTextWith(next data.Next, index *data.V2Index) string {
 	lines := []string{NextLine(next)}
 
 	if next.SelectionDiagnostic != nil {
@@ -206,6 +213,10 @@ func renderText(next data.Next) string {
 	lines = append(lines, identityLines(next)...)
 	lines = append(lines, rungLines(next)...)
 	lines = append(lines, issueLines(next.Issues)...)
+	if parallel := ParallelLines(index, next.Concurrency, parallelFocus(next)); len(parallel) > 0 {
+		lines = append(lines, parallel...)
+		lines = append(lines, "")
+	}
 	lines = append(lines, "Next action: "+ActionPhrase(next))
 
 	return strings.Join(lines, "\n") + "\n"

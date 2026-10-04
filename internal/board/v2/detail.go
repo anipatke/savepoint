@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencode/savepoint/internal/codehealth"
 	"github.com/opencode/savepoint/internal/data"
+	"github.com/opencode/savepoint/internal/resume"
 )
 
 // This file resolves what an open detail shows, and it is the only place the
@@ -128,6 +129,10 @@ type RecordDetail struct {
 	// Check names a health snapshot, empty otherwise.
 	Health string
 	Issues []*data.IssueV2
+	// Parallel is the optional parallel-planning advice for an Objective, or
+	// for a Task within its Objective, finished by the formatter resume
+	// shares. It is empty when the saved preference is off.
+	Parallel []string
 }
 
 // StyleReview carries only the latest Check's authored style section. Present
@@ -320,6 +325,31 @@ func codeStyleReviewLines(body string) ([]string, bool) {
 		end--
 	}
 	return lines[start:end], true
+}
+
+// withParallel fills detail.Parallel from the one canonical projection for the
+// owning Objective. enabled is the saved preference read at load, so this
+// reaches no file. The board has no router write here: the focused Objective
+// carries no selection diagnostic.
+func withParallel(index *data.V2Index, enabled bool, detail RecordDetail) RecordDetail {
+	detail.Parallel = nil
+	if !enabled || index == nil {
+		return detail
+	}
+	objective, focus := detail.ID, ""
+	switch detail.Kind {
+	case DetailTask:
+		if detail.Owner == nil {
+			return detail
+		}
+		objective, focus = detail.Owner.ID, detail.ID
+	case DetailObjective:
+	default:
+		return detail
+	}
+	projection := data.ResolveConcurrencyV2(index, objective, data.ConcurrencyOptionsV2{Enabled: true})
+	detail.Parallel = resume.ParallelLines(index, projection, focus)
+	return detail
 }
 
 // reopenDetail re-resolves an open detail against a freshly loaded index, so a

@@ -2,21 +2,32 @@
 id: I-133
 title: Explain future advice in Advanced Options
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-963
   actor: {role: checker, session: check-o037-20261004}
   at: '2026-10-04T02:31:20Z'
 tasks: [T-109, T-110]
-checks: [C-963]
+checks: [C-963, C-964]
 guardrail_ids: [TPL-02]
+resolution:
+  disposition: verified
+  check: C-964
+  actor: {role: checker, session: recheck-o037-20261004}
+  at: '2026-10-04T02:43:55Z'
+  reason: 'Rendered screen states only choice saved now, no suggestions yet, advice later.'
 history:
   - at: '2026-10-04T02:31:20Z'
     actor: {role: checker, session: check-o037-20261004}
     kind: observed
     check: C-963
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T02:43:55Z'
+    actor: {role: checker, session: recheck-o037-20261004}
+    kind: rechecked
+    check: C-964
+    note: 'CLEAR. Rendered screen states only choice saved now, no suggestions yet, advice later.'
 ---
 
 # I-133: Explain future advice in Advanced Options

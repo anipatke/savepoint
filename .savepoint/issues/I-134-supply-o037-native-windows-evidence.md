@@ -2,21 +2,32 @@
 id: I-134
 title: Supply native Windows evidence for O-037
 type: verification
-status: open
+status: resolved
 source:
   kind: check
   check: C-963
   actor: {role: checker, session: check-o037-20261004}
   at: '2026-10-04T02:31:20Z'
 tasks: [T-108, T-109, T-110]
-checks: [C-963]
+checks: [C-963, C-964]
 guardrail_ids: [CFG-03]
+resolution:
+  disposition: verified
+  check: C-964
+  actor: {role: checker, session: recheck-o037-20261004}
+  at: '2026-10-04T02:43:55Z'
+  reason: 'GitHub verified CI run 37171504754 native windows-tests success on exact reviewed 4520c93a7421dd9cc80bfe6e83cb14445aaac506.'
 history:
   - at: '2026-10-04T02:31:20Z'
     actor: {role: checker, session: check-o037-20261004}
     kind: observed
     check: C-963
     note: Initial independent Full Objective Check.
+  - at: '2026-10-04T02:43:55Z'
+    actor: {role: checker, session: recheck-o037-20261004}
+    kind: rechecked
+    check: C-964
+    note: 'CLEAR. GitHub verified CI run 37171504754 native windows-tests success on exact reviewed 4520c93a7421dd9cc80bfe6e83cb14445aaac506.'
 ---
 
 # I-134: Supply native Windows evidence for O-037

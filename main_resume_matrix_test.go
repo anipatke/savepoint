@@ -490,7 +490,7 @@ func TestResumeMatrix_everyRungReachedExactlyOnce(t *testing.T) {
 			seenKinds[next.Kind] = true
 
 			var buf strings.Builder
-			if err := resume.Render(&buf, next); err != nil {
+			if err := resume.Render(&buf, next, nil); err != nil {
 				t.Fatalf("resume.Render() error = %v", err)
 			}
 			rendered := buf.String()
@@ -513,7 +513,7 @@ func TestResumeMatrix_everyRungReachedExactlyOnce(t *testing.T) {
 			// within one.
 			again := resolveNextFromDisk(t, dir)
 			var again_buf strings.Builder
-			if err := resume.Render(&again_buf, again); err != nil {
+			if err := resume.Render(&again_buf, again, nil); err != nil {
 				t.Fatalf("second resume.Render() error = %v", err)
 			}
 			if again_buf.String() != rendered {

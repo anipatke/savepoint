@@ -41,6 +41,9 @@ type TaskCard struct {
 	// GateDecision.AllowedByWaiver while open, the Task's own recorded
 	// CheckWaiver once done.
 	ByWaiver bool
+	// Heading is the saved lane the card is grouped under; zero when the
+	// board is ungrouped or the Task is outside every heading.
+	Heading LaneHeading
 }
 
 // newTaskCard resolves everything a card shows about task, through the
@@ -78,17 +81,28 @@ func groupTaskCards(index *data.V2Index) map[data.ColumnType][]TaskCard {
 	if index != nil {
 		ids = slices.Sorted(maps.Keys(index.Tasks))
 	}
-	return groupTaskCardsForIDs(index, ids)
+	return groupTaskCardsForIDs(index, ids, nil)
 }
 
 // groupTaskCardsForRelease is the card projection for a Release context. The
 // release filter is resolved before cards are built, so rendering still sees
 // only already-resolved TaskCard values and never performs membership work.
 func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string) map[data.ColumnType][]TaskCard {
-	return groupTaskCardsForIDs(index, taskIDsInReleaseView(index, releaseID, objectiveID))
+	return groupTaskCardsForIDs(index, taskIDsInReleaseView(index, releaseID, objectiveID), nil)
 }
 
-func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string) map[data.ColumnType][]TaskCard {
+// groupTaskCardsWithLanes is groupTaskCardsForRelease for a board that may
+// show saved lane headings. With lanes false it is the ordinary board.
+func groupTaskCardsWithLanes(index *data.V2Index, releaseID, objectiveID string, lanes bool) map[data.ColumnType][]TaskCard {
+	ids := taskIDsInReleaseView(index, releaseID, objectiveID)
+	if !lanes {
+		return groupTaskCardsForIDs(index, ids, nil)
+	}
+	ids, headings := laneLayout(index, ids, objectiveID == "")
+	return groupTaskCardsForIDs(index, ids, headings)
+}
+
+func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string, headings map[string]LaneHeading) map[data.ColumnType][]TaskCard {
 	grouped := map[data.ColumnType][]TaskCard{
 		data.ColumnPlanned:    {},
 		data.ColumnInProgress: {},
@@ -100,7 +114,9 @@ func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string) map[data.Column
 
 	for _, id := range taskIDs {
 		task := index.Tasks[id]
-		grouped[task.Status] = append(grouped[task.Status], newTaskCard(index, task))
+		card := newTaskCard(index, task)
+		card.Heading = headings[id]
+		grouped[task.Status] = append(grouped[task.Status], card)
 	}
 	return grouped
 }

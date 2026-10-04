@@ -321,6 +321,11 @@ type Next struct {
 	// the index on its own to answer what follow-up hangs off the selected
 	// record (STYLE-07). Nil when neither is set, or when none are linked.
 	Issues []*IssueV2
+
+	// Concurrency is the advisory parallel-planning projection for the
+	// selected Objective, nil when no Objective resolved. It never feeds the
+	// selection, Kind, or any gate above.
+	Concurrency *ConcurrencyV2
 }
 
 // NextInput carries everything ResolveNext reads: the project's index and the
@@ -329,6 +334,9 @@ type Next struct {
 type NextInput struct {
 	Index  *V2Index
 	Router *RouterStateV2
+	// ParallelPlanning is the saved features.parallel_planning preference.
+	// It only decides whether Next.Concurrency carries advice.
+	ParallelPlanning bool
 }
 
 // ResolveNext computes the next action for the router's exact Objective,
@@ -364,6 +372,9 @@ func ResolveNext(input NextInput) Next {
 	next.SelectionDiagnostic = diagnostic
 	next.ObjectivesWithoutGoal = index.ObjectivesWithoutGoal
 	next.Issues = relevantIssues(index, next)
+	if next.Objective != nil {
+		next.Concurrency = ResolveConcurrencyV2(index, next.Objective.ID, ConcurrencyOptionsV2{Enabled: input.ParallelPlanning, Selection: diagnostic})
+	}
 	return next
 }
 

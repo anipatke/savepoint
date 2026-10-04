@@ -56,6 +56,13 @@ type V2Index struct {
 	// LatestCheck maps a Task, Objective, or Release ID to the most recently recorded
 	// Check ID for that target — the last entry of ScopeChecks[id].
 	LatestCheck map[string]string
+	// PlanDiagnostics lists unusable advisory planning metadata in record-ID
+	// order. They are never load errors. UnusablePlans holds the Task IDs
+	// whose metadata must not feed a recommendation, and PlanIndependence the
+	// valid independence explanations per Objective.
+	PlanDiagnostics  []PlanDiagnosticV2
+	UnusablePlans    map[string]bool
+	PlanIndependence map[string][]PlanIndependenceV2
 }
 
 // HasLiveGoal reports whether the project has a Goal that is not an archived
@@ -164,6 +171,7 @@ func LoadV2Index(root string) (*V2Index, error) {
 	}
 
 	indexIssueLinks(index)
+	validateV2Planning(index)
 
 	return index, nil
 }

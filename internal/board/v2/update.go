@@ -363,10 +363,12 @@ func (m Model) detailUnderCursor() (RecordDetail, bool) {
 		return RecordDetail{}, false
 	}
 	if m.SidebarFocused {
-		return newObjectiveDetail(m.State.Index, m.State.Health, m.Objectives[m.ObjectiveCursor].ID())
+		detail, ok := newObjectiveDetail(m.State.Index, m.State.Health, m.Objectives[m.ObjectiveCursor].ID())
+		return withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail), ok
 	}
 	cards := m.Cards[m.FocusedColumn]
-	return newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
+	detail, ok := newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
+	return withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail), ok
 }
 
 // closeDetail returns the keys to the surface the overlay was opened from, with
@@ -419,6 +421,7 @@ func (m *Model) refreshDetail() {
 		m.closeDetail()
 		return
 	}
+	detail = withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail)
 	m.Detail = &detail
 	m.clampDetailScroll()
 }
@@ -591,7 +594,7 @@ func (m *Model) selectObjective(objectiveID string) {
 		return
 	}
 	m.SelectedObjective = objectiveID
-	m.Cards = groupTaskCardsForRelease(m.State.Index, m.SelectedRelease, objectiveID)
+	m.Cards = m.groupCards(m.SelectedRelease, objectiveID)
 	m.FocusedCard = 0
 	m.clampFocus()
 }
@@ -613,7 +616,7 @@ func (m *Model) applyReleaseSelection(releaseID string) {
 		m.SelectedObjective = ""
 	}
 	m.Objectives = objectiveRowsForRelease(m.State.Index, releaseID)
-	m.Cards = groupTaskCardsForRelease(m.State.Index, releaseID, m.SelectedObjective)
+	m.Cards = m.groupCards(releaseID, m.SelectedObjective)
 	m.restoreObjectiveCursor(view, true)
 	m.restoreFocus(view, true)
 }
@@ -761,7 +764,7 @@ func (m *Model) restoreLoadedSelection(snapshot reloadSnapshot, wasLoaded bool) 
 	m.SelectedRelease = restoredRelease(state)
 	m.SelectedObjective = restoredObjectiveForRelease(*m, snapshot, state, wasLoaded, m.SelectedRelease)
 	m.Objectives = objectiveRowsForRelease(state.Index, m.SelectedRelease)
-	m.Cards = groupTaskCardsForRelease(state.Index, m.SelectedRelease, m.SelectedObjective)
+	m.Cards = m.groupCards(m.SelectedRelease, m.SelectedObjective)
 	m.restoreReleaseCursor(snapshot, wasLoaded)
 	m.restoreObjectiveCursor(snapshot, wasLoaded)
 	m.restoreFocus(snapshot, wasLoaded)
@@ -951,7 +954,7 @@ func (m *Model) restoreReleaseWrite() {
 	m.SelectedRelease = snapshot.SelectedRelease
 	m.SelectedObjective = snapshot.SelectedObjective
 	m.Objectives = objectiveRowsForRelease(m.State.Index, m.SelectedRelease)
-	m.Cards = groupTaskCardsForRelease(m.State.Index, m.SelectedRelease, m.SelectedObjective)
+	m.Cards = m.groupCards(m.SelectedRelease, m.SelectedObjective)
 	m.restoreObjectiveCursor(snapshot, true)
 	m.restoreFocus(snapshot, true)
 	m.ReleaseCursor = releaseIndex(m.Releases, m.SelectedRelease)
@@ -1107,6 +1110,12 @@ func (m *Model) clampFocus() {
 	if m.FocusedCard < 0 {
 		m.FocusedCard = 0
 	}
+}
+
+// groupCards rebuilds the columns' cards for the view, adding saved lane
+// headings only while the saved parallel-planning preference is on.
+func (m Model) groupCards(releaseID, objectiveID string) map[data.ColumnType][]TaskCard {
+	return groupTaskCardsWithLanes(m.State.Index, releaseID, objectiveID, m.State.Features.ParallelPlanning)
 }
 
 func columnIndex(column data.ColumnType) int {

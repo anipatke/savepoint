@@ -259,9 +259,15 @@ func runResume(dir string, stdout io.Writer) (int, error) {
 		return 1, fmt.Errorf("resume: reading router: %w", err)
 	}
 
-	next := data.ResolveNext(data.NextInput{Index: index, Router: router})
+	// An unreadable config.yml leaves the optional advice off; resume's own
+	// answer never depends on it.
+	parallel := false
+	if config, err := data.NewConfigReader().Read(filepath.Join(savepointRoot, "config.yml")); err == nil {
+		parallel = config.ParallelPlanningEnabled()
+	}
+	next := data.ResolveNext(data.NextInput{Index: index, Router: router, ParallelPlanning: parallel})
 
-	if err := resume.Render(stdout, next); err != nil {
+	if err := resume.Render(stdout, next, index); err != nil {
 		return 1, fmt.Errorf("resume: writing output: %w", err)
 	}
 	return 0, nil
