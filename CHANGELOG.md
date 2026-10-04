@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Advanced Options and parallel planning
+## v2.2.0 — Advanced Options and parallel planning
 
 ### Added
 
