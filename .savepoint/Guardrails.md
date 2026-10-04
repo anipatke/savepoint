@@ -66,6 +66,7 @@ Blockers cover user file loss, silent overwrites of user-authored content, corru
 | ARCH-02 | Required | Rendering must not perform IO. TUI update paths do filesystem work through explicit commands. |
 | ARCH-03 | Required | Correctness must not depend on the process's working directory or on in-memory state that survives a single command. |
 | ARCH-04 | Required | Each `internal/` package keeps the single purpose recorded in the AGENTS.md Codebase Map; a new responsibility means a new package or a map update. |
+| ARCH-05 | Required | Text read from project files or external tool output must have terminal control sequences removed before board, resume, doctor, or any other terminal surface displays it. |
 
 ### Configuration And Dependencies
 
