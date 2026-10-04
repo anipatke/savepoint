@@ -1624,6 +1624,43 @@ func TestUpgradeDeliversGoalRetrospectiveRuleToDesignSkill(t *testing.T) {
 	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "### Goal Workflow Retrospective")
 }
 
+// TestUpgradeDeliversParallelPlanningGuidanceWithoutTouchingRecords refreshes
+// a stale managed planner skill and proves lane metadata on a Task, with
+// unknown frontmatter and body text, is neither migrated nor backfilled.
+func TestUpgradeDeliversParallelPlanningGuidanceWithoutTouchingRecords(t *testing.T) {
+	const designSkill = "agent-skills/savepoint-design/SKILL.md"
+	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
+	dir := savepointProject(t)
+	const old = "# savepoint-design before parallel planning"
+	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)), old)
+	manifest := NewManifest()
+	manifest.Record(designSkill, []byte(old))
+	if err := manifest.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	const task = "---\nid: T-001\nlane: core\nplanned_writes: [a.go]\nmine: kept\n---\n\n# Body stays\n"
+	const oldTask = "---\nid: T-002\nstatus: planned\n---\n"
+	taskPath := filepath.Join(dir, ".savepoint", "objectives", "O-001-x", "tasks", "T-001-x.md")
+	oldTaskPath := filepath.Join(dir, ".savepoint", "objectives", "O-001-x", "tasks", "T-002-x.md")
+	testutil.WriteFile(t, taskPath, task)
+	testutil.WriteFile(t, oldTaskPath, oldTask)
+
+	report, err := upgradeAssetsFromTree(templates, dir, false, false)
+	if err != nil {
+		t.Fatalf("UpgradeProjectAssets() error = %v", err)
+	}
+	if got := upgradeActionFor(t, report, designSkill); got != ActionUpdated {
+		t.Fatalf("action = %v, want updated", got)
+	}
+	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "## Parallel Planning")
+	if got := string(mustReadFile(t, taskPath)); got != task {
+		t.Errorf("Task record changed by upgrade: %q", got)
+	}
+	if got := string(mustReadFile(t, oldTaskPath)); got != oldTask {
+		t.Errorf("Task without lane metadata was backfilled: %q", got)
+	}
+}
+
 // TestUpgradePreservesOwnerConfigAndFeatureChoices upgrades projects whose
 // config.yml predates the features key, carries an explicit choice, or holds
 // comments and unrelated keys. Upgrade must leave every byte of config.yml and

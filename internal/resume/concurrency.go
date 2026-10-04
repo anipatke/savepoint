@@ -27,14 +27,14 @@ func ParallelLines(index *data.V2Index, c *data.ConcurrencyV2, focus string) []s
 	if index == nil || c == nil || !c.Enabled {
 		return nil
 	}
-	var body []string
+	body := diagnosticLines(c, focus)
 	switch {
 	case c.Withheld != nil:
-		body = []string{"Withheld: " + c.Withheld.Detail}
+		body = append(body, "Withheld: "+c.Withheld.Detail)
 	case focus == "":
-		body = objectiveAdvice(index, c)
+		body = append(body, objectiveAdvice(index, c)...)
 	default:
-		body = taskAdvice(index, c, focus)
+		body = append(body, taskAdvice(index, c, focus)...)
 	}
 	if len(body) == 0 {
 		return nil
@@ -42,6 +42,21 @@ func ParallelLines(index *data.V2Index, c *data.ConcurrencyV2, focus string) []s
 	lines := append([]string{parallelHeading}, body...)
 	for i, line := range lines {
 		lines[i] = cleanText(line)
+	}
+	return lines
+}
+
+// diagnosticLines names the planning metadata the projection could not use,
+// so the owner can see which record, file and field to look at. They are
+// advisory: nothing is blocked and nothing asks the owner to repair them. A
+// Task view lists only that Task's own diagnostics.
+func diagnosticLines(c *data.ConcurrencyV2, focus string) []string {
+	var lines []string
+	for _, d := range c.Diagnostics {
+		if focus != "" && d.Record != focus {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("Planning metadata not used — %s %s, field %s: %s", d.Record, d.Path, d.Field, d.Message))
 	}
 	return lines
 }
@@ -144,7 +159,8 @@ func instructionLines(index *data.V2Index, objectiveID string, candidate data.Co
 	return []string{
 		fmt.Sprintf("Instruction for %s — copy the lines between the markers into a fresh agent session:", task.ID),
 		fmt.Sprintf("----- begin %s -----", task.ID),
-		fmt.Sprintf("Use savepoint-task. Start %s — %s (%s).", task.ID, task.Title, objective.ID),
+		startLine(task, objective),
+		"Use savepoint-task for the Start line above. It selects this Task even if the shared router names another.",
 		fmt.Sprintf("Objective: %s; Task: %s; lane: %s.", objective.ID, task.ID, lane),
 		"Reads: " + pathList(task.Plan.Reads.Paths()),
 		"Writes: " + pathList(task.Plan.Writes.Paths()),
@@ -154,6 +170,12 @@ func instructionLines(index *data.V2Index, objectiveID string, candidate data.Co
 		"If you do use a separate worktree: leave router.md and the Goal selection unchanged; do not allocate Task, Check or Issue identities there; record Task evidence and commit locally on the worktree branch; do not push or merge. Merging and Checks happen on main.",
 		fmt.Sprintf("----- end %s -----", task.ID),
 	}
+}
+
+// startLine is the standalone selection a fresh session routes on, worded
+// exactly as the Next line for this Task so the workflow reads it the same way.
+func startLine(task *data.TaskV2, objective *data.ObjectiveV2) string {
+	return NextLine(data.Next{Task: task, Objective: objective})
 }
 
 func pathList(paths []string) string {

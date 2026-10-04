@@ -93,13 +93,13 @@ func groupTaskCardsForRelease(index *data.V2Index, releaseID, objectiveID string
 
 // groupTaskCardsWithLanes is groupTaskCardsForRelease for a board that may
 // show saved lane headings. With lanes false it is the ordinary board.
-func groupTaskCardsWithLanes(index *data.V2Index, releaseID, objectiveID string, lanes bool) map[data.ColumnType][]TaskCard {
-	ids := taskIDsInReleaseView(index, releaseID, objectiveID)
+func groupTaskCardsWithLanes(state ProjectState, releaseID, objectiveID string, lanes bool) map[data.ColumnType][]TaskCard {
+	ids := taskIDsInReleaseView(state.Index, releaseID, objectiveID)
 	if !lanes {
-		return groupTaskCardsForIDs(index, ids, nil)
+		return groupTaskCardsForIDs(state.Index, ids, nil)
 	}
-	ids, headings := laneLayout(index, ids, objectiveID == "")
-	return groupTaskCardsForIDs(index, ids, headings)
+	ids, headings := laneLayout(state, ids, objectiveID == "")
+	return groupTaskCardsForIDs(state.Index, ids, headings)
 }
 
 func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string, headings map[string]LaneHeading) map[data.ColumnType][]TaskCard {

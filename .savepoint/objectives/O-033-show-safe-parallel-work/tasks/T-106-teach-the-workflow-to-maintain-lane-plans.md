@@ -2,9 +2,11 @@
 id: T-106
 title: "Teach the workflow to maintain lane plans"
 objective: O-033
-status: planned
+status: done
 depends_on: [{task: T-103, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+  required: false
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: medium
 complexity_reason: "Planner, executor and checker contracts must stay aligned across canonical/scaffold guidance and safe upgrades."
@@ -40,6 +42,13 @@ planned_writes:
   - "internal/init/upgrade_test.go"
   - "internal/init/v2_scaffold_test.go"
   - "internal/init/skill_validation_test.go"
+check_waiver:
+  task: T-106
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T03:09:34Z"
 ---
 
 # Teach the workflow to maintain lane plans
@@ -112,7 +121,19 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Commands: `make build && make test-fast` on 2026-10-04, exit 0 (go toolchain from the repo Makefile). Focused iteration: `make test-focused TEST='TestGuidance|TestUpgradeDelivers|TestScaffold'`, all pass after correcting one test phrase's casing.
+
+Per criterion:
+1. Setting documented: design skill `## Parallel Planning` names `features.parallel_planning`, off by default, Advanced Options (`o`), no Code Health toggle; off means no lane demands; malformed or stale advice is nonblocking. Test: `TestGuidanceKeepsParallelPlanningAdvisory`.
+2. Planner guidance: optional lane keys, exact `planned_reads`/`planned_writes`, `independence` explanations, semantic dependencies in `depends_on`; sequential planning stays allowed. The blanket "no overlapping Context Files" wording is removed from step 7, and the old test assertion for it was removed.
+3. Executor: task skill states manifest changes, ignored lanes or another worktree never require REPLAN REQUIRED; extra-read, dependency and worktree rules kept.
+4. Checker: check skill and `check-method.md` `## Parallel Planning Advice` say ignoring advice is not a finding or `CLEAR` blocker; recommendation accuracy is verified as feature behavior; no new status or self-clearance.
+5. Parity: the four canonical skill/reference files equal their scaffold copies (asserted in the new test); root and scaffold AGENTS.md carry the same advisory sentence, with no safety algorithm duplicated.
+6. Delivery/preservation: `TestUpgradeDeliversParallelPlanningGuidanceWithoutTouchingRecords` (stale managed skill refreshed; Task with lane metadata and unknown frontmatter/body unchanged; Task without lane metadata not backfilled). Existing `TestUpgradePreservesOwnerConfigAndFeatureChoices` covers edited assets and config. Fresh init gets the files via the scaffold parity test and existing scaffold tests.
+
+Files read: the Context Files' relevant sections only, plus extra reads: `internal/data/concurrency_plan_v2.go` (exact metadata keys and the `independence` shape) and O-033 Objective.md (lane keys), logged here per the plan's allowance.
+Files changed: the four skill/reference files and scaffold copies, both AGENTS.md files, `internal/init/template_freshness_test.go`, `internal/init/upgrade_test.go`. All within planned_writes except `template_freshness_test.go` (planned_reads only), which held the old blanket-criterion assertion.
+Limitations: no Task Check requested and no waiver recorded; a fresh-init end-to-end run was not done separately. Full Objective Check still applies. `gofmt -l` flags `manifest_test.go`, unchanged by this Task.
 
 ## Drift Notes
 

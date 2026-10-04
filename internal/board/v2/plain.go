@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/opencode/savepoint/internal/data"
 	"github.com/opencode/savepoint/internal/resume"
 )
 
@@ -97,7 +96,7 @@ func renderPlain(state ProjectState, selected string) string {
 	// Advice is per Objective: a Goal-wide view names no Objective, so it
 	// compares nothing across Objectives.
 	if selected != "" && state.Features.ParallelPlanning {
-		projection := data.ResolveConcurrencyV2(state.Index, selected, data.ConcurrencyOptionsV2{Enabled: true})
+		projection := projectConcurrency(state, selected)
 		if parallel := resume.ParallelLines(state.Index, projection, ""); len(parallel) > 0 {
 			fmt.Fprintln(&b)
 			for _, line := range parallel {

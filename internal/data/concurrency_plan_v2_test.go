@@ -96,8 +96,8 @@ func TestDecodeObjectiveV2_lanesAreNonfatalAndStable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeObjectiveV2() error = %v", err)
 	}
-	if len(bad.Plan.Lanes) != 1 || len(bad.Plan.Diagnostics()) != 4 {
-		t.Errorf("Lanes = %+v, diagnostics = %v; want first lane kept and four diagnostics", bad.Plan.Lanes, bad.Plan.Diagnostics())
+	if len(bad.Plan.Lanes) != 0 || len(bad.Plan.Diagnostics()) != 4 {
+		t.Errorf("Lanes = %+v, diagnostics = %v; want the ambiguous lane dropped and four diagnostics", bad.Plan.Lanes, bad.Plan.Diagnostics())
 	}
 }
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Advanced Options
+## Unreleased — Advanced Options and parallel planning
 
 ### Added
 
@@ -15,12 +15,35 @@
   kept. If `config.yml` changed since the board loaded it, the save is refused
   and explained, and the screen shows the file as it now stands.
 
+- **Optional parallel-planning metadata.** An Objective may declare `lanes`;
+  a Task may name a `lane` and exact `planned_reads` / `planned_writes`.
+  Nothing is required or backfilled.
+- **Lane / Proposed worktree headings.** With the option on, the selected
+  Objective's columns group Tasks under stable lane headings; the Goal-wide
+  view namespaces them by Objective.
+- **Conservative suggestions with reasons.** Which Tasks may start together,
+  and why others are not suggested, appear identically in `savepoint resume`,
+  Objective and Task details and the plain board, with a copyable instruction
+  for a fresh session per ready Task.
+- Planning, task and check guidance now describes the optional advice.
+- Repairs from the O-033 check: a lane key declared twice is dropped and its
+  Tasks get no suggestion; authored lane titles cannot inject terminal
+  controls; a stale router selection withholds launch advice on the board and
+  details exactly as in `savepoint resume`; each copyable instruction opens
+  with a standalone `Start T-### — …` line; and planning diagnostics name the
+  record, file and field that could not be used.
+
 ### Notes
 
-- The option only records your preference. It is the switch for optional
-  advice about which Tasks could run side by side in separate worktrees, which
-  arrives in a later release; nothing is suggested or created yet. It never
-  blocks work, changes Code Health, or decides what is done.
+- Advice is only advice. It never blocks work, changes Code Health, or
+  decides what is done; start, advance and completion decisions are identical
+  with it on, off or ignored, and malformed advice degrades to a visible
+  diagnostic.
+- Safety is limited to what the records state: dependencies, exact planned
+  paths and recorded active work. Unknown scope withholds a suggestion, and a
+  suggestion is not a guarantee of independence.
+- You prepare any worktree, prerequisites and branch yourself. Savepoint
+  creates and monitors none, and the owner merges and runs Checks on `main`.
 - You can edit the file by hand instead:
 
   ```yaml

@@ -37,7 +37,8 @@ const ungroupedTitle = "Ungrouped — sequential work"
 // namespaced prefixes each title with its Objective, for a view that spans
 // Objectives. Readiness is always read per Objective: no suggestion ever
 // compares lanes of different Objectives.
-func laneLayout(index *data.V2Index, taskIDs []string, namespaced bool) ([]string, map[string]LaneHeading) {
+func laneLayout(state ProjectState, taskIDs []string, namespaced bool) ([]string, map[string]LaneHeading) {
+	index := state.Index
 	if index == nil {
 		return taskIDs, nil
 	}
@@ -76,10 +77,10 @@ func laneLayout(index *data.V2Index, taskIDs []string, namespaced bool) ([]strin
 			entry.rank = slices.IndexFunc(objective.Plan.Lanes, func(l data.ObjectiveLaneV2) bool { return l.Key == lane.Key })
 			projection, seen := projections[task.Objective]
 			if !seen {
-				projection = data.ResolveConcurrencyV2(index, task.Objective, data.ConcurrencyOptionsV2{Enabled: true})
+				projection = projectConcurrency(state, task.Objective)
 				projections[task.Objective] = projection
 			}
-			heading = LaneHeading{Key: task.Objective + "/" + lane.Key, Title: lane.Title, Readiness: laneReadiness(projection, lane.Key)}
+			heading = LaneHeading{Key: task.Objective + "/" + lane.Key, Title: stripTerminalControls(lane.Title), Readiness: laneReadiness(projection, lane.Key)}
 		}
 		if namespaced {
 			heading.Title = task.Objective + " · " + heading.Title
@@ -102,6 +103,18 @@ func laneLayout(index *data.V2Index, taskIDs []string, namespaced bool) ([]strin
 		ids[i] = entry.id
 	}
 	return ids, headings
+}
+
+// projectConcurrency is the one projection every board surface reads for an
+// Objective, so a heading, a detail and the plain board agree with resume. A
+// router selection that is not current withholds launch advice for the
+// Objective the router names, exactly as data.ResolveNext does for resume.
+func projectConcurrency(state ProjectState, objectiveID string) *data.ConcurrencyV2 {
+	opts := data.ConcurrencyOptionsV2{Enabled: true}
+	if state.Router != nil && state.Router.Objective == objectiveID {
+		opts.Selection = state.Next.SelectionDiagnostic
+	}
+	return data.ResolveConcurrencyV2(state.Index, objectiveID, opts)
 }
 
 func compareStrings(a, b string) int {

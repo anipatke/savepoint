@@ -31,6 +31,8 @@ func writeLaneProject(t *testing.T, enabled bool) string {
 	writeTask(t, root, "O-001", "T-003", "Core running", "status: in_progress\nstage: build\nlane: core\n")
 	writeTask(t, root, "O-001", "T-004", "Core planned", "status: planned\nlane: core\n")
 	writeTask(t, root, "O-001", "T-005", "Sequential work", "status: planned\n")
+	// A current selection: a done Task would be a stale one and withhold advice.
+	writeFixtureRouter(t, root, "task", "O-001", "T-004")
 	return root
 }
 

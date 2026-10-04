@@ -2,10 +2,11 @@
 id: T-105
 title: "Show reasons and copyable worktree instructions"
 objective: O-033
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-103, requires: clear}, {task: T-104, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+  required: true
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: medium
 complexity_reason: "Shared narrative must remain consistent across resume, details and plain board output without introducing clipboard or shell execution."
@@ -36,6 +37,13 @@ planned_writes:
   - "internal/board/v2/next_panel.go"
   - "internal/board/v2/next_panel_test.go"
   - "internal/board/v2/run_test.go"
+check_waiver:
+  task: T-105
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T03:07:20Z"
 ---
 
 # Show reasons and copyable worktree instructions

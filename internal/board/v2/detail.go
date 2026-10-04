@@ -329,11 +329,12 @@ func codeStyleReviewLines(body string) ([]string, bool) {
 
 // withParallel fills detail.Parallel from the one canonical projection for the
 // owning Objective. enabled is the saved preference read at load, so this
-// reaches no file. The board has no router write here: the focused Objective
-// carries no selection diagnostic.
-func withParallel(index *data.V2Index, enabled bool, detail RecordDetail) RecordDetail {
+// reaches no file. The router's selection diagnostic applies to the Objective
+// the router names, so detail agrees with resume.
+func withParallel(state ProjectState, detail RecordDetail) RecordDetail {
+	index := state.Index
 	detail.Parallel = nil
-	if !enabled || index == nil {
+	if !state.Features.ParallelPlanning || index == nil {
 		return detail
 	}
 	objective, focus := detail.ID, ""
@@ -347,7 +348,7 @@ func withParallel(index *data.V2Index, enabled bool, detail RecordDetail) Record
 	default:
 		return detail
 	}
-	projection := data.ResolveConcurrencyV2(index, objective, data.ConcurrencyOptionsV2{Enabled: true})
+	projection := projectConcurrency(state, objective)
 	detail.Parallel = resume.ParallelLines(index, projection, focus)
 	return detail
 }

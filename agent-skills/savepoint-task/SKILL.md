@@ -44,6 +44,8 @@ These Context Files are the read budget. Necessary targeted extra reads are allo
 
 In a worktree lane, follow AGENTS.md's Worktree Lanes section: skip the router writes in step 2 and after a direct Issue repair, create no Tasks, Checks, or Issues, and commit on the lane branch without pushing or merging.
 
+Lane keys and `planned_reads`/`planned_writes` are optional advice. When `features.parallel_planning` is on you may note in the evidence that the files actually touched differ from the planned writes, but do not stop, return `REPLAN REQUIRED`, or refuse a start solely because a manifest changed, a lane was ignored, or a different worktree or none was used. The extra-read rule, dependencies, acceptance criteria, Guardrails and Worktree Lanes rules still apply. When the setting is off, lane metadata is not needed.
+
 ## Lifecycle
 
 - A Task Check's `NEEDS WORK` resumes repair at `stage: build` within the same Task. `CLEAR` never sets `status: done`; completion belongs to the owner.

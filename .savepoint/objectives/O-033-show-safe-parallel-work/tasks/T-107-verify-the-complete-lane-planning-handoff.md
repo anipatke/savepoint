@@ -2,9 +2,11 @@
 id: T-107
 title: "Verify the complete lane planning handoff"
 objective: O-033
-status: planned
+status: done
 depends_on: [{task: T-105, requires: clear}, {task: T-106, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+  required: true
+  accepted_check: ""
 planned_by: {role: planner, session: codex-o033-planning-2026-10-03}
 complexity_tier: medium
 complexity_reason: "Cross-surface integration and public guidance must demonstrate the delivered contract without claiming independent clearance."
@@ -29,6 +31,13 @@ planned_writes:
   - "README.md"
   - "CHANGELOG.md"
   - ".savepoint/Design.md"
+check_waiver:
+  task: T-107
+  reason: Owner completed this Task via the board without requesting a Task Check.
+  actor:
+    role: owner
+    session: board-owner
+  recorded_at: "2026-10-04T03:13:35Z"
 ---
 
 # Verify the complete lane planning handoff
@@ -100,11 +109,23 @@ Use focused make test-focused TEST=... only for iteration. Record named happy-pa
 
 ## Technical Evidence
 
-Pending execution. Record per-criterion evidence, extra-read reasons, actual scope versus manifests, gate result, owner validation when required, and any explicit owner Task-check waiver. Planning evidence is not technical clearance.
+Commands: `make test-full` on 2026-10-04 14:12 +11:00, go1.26.2 linux/amd64, wall time 17.5s, all packages passed and linux/darwin/windows cross-builds succeeded. Focused iteration only: `go test ./internal/data -run TestIntegration_`, `go test ./internal/board/v2 -run TestIntegration`.
+
+Per criterion (new files `internal/data/concurrency_integration_test.go`, `internal/board/v2/concurrency_integration_test.go`):
+1. Advanced Options and decisions: option off/default/on/restart, external edit and save failure are covered by the existing `TestOptionsJourneyOnTemporaryProject` and `TestOptionsLeaveLifecycleAndBoardIdenticalWhenOn` (not rewritten here). New `TestIntegration_adviceNeverChangesExistingDecisions` loads the same Tasks with and without lanes/manifests and projects with the preference off, on, off; start, advance and completion decisions are identical, including one Task with malformed `planned_writes` (diagnostic present). `TestIntegrationMalformedAdviceDegradesWithoutHidingTheBoard` covers board degradation. Code Health untouched (no code change).
+2. Records: `TestIntegration_lanesAcrossOldMixedAndNewRecords` (old/mixed/new), `TestIntegration_sequentialDependencyAndSharedPathCases` (same lane, blocked and satisfied dependency, shared write, shared read, running Task with unknown scope), `TestIntegration_explanationInvalidatesWhenEitherManifestChanges` (writer and reader broadened).
+3. Surface agreement: `TestIntegrationSurfacesAgreeAfterStatusChanges` (lane head started then done), `TestIntegrationSurfacesWithholdTogetherAfterAReplan`, `TestIntegrationGoalWideViewNeverImpliesCrossObjectiveConcurrency`; pre-existing `TestParallelAdviceAgreesAcrossResumeDetailsAndPlainBoard`.
+4. README gains Planning lanes and Try it sections; CHANGELOG lists metadata, headings, reasons, safety limits and manual worktree/merge responsibility. No orchestration or monitoring is promised.
+5. Design.md section 8 gains a shipped "Parallel planning (O-033)" paragraph with the drift noted below.
+6. Gate recorded above. Limitations: native windows-tests CI result is not available locally and the owner must supply it before the Full Objective Check; resume focuses on the selected Task, so Objective-wide "In progress" lines appear only on the Objective detail and plain board. No Check written, no CLEAR claimed, health check not run.
+
+Files read beyond Context Files: `internal/data/gate_v2.go`, `internal/data/next.go`, `internal/data/evidence_v2.go`, `internal/board/v2/lanes.go`, `internal/board/v2/parallel_advice_test.go`, `internal/board/v2/lanes_test.go`, `internal/data/concurrency_v2_test.go`, `internal/data/concurrency_plan_v2_test.go` (to reuse helpers and avoid duplicating tests), and the O-033 Objective.md. Actual writes match planned_writes.
+
+Owner validation: required and pending; owner Task-check waiver: none recorded.
 
 ## Drift Notes
 
-Pending execution. Record material acceptance/architecture deviations under normal policy. Lane choice or anticipated-scope deviation alone is advisory and never a required replan.
+Architecture drift recorded in Design.md: `Next.Concurrency` carries the projection so resume and board share it, and the Goal-wide plain board prints no advice. No material acceptance deviation or REPLAN REQUIRED.
 
 
 ## Advisory Feature Contract — Revised 2026-10-03

@@ -287,6 +287,7 @@ func decodeObjectivePlan(path, objectiveID string, lanes, independence yaml.Node
 			diagnose("lanes", "must be a list of {key, title} entries")
 		}
 		seen := map[string]bool{}
+		ambiguous := map[string]bool{}
 		for i, item := range lanes.Content {
 			var raw struct {
 				Key   string `yaml:"key"`
@@ -302,12 +303,17 @@ func decodeObjectivePlan(path, objectiveID string, lanes, independence yaml.Node
 			case strings.TrimSpace(raw.Title) == "":
 				diagnose("lanes", "lane %q needs a readable title", raw.Key)
 			case seen[raw.Key]:
-				diagnose("lanes", "lane key %q is declared more than once", raw.Key)
+				diagnose("lanes", "lane key %q is declared more than once; none of its declarations is used", raw.Key)
+				ambiguous[raw.Key] = true
 			default:
 				seen[raw.Key] = true
 				plan.Lanes = append(plan.Lanes, ObjectiveLaneV2{Key: raw.Key, Title: raw.Title})
 			}
 		}
+		// A key declared twice is ambiguous: neither title can be trusted, so the
+		// lane is dropped and its Tasks become unusable for recommendations, the
+		// same as a lane that was never declared.
+		plan.Lanes = slices.DeleteFunc(plan.Lanes, func(l ObjectiveLaneV2) bool { return ambiguous[l.Key] })
 	}
 
 	if independence.Kind != 0 {

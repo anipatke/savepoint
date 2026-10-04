@@ -53,8 +53,8 @@ func adviceSurfaces(t *testing.T, root string) (resumeText, objectiveText, taskT
 	objective, _ := newObjectiveDetail(state.Index, state.Health, "O-001")
 	task, _ := newTaskDetail(state.Index, "T-002")
 	enabled := state.Features.ParallelPlanning
-	objective = withParallel(state.Index, enabled, objective)
-	task = withParallel(state.Index, enabled, task)
+	objective = withParallel(withEnabled(state, enabled), objective)
+	task = withParallel(withEnabled(state, enabled), task)
 	return out.String(), strings.Join(objective.Parallel, "\n"), strings.Join(task.Parallel, "\n"), renderPlain(state, "O-001")
 }
 
@@ -68,7 +68,8 @@ func TestParallelAdviceAgreesAcrossResumeDetailsAndPlainBoard(t *testing.T) {
 		}
 	}
 	for _, line := range []string{
-		"Use savepoint-task. Start T-002 — Board work (O-001).",
+		"Start T-002 — Board work (O-001)",
+		"Use savepoint-task for the Start line above.",
 		"Objective: O-001; Task: T-002; lane: board (Lane / Proposed worktree — Board).",
 		"Reads: a.go",
 		"Writes: b.go",
@@ -136,7 +137,7 @@ func TestParallelAdviceKeepsTheNextLineAndStripsTerminalControls(t *testing.T) {
 	}
 	state := loadProject(writeAdviceProject(t, true)).State
 	objective, _ := newObjectiveDetail(state.Index, state.Health, "O-001")
-	objective = withParallel(state.Index, true, objective)
+	objective = withParallel(withEnabled(state, true), objective)
 	for name, text := range map[string]string{"resume": enabled, "detail": strings.Join(objective.Parallel, "\n"), "plain": plainOn} {
 		if strings.ContainsAny(text, "\x1b\x07") {
 			t.Errorf("%s output carries a terminal control: %q", name, text)
@@ -158,8 +159,14 @@ func TestParallelAdviceNamesNoCrossObjectiveOpportunityGoalWide(t *testing.T) {
 func TestParallelAdviceWithholdsInstructionsForABlockedFocusedTask(t *testing.T) {
 	state := loadProject(writeAdviceProject(t, true)).State
 	detail, _ := newTaskDetail(state.Index, "T-007")
-	text := strings.Join(withParallel(state.Index, true, detail).Parallel, "\n")
+	text := strings.Join(withParallel(withEnabled(state, true), detail).Parallel, "\n")
 	if strings.Contains(text, "begin T-007") || !strings.Contains(text, "T-007 cannot start yet") {
 		t.Errorf("blocked Task detail = %q, want the constraint and no Start instruction", text)
 	}
+}
+
+// withEnabled returns state with the parallel-planning preference set.
+func withEnabled(state ProjectState, enabled bool) ProjectState {
+	state.Features.ParallelPlanning = enabled
+	return state
 }

@@ -364,11 +364,11 @@ func (m Model) detailUnderCursor() (RecordDetail, bool) {
 	}
 	if m.SidebarFocused {
 		detail, ok := newObjectiveDetail(m.State.Index, m.State.Health, m.Objectives[m.ObjectiveCursor].ID())
-		return withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail), ok
+		return withParallel(m.State, detail), ok
 	}
 	cards := m.Cards[m.FocusedColumn]
 	detail, ok := newTaskDetail(m.State.Index, cards[m.FocusedCard].Task.ID)
-	return withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail), ok
+	return withParallel(m.State, detail), ok
 }
 
 // closeDetail returns the keys to the surface the overlay was opened from, with
@@ -421,7 +421,7 @@ func (m *Model) refreshDetail() {
 		m.closeDetail()
 		return
 	}
-	detail = withParallel(m.State.Index, m.State.Features.ParallelPlanning, detail)
+	detail = withParallel(m.State, detail)
 	m.Detail = &detail
 	m.clampDetailScroll()
 }
@@ -1115,7 +1115,7 @@ func (m *Model) clampFocus() {
 // groupCards rebuilds the columns' cards for the view, adding saved lane
 // headings only while the saved parallel-planning preference is on.
 func (m Model) groupCards(releaseID, objectiveID string) map[data.ColumnType][]TaskCard {
-	return groupTaskCardsWithLanes(m.State.Index, releaseID, objectiveID, m.State.Features.ParallelPlanning)
+	return groupTaskCardsWithLanes(m.State, releaseID, objectiveID, m.State.Features.ParallelPlanning)
 }
 
 func columnIndex(column data.ColumnType) int {

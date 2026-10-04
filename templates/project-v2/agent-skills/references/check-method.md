@@ -181,6 +181,10 @@ If time, tooling, or environment prevents completion, classify the affected
 acceptance criterion as unverified and return `NEEDS WORK`; never silently
 shrink the matrix.
 
+## Parallel Planning Advice
+
+Lane keys, `planned_reads`/`planned_writes` manifests and independence explanations are optional advice, and `features.parallel_planning` may be off. Ignoring a lane, running on main, using a different worktree, or changing files beyond a manifest is not a finding and never blocks `CLEAR`. Do not add a status, policy or gate for it, and never accept an executor's self-clearance. Evaluate it only when the scope's acceptance criteria make recommendations a feature: then verify their accuracy as behavior (dependencies respected, unexplained write/read overlap or unknown scope withholds advice, a stale explanation is not used). Malformed or stale advice is a nonblocking diagnostic. Actual-worktree filesystem and identity rules, dependencies and Guardrails stay in force.
+
 ## Perform The Adversarial Pass
 
 Full mode only. Ask every applicable question below to challenge the completed coverage and workflow matrices:

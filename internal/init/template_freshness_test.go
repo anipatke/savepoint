@@ -474,7 +474,6 @@ func TestGuidancePlansAndBoundsWorktreeLanes(t *testing.T) {
 		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
 	} {
 		content := readTemplate(t, root, parts...)
-		assertContains(t, content, "no `depends_on` path between them and no overlapping Context Files")
 		assertContains(t, content, "name the parallel lanes in plain words")
 	}
 	for _, parts := range [][]string{
@@ -482,6 +481,38 @@ func TestGuidancePlansAndBoundsWorktreeLanes(t *testing.T) {
 		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
 	} {
 		assertContains(t, readTemplate(t, root, parts...), "follow AGENTS.md's Worktree Lanes section")
+	}
+}
+
+// TestGuidanceKeepsParallelPlanningAdvisory locks the O-033 guidance: the
+// planner documents the opt-in preference and read/write manifests, and
+// neither the executor nor the checker may treat ignoring them as a failure.
+func TestGuidanceKeepsParallelPlanningAdvisory(t *testing.T) {
+	root := filepath.Join("..", "..")
+	want := map[string][]string{
+		"savepoint-design/SKILL.md": {
+			"## Parallel Planning", "`features.parallel_planning`", "off by default", "Advanced Options",
+			"`planned_reads` and `planned_writes`", "Do not backfill lane metadata",
+			"Do not ask for, add or require lane keys or manifests",
+		},
+		"savepoint-task/SKILL.md":  {"solely because a manifest changed"},
+		"savepoint-check/SKILL.md": {"ignoring them is never a finding"},
+		"references/check-method.md": {
+			"## Parallel Planning Advice", "is not a finding and never blocks `CLEAR`",
+		},
+	}
+	for file, phrases := range want {
+		canonical := readTemplate(t, root, "agent-skills", file)
+		scaffold := readTemplate(t, root, "templates", "project-v2", "agent-skills", file)
+		if canonical != scaffold {
+			t.Errorf("%s differs between agent-skills and the scaffold", file)
+		}
+		for _, phrase := range phrases {
+			assertContains(t, canonical, phrase)
+		}
+	}
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		assertContains(t, readTemplate(t, root, parts...), "they are advisory, owners and agents may ignore them")
 	}
 }
 

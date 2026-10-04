@@ -117,7 +117,7 @@ The owner may run independent Tasks or Issue repairs side by side in git worktre
 - Do not create Tasks, Checks, or Issues. Their IDs are allocated per checkout and would collide at merge. Record a needed one as a note in the Task or Issue evidence for the owner.
 - Commit on the lane branch; do not push or merge. Optional Task Checks and the Full Objective Check run on the main branch after the lane merges.
 
-`savepoint-design` shapes Tasks for lanes where practical; this section only sets what an agent may write inside one.
+When `features.parallel_planning` is on, `savepoint-design` may suggest lanes and read/write manifests; they are advisory, owners and agents may ignore them, and this section only sets what an agent may write inside a lane.
 
 ## Code Style
 

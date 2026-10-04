@@ -98,10 +98,48 @@ planning**, off by default. Turning it on saves `features.parallel_planning:
 true` in `.savepoint/config.yml`; turning it off saves `false`. You can also
 edit that file by hand.
 
-It records a preference for optional advice, delivered later, about which
-planned Tasks could run side by side in separate Git worktrees. Today it
-suggests nothing and creates nothing, and it never blocks work, changes Code
-Health, or decides what is done. Sequential work stays the default.
+With it on, Savepoint offers optional advice about which planned Tasks could be
+worked side by side in separate Git worktrees. Every suggestion is ignorable:
+any Task can run on `main` or in another worktree, sequential work stays the
+default, and Code Health is unchanged. Nothing blocks work or decides what is
+done because of a lane, and turning the option off restores the ordinary board
+without touching a record.
+
+### Planning lanes
+
+The planner may add optional metadata. An Objective declares `lanes` (a key and
+a title); a Task may name its `lane` and list exact project-relative
+`planned_reads` and `planned_writes`. Omitted lists mean "unknown", an empty
+list means "reviewed, none". Old projects need none of this and are never
+backfilled.
+
+With the option on, the selected Objective's board groups Tasks under
+**Lane / Proposed worktree** headings that stay put as Tasks move between
+columns. The Goal-wide view labels headings by Objective and never suggests
+work across Objectives.
+
+Suggestions are deliberately conservative. Two lanes are suggested together
+only when their next Tasks have no dependency path, write different files, and
+have no unexplained write/read overlap; shared reads are fine. Unknown scope,
+a recorded replan, a stale router selection, or a Task that cannot start yet
+withholds the suggestion and says why. A suggestion is a hint, not a guarantee
+of independence.
+
+### Try it
+
+1. Press `o`, turn **Parallel planning** on, and close the screen.
+2. Open an Objective whose Tasks carry lanes. Check the two lane headings and
+   the "May start together" line in its details, in `savepoint resume`, or in
+   the plain board output.
+3. Copy a ready Task's instruction block into a fresh agent session.
+4. Find a Task the advice does not suggest and read its reason, such as an
+   unfinished dependency.
+5. Move Tasks between columns; the headings do not change.
+
+You prepare any worktree, branch and prerequisites yourself. Savepoint creates
+no worktree, runs no command and monitors nothing. If you do use a worktree,
+the Task records evidence and commits locally there; you merge, and Checks run
+on `main`.
 
 ## What's in your repo
 

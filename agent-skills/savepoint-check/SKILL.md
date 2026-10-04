@@ -47,6 +47,8 @@ Load `agent-skills/references/check-method.md` in full and apply its selected mo
 7. Treat advisory observations, including `STYLE` guardrail rules, as non-blocking. Fill the `## Code Style Review` checklist as the method describes; neither changes the result.
 8. Stop. Do not repair implementation, rewrite acceptance criteria, or update Design as part of this run.
 
+Lane groupings and read/write manifests are advisory. See check-method.md's Parallel Planning Advice; ignoring them is never a finding.
+
 ## Verification Gates
 
 Follow AGENTS.md's Verification Policy and the selected method mode. Quick is optional and does not replace handoff gates; Full requires current successful full-gate evidence. Apply the shared metadata-only reuse requirements; otherwise run the full gate fresh.
