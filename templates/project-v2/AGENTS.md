@@ -27,7 +27,7 @@ Use the `skill` tool when the listed skill is available. If the agent says the s
 
 The board advances the router when the owner closes a Task. `savepoint-design` selects the next Objective, and `savepoint-task` selects the Task it starts. Agents and board actions never blank or change `release:`; only an explicit owner Goal choice changes it.
 
-An owner may ask, `set router to O-### [T-###] [I-###]`, or select an Issue alone with `set router to I-###`. Confirm every named record exists and, when a Task is named, require an Objective and confirm the Task belongs to it. If a record is missing or the Task belongs elsewhere, do not edit the router; explain why. For an Issue-only selection, clear `objective` and `task`; for an Objective/Task selection, clear `issue` unless the owner named one. Edit only the `objective`, `task`, and `issue` selection keys, leaving `release:` byte-for-byte unchanged unless the owner names a Release as part of an explicit Goal choice. Finish by running `savepoint resume` and showing its `Next` line.
+An owner may ask, `set router to O-### [T-###] [I-###]`, or select an Issue alone with `set router to I-###`. Confirm every named record exists and, when a Task is named, require an Objective and confirm the Task belongs to it. If a record is missing or the Task belongs elsewhere, do not edit the router; explain why. For an Issue-only selection, clear `objective` and `task`; for an Objective/Task selection, clear `issue` unless the owner named one. Edit only the `objective`, `task`, and `issue` selection keys, leaving `release:` byte-for-byte unchanged unless the owner names a Goal as part of an explicit Goal choice. Finish by running `savepoint resume` and showing its `Next` line.
 
 After a direct Issue repair selected alone, follow `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair, for the exact router handoff. Preserve `release:`.
 
@@ -56,7 +56,7 @@ Read `.savepoint/Idea.md` only for original intent, `.savepoint/Design.md` only 
   `savepoint resume` and the board's transition gate report its result as
   `Blocked:` lines. If neither reports a block, the dependency is met.
 - The Full Objective Check is mandatory before an Objective can close. It is
-  the V2 higher-level integration gate and covers every owned Task, including
+  the higher-level integration gate and covers every owned Task, including
   Tasks whose optional Task Check was waived, plus cross-Task integration and
   Design reconciliation.
 
@@ -89,7 +89,7 @@ Goal's Objectives and Tasks; it never falls back to a project-wide view.
 Existing Goals keep their stable `R-###` identities, paths, and references.
 New Goals use stable `G-###` identities under `.savepoint/releases/`
 (`Release.md`); Objective and router `release:` fields remain the persisted
-compatibility boundary. Converted V1 Releases keep their `R-###` identities.
+compatibility boundary.
 Goals group Objectives; a Goal is complete when every member Objective is
 complete. Goals do not own Tasks, and do not publish, deploy, tag, or generate
 changelogs.
@@ -101,7 +101,7 @@ changelogs.
 - Task `stage`: **required** when `status: in_progress` — `build` → `test` → `audit`; reaching `audit` means the Task is ready for a Check, and explicitly does not mean it passed.
 - Never write `stage: implementation`; use `stage: build` when starting implementation work.
 - Agents may set a Task to `status: in_progress` when starting implementation, and its owning Objective from `planned` to `in_progress` at the same time. That is the only Objective status change an agent makes.
-- Only the user may set a Task to `status: done` or retreat a Task to an earlier status. **Stop. Prompt the user before continuing** when that decision is required.
+- Only the owner may set a Task to `status: done` or retreat a Task to an earlier status. **Stop. Prompt the owner before continuing** when that decision is required.
 - Only `savepoint-check` may write a Check record or close an Issue as `verified`. The owner may resolve an Issue as `accepted` from the board's Issues panel and reopen a resolved one. Board resolution records the fixed reason, owner actor, and time; it is not technical `CLEAR`. An agent may record an owner decision only when directly instructed. `savepoint-design` may close an Issue as `escalated` when it promotes the repair into a new Objective.
 
 ## Issue Capture
@@ -145,11 +145,11 @@ Follow the active skill's Read section and the Task's `## Context Files`. Do not
 
 ## CLI Rules
 
-Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below. `savepoint health setup [dir] [--apply]` is human-only: it suggests health tools and, with `--apply`, saves them; agents never run it.
+Agents may run `savepoint resume`, a read-only command that prints `Next` without writing project files. No other `savepoint` command is for agents except the narrow Task creation operation below. `savepoint health setup [dir] [--apply]` is human-only: it suggests health tools and, with `--apply`, saves them; agents never run it. `savepoint health report [dir]` is likewise human-only: it rewrites `.savepoint/health/report.md` from the newest snapshot.
 
 Exception: agents may run `savepoint health check O-### [dir]` only during a Full Objective Check, after the full gate, to collect one official Code Health snapshot and record its ID in the Check. Task Checks and all other activity never run it.
 
-Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the V2 index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.
+Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing record, run `savepoint resume` to require strict loading of the full index.
 
 ## Reporting to the Owner
 

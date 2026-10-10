@@ -11,7 +11,7 @@ Build one Task within its planned boundaries and record truthful evidence. A mat
 
 ## Goal Context
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. Goals come from `savepoint init` (G-001), `savepoint migrate`, and the planner, never from this skill. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal or `release:`, report it to the owner; do not pick or create a Goal yourself.
+Apply AGENTS.md's Required Goal Context. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal or `release:`, report it to the owner; this skill never picks or creates a Goal.
 
 ## Trigger
 
@@ -116,7 +116,7 @@ check_waiver:
   recorded_at: '2026-09-19T00:00:00Z'
 ```
 
-A fresh `savepoint-check` session treats this evidence as claims to verify, not proof; the executor's own session can never be that Check. Requested local Checks and the mandatory Full Objective Check use `agent-skills/references/check-method.md`. A waiver satisfies `requires: clear`, never `requires: accepted`, and creates no technical `CLEAR`.
+A fresh `savepoint-check` session treats this evidence as claims to verify, not proof; the executor's own session can never be that Check. Requested local Checks and the mandatory Full Objective Check use `agent-skills/references/check-method.md`. AGENTS.md's Verification Policy defines what a waiver satisfies.
 
 ## Rules
 

@@ -67,23 +67,23 @@ Summarise the settled outcome, success conditions, boundaries, and key technical
 
 ## Task Creation
 
-The planner never chooses, reserves, or writes a Task ID or destination filename. Prepare the complete V2 Task Markdown as an ID-free draft. Its `objective` field may be omitted or must match the selected Objective. Create each new Task with:
+The planner never chooses, reserves, or writes a Task ID or destination filename. Prepare the complete Task Markdown as an ID-free draft. Its `objective` field may be omitted or must match the selected Objective. Create each new Task with:
 
 ```bash
 savepoint create-task --objective O-### --draft <path> [project-dir]
 ```
 
-The command allocates the next project-wide `T-###`, adds the Task identity and Objective to the draft, derives the filename from the title, and strict-loads the complete V2 index before reporting success. It holds the allocator lock through creation and validation; concurrent planners for different Objectives receive distinct IDs. A failed post-reservation creation may retire an ID, so never retry by selecting that number yourself.
+The command allocates the next project-wide `T-###`, adds the Task identity and Objective to the draft, derives the filename from the title, and strict-loads the complete index before reporting success. It holds the allocator lock through creation and validation; concurrent planners for different Objectives receive distinct IDs. A failed post-reservation creation may retire an ID, so never retry by selecting that number yourself.
 
-For example, planners working concurrently on O-014 and O-015 each prepare an ID-free draft and invoke `savepoint create-task --objective O-014 --draft draft-o-014.md` or `savepoint create-task --objective O-015 --draft draft-o-015.md`. The command outputs the assigned ID and path for each; neither planner predicts, copies, or reserves a number. Use `savepoint resume` after creating or renaming any other identity-bearing V2 record to require a strict load of the complete index. No other agent-run `savepoint` command is permitted.
+For example, planners working concurrently on O-014 and O-015 each prepare an ID-free draft and invoke `savepoint create-task --objective O-014 --draft draft-o-014.md` or `savepoint create-task --objective O-015 --draft draft-o-015.md`. The command outputs the assigned ID and path for each; neither planner predicts, copies, or reserves a number. Use `savepoint resume` after creating or renaming any other identity-bearing record to require a strict load of the complete index. No other agent-run `savepoint` command is permitted.
 
 ## Verification Contract
 
-Apply AGENTS.md's Verification Policy to every implementation: per-criterion evidence and configured gates, an explicit owner waiver when a Task Check is skipped, and mandatory Full Objective integration including waived Tasks. Plan verification and owner validation accordingly; never substitute a Task-only result or waiver for Objective clearance.
+Apply AGENTS.md's Verification Policy to every implementation. Plan verification and owner validation accordingly; never substitute a Task-only result or waiver for Objective clearance.
 
 ## Required Goal Context
 
-Every Savepoint project must have at least one live Goal selected by the router, and every live Objective must name exactly one live Goal through `release:`. Apply AGENTS.md's Required Goal Context for identity compatibility, storage, diagnostics, and migration. `savepoint init` supplies G-001; `savepoint migrate` preserves converted R-### identities. If Next says `Choose a Goal` or `savepoint doctor` reports a missing Goal, report it to the owner; do not infer a selection.
+Apply AGENTS.md's Required Goal Context. If Next says `Choose a Goal` or `savepoint doctor` reports a missing Goal, report it to the owner; do not infer a selection.
 
 When adding another Goal:
 
@@ -171,7 +171,7 @@ planned_by: {role: planner, session: planning-example}
 
 ## Outcome
 
-Reopening an existing V2 project shows selected work, recorded Check freshness, and one understandable next action without changing project files.
+Reopening an existing project shows selected work, recorded Check freshness, and one understandable next action without changing project files.
 
 ## User Check
 

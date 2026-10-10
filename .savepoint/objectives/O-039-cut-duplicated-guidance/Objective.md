@@ -1,7 +1,7 @@
 ---
 id: O-039
 title: Cut duplicated guidance
-status: planned
+status: done
 depends_on: []
 release: G-002
 priority: medium

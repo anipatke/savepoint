@@ -11,7 +11,7 @@ Use Guardrails and optional project verification procedures when present; skip t
 
 ## Task Check And Objective Check Depth
 
-A requested Task Check evaluates one Task's acceptance criteria, plan, evidence, and scoped files. The mandatory Objective Check additionally covers every owned Task, including waived Tasks, cross-Task integration, and Design reconciliation. Task clearance never substitutes for Objective clearance; an owner waiver never waives acceptance criteria or guardrails.
+A requested Task Check evaluates one Task's acceptance criteria, plan, evidence, and scoped files. The mandatory Objective Check additionally covers every owned Task, including waived Tasks, cross-Task integration, and Design reconciliation. Apply AGENTS.md's Verification Policy for what a Task clearance or waiver does not replace.
 
 ## Quick And Full Evidence Modes
 

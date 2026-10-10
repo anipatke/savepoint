@@ -1580,7 +1580,9 @@ func TestUpgradeDeliversRevisedSkillsToUneditedProjects(t *testing.T) {
 	if got := upgradeActionFor(t, report, realTaskSkill); got != ActionUpdated {
 		t.Fatalf("action = %v, want updated", got)
 	}
-	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)))), "## Acting On A Code Health Report")
+	delivered := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill))))
+	assertContains(t, delivered, "## Acting On A Code Health Report")
+	assertContains(t, delivered, "Apply AGENTS.md's Required Goal Context")
 }
 
 func TestUpgradeKeepsAnEditedSkillAndOffersTheRevision(t *testing.T) {

@@ -2,12 +2,21 @@
 id: T-113
 title: Give each shared rule one home
 objective: O-039
-status: planned
+status: done
 depends_on: [{task: T-112, requires: clear}]
 complexity_tier: medium
 complexity_reason: Text moves across the managed block, four skills, three references, scaffold copies, and content tests.
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: plan-o039-20261006}
+check_waiver:
+    task: T-113
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-10T06:51:27Z"
 ---
 
 # Give each shared rule one home
@@ -61,7 +70,26 @@ Focused tests during iteration; handoff gate from AGENTS.md's Verification Polic
 
 ## Technical Evidence
 
-Pending execution.
+Executor session: T-113 start, 2026-10-10. Not a Check; claims for a fresh `savepoint-check` to verify.
+
+**Per-criterion outcomes**
+
+- One home per rule: Goal Context lives only in the managed block's Required Goal Context. The idea, design, task and check skills now say "Apply AGENTS.md's Required Goal Context" plus their own consequence (report `Choose a Goal` to the owner; check and task never pick or create a Goal; idea fills the G-001 placeholder). The waiver rule (`requires: clear` yes, `accepted` no, not `CLEAR`, Objective Check still required) lives only in the Verification Policy; `savepoint-check`, `savepoint-task`, `savepoint-design` and `check-method.md` point to it. Role consequences kept: the `check_waiver` record shape in task, closure rules in check.
+- `health report` human-only sentence added to CLI Rules in `templates/project-v2/AGENTS.md`; this repository's managed block refreshed with `./savepoint upgrade-assets` (only AGENTS.md changed; skills and references already matched).
+- Scaffold copies under `templates/project-v2/agent-skills/` are byte-identical to the live ones (`diff -r` differs only by the live-only `bubbletea-tui-design`).
+- Tests: Goal assertions moved to the managed block in `template_freshness_test.go`, skills assert the pointer and role phrases and, in `agent_skills_test.go`, that the old paragraph is not restated. New `TestSharedVerificationRulesHaveOneHome` asserts the waiver and `health report` rules at the block and not restated elsewhere. `TestUpgradeDeliversRevisedSkillsToUneditedProjects` now asserts the revised text arrives; the existing edited-skill test covers kept bytes (FS-02).
+- Token weight (managed block + four skills + three references; words / bytes): before 13519 / 91331, after 13297 / 89913 (-1.6% words, -1.6% bytes). Counted with `wc`.
+- `make build && make test-fast` passes (exit 0). `savepoint doctor` ALL CLEAN.
+
+**O-034 scenario re-walk (T-099 baselines)**
+
+1. Next to skill routing: unchanged text; works as before.
+2. REPLAN REQUIRED re-entry: unchanged text; correct.
+3. Waived Task Check reaching the Full Objective Check: task records `check_waiver`, the Verification Policy is the single statement of the `clear`/`accepted` meaning and Objective coverage, check and design cite it. Same behaviour, one place.
+4. Issue-only repair: unchanged text; correct.
+5. Advisory Code Health report: unchanged text; correct.
+
+Limitations: re-walk is by reading the revised text, no live agent run. Not done: the "not restated" checks cover the named sentences, not every paraphrase.
 
 ## Drift Notes
 
