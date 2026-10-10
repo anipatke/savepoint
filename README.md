@@ -28,6 +28,11 @@ quietly replaces "somebody looked at it." Savepoint puts a few gates in the way:
   Objective closes. If the plan turns out to be wrong, the agent stops and says
   `REPLAN REQUIRED` instead of freestyling a new architecture.
 - **You decide.** Agents build and prove. You say whether it's what you wanted.
+  Your acceptance or evidence waiver stays in force through later re-checks
+  until something it covers materially changes. A checker records that it
+  still applies (`Assess`), and you are asked again only for the decision that
+  changed. Waived evidence is never reported as `CLEAR`: the work reads "ready
+  to close by exception" and you still choose to close it.
 
 Everything is Markdown and YAML in your repo. Every project has a Goal, Goals
 contain Objectives, and Objectives contain Tasks.

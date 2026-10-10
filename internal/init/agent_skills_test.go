@@ -721,7 +721,16 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 		for _, phrase := range []string{
 			"complete a technical Task",
 			"no unexcepted material blocker",
-			"owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check",
+			"owner_validation.required` additionally needs the owner's recorded acceptance",
+			"A decision carries forward",
+			"carried_forward: [{check: C-###, applies: true",
+			"scope: [<accepted behavior or criterion IDs>]",
+			"`Assess` is applicability only",
+			"write the `carried_forward` entries and no new Check record",
+			"must assess every prior owner decision",
+			"structured `exception` only on the owner's explicit instruction",
+			"`unmet: [<requirement IDs>]`",
+			"Waived evidence is unproven",
 			"A Goal is complete when every member Objective is complete",
 			"Goal completion does not mean published or deployed",
 			"cannot support completion",
@@ -730,6 +739,11 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state closure phrase %q", tree, path, phrase)
+			}
+		}
+		for _, stale := range []string{"naming this same current Check", "acceptance naming a Check a later run has superseded", "applies only to the Check it names"} {
+			if strings.Contains(content, stale) {
+				t.Errorf("%s: %s keeps the exact-Check wording %q", tree, path, stale)
 			}
 		}
 	})
@@ -1372,4 +1386,36 @@ func TestSkillReviewRulesCiteGuardrailsInsteadOfRestatingThem(t *testing.T) {
 			t.Errorf("%s: %s Code Health section restates STYLE rule IDs", tree, path)
 		}
 	})
+}
+
+func TestCheckMethodReCheckAssessesPriorDecisions(t *testing.T) {
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "references", "check-method.md") }, func(tree, path, content string) {
+		for _, phrase := range []string{
+			"assess every prior owner decision",
+			"`carried_forward` entry",
+			"do not ask the owner to renew it",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s: %s re-check guidance missing %q", tree, path, phrase)
+			}
+		}
+	})
+}
+
+func TestAgentsGuideRoutesAssessToCheckSkill(t *testing.T) {
+	for _, path := range []string{"AGENTS.md", filepath.Join("templates", "project-v2", "AGENTS.md")} {
+		data, err := os.ReadFile(filepath.Join("..", "..", path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(data)
+		for _, phrase := range []string{
+			"`Assess` → `savepoint-check` (applicability only, no new Check)",
+			"carry forward to later Checks while their scope is unchanged",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s does not state %q", path, phrase)
+			}
+		}
+	}
 }

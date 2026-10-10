@@ -16,7 +16,7 @@ Every Savepoint project has at least one live Goal selected by the router, and e
 ## Trigger
 
 Use this skill when the `Next` line starts with `Check`, or router `state` is `check`, for an explicitly requested
-Task Check or for a mandatory Objective Check. A pasted `Next` line is the selection.
+Task Check or for a mandatory Objective Check. Also use it when the `Next` line starts with `Assess`, which is the applicability step in Closure Rules and writes no Check. A pasted `Next` line is the selection.
 
 This session must be fresh: independent from the executor's conversation that built the work under review. The same model is allowed; the same session is not. Model names are optional; names or owner/planner self-report do not establish independence.
 
@@ -98,16 +98,22 @@ nonblocking observations.
 
 A recheck never edits the superseded record; its new `C-###` sets `supersedes`, leaving the prior run intact.
 
+A `NEEDS WORK` Check may add `unmet: [<requirement IDs>]` naming the requirements it found unmet; `unmet` is not allowed on `CLEAR`. When present, an exception grants completion only if its `requirements` cover every listed ID, and each uncovered ID is a named blocker. Without the list, rely on your own assessment of what the exception covers.
+
 ## Closure Rules
 
 - A checker may complete a technical Task's optional Check — one with no `owner_validation.required` — once its clearance is current and no unexcepted material blocker remains; only the owner may set the Task's `status: done`.
 - A Task with no requested Task Check may be owner-closed only when its implementation evidence is complete and an explicit Task-check waiver names the Task, reason, actor, and time. The waiver skips only the optional local Check: it is not technical `CLEAR`, and it does not waive any acceptance criterion, guardrail, or Objective Check. It satisfies a downstream Task dependency that requires `clear` — the owner's own completion decision stands in there — but never one that requires `accepted`, since there is no Check for the owner to have accepted.
-- A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check; acceptance naming a Check a later run has superseded does not count. Acceptance is recorded as `owner_validation: {required: true, accepted_check: C-###, accepted_by: {role: owner, session: <session>}}`.
-- An owner exception is recorded only on the owner's explicit instruction, as `exception: {requirements: [<criterion or rule IDs>], reason: ..., owner: <owner>, recorded_at: '2026-09-19T00:00:00Z', check: C-###}`.
+- A Task declaring `owner_validation.required` additionally needs the owner's recorded acceptance. Acceptance is recorded as `owner_validation: {required: true, accepted_check: C-###, scope: [<accepted behavior or criterion IDs>], accepted_by: {role: owner, session: <session>}}`; `accepted_check` is the Check it was first given against and stays as provenance, and `scope` is optional.
+- An owner exception is recorded as a structured `exception` only on the owner's explicit instruction — never as Issue history or prose alone: `exception: {requirements: [<criterion or rule IDs>], reason: ..., owner: <owner>, recorded_at: '2026-09-19T00:00:00Z', check: C-###}`. The owner's waiver of evidence is such an exception; `check` is the originating Check.
+- A decision carries forward. An acceptance or exception keeps applying through later Checks while the behavior, requirements and scope it covers are unchanged. Applicability is recorded on the decision, append-only, in `carried_forward`: `carried_forward: [{check: C-###, applies: true, assessed_by: {role: checker, session: <session>}, assessed_at: '2026-09-19T00:00:00Z', reason: ..., material_change: <required when applies is false>}]`. An owner entry in the same list renews the decision and always applies. Never edit the originating Check or an earlier entry.
+- A re-check, or an `Assess` step, must assess every prior owner decision on the Objective: compare each decision's scope with what changed since its last entry, and record one `carried_forward` entry per decision at the latest Check. Unchanged scope applies, with the reason stated; do not ask the owner to renew it. Only a material change to a decision's own scope sets `applies: false`, naming the change, and then the owner is asked to renew that decision alone.
+- `Assess` is applicability only: write the `carried_forward` entries and no new Check record. It never creates, renews or infers an owner decision, and never changes the Check's result.
+- Waived evidence is unproven, so a Check stays `NEEDS WORK` while a requirement rests on an exception. A carried decision can make work ready to close by exception, which is completion eligibility, never `CLEAR` or current clearance.
 - An Objective closes only after every Task it owns is done, the mandatory Objective integration Check is current, and every material Issue linked to that current Check is resolved (including explicit owner acceptance recorded as an Issue resolution), with the same conditional owner-acceptance rule applied at the Objective level. The Full Objective Check reviews every owned Task, including waived Task Checks. An unfinished owned Task is never excused by an Objective-level exception — cross-Task repair goes back through Tasks, and no Objective Check ever closes a Task directly.
 - A Goal is complete when every member Objective is complete; no Goal-level clearance or acceptance is required. Goal completion does not mean published or deployed.
 - A record lacking sufficient scope or evidence cannot support completion. A freshness assessment is optional: record one only to mark the latest Check `stale` or `unknown` (for example, when code changed after it). That blocks normal completion until a new Check runs.
-- A recorded owner exception can grant completion despite an unmet requirement, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance, and it applies only to the Check it names.
+- A recorded owner exception can grant completion despite an unmet requirement while it applies, but it is reported as completion by exception, never as a `CLEAR` result or as current clearance.
 
 ## Issue Capture
 

@@ -1,7 +1,7 @@
 ---
 id: O-044
 title: Keep owner decisions across re-checks
-status: in_progress
+status: done
 depends_on: []
 release: G-002
 priority: high

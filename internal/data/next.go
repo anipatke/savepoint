@@ -577,7 +577,9 @@ func rungForBlockers(blockers []GateBlocker) NextKind {
 // decisionRung maps the owner-decision blockers onto their rungs: a decision
 // no one has assessed at the latest Check asks for an assessment, and one a
 // material change ended asks the owner to renew it. Assessment ranks first
-// because the owner can only renew a decision a checker has weighed.
+// because the owner can only renew a decision a checker has weighed. An
+// exception that misses an unmet requirement asks the owner too: only they
+// can widen or renew it, so another Check would not help.
 func decisionRung(blockers []GateBlocker) (NextKind, bool) {
 	for _, blocker := range blockers {
 		if blocker.Kind == GateBlockDecisionUnassessed {
@@ -585,7 +587,7 @@ func decisionRung(blockers []GateBlocker) (NextKind, bool) {
 		}
 	}
 	for _, blocker := range blockers {
-		if blocker.Kind == GateBlockDecisionChanged {
+		if blocker.Kind == GateBlockDecisionChanged || blocker.Kind == GateBlockExceptionScope {
 			return NextOwnerValidationRequired, true
 		}
 	}

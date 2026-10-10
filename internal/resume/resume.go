@@ -286,9 +286,10 @@ func EvidenceLines(next data.Next) []string {
 		return append([]string{"Technical clearance: " + ClearancePhrase(next.Clearance)},
 			DecisionBlockerLines(next.GateDecision, data.GateBlockDecisionUnassessed)...)
 	case data.NextOwnerValidationRequired:
-		if hasBlockerKind(next.GateDecision, data.GateBlockDecisionChanged) {
-			return append([]string{"Technical clearance: " + ClearancePhrase(next.Clearance)},
+		if hasBlockerKind(next.GateDecision, data.GateBlockDecisionChanged) || hasBlockerKind(next.GateDecision, data.GateBlockExceptionScope) {
+			lines := append([]string{"Technical clearance: " + ClearancePhrase(next.Clearance)},
 				DecisionBlockerLines(next.GateDecision, data.GateBlockDecisionChanged)...)
+			return append(lines, DecisionBlockerLines(next.GateDecision, data.GateBlockExceptionScope)...)
 		}
 		return []string{
 			"Technical clearance: " + ClearancePhrase(next.Clearance),
@@ -441,6 +442,9 @@ func ActionPhrase(next data.Next) string {
 	case data.NextOwnerValidationRequired:
 		if hasBlockerKind(next.GateDecision, data.GateBlockDecisionChanged) {
 			return "Ask the owner to renew the decision a material change affected, or to decline it."
+		}
+		if hasBlockerKind(next.GateDecision, data.GateBlockExceptionScope) {
+			return "Ask the owner to widen or renew the exception to cover the named requirements, or send the work back for repair."
 		}
 		return "Ask the owner to accept the current Check."
 	case data.NextObjectiveIntegration:

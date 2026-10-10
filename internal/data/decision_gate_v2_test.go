@@ -345,3 +345,12 @@ func TestTheShedO002_withoutCarryEntriesReportsUnassessed(t *testing.T) {
 		t.Errorf("last blocker = %+v, want unassessed naming C-006", last)
 	}
 }
+
+func TestResolveObjectiveIntegrationRung_uncoveredRequirementAsksTheOwner(t *testing.T) {
+	index := objectiveNeedingWork(theShedExceptionEvidence(checkerCarry("C-006", true, "")), "TEST-08", "DESIGN-02")
+
+	got, ok := resolveObjectiveIntegrationRung(index, "O-001")
+	if !ok || got.Kind != NextOwnerValidationRequired {
+		t.Fatalf("resolveObjectiveIntegrationRung() = %+v, %v, want the owner-facing Accept rung", got, ok)
+	}
+}

@@ -939,3 +939,22 @@ func allRungFixtures() []data.Next {
 		},
 	}
 }
+
+// TestRender_uncoveredRequirementAsksToWidenTheException proves an exception
+// that misses an unmet requirement names the requirement and does not ask the
+// owner to accept a Check that failed.
+func TestRender_uncoveredRequirementAsksToWidenTheException(t *testing.T) {
+	next := data.Next{Kind: data.NextOwnerValidationRequired, Task: &data.TaskV2{ID: "T-032", Title: "Shed"},
+		Clearance: &data.Clearance{State: data.ClearanceNeedsWork, Check: "C-006"},
+		GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockExceptionScope,
+			Detail: "latest check C-006 lists unmet requirements the exception does not cover: DESIGN-02"}}}}
+	text := renderText(next)
+	for _, want := range []string{"Accept", "DESIGN-02", "widen or renew the exception"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("renderText() = %q, want %q", text, want)
+		}
+	}
+	if strings.Contains(text, "accept the current Check") {
+		t.Errorf("renderText() = %q, must not ask to accept a failed Check", text)
+	}
+}

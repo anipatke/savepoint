@@ -227,6 +227,13 @@ exception above applies, naming the exact Blocker rule.
 Start the re-check result with a closure map of the prior Issues: closed,
 still open, or unverified.
 
+Also assess every prior owner decision (acceptance or exception) on the scope.
+Compare each decision's scope with what changed since its last assessment and
+record the outcome as a `carried_forward` entry under `savepoint-check`
+Closure Rules. A decision whose scope is unchanged still applies; state why
+and do not ask the owner to renew it. List `unmet` requirement IDs on a
+`NEEDS WORK` result so exception coverage can be checked.
+
 Default convergence limit: one initial Check; one full re-check after
 remediation; if an in-scope failure remains, one targeted remediation and
 re-check; then stop and ask the owner to fix now, approve a permitted waiver,

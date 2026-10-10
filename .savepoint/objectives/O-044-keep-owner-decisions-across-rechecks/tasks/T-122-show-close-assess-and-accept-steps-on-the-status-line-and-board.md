@@ -2,11 +2,19 @@
 id: T-122
 title: Show close, assess and accept steps on the status line and board
 objective: O-044
-status: in_progress
-stage: audit
+status: done
 depends_on: [{task: T-121, requires: clear}]
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o044-20261010}
+check_waiver:
+    task: T-122
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-10T06:21:18Z"
 ---
 
 # Show close, assess and accept steps on the status line and board
@@ -68,7 +76,7 @@ Gate: `make build && make test-fast` passed (2026-10-10).
 5. Detail view lists scope and every carry entry for acceptance and exception.
 6. Tests: `TestResolveNext_unassessedAndChangedAcceptanceRoute`, `TestRender_assessAndAcceptRoutes`, `TestRender_closeByExceptionNamesCarry`, `TestOwnerAcceptanceRenewalAppendsCarryAndKeepsOrigin` (includes the refusal); two exact-text tests updated.
 
-Not done: criterion 7 (owner review of the three routes on the TheShed-shaped fixture) awaits the owner. No extra reads outside Context Files other than `internal/resume/concurrency.go` (for `cleanText`) and `fixture_test.go`.
+Criterion 7: the owner reviewed the Close, Assess and Accept routes after the I-142 fix (an uncovered unmet requirement now routes to Accept and names the requirement) and approved them on 2026-10-10 (recorded in the fix session). After the C-969 wording fix (an uncovered requirement now tells the owner to widen or renew the exception, or send the work back for repair), the owner re-reviewed the three routes and approved them again on 2026-10-10. No extra reads outside Context Files other than `internal/resume/concurrency.go` (for `cleanText`) and `fixture_test.go`.
 
 ## Drift Notes
 

@@ -2,10 +2,19 @@
 id: T-123
 title: Bring the skills and guides in line with the new decision rules
 objective: O-044
-status: planned
+status: done
 depends_on: [{task: T-122, requires: clear}]
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o044-20261010}
+check_waiver:
+    task: T-123
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-10T06:26:10Z"
 ---
 
 # Bring the skills and guides in line with the new decision rules
@@ -57,7 +66,19 @@ Focused `make test-focused TEST=...` during iteration; `make build && make test-
 
 ## Technical Evidence
 
-Pending execution.
+Executed 2026-10-10. Plan step 1 confirmed: runtime ships `carried_forward` (`check, applies, assessed_by, assessed_at, reason, material_change`), `owner_validation.scope`, Check `unmet`, and the `Assess` Next verb; no REPLAN needed.
+
+Per-criterion outcomes:
+1. Pass: `agent-skills/savepoint-check/SKILL.md` Closure Rules drop the exact-Check wording, show `carried_forward`, `scope` and `unmet` shapes, require assessing every prior decision on a re-check, define `Assess` (no new Check), and require a structured `exception` on explicit owner instruction. Trigger also names `Assess`.
+2. Pass: `check-method.md` Re-check After Remediation compares each decision's scope with what changed and records the assessment without renewal for unchanged scope.
+3. Pass: `Assess` → `savepoint-check` added to the workflow line in root `AGENTS.md` (both occurrences) and `templates/project-v2/AGENTS.md`; one Verification Policy bullet states the carry rule and points to the skill.
+4. Pass: README "You decide" bullet describes carry-forward, `Assess`, and ready-to-close-by-exception, matching `internal/resume` wording.
+5. Pass: skill and reference copied byte-identical to `templates/project-v2/` (`cmp` clean); existing template-freshness and upgrade tests cover delivery and user-edit preservation.
+6. Pass: `TestSavepointCheckSkillClosureRules` asserts the new text and the absence of old wording; new `TestCheckMethodReCheckAssessesPriorDecisions` and `TestAgentsGuideRoutesAssessToCheckSkill`.
+
+Commands run: `make build`; `make test-fast` (exit 0).
+Files changed: the files above plus `internal/init/agent_skills_test.go`. Extra reads: `internal/data/next.go`, `internal/resume/*.go`, `Guardrails.md` (to match shipped field names and wording).
+Limitations: no Task Check requested and no owner waiver recorded yet; `make test-full` not run (not required for ordinary handoff).
 
 ## Drift Notes
 
