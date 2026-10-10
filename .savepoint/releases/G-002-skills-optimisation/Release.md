@@ -26,3 +26,12 @@ A review of the skills against Anthropic's published skill-authoring best practi
 **In scope:** the four workflow skills, the three shared references, the managed AGENTS.md block and this repository's own AGENTS.md, their scaffold copies, content tests, and scenario re-walks; and Claude Code integration files (`CLAUDE.md`, `.claude/skills/`, `.claude/hooks/`, `.claude/settings.json`) installed by `init` and `upgrade-assets` (O-043); and the owner-decision carry-forward across re-checks (O-044): its evidence fields, runtime gates, resume and board routing, and guidance.
 
 **Out of scope:** `bubbletea-tui-design`; new lifecycle states, fields, or commands other than those O-044 needs; weakening verification to save tokens; live multi-model agent runs; automated eval tooling; Go runtime behaviour changes other than the `init` and `upgrade-assets` scaffolding O-043 needs and the decision-lifecycle changes O-044 needs.
+
+## Workflow Review — 2026-10-10
+
+Evidence reviewed: Task records for O-039 (T-112–T-114), O-040 (T-124, T-125), O-043 (T-115–T-118) and O-044 (T-120–T-123); Checks C-968–C-976; Issues I-141–I-148. O-041 was dropped by the owner on 2026-10-10.
+
+- No Task returned REPLAN REQUIRED; every mention in these records is a planned guard step or a scenario re-walk.
+- O-039, O-043 and O-044 each needed one or two NEEDS WORK rounds before CLEAR. The findings (I-141–I-146, I-148) were ordinary defects and wording drift, repaired and verified on recheck under existing rules.
+- Native Windows evidence came up again (I-146, I-147, I-148). CI now runs on every pushed branch (G-001), so the evidence existed; the gap was Windows-only code paths without a test. The planner rule to name platform evidence already covers this; no change.
+- Owner finding: the required retrospective Objective forced a paperwork Task and a Full Objective Check to close, because an Objective with no Tasks never closes (`resolveSelectedObjective` in `internal/data/next.go`). Change: the review becomes this kind of note on the Goal; O-042 carries the rule change.

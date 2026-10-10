@@ -1,7 +1,7 @@
 ---
 id: O-043
 title: Make Claude Code work with Savepoint out of the box
-status: in_progress
+status: done
 depends_on: [O-039]
 release: G-002
 priority: medium

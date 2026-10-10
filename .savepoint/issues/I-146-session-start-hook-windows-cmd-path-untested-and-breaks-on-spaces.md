@@ -2,16 +2,22 @@
 id: I-146
 title: Session-start hook's Windows .cmd path is untested and breaks on paths with spaces
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-974
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-117]
-checks: [C-974, C-975]
+checks: [C-974, C-975, C-976]
 guardrail_ids: [CFG-02, CFG-03]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-976
+  actor: {role: checker, session: check-o043-recheck2-20261010}
+  at: '2026-10-10T08:10:00Z'
+  reason: 'Fix verified in C-975; session-start.js unchanged since, TestSessionStartHook passes in native Windows run 38036497392 at 3596b2c.'
 history:
   - at: '2026-10-10T07:52:00Z'
     actor: {role: checker, session: check-o043-20261010}
@@ -23,6 +29,11 @@ history:
     kind: rechecked
     check: C-975
     note: Native Windows run 38036069019 at 0fb8c37 ran every TestSessionStartHook subtest with a .cmd fake, including the directory-with-a-space case, all PASS; quoted .cmd spawn confirmed by probe.
+  - at: '2026-10-10T08:10:00Z'
+    actor: {role: checker, session: check-o043-recheck2-20261010}
+    kind: rechecked
+    check: C-976
+    note: 'Fix verified in C-975; session-start.js unchanged since, TestSessionStartHook passes in native Windows run 38036497392 at 3596b2c.'
 ---
 
 # I-146: Session-start hook's Windows .cmd path is untested and breaks on paths with spaces

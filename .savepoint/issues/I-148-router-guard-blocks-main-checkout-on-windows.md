@@ -2,22 +2,33 @@
 id: I-148
 title: Router guard blocks router edits on the main checkout on Windows
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-975
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:59:00Z'
 tasks: [T-118]
-checks: [C-975]
+checks: [C-975, C-976]
 guardrail_ids: [CFG-02, CFG-03]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-976
+  actor: {role: checker, session: check-o043-recheck2-20261010}
+  at: '2026-10-10T08:10:00Z'
+  reason: 'Run 38036497392 at 3596b2c: windows-tests success with TestGuard_routerInLane run (not skipped); Linux test-full passes; independent probe: main, subfolder, symlinked main and no-repo allow, worktree lane blocks.'
 history:
   - at: '2026-10-10T07:59:00Z'
     actor: {role: checker, session: check-o043-20261010}
     kind: observed
     note: Found by the O-043 Full Objective re-check from the native Windows CI run.
     check: C-975
+  - at: '2026-10-10T08:10:00Z'
+    actor: {role: checker, session: check-o043-recheck2-20261010}
+    kind: rechecked
+    check: C-976
+    note: 'Run 38036497392 at 3596b2c: windows-tests success with TestGuard_routerInLane run (not skipped); Linux test-full passes; independent probe: main, subfolder, symlinked main and no-repo allow, worktree lane blocks.'
 ---
 
 # I-148: Router guard blocks router edits on the main checkout on Windows

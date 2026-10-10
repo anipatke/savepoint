@@ -93,9 +93,9 @@ When adding another Goal:
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. A Goal is complete when every member Objective is complete; completion is derived, not a publishing action.
 
-### Goal Workflow Retrospective
+### Goal Workflow Review
 
-Once a Goal's other Objectives are planned, add one final workflow-retrospective Objective to that Goal. The planner owns it and records its outcome in that Objective, including a "no change, because…" conclusion when nothing needs to change. It reviews the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in.
+When every member Objective of a Goal is done, the first planning session afterwards (or any session the owner asks) writes a `## Workflow Review` section in that Goal's `Release.md`. It is a note: not an Objective, Task or Check. It reviews the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in. A review that finds nothing says "no change, because…" and costs no Objective, Task or Check. A real change it finds becomes an ordinary Objective or an Issue.
 
 What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It adds no field, state, command, or Goal-owned Task list, and a Goal is still complete when every member Objective is complete.
 

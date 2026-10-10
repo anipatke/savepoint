@@ -2,16 +2,22 @@
 id: I-145
 title: CLAUDE.md with a lone BEGIN marker loses user text on the second upgrade
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-974
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-115]
-checks: [C-974, C-975]
+checks: [C-974, C-975, C-976]
 guardrail_ids: [FS-01, FS-02, TEST-03]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-976
+  actor: {role: checker, session: check-o043-recheck2-20261010}
+  at: '2026-10-10T08:10:00Z'
+  reason: 'Fix verified in C-975; half-marker test passes again on Linux (fresh test-full at 3596b2c) and native Windows (run 38036497392). Code unchanged since 0fb8c37.'
 history:
   - at: '2026-10-10T07:52:00Z'
     actor: {role: checker, session: check-o043-20261010}
@@ -23,6 +29,11 @@ history:
     kind: rechecked
     check: C-975
     note: 'Re-check overlay probe found that lone BEGIN, lone END and reversed markers each stay byte-identical over three upgrades and two init merges; HalfMarkerPair tests pass on Linux and native Windows (run 38036069019); fresh full gate passes at 0fb8c37.'
+  - at: '2026-10-10T08:10:00Z'
+    actor: {role: checker, session: check-o043-recheck2-20261010}
+    kind: rechecked
+    check: C-976
+    note: 'Fix verified in C-975; half-marker test passes again on Linux (fresh test-full at 3596b2c) and native Windows (run 38036497392). Code unchanged since 0fb8c37.'
 ---
 
 # I-145: CLAUDE.md with a lone BEGIN marker loses user text on the second upgrade

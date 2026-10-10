@@ -2,16 +2,22 @@
 id: I-147
 title: Supply native Windows evidence for O-043
 type: verification
-status: open
+status: resolved
 source:
   kind: check
   check: C-974
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-115, T-116, T-117, T-118]
-checks: [C-974, C-975]
+checks: [C-974, C-975, C-976]
 guardrail_ids: [CFG-03]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-976
+  actor: {role: checker, session: check-o043-recheck2-20261010}
+  at: '2026-10-10T08:10:00Z'
+  reason: 'Run 38036497392 at 3596b2c: windows-tests (full Go suite on windows-latest) success and ci success.'
 history:
   - at: '2026-10-10T07:52:00Z'
     actor: {role: checker, session: check-o043-20261010}
@@ -23,6 +29,11 @@ history:
     kind: rechecked
     check: C-975
     note: Native run 38036069019 at 0fb8c37 failed windows-tests on TestGuard_routerInLane (main checkout blocked, see I-148); evidence still missing.
+  - at: '2026-10-10T08:10:00Z'
+    actor: {role: checker, session: check-o043-recheck2-20261010}
+    kind: rechecked
+    check: C-976
+    note: 'Run 38036497392 at 3596b2c: windows-tests (full Go suite on windows-latest) success and ci success.'
 ---
 
 # I-147: Supply native Windows evidence for O-043
