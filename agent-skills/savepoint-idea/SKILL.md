@@ -88,3 +88,5 @@ How to tell this idea succeeded.
 - Do not design architecture or name components/interfaces.
 - Do not detail any Objective; hand off to `savepoint-design` for that.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
+
+After writing any `.savepoint/` record, follow AGENTS.md's CLI Rules (write → resume → fix).

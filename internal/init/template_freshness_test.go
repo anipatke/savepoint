@@ -321,7 +321,7 @@ func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 	for _, content := range []string{liveAgents, templateAgents} {
 		assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
 		assertContains(t, content, "No other `savepoint` command is for agents except the narrow Task creation operation below.")
-		assertContains(t, content, "After creating or renaming any other identity-bearing record, run `savepoint resume` to require strict loading of the full index.")
+		assertContains(t, content, "After writing or editing any `.savepoint/` record, including creating or renaming one, run `savepoint resume`.")
 	}
 
 	for _, content := range []string{liveAgents, templateAgents} {

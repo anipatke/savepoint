@@ -149,7 +149,9 @@ Agents may run `savepoint resume`, a read-only command that prints `Next` withou
 
 Exception: agents may run `savepoint health check O-### [dir]` only during a Full Objective Check, after the full gate, to collect one official Code Health snapshot and record its ID in the Check. Task Checks and all other activity never run it.
 
-Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually. After creating or renaming any other identity-bearing record, run `savepoint resume` to require strict loading of the full index.
+Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft. The command assigns the project-wide Task ID and strict-loads the index before reporting success. Do not use it to edit or rename a Task, and do not choose or write Task IDs manually.
+
+After writing or editing any `.savepoint/` record, including creating or renaming one, run `savepoint resume`. If the record fails to load, fix it and run `savepoint resume` again until it loads. Do not substitute other work while it fails.
 
 ## Reporting to the Owner
 

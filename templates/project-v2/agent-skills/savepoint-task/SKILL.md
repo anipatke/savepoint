@@ -1,6 +1,6 @@
 ---
 name: savepoint-task
-description: Executes one Savepoint Task within its planned boundaries when router state is task, recording extra reads, lifecycle progress, and handoff evidence for a fresh savepoint-check session, and returning REPLAN REQUIRED on a material gap instead of redesigning.
+description: Executes one Savepoint Task within its planned boundaries when the `Next` line starts with `Start`, `Build`, `Test`, `Pick a Task in`, or `Fix`, or router state is task, recording extra reads, lifecycle progress, and handoff evidence for a fresh savepoint-check session, and returning REPLAN REQUIRED on a material gap instead of redesigning.
 ---
 
 # Savepoint Skill: Task
@@ -123,3 +123,5 @@ A fresh `savepoint-check` session treats this evidence as claims to verify, not 
 This skill may write: scoped implementation, recorded evidence (extra reads, per-criterion outcomes, commands, limitations), lifecycle progress, and a replan handoff.
 
 Never widen scope, edit the Task's acceptance criteria to match implementation, write a Check record, close an Issue on your own, invent a Task-check waiver, or claim clearance or owner acceptance. Record an `accepted` Issue resolution only on explicit owner instruction; reopening is also an owner action. A blocked start is reported, never worked around. Only the owner sets `status: done` or retreats status; apply AGENTS.md's lifecycle terminology.
+
+After writing any `.savepoint/` record, follow AGENTS.md's CLI Rules (write → resume → fix).

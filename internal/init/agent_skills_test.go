@@ -314,7 +314,7 @@ func TestSavepointDesignSkillTaskCreationWorkflow(t *testing.T) {
 			"strict-loads the complete index before reporting success",
 			"planners working concurrently on O-014 and O-015",
 			"neither planner predicts, copies, or reserves a number",
-			"after creating or renaming any other identity-bearing record",
+			"follow AGENTS.md's CLI Rules (write → resume → fix)",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s task creation guidance is missing %q", tree, path, phrase)
@@ -689,8 +689,7 @@ func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 func TestSavepointCheckSkillStrictLoadsNewCheck(t *testing.T) {
 	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
-			"After writing the record, run `savepoint resume`",
-			"strict-load the complete index, including the new Check",
+			"follow AGENTS.md's CLI Rules (write → resume → fix)",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not require strict index loading after Check creation: missing %q", tree, path, phrase)

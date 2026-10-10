@@ -9,6 +9,16 @@ This non-triggerable reference owns Issue capture for Design, Task, and Check; e
 
 An Issue captures durable follow-up from planning, execution, or Check; it is a record, not a fifth router state. "Defect" stays a word the owner says; it maps to `type: defect`.
 
+**Contents**
+
+- Issue Artifact Template
+- Search Before Creating
+- Resolution Dispositions
+- Escalation Retires The Issue
+- History Is Append-Only
+- Role Boundaries
+- Out-Of-Scope Repair
+
 ## Issue Artifact Template
 
 Write each Issue file with this structure:

@@ -1,6 +1,6 @@
 ---
 name: savepoint-check
-description: Runs an independent, fresh-session Check on an explicitly requested Task or a mandatory Objective when router state is check, applying the shared check method to write an immutable Check record and any Issues, and closing work only under the recorded conditional-acceptance rules.
+description: Runs an independent, fresh-session Check on an explicitly requested Task or a mandatory Objective when the `Next` line starts with `Check` or `Assess`, or router state is check, applying the shared check method to write an immutable Check record and any Issues, and closing work only under the recorded conditional-acceptance rules.
 ---
 
 # Savepoint Skill: Check
@@ -41,7 +41,7 @@ Load `agent-skills/references/check-method.md` in full and apply its selected mo
 1. Confirm the session is fresh. If this session built the work under review, stop and hand off to a fresh session. An owner-requested self-review may provide observations, but never writes a Check record or satisfies the independent Check gate.
 2. Confirm the scope: a Task Check evaluates one Task's outcome and evidence (the Task Check itself is optional); an Objective Check does everything a Task Check does, plus integration across the Objective's owned Tasks and reconciliation against Design.
 3. Apply `agent-skills/references/check-method.md` in full at the matching evidence mode — Quick for a requested Task Check, Full for the mandatory Objective Check.
-4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`. After writing the record, run `savepoint resume` to strict-load the complete index, including the new Check.
+4. Decide the result. Write one new, immutable Check record — never edit a prior one. A rerun gets a new `C-###` and names the run it replaces in `supersedes`.
 5. On `NEEDS WORK`: record the Issues found, and hand remediation back to the executor or planner rather than repairing anything here. A Task Check's `NEEDS WORK` resumes the executor at `stage: build` inside that same Task. An Objective Check's `NEEDS WORK` must not retreat a Task that is already `done`; remediation is a direct repair under the recorded Issue by default, or new or newly selected work linked to the Objective only when the repair needs planning (see `agent-skills/references/issue-capture.md`, Out-Of-Scope Repair); every previously completed Task keeps its status.
 6. On `CLEAR`: this alone does not close a Task or Objective. Apply the closure rules below to record whether the owner may complete the Task or accept the Objective outcome.
 7. Treat advisory observations, including `STYLE` guardrail rules, as non-blocking. Fill the `## Code Style Review` checklist as the method describes; neither changes the result.
@@ -130,3 +130,5 @@ template and rules. This skill may close an Issue as
 This skill may write: the Check record, Issues, evaluation metadata, and authorized closure evidence under Closure Rules. It may record readiness for owner closure, but never sets Task/Objective `status: done` or records owner acceptance on the owner's behalf.
 
 Never repair implementation, edit acceptance criteria to match a result, or update Design as a form of remediation. Route correction back to the planner or executor; verify it in a later immutable record. Apply AGENTS.md's lifecycle terminology.
+
+After writing any `.savepoint/` record, follow AGENTS.md's CLI Rules (write → resume → fix).
