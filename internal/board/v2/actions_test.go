@@ -846,3 +846,35 @@ func assertInterruptedWriteLeavesPriorOrder(t *testing.T, failed Model, beforeOr
 		t.Errorf("after interrupted write cursor/selection = %s/%s, want O-003/O-003", got, failed.SelectedObjective)
 	}
 }
+
+// TestOwnerAcceptanceRenewalAppendsCarryAndKeepsOrigin proves board accept on
+// an acceptance no one has assessed at the latest Check keeps the originating
+// Check, appends an owner entry, and is then refused (TEST-01, TEST-03).
+func TestOwnerAcceptanceRenewalAppendsCarryAndKeepsOrigin(t *testing.T) {
+	root := savepointRoot(t)
+	writeConfig(t, root)
+	writeFixtureRouter(t, root, "task", "O-001", "T-001")
+	writeFixtureObjective(t, root, "O-001", "Renewal", "in_progress", "")
+	writeCheck(t, root, "C-001", "task", "T-001", "CLEAR")
+	writeCheckExtra(t, root, "C-002", "task", "T-001", "CLEAR", "supersedes: C-001\n")
+	writeTask(t, root, "O-001", "T-001", "Accepted at an older Check",
+		"status: in_progress\nstage: audit\nlast_check: C-002\n"+currentFreshness("C-002")+acceptedByOwner("C-001"))
+	path := taskPath(root, "O-001", "T-001")
+
+	result, ok := writeOwnerAcceptanceCmd(root, actionTarget{Kind: DetailTask, ID: "T-001"})().(actionMsg)
+	if !ok || result.err != nil || !result.reload {
+		t.Fatalf("renewal result = %#v, want success", result)
+	}
+	text := readActionFile(t, path)
+	if !strings.Contains(text, "accepted_check: C-001") || !strings.Contains(text, "carried_forward:") || !strings.Contains(text, "check: C-002") {
+		t.Fatalf("task after renewal = %q, want accepted_check C-001 kept and an owner entry for C-002", text)
+	}
+
+	again, _ := writeOwnerAcceptanceCmd(root, actionTarget{Kind: DetailTask, ID: "T-001"})().(actionMsg)
+	if again.err == nil {
+		t.Fatalf("second renewal succeeded, want refusal once the gate no longer offers it")
+	}
+	if readActionFile(t, path) != text {
+		t.Errorf("refused renewal changed the file")
+	}
+}

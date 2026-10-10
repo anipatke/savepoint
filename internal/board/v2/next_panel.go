@@ -81,7 +81,7 @@ func verbStyle(verb string) lipgloss.Style {
 	switch verb {
 	case "Build", "Test", "Fix":
 		return styles.FooterPhaseTask
-	case "Check", "Accept", "Close":
+	case "Check", "Assess", "Accept", "Close":
 		return styles.FooterPhaseCheck
 	default:
 		return styles.HeaderWhiteBold

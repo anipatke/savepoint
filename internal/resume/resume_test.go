@@ -265,11 +265,52 @@ func TestRender_executeAllowedByException(t *testing.T) {
 		},
 	}
 	text := renderText(next)
-	if !strings.Contains(text, "Completion: Allowed by exception, not by clearance: recorded by owner alice for Check C005 — accepted known risk") {
+	if !strings.Contains(text, "Completion: Ready to close by exception — recorded by owner alice at Check C005 — accepted known risk") {
 		t.Fatalf("renderText() = %q, want the exception reported as exception, not clearance", text)
 	}
-	if strings.Contains(text, "clearance is current") || strings.Contains(text, "Technical clearance:") {
+	if strings.Contains(text, "clearance is current") {
 		t.Errorf("renderText() = %q, must not present an exception-allowed completion as clearance", text)
+	}
+}
+
+// TestRender_assessAndAcceptRoutes proves the new rungs read Assess and Accept
+// with the shared wording, and that Assess says it is not a new Check.
+func TestRender_assessAndAcceptRoutes(t *testing.T) {
+	task := &data.TaskV2{ID: "T032", Title: "Carried task", Status: data.ColumnInProgress, Stage: data.StageAudit}
+	assess := data.Next{Kind: data.NextAssessDecision, Task: task, Clearance: &data.Clearance{State: data.ClearanceCurrent, Check: "C006"},
+		GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockDecisionUnassessed, Detail: "owner acceptance recorded at C005 has not been assessed at latest check C006"}}}}
+	text := renderText(assess)
+	for _, want := range []string{"Assess T032", "has not been assessed at latest check C006", "not a new Check"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("assess renderText() = %q, want %q", text, want)
+		}
+	}
+	accept := data.Next{Kind: data.NextOwnerValidationRequired, Task: task, Clearance: &data.Clearance{State: data.ClearanceCurrent, Check: "C006"},
+		GateDecision: &data.GateDecision{Blockers: []data.GateBlocker{{Kind: data.GateBlockDecisionChanged, Detail: "owner acceptance recorded at C005 no longer applies at latest check C006: schema moved\x1b[2J"}}}}
+	text = renderText(accept)
+	if !strings.Contains(text, "Accept T032") || !strings.Contains(text, "schema moved") || strings.Contains(text, "\x1b") {
+		t.Errorf("accept renderText() = %q, want Accept naming the change, without terminal controls", text)
+	}
+}
+
+// TestRender_closeByExceptionNamesCarry proves a carried exception reads as
+// ready to close, with clearance reported separately.
+func TestRender_closeByExceptionNamesCarry(t *testing.T) {
+	next := data.Next{
+		Kind:      data.NextExecute,
+		Task:      &data.TaskV2{ID: "T033", Title: "Carried exception", Status: data.ColumnInProgress, Stage: data.StageAudit},
+		Clearance: &data.Clearance{State: data.ClearanceNeedsWork, Check: "C006"},
+		GateDecision: &data.GateDecision{
+			Allowed: true, Actor: data.ActorRoleOwner, AllowedByException: true,
+			Exception:      &data.Exception{Owner: "alice", Check: "C005", Reason: "known gap"},
+			ExceptionCarry: &data.DecisionCarry{Check: "C006", Applies: true, AssessedBy: data.Actor{Role: data.ActorRoleChecker, Session: "s1"}, Reason: "same gap"},
+		},
+	}
+	text := renderText(next)
+	for _, want := range []string{"Technical clearance: Check C006 recorded NEEDS WORK", "Ready to close by exception", "Check C005", "carried to Check C006", "checker session s1", "same gap"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("renderText() = %q, want %q", text, want)
+		}
 	}
 }
 

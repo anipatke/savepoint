@@ -57,11 +57,14 @@ func writeOwnerAcceptanceCmd(root string, target actionTarget) tea.Cmd {
 		if !ok {
 			return actionMsg{err: fmt.Errorf("owner acceptance target %s %s is no longer present", target.Kind, target.ID)}
 		}
-		if !clearanceIsCurrent(clearance) || !hasOwnerAcceptanceBlock(decision) {
+		if !acceptanceOffered(decision, clearance) {
 			return actionMsg{err: fmt.Errorf("owner acceptance refused for %s: %s", target.ID, decisionRefusal(decision))}
 		}
 
 		checkID := clearance.Check
+		if latest := index.LatestCheck[target.ID]; hasAcceptanceRenewalBlock(decision) && latest != "" {
+			checkID = latest
+		}
 		switch target.Kind {
 		case DetailTask:
 			task := index.Tasks[target.ID]
@@ -93,8 +96,22 @@ func setOwnerAcceptance(evidence **data.Evidence, checkID string) {
 	if (*evidence).OwnerValidation == nil {
 		(*evidence).OwnerValidation = &data.OwnerValidation{Required: true}
 	}
-	(*evidence).OwnerValidation.AcceptedCheck = checkID
-	(*evidence).OwnerValidation.AcceptedBy = data.Actor{Role: data.ActorRoleOwner, Session: ownerBoardSession}
+	owner := data.Actor{Role: data.ActorRoleOwner, Session: ownerBoardSession}
+	validation := (*evidence).OwnerValidation
+	if validation.AcceptedCheck != "" && validation.AcceptedCheck != checkID {
+		// An existing acceptance keeps its originating Check; the renewal is
+		// appended and earlier entries are never removed.
+		validation.CarriedForward = append(validation.CarriedForward, data.DecisionCarry{
+			Check:      checkID,
+			Applies:    true,
+			AssessedBy: owner,
+			AssessedAt: time.Now().UTC(),
+			Reason:     "Owner renewed this acceptance on the board.",
+		})
+		return
+	}
+	validation.AcceptedCheck = checkID
+	validation.AcceptedBy = owner
 }
 
 // writeExceptionCompletionCmd completes a record through a recorded exception.

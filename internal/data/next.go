@@ -260,6 +260,10 @@ const (
 	// NextOwnerValidationRequired means clearance is current but the owner
 	// has not accepted it, and owner_validation.required is set.
 	NextOwnerValidationRequired NextKind = "owner_validation_required"
+	// NextAssessDecision means a recorded owner decision (acceptance or
+	// exception) has not been assessed at the latest Check, so a checker must
+	// confirm whether it still applies. It is not a new Check.
+	NextAssessDecision NextKind = "assess_decision"
 	// NextObjectiveIntegration means every Task the Objective owns is done,
 	// but the Objective's own integration clearance is not current (or is
 	// current without owner acceptance where required).
@@ -513,7 +517,7 @@ func resolveTaskRung(index *V2Index, task *TaskV2) Next {
 	default:
 		decision := ResolveTaskCompletion(index, task.ID)
 		next := taskDecisionRung(task, decision)
-		if next.Kind == NextCheckNeeded || next.Kind == NextOwnerValidationRequired {
+		if decision.AllowedByException || next.Kind == NextCheckNeeded || next.Kind == NextOwnerValidationRequired || next.Kind == NextAssessDecision {
 			clearance := ResolveClearance(index, task.ID)
 			next.Clearance = &clearance
 		}
@@ -553,6 +557,9 @@ func rungForBlockers(blockers []GateBlocker) NextKind {
 			return NextDependency
 		}
 	}
+	if kind, ok := decisionRung(blockers); ok {
+		return kind
+	}
 	for _, blocker := range blockers {
 		switch blocker.Kind {
 		case GateBlockClearanceMissing, GateBlockClearanceNeedsWork, GateBlockClearanceStale, GateBlockClearanceUnknown, GateBlockCheckerAuthority:
@@ -565,6 +572,24 @@ func rungForBlockers(blockers []GateBlocker) NextKind {
 		}
 	}
 	return NextDependency
+}
+
+// decisionRung maps the owner-decision blockers onto their rungs: a decision
+// no one has assessed at the latest Check asks for an assessment, and one a
+// material change ended asks the owner to renew it. Assessment ranks first
+// because the owner can only renew a decision a checker has weighed.
+func decisionRung(blockers []GateBlocker) (NextKind, bool) {
+	for _, blocker := range blockers {
+		if blocker.Kind == GateBlockDecisionUnassessed {
+			return NextAssessDecision, true
+		}
+	}
+	for _, blocker := range blockers {
+		if blocker.Kind == GateBlockDecisionChanged {
+			return NextOwnerValidationRequired, true
+		}
+	}
+	return "", false
 }
 
 // resolveSelectedObjective returns the next step for the Objective the
@@ -619,6 +644,13 @@ func resolveObjectiveIntegrationRung(index *V2Index, objectiveID string) (Next, 
 	if decision.Allowed {
 		return Next{
 			Kind: NextObjectiveReady, Objective: objective,
+			GateDecision: &decision, Clearance: &clearance,
+		}, true
+	}
+
+	if kind, ok := decisionRung(decision.Blockers); ok {
+		return Next{
+			Kind: kind, Objective: objective,
 			GateDecision: &decision, Clearance: &clearance,
 		}, true
 	}

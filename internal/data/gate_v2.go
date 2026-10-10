@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 )
 
 // ClearanceState is the resolved clearance for a Task, Objective, or Release's
@@ -166,6 +165,15 @@ const (
 	// GateBlockReleaseIssueUnresolved means a material Issue linked to the
 	// current Release Check is still open or in progress.
 	GateBlockReleaseIssueUnresolved GateBlockKind = "release_issue_unresolved"
+	// GateBlockDecisionUnassessed means an owner decision recorded against an
+	// earlier Check has no assessment at the latest Check.
+	GateBlockDecisionUnassessed GateBlockKind = "decision_unassessed"
+	// GateBlockDecisionChanged means a checker found a material change ended
+	// an owner decision; Change names it and Decision says which.
+	GateBlockDecisionChanged GateBlockKind = "decision_changed"
+	// GateBlockExceptionScope means the latest Check lists unmet requirements
+	// the exception does not cover; Requirements names them.
+	GateBlockExceptionScope GateBlockKind = "exception_scope"
 )
 
 // GateBlocker names one unmet requirement blocking a start, advance, or
@@ -181,6 +189,12 @@ type GateBlocker struct {
 	Issue               string
 	Dependency          *DependencyBlock
 	ObjectiveDependency *ObjectiveDependencyBlock
+	// Decision, Change and Requirements are set only for the decision
+	// blockers: which owner decision, the material change, and the uncovered
+	// requirement IDs.
+	Decision     DecisionKind
+	Change       string
+	Requirements []string
 }
 
 // GateDecision is the resolved outcome for one Task start, advance, or
@@ -193,11 +207,14 @@ type GateBlocker struct {
 // clearance, and never available for an Objective or Release completion
 // decision, which stay mandatory regardless of any Task-level waiver.
 type GateDecision struct {
-	Allowed                   bool
-	Actor                     ActorRole // meaningful only when Allowed is true
-	Blockers                  []GateBlocker
-	AllowedByException        bool
-	Exception                 *Exception // set only when AllowedByException
+	Allowed            bool
+	Actor              ActorRole // meaningful only when Allowed is true
+	Blockers           []GateBlocker
+	AllowedByException bool
+	Exception          *Exception // set only when AllowedByException
+	// ExceptionCarry is the entry that kept the exception applying at the
+	// latest Check; nil when the exception was recorded against that Check.
+	ExceptionCarry            *DecisionCarry
 	AllowedByWaiver           bool
 	Waiver                    *CheckWaiver // set only when AllowedByWaiver
 	AllowedByLegacyCompletion bool
@@ -364,8 +381,8 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("freshness assessment marks latest check %s unknown", clearance.Check)})
 		}
 	case ClearanceCurrent:
-		if ownerValidationRequired(task.Evidence) && !ownerAcceptedCheck(task.Evidence, clearance.Check) {
-			blockers = append(blockers, GateBlocker{Kind: GateBlockOwnerAcceptance, Detail: fmt.Sprintf("owner has not accepted current check %s", clearance.Check)})
+		if ownerValidationRequired(task.Evidence) {
+			blockers = append(blockers, acceptanceBlockers(task.Evidence, clearance.Check)...)
 		}
 	}
 
@@ -379,8 +396,11 @@ func ResolveTaskCompletion(index *V2Index, taskID string) GateDecision {
 		}
 	}
 
-	if exception := applicableException(task.Evidence, index.LatestCheck[taskID]); exception != nil {
-		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
+	if assessed := assessException(index, task.Evidence, taskID); assessed != nil {
+		if assessed.grants() {
+			return assessed.decision()
+		}
+		blockers = append(blockers, assessed.blockers()...)
 	}
 
 	return GateDecision{Blockers: blockers}
@@ -401,35 +421,11 @@ func applicableCheckWaiver(evidence *Evidence, taskID string) *CheckWaiver {
 	return evidence.CheckWaiver
 }
 
-// ownerValidationRequired and ownerAcceptedCheck read the shared Evidence
-// block so Task and Objective completion decisions apply the same owner-
-// acceptance rule without restating it.
+// ownerValidationRequired reads the shared Evidence block so Task and
+// Objective completion decisions apply the same owner-acceptance rule; whether
+// an acceptance holds is decided once, by assessDecision.
 func ownerValidationRequired(evidence *Evidence) bool {
 	return evidence != nil && evidence.OwnerValidation != nil && evidence.OwnerValidation.Required
-}
-
-func ownerAcceptedCheck(evidence *Evidence, checkID string) bool {
-	if evidence == nil || evidence.OwnerValidation == nil || checkID == "" {
-		return false
-	}
-	accepted := evidence.OwnerValidation
-	return accepted.AcceptedCheck == checkID && accepted.AcceptedBy.Role == ActorRoleOwner && strings.TrimSpace(accepted.AcceptedBy.Session) != ""
-}
-
-// applicableException returns evidence's recorded exception only when it
-// names latestCheckID, the target's current latest Check. An exception
-// naming any other Check — one a later Check has superseded — does not carry
-// forward and returns nil, so the caller falls back to reporting normal
-// blockers. Shared by Task and Objective completion.
-func applicableException(evidence *Evidence, latestCheckID string) *Exception {
-	if evidence == nil || evidence.Exception == nil {
-		return nil
-	}
-	exception := evidence.Exception
-	if latestCheckID == "" || exception.Check != latestCheckID {
-		return nil
-	}
-	return exception
 }
 
 // taskDoneByOwnerDecision reports whether a done Task whose clearance is not
@@ -439,7 +435,7 @@ func taskDoneByOwnerDecision(index *V2Index, task *TaskV2, clearance Clearance) 
 	if clearance.State == ClearanceMissing && applicableCheckWaiver(task.Evidence, task.ID) != nil {
 		return true
 	}
-	return applicableException(task.Evidence, index.LatestCheck[task.ID]) != nil
+	return exceptionGrants(index, task.Evidence, task.ID)
 }
 
 // ConsistencyDiagnosticKind names one way a Task's recorded status can
@@ -496,12 +492,22 @@ func InspectTaskConsistency(index *V2Index) []ConsistencyDiagnostic {
 			// With no Task Check at all, nothing has superseded the
 			// acceptance: a waived Task may record acceptance of the
 			// Objective Check it was delivered under.
-			if accepted != "" && latest != "" && accepted != latest {
-				diagnostics = append(diagnostics, ConsistencyDiagnostic{
-					Task:   id,
-					Kind:   ConsistencyAcceptanceSuperseded,
-					Detail: fmt.Sprintf("owner accepted %s but the latest check is %s", accepted, latest),
-				})
+			if accepted != "" && latest != "" {
+				assessment := assessDecision(accepted, task.Evidence.OwnerValidation.CarriedForward, latest)
+				switch assessment.State {
+				case DecisionUnassessed:
+					diagnostics = append(diagnostics, ConsistencyDiagnostic{
+						Task:   id,
+						Kind:   ConsistencyAcceptanceSuperseded,
+						Detail: fmt.Sprintf("owner accepted %s but the latest check is %s", accepted, latest),
+					})
+				case DecisionChanged:
+					diagnostics = append(diagnostics, ConsistencyDiagnostic{
+						Task:   id,
+						Kind:   ConsistencyAcceptanceSuperseded,
+						Detail: fmt.Sprintf("owner accepted %s but a material change ended it at the latest check %s: %s", accepted, latest, assessment.MaterialChange),
+					})
+				}
 			}
 		}
 

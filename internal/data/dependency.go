@@ -156,7 +156,7 @@ func ResolveTaskDependencyV2(index *V2Index, dep TaskDependencyV2) DependencyDec
 	}
 
 	if dep.Requires == TaskDependencyAccepted {
-		if (waived && clearance.State != ClearanceCurrent) || !ownerAcceptedCheck(target.Evidence, clearance.Check) {
+		if (waived && clearance.State != ClearanceCurrent) || !acceptanceApplies(target.Evidence, clearance.Check) {
 			return DependencyDecision{Block: &DependencyBlock{Target: dep.Task, Requires: dep.Requires, Kind: DependencyBlockNotAccepted, Clearance: clearance.State}}
 		}
 	}

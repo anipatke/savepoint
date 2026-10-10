@@ -126,6 +126,59 @@ func ExceptionPhrase(exception *data.Exception) string {
 	return fmt.Sprintf("Allowed by exception, not by clearance: recorded by owner %s for Check %s — %s", exception.Owner, exception.Check, exception.Reason)
 }
 
+// CarryPhrase reports who confirmed or renewed a decision at a later Check and
+// why, in the recorded words. It returns "" for a decision recorded against the
+// Check itself.
+func CarryPhrase(carry *data.DecisionCarry) string {
+	if carry == nil {
+		return ""
+	}
+	verb := "confirmed it still applies"
+	if carry.AssessedBy.Role == data.ActorRoleOwner {
+		verb = "renewed it"
+	}
+	if !carry.Applies {
+		verb = "found it no longer applies (" + cleanText(carry.MaterialChange) + ")"
+	}
+	return fmt.Sprintf("carried to Check %s: %s %s — %s", carry.Check, ActorLabel(carry.AssessedBy), verb, cleanText(carry.Reason))
+}
+
+// CompletionLines reports a decision allowed by exception as two separate
+// facts: technical clearance, which stays whatever the Check recorded, and
+// completion, which rests on the owner's still-applicable exception.
+func CompletionLines(decision *data.GateDecision, clearance *data.Clearance) []string {
+	lines := []string{}
+	if clearance != nil {
+		lines = append(lines, "Technical clearance: "+ClearancePhrase(clearance))
+	}
+	exception := decision.Exception
+	if exception == nil {
+		return append(lines, "Completion: "+ExceptionPhrase(nil))
+	}
+	phrase := fmt.Sprintf("Completion: Ready to close by exception — recorded by owner %s at Check %s — %s", exception.Owner, exception.Check, cleanText(exception.Reason))
+	if carried := CarryPhrase(decision.ExceptionCarry); carried != "" {
+		phrase += "; " + carried
+	}
+	return append(lines, phrase)
+}
+
+// DecisionBlockerLines reports each owner-decision blocker that asks for the
+// given rung: which decision, the Checks involved, and the material change or
+// uncovered requirements.
+func DecisionBlockerLines(decision *data.GateDecision, kind data.GateBlockKind) []string {
+	var lines []string
+	if decision == nil {
+		return nil
+	}
+	for _, blocker := range decision.Blockers {
+		if blocker.Kind != kind {
+			continue
+		}
+		lines = append(lines, cleanText(blocker.Detail))
+	}
+	return lines
+}
+
 // ReplanPhrase reports a recorded replan flag by its own reason.
 func ReplanPhrase(reason string) string {
 	if reason == "" {
