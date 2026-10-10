@@ -2,21 +2,32 @@
 id: I-153
 title: Native Windows evidence is missing for O-045
 type: verification
-status: open
+status: resolved
 source:
   kind: check
   check: C-978
   actor: {role: checker, session: check-o045-20261011}
   at: '2026-10-10T21:10:26Z'
 tasks: [T-127, T-128, T-129, T-130]
-checks: [C-978]
+checks: [C-978, C-979]
 guardrail_ids: [CFG-03, CFG-02]
+resolution:
+  disposition: verified
+  check: C-979
+  actor: {role: checker, session: check-o045-recheck-20261011}
+  at: '2026-10-10T21:44:08Z'
+  reason: 'Native Windows full-suite CI job 114316104586 in run 38087209247 succeeded on reviewed commit ced16e7b20ad42932483c4e5d84228773f3d0d70.'
 history:
   - at: '2026-10-10T21:10:26Z'
     actor: {role: checker, session: check-o045-20261011}
     kind: observed
     check: C-978
     note: Initial Full Objective Check of O-045.
+  - at: '2026-10-10T21:44:08Z'
+    actor: {role: checker, session: check-o045-recheck-20261011}
+    kind: rechecked
+    check: C-979
+    note: 'Native Windows full-suite CI job 114316104586 in run 38087209247 succeeded on reviewed commit ced16e7b20ad42932483c4e5d84228773f3d0d70.'
 ---
 
 # I-153: Native Windows evidence is missing for O-045

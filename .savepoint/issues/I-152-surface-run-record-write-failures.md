@@ -2,21 +2,32 @@
 id: I-152
 title: Runner reports success after heartbeat or final record writes fail
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-978
   actor: {role: checker, session: check-o045-20261011}
   at: '2026-10-10T21:10:26Z'
 tasks: [T-127, T-128]
-checks: [C-978]
+checks: [C-978, C-979]
 guardrail_ids: [FS-06, TEST-01, TEST-02]
+resolution:
+  disposition: verified
+  check: C-979
+  actor: {role: checker, session: check-o045-recheck-20261011}
+  at: '2026-10-10T21:44:08Z'
+  reason: 'Original heartbeat/final/summary write failures set Err; heartbeat stops agent; Launch converts persistence Err to failed exit and diagnostic.'
 history:
   - at: '2026-10-10T21:10:26Z'
     actor: {role: checker, session: check-o045-20261011}
     kind: observed
     check: C-978
     note: Initial Full Objective Check of O-045.
+  - at: '2026-10-10T21:44:08Z'
+    actor: {role: checker, session: check-o045-recheck-20261011}
+    kind: rechecked
+    check: C-979
+    note: 'Original heartbeat/final/summary write failures set Err; heartbeat stops agent; Launch converts persistence Err to failed exit and diagnostic.'
 ---
 
 # I-152: Runner reports success after heartbeat or final record writes fail

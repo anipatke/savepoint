@@ -1,7 +1,7 @@
 ---
 id: O-045
 title: Record and run one agent as a detached process
-status: in_progress
+status: done
 depends_on: []
 release: G-003
 priority: high

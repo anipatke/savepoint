@@ -2,21 +2,32 @@
 id: I-149
 title: Lost-run detection watches the agent instead of the runner
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-978
   actor: {role: checker, session: check-o045-20261011}
   at: '2026-10-10T21:10:26Z'
 tasks: [T-129, T-130]
-checks: [C-978]
+checks: [C-978, C-979]
 guardrail_ids: [TEST-01]
+resolution:
+  disposition: verified
+  check: C-979
+  actor: {role: checker, session: check-o045-recheck-20261011}
+  at: '2026-10-10T21:44:08Z'
+  reason: 'Actual helper runner exits with live agent; saved runner_pid now makes RunnerLost and LostRuns report lost.'
 history:
   - at: '2026-10-10T21:10:26Z'
     actor: {role: checker, session: check-o045-20261011}
     kind: observed
     check: C-978
     note: Initial Full Objective Check of O-045.
+  - at: '2026-10-10T21:44:08Z'
+    actor: {role: checker, session: check-o045-recheck-20261011}
+    kind: rechecked
+    check: C-979
+    note: 'Actual helper runner exits with live agent; saved runner_pid now makes RunnerLost and LostRuns report lost.'
 ---
 
 # I-149: Lost-run detection watches the agent instead of the runner

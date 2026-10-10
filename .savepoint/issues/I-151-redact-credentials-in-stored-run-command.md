@@ -2,21 +2,32 @@
 id: I-151
 title: Run command arguments retain URL credentials in run.yml
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-978
   actor: {role: checker, session: check-o045-20261011}
   at: '2026-10-10T21:10:26Z'
 tasks: [T-127, T-128]
-checks: [C-978]
+checks: [C-978, C-979]
 guardrail_ids: [TEST-01]
+resolution:
+  disposition: verified
+  check: C-979
+  actor: {role: checker, session: check-o045-recheck-20261011}
+  at: '2026-10-10T21:44:08Z'
+  reason: 'Stored synthetic URL credential removed; independent echo child proves original argv still delivered.'
 history:
   - at: '2026-10-10T21:10:26Z'
     actor: {role: checker, session: check-o045-20261011}
     kind: observed
     check: C-978
     note: Initial Full Objective Check of O-045.
+  - at: '2026-10-10T21:44:08Z'
+    actor: {role: checker, session: check-o045-recheck-20261011}
+    kind: rechecked
+    check: C-979
+    note: 'Stored synthetic URL credential removed; independent echo child proves original argv still delivered.'
 ---
 
 # I-151: Run command arguments retain URL credentials in run.yml
