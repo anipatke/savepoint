@@ -130,12 +130,18 @@ func (m *Manifest) save(dir string, write assetWriter) error {
 }
 
 // isManifestPath reports whether a template-relative slash path is covered by
-// the manifest: skill entrypoints only. AGENTS.md carries its own ownership
+// the manifest: skill entrypoints, the Claude Code pointers to them, and the Claude Code hook scripts. AGENTS.md carries its own ownership
 // signal in the marker pair, shared references under agent-skills/references/
 // stay package-owned, and no .savepoint/ path is wholesale-owned by Savepoint.
 func isManifestPath(path string) bool {
 	parts := strings.Split(path, "/")
-	return len(parts) == 3 && parts[0] == "agent-skills" && parts[2] == "SKILL.md"
+	if len(parts) == 3 && parts[0] == ".claude" && parts[1] == "hooks" {
+		return strings.HasSuffix(parts[2], ".js")
+	}
+	if len(parts) == 3 {
+		return parts[0] == "agent-skills" && parts[2] == "SKILL.md"
+	}
+	return len(parts) == 4 && parts[0] == ".claude" && parts[1] == "skills" && parts[3] == "SKILL.md"
 }
 
 // hashContent hashes exact file bytes, with no line-ending normalization, so a

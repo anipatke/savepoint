@@ -2,12 +2,21 @@
 id: T-115
 title: Load the Savepoint guide in Claude Code automatically
 objective: O-043
-status: planned
+status: done
 depends_on: []
 complexity_tier: medium
 complexity_reason: New managed-region file merged into a possibly existing user CLAUDE.md through init and upgrade, reusing the AGENTS.md merge pattern.
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: plan-o043-20261010}
+check_waiver:
+    task: T-115
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-10T07:27:09Z"
 ---
 
 # Load the Savepoint guide in Claude Code automatically
@@ -61,7 +70,12 @@ Focused tests during iteration; handoff gate from AGENTS.md's Verification Polic
 
 ## Technical Evidence
 
-Pending execution.
+- Criteria: fresh init writes CLAUDE.md with the managed `@AGENTS.md` block (verified by scratch `savepoint init`, and `TestScaffold_writesClaudeGuideWithImport`). Existing CLAUDE.md keeps its bytes outside the block on init and upgrade (`TestScaffold_keepsUserClaudeText`, `TestUpgradeProjectAssets_claudeGuideLifecycle`, `..._RefreshesOnlyBlock`). A hand-written `@AGENTS.md` import adds no second one (`TestScaffold_noSecondImport`, `..._AlreadyImportedUnchanged`). Second upgrade reports unchanged and dry run writes nothing (lifecycle test; scratch `upgrade-assets` printed `unchanged CLAUDE.md`). This repo's CLAUDE.md regenerated from the template. One failure case: CLAUDE.md unreadable -> `failed` entry plus error.
+- Design choice: unlike AGENTS.md, an unmarked CLAUDE.md is merged (block appended), not a conflict, because the user's bytes stay untouched; `--force` has no extra effect for it.
+- Session-start weight (bytes; tokens roughly bytes/4): before, this repo CLAUDE.md 37 B and AGENTS.md not auto-loaded (~0 guide tokens); after, 168 B + AGENTS.md 21,539 B = ~21.7 KB (~5.4k tokens). Fresh project: before ~0; after 168 B + 15,016 B = 15,184 B (~3.8k tokens). Estimate only, no tokenizer run.
+- Commands: `make build`, `go test ./internal/init/`, `make test-fast` (passed). Not run: `make test-full`, native Windows CI (CFG-03), a live Claude Code session.
+- Files changed: templates/project-v2/CLAUDE.md, internal/init/agents.go, scaffold.go, upgrade.go, claude_guide_test.go, CLAUDE.md, AGENTS.md (Codebase Map row). Files read: only Context Files plus upgrade.go helpers already listed. Extra reads: internal/init/upgrade_test.go helpers (to reuse test fixtures).
+- Limitation: the import is `@AGENTS.md`; a project whose guide has a different casing (agents.md) on a case-sensitive disk would not resolve it.
 
 ## Drift Notes
 

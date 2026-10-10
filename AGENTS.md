@@ -16,7 +16,7 @@ make ci                        # CI full gate plus distribution and package chec
 |--------|---------|
 | `main.go` | Wires CLI commands, version output, and embedded V2 templates. Its resume path loads the V2 project and router, resolves `data.Next`, and renders the result. |
 | `cmd/` | Parses arguments and dispatches init, board, doctor, upgrade-assets, migrate, resume, health setup, health check, and health report commands. It leaves project records, gates, and rendering to `internal/` packages. |
-| `internal/init/` | Validates targets and scaffolds `templates/project-v2`. Upgrade-assets checks the project schema through `internal/data` and safely refreshes managed guidance and assets. |
+| `internal/init/` | Validates targets and scaffolds `templates/project-v2`. Upgrade-assets checks the project schema through `internal/data` and safely refreshes managed guidance and assets, including the `CLAUDE.md` block that imports `AGENTS.md` for Claude Code. |
 | `internal/board/` | Owns schema-aware board dispatch and rejects filter flags that do not apply to the project. V2 board rendering lives in `internal/board/v2`. |
 | `internal/board/v2/` | Implements the V2 TUI and non-TTY board, using the shared `data.Next` projection for the next action. It renders Objective, Task, and Goal navigation and details. |
 | `internal/buildtool/` | Runs named Go build and test gates and prepares cross-platform binaries, archives, and checksums. |

@@ -2,12 +2,21 @@
 id: T-116
 title: Let Claude Code find the Savepoint skills
 objective: O-043
-status: planned
+status: done
 depends_on: [{task: T-115, requires: clear}]
 complexity_tier: medium
 complexity_reason: Four generated pointer files tracked by the upgrade manifest, plus a parity test against the canonical skills.
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: plan-o043-20261010}
+check_waiver:
+    task: T-116
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-10T07:30:21Z"
 ---
 
 # Let Claude Code find the Savepoint skills
@@ -59,7 +68,23 @@ Focused tests during iteration; handoff gate from AGENTS.md's Verification Polic
 
 ## Technical Evidence
 
-Pending execution.
+Executor evidence (claims for a fresh Check to verify):
+
+Criteria:
+- Init writes four pointers: met. `templates/project-v2/.claude/skills/<skill>/SKILL.md` for idea, design, task, check; frontmatter lines copied verbatim from the canonical skill; body is one sentence naming `agent-skills/<skill>/SKILL.md`. No rule text copied. `main.go` now embeds `all:templates/project-v2` so the hidden `.claude` directory ships.
+- Content test fails on name/description drift: met. `TestClaudeSkillPointers_matchCanonicalNameAndDescription` compares both fields against the canonical skill; `..._bodyOnlyPointsAtCanonicalSkill` checks the body.
+- Upgrade installs missing, refreshes unedited, keeps and reports edited: met. `isManifestPath` and `isPackageSkillAsset` now cover the pointers; `TestUpgrade_claudeSkillPointers` covers missing, unedited-outdated, edited (conflict, `.new` written, file kept) and dry-run; `TestScaffold_installsTrackedClaudeSkillPointers` covers fresh install provenance.
+- No pointer for references: met. `..._onlyWorkflowSkillsHavePointers` asserts exactly four pointer directories (also none for bubbletea-tui-design).
+- This repo's pointers byte-identical to templates: met. `.claude/skills/` copied from the templates; `..._repoCopiesAreByteIdenticalToTemplates` enforces it.
+- `make build && make test-fast`: passed (exit 0).
+
+Commands run: `go test ./internal/init/` (iteration), `make build && make test-fast`.
+
+Files changed: `main.go`, `internal/init/manifest.go`, `internal/init/upgrade.go`, `internal/init/lifecycle_test.go`, `main_test.go`; added `internal/init/claude_skills_test.go`, `templates/project-v2/.claude/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`.
+
+Extra reads (outside Context Files): `internal/init/lifecycle_test.go` and `main_test.go`, because existing ownership and manifest-scope expectations failed once pointers became manifest-tracked and had to be updated. `internal/init/claude_guide_test.go`/`agents.go` read for T-115 helper names.
+
+Limitations: not verified inside a live Claude Code session (the User Check: `/` lists the four skills); full gate (`make test-full`) not run, as this is not migration/platform-sensitive. Whether Claude Code accepts the exact description text as-is was not tested.
 
 ## Drift Notes
 

@@ -2,7 +2,7 @@
 id: O-042
 title: Skills optimisation workflow retrospective
 status: planned
-depends_on: [O-039, O-040, O-041, O-043, O-044]
+depends_on: [O-039, O-040, O-043, O-044]
 release: G-002
 priority: low
 rank: 6
@@ -24,6 +24,6 @@ G-002 ends with a review of the workflow skills, shared references, AGENTS.md ro
 
 ## Boundaries
 
-**In scope:** the review defined by `savepoint-design`'s Goal Workflow Retrospective, using G-002's REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and the O-041 scenario set.
+**In scope:** the review defined by `savepoint-design`'s Goal Workflow Retrospective, using G-002's REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and O-034's written scenarios (T-099 baselines). O-041 (a kept scenario set) was dropped by the owner on 2026-10-10.
 
 **Out of scope:** new fields, states, commands, or a Goal-level Check.

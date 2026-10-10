@@ -50,6 +50,17 @@ func Scaffold(templates fs.FS, targetDir, projectName string, force bool) error 
 			return MergeAgentGuide(dest, interpolated)
 		}
 
+		if path == claudeGuideName {
+			return MergeClaudeGuide(targetPath, interpolated)
+		}
+
+		if path == claudeSettingsPath {
+			// The user's own settings are never overwritten, even with --force.
+			if _, err := os.Stat(targetPath); err == nil {
+				return nil
+			}
+		}
+
 		if err := AtomicWrite(targetPath, []byte(interpolated)); err != nil {
 			return err
 		}

@@ -28,8 +28,7 @@ import (
 //go:embed templates/prompts
 var promptTemplates embed.FS
 
-//go:embed templates/project-v2
-//go:embed all:templates/project-v2/.savepoint
+//go:embed all:templates/project-v2
 var projectTemplatesV2 embed.FS
 
 var version = "dev"
@@ -300,6 +299,10 @@ func initRunner(ctx context.Context, opts cmd.InitOptions) error {
 	projectName := savepointinit.ProjectNameFromDir(opts.Dir)
 	if err := savepointinit.Scaffold(sub, opts.Dir, projectName, opts.Force); err != nil {
 		return err
+	}
+
+	if advice := savepointinit.ClaudeSettingsAdvice(opts.Dir); advice != "" {
+		fmt.Fprintln(os.Stderr, advice)
 	}
 
 	promptSub, err := fs.Sub(promptTemplates, "templates/prompts")
