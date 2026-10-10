@@ -40,4 +40,4 @@ theme:
     borders: "subtle" # subtle | sharp | none
 schema_version: 2
 features:
-    parallel_planning: false
+    parallel_planning: true

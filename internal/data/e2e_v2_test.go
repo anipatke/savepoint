@@ -120,8 +120,8 @@ func checkOwnerValidatedScenario(t *testing.T, root, t002Path string, checkedAt 
 		t.Fatalf("T-002 clearance after rerun = %+v, want current on C-003 (a CLEAR re-check needs no freshness record)", rerunClearance)
 	}
 	blockedAgain := ResolveTaskCompletion(index, "T-002")
-	if blockedAgain.Allowed || len(blockedAgain.Blockers) != 1 || blockedAgain.Blockers[0].Kind != GateBlockOwnerAcceptance {
-		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want blocked on owner acceptance after the rerun supersedes the accepted Check", blockedAgain)
+	if blockedAgain.Allowed || len(blockedAgain.Blockers) != 1 || blockedAgain.Blockers[0].Kind != GateBlockDecisionUnassessed {
+		t.Fatalf("ResolveTaskCompletion(T-002) = %+v, want blocked on an unassessed acceptance after the rerun supersedes the accepted Check", blockedAgain)
 	}
 
 	// --- evidence writes preserve authored content throughout ---

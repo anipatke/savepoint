@@ -893,6 +893,8 @@ func ownerValidationV2Patch(ownerValidation *OwnerValidation) (v2FieldPatch, err
 			Session: ownerValidation.AcceptedBy.Session,
 		}
 	}
+	raw.Scope = ownerValidation.Scope
+	raw.CarriedForward = decisionCarriesToFrontmatter(ownerValidation.CarriedForward)
 	node, err := encodeV2Node(raw)
 	if err != nil {
 		return v2FieldPatch{}, fmt.Errorf("encode owner_validation evidence: %w", err)
@@ -905,11 +907,12 @@ func exceptionV2Patch(exception *Exception) (v2FieldPatch, error) {
 		return v2FieldPatch{Key: "exception", Remove: true}, nil
 	}
 	node, err := encodeV2Node(exceptionV2Frontmatter{
-		Requirements: exception.Requirements,
-		Reason:       exception.Reason,
-		Owner:        exception.Owner,
-		RecordedAt:   exception.RecordedAt.Format(time.RFC3339),
-		Check:        exception.Check,
+		Requirements:   exception.Requirements,
+		Reason:         exception.Reason,
+		Owner:          exception.Owner,
+		RecordedAt:     exception.RecordedAt.Format(time.RFC3339),
+		Check:          exception.Check,
+		CarriedForward: decisionCarriesToFrontmatter(exception.CarriedForward),
 	})
 	if err != nil {
 		return v2FieldPatch{}, fmt.Errorf("encode exception evidence: %w", err)

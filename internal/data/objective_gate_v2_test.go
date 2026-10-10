@@ -182,8 +182,8 @@ func TestResolveObjectiveCompletion_acceptanceOfSupersededCheckDoesNotClose(t *t
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (acceptance bound to a superseded check)")
 	}
-	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockOwnerAcceptance {
-		t.Fatalf("Blockers = %+v, want one GateBlockOwnerAcceptance", got.Blockers)
+	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockDecisionUnassessed || got.Blockers[0].Decision != DecisionKindAcceptance {
+		t.Fatalf("Blockers = %+v, want one unassessed acceptance blocker", got.Blockers)
 	}
 }
 
@@ -230,8 +230,9 @@ func TestResolveObjectiveCompletion_exceptionNamingOtherCheckDoesNotApply(t *tes
 	if got.Allowed {
 		t.Fatalf("Allowed = true, want false (exception names a superseded check, not the latest)")
 	}
-	if len(got.Blockers) != 1 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork {
-		t.Fatalf("Blockers = %+v, want one GateBlockClearanceNeedsWork", got.Blockers)
+	if len(got.Blockers) != 2 || got.Blockers[0].Kind != GateBlockClearanceNeedsWork ||
+		got.Blockers[1].Kind != GateBlockDecisionUnassessed || got.Blockers[1].Decision != DecisionKindException {
+		t.Fatalf("Blockers = %+v, want GateBlockClearanceNeedsWork then an unassessed exception blocker", got.Blockers)
 	}
 }
 

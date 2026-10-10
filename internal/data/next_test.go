@@ -853,8 +853,8 @@ func TestResolveNext_exceptionAllowedCompletionReportsExecuteNotClearance(t *tes
 	if next.GateDecision == nil || !next.GateDecision.AllowedByException || next.GateDecision.Exception == nil {
 		t.Fatalf("GateDecision = %+v, want AllowedByException with Exception carried", next.GateDecision)
 	}
-	if next.Clearance != nil {
-		t.Errorf("Clearance = %+v, want nil (an exception-allowed completion is never presented as clearance)", next.Clearance)
+	if next.Clearance == nil || next.Clearance.State != ClearanceNeedsWork {
+		t.Errorf("Clearance = %+v, want needs_work reported separately from the exception", next.Clearance)
 	}
 }
 
@@ -1272,5 +1272,36 @@ func TestResolveNext_nilInputMatchesAnEmptyProject(t *testing.T) {
 
 	if empty.Kind != absent.Kind {
 		t.Errorf("empty project resolved %q, absent input resolved %q", empty.Kind, absent.Kind)
+	}
+}
+
+// TestResolveNext_unassessedAndChangedAcceptanceRoute proves an acceptance
+// recorded at an older Check asks for an assessment, and one a material
+// change ended asks the owner, instead of a new Check (TEST-01, TEST-03).
+func TestResolveNext_unassessedAndChangedAcceptanceRoute(t *testing.T) {
+	cases := []struct {
+		name  string
+		carry []DecisionCarry
+		want  NextKind
+	}{
+		{"unassessed", nil, NextAssessDecision},
+		{"changed", []DecisionCarry{{Check: "C-002", Applies: false, AssessedBy: Actor{Role: ActorRoleChecker, Session: "chk"}, Reason: "r", MaterialChange: "schema moved"}}, NextOwnerValidationRequired},
+		{"renewed", []DecisionCarry{{Check: "C-002", Applies: true, AssessedBy: Actor{Role: ActorRoleChecker, Session: "chk"}, Reason: "r"}}, NextExecute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			index := newV2TestIndex()
+			mustCheck(index, "C-001", "T-001", CheckResultClear)
+			mustCheck(index, "C-002", "T-001", CheckResultClear)
+			index.Objectives["O-001"] = &ObjectiveV2{ID: "O-001", Status: ColumnPlanned}
+			index.Tasks["T-001"] = mustCurrentTask("T-001", "C-002", &Evidence{OwnerValidation: &OwnerValidation{
+				Required: true, AcceptedCheck: "C-001", AcceptedBy: Actor{Role: ActorRoleOwner, Session: "own"}, CarriedForward: tc.carry,
+			}})
+			index.ObjectiveTasks["O-001"] = []string{"T-001"}
+			router := &RouterStateV2{State: RouterPhaseCheck, Objective: "O-001", Task: "T-001"}
+			if got := resolveNextWithTestGoal(NextInput{Index: index, Router: router}).Kind; got != tc.want {
+				t.Fatalf("Kind = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

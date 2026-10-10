@@ -81,7 +81,10 @@ type CheckV2 struct {
 	// on, empty if none. It is an opaque reference resolved by doctor; it
 	// never participates in clearance resolution.
 	HealthSnapshot string
-	Source         V2SourceDocument
+	// Unmet lists the requirement IDs a NEEDS WORK Check found unmet. Empty
+	// means the Check does not say.
+	Unmet  []string
+	Source V2SourceDocument
 }
 
 // MaxHealthSnapshotRefLen bounds a Check's health_snapshot reference.
@@ -115,6 +118,7 @@ type checkV2Frontmatter struct {
 	Issues          []string              `yaml:"issues"`
 	Supersedes      string                `yaml:"supersedes"`
 	HealthSnapshot  *string               `yaml:"health_snapshot"`
+	Unmet           []string              `yaml:"unmet"`
 }
 
 // DecodeCheckV2 strictly decodes a V2 Check record from content. It requires
@@ -208,6 +212,11 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		return nil, err
 	}
 
+	unmet, err := decodeUnmetRequirements(path, fields.ID, result, fields.Unmet)
+	if err != nil {
+		return nil, err
+	}
+
 	return &CheckV2{
 		ID:              fields.ID,
 		Scope:           scope,
@@ -219,8 +228,28 @@ func DecodeCheckV2(path, content string) (*CheckV2, error) {
 		Issues:          issues,
 		Supersedes:      fields.Supersedes,
 		HealthSnapshot:  healthSnapshot,
+		Unmet:           unmet,
 		Source:          doc,
 	}, nil
+}
+
+// decodeUnmetRequirements validates the optional unmet list: no blank entries,
+// and only a NEEDS WORK Check can have requirements unmet.
+func decodeUnmetRequirements(path, checkID string, result CheckResult, raw []string) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	if result != CheckResultNeedsWork {
+		return nil, fmt.Errorf("%w: %s: check %s unmet is only allowed on a NEEDS WORK result", ErrV2CheckMalformed, path, checkID)
+	}
+	unmet := make([]string, 0, len(raw))
+	for _, requirement := range raw {
+		if strings.TrimSpace(requirement) == "" {
+			return nil, fmt.Errorf("%w: %s: check %s unmet contains an empty entry", ErrV2CheckMalformed, path, checkID)
+		}
+		unmet = append(unmet, requirement)
+	}
+	return unmet, nil
 }
 
 // decodeHealthSnapshotRef validates the optional health_snapshot field for

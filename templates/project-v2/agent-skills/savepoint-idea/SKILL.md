@@ -9,11 +9,11 @@ description: Guides Savepoint idea intake when router state is idea, turning a r
 
 Turn a rough, unstructured idea into `.savepoint/Idea.md` through a short back-and-forth with the owner. Own intent, users, core experience, scope, exclusions, and observable success; do not design a solution.
 
-Every Savepoint project has at least one live Goal selected by the router, and every live Objective names exactly one Goal through `release:`. `savepoint init` creates G-001, titled after the project; use the owner's input during Idea intake to fill its Outcome, Why, Success Conditions, and Boundaries. Projects converted by `savepoint migrate` may carry R-### Goal IDs; treat them like G-### Goals. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal, report it to the owner. A Goal does not own Tasks or publish, deploy, tag, or generate changelogs.
+Apply AGENTS.md's Required Goal Context. Use the owner's input during Idea intake to fill the G-001 placeholder's Outcome, Why, Success Conditions, and Boundaries. If Next says `Choose a Goal`, or `savepoint doctor` reports a missing Goal, report it to the owner.
 
 ## Trigger
 
-Use this skill when router `state` is `idea`. Legacy input requires `savepoint migrate` before the V2 workflow.
+Use this skill when router `state` is `idea`. Legacy input requires `savepoint migrate` first.
 
 ## Next
 
@@ -24,7 +24,7 @@ Start from the `Next` line as AGENTS.md's Workflow describes; if `savepoint` is 
 - `.savepoint/router.md`
 - `.savepoint/Idea.md`
 - The Goal record selected by the router, when it resolves to a live Goal
-- The user's stated intent for this idea
+- The owner's stated intent for this idea
 - Targeted existing-project evidence, when the idea builds on what's already there — read to understand what exists, not to design a solution
 
 Read nothing else. Design.md, Guardrails.md, Objective or Task files, and untargeted source code are out of scope for this skill.
@@ -88,3 +88,5 @@ How to tell this idea succeeded.
 - Do not design architecture or name components/interfaces.
 - Do not detail any Objective; hand off to `savepoint-design` for that.
 - Use `state` only for router phase, task `status` only for task lifecycle, and `stage` only when an item is `in_progress`.
+
+After writing any `.savepoint/` record, follow AGENTS.md's CLI Rules (write → resume → fix).

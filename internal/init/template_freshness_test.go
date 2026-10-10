@@ -36,8 +36,7 @@ func TestIdeaGuidanceFillsTheFreshProjectsGoal(t *testing.T) {
 	} {
 		content := readTemplate(t, path)
 		for _, phrase := range []string{
-			"Every Savepoint project has at least one live Goal selected by the router",
-			"G-001, titled after the project",
+			"AGENTS.md's Required Goal Context",
 			"Outcome, Why, Success Conditions, and Boundaries",
 			"do not create another Goal for the same initial outcome",
 			"only fill the fresh scaffold placeholder from owner-provided answers",
@@ -117,43 +116,17 @@ func TestProjectGuidanceRequiresGoalContext(t *testing.T) {
 	}
 	for _, parts := range goalGuides {
 		content := readTemplate(t, root, parts...)
-		for _, phrase := range []string{"Choose a Goal", "savepoint doctor", "savepoint init", "savepoint migrate"} {
-			assertContains(t, content, phrase)
-		}
-		assertContains(t, content, "G-001")
+		assertContains(t, content, "Choose a Goal")
+		assertContains(t, content, "savepoint doctor")
 	}
 	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
 		content := readTemplate(t, root, parts...)
 		assertContains(t, content, "Every Savepoint project must have a live Goal selected by the router")
 		assertContains(t, content, "every live Objective must name exactly one Goal")
+		for _, phrase := range []string{"savepoint init", "savepoint migrate", "G-001"} {
+			assertContains(t, content, phrase)
+		}
 	}
-	for _, parts := range [][]string{
-		{"agent-skills", "savepoint-idea", "SKILL.md"},
-		{"templates", "project-v2", "agent-skills", "savepoint-idea", "SKILL.md"},
-	} {
-		content := readTemplate(t, root, parts...)
-		assertContains(t, content, "at least one live Goal selected by the router")
-		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
-	}
-	for _, parts := range [][]string{
-		{"agent-skills", "savepoint-design", "SKILL.md"},
-		{"templates", "project-v2", "agent-skills", "savepoint-design", "SKILL.md"},
-	} {
-		content := readTemplate(t, root, parts...)
-		assertContains(t, content, "at least one live Goal selected by the router")
-		assertContains(t, content, "every live Objective must name exactly one live Goal")
-	}
-	for _, parts := range [][]string{
-		{"agent-skills", "savepoint-task", "SKILL.md"},
-		{"templates", "project-v2", "agent-skills", "savepoint-task", "SKILL.md"},
-		{"agent-skills", "savepoint-check", "SKILL.md"},
-		{"templates", "project-v2", "agent-skills", "savepoint-check", "SKILL.md"},
-	} {
-		content := readTemplate(t, root, parts...)
-		assertContains(t, content, "Every Savepoint project has at least one live Goal selected by the router")
-		assertContains(t, content, "every live Objective names exactly one Goal through `release:`")
-	}
-
 	liveAgents := readTemplate(t, root, "AGENTS.md")
 	templateAgents := readTemplate(t, root, "templates", "project-v2", "AGENTS.md")
 	section := func(content string) string {
@@ -348,7 +321,7 @@ func TestProjectAgentsGuidesLifecycleTerminologyConsistency(t *testing.T) {
 	for _, content := range []string{liveAgents, templateAgents} {
 		assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
 		assertContains(t, content, "No other `savepoint` command is for agents except the narrow Task creation operation below.")
-		assertContains(t, content, "After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.")
+		assertContains(t, content, "After writing or editing any `.savepoint/` record, including creating or renaming one, run `savepoint resume`.")
 	}
 
 	for _, content := range []string{liveAgents, templateAgents} {
@@ -511,9 +484,7 @@ func TestGuidanceKeepsParallelPlanningAdvisory(t *testing.T) {
 			assertContains(t, canonical, phrase)
 		}
 	}
-	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
-		assertContains(t, readTemplate(t, root, parts...), "they are advisory, owners and agents may ignore them")
-	}
+	assertContains(t, readTemplate(t, root, "templates", "project-v2", "AGENTS.md"), "they are advisory, owners and agents may ignore them")
 }
 
 func TestScaffoldedPolicyDocumentsPointInsteadOfRestating(t *testing.T) {
@@ -534,4 +505,60 @@ func TestRepoAgentsGuideDropsDuplicateRoutingAndLegacySections(t *testing.T) {
 	assertContains(t, agents, "## Skill Activation")
 	assertNotContains(t, agents, "## V2 Routing")
 	assertNotContains(t, agents, "## Legacy V1 compatibility")
+}
+
+func TestSharedVerificationRulesHaveOneHome(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		content := readTemplate(t, root, parts...)
+		for _, phrase := range []string{
+			"does satisfy a `requires: clear` Task",
+			"never satisfies `requires: accepted`",
+			"The Full Objective Check is mandatory before an Objective can close",
+			"`savepoint health report [dir]` is likewise human-only",
+		} {
+			assertContains(t, strings.Join(strings.Fields(content), " "), phrase)
+		}
+	}
+
+	var consumers [][]string
+	for _, tree := range [][]string{{"agent-skills"}, {"templates", "project-v2", "agent-skills"}} {
+		for _, f := range []string{"savepoint-idea/SKILL.md", "savepoint-design/SKILL.md", "savepoint-task/SKILL.md", "savepoint-check/SKILL.md", "references/check-method.md", "references/issue-capture.md", "references/commands-and-procedures.md"} {
+			consumers = append(consumers, append(append([]string{}, tree...), filepath.FromSlash(f)))
+		}
+	}
+	for _, parts := range consumers {
+		content := strings.Join(strings.Fields(readTemplate(t, root, parts...)), " ")
+		for _, restated := range []string{
+			"satisfies a downstream Task dependency that requires `clear`",
+			"A waiver satisfies `requires: clear`, never `requires: accepted`",
+			"it is not technical `CLEAR`, and it does not waive any acceptance criterion",
+			"`savepoint health report [dir]` is likewise human-only",
+		} {
+			assertNotContains(t, content, restated)
+		}
+	}
+}
+
+func TestActiveGuidanceKeepsNoHistoryAndOneTermPerRole(t *testing.T) {
+	root := filepath.Join("..", "..")
+	var files [][]string
+	for _, tree := range [][]string{{"agent-skills"}, {"templates", "project-v2", "agent-skills"}} {
+		for _, f := range []string{"savepoint-idea/SKILL.md", "savepoint-design/SKILL.md", "savepoint-task/SKILL.md", "savepoint-check/SKILL.md", "references/check-method.md", "references/issue-capture.md", "references/commands-and-procedures.md"} {
+			files = append(files, append(append([]string{}, tree...), filepath.FromSlash(f)))
+		}
+	}
+	for _, parts := range files {
+		content := readTemplate(t, root, parts...)
+		for _, old := range []string{"resurrect", "word the user says", "V2 index", "V2 record", "the V2 workflow", "V2 Task Markdown"} {
+			assertNotContains(t, content, old)
+		}
+	}
+	for _, parts := range [][]string{{"AGENTS.md"}, {"templates", "project-v2", "AGENTS.md"}} {
+		content := readTemplate(t, root, parts...)
+		assertNotContains(t, content, "Only the user may set a Task")
+		assertNotContains(t, content, "Prompt the user before continuing")
+		assertNotContains(t, content, "names a Release")
+		assertContains(t, content, "Only the owner may set a Task")
+	}
 }

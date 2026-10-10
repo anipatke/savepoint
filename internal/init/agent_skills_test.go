@@ -309,12 +309,12 @@ func TestSavepointDesignSkillTaskCreationWorkflow(t *testing.T) {
 	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-design", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"The planner never chooses, reserves, or writes a Task ID or destination filename.",
-			"complete V2 Task Markdown as an ID-free draft",
+			"complete Task Markdown as an ID-free draft",
 			"savepoint create-task --objective O-### --draft <path> [project-dir]",
-			"strict-loads the complete V2 index before reporting success",
+			"strict-loads the complete index before reporting success",
 			"planners working concurrently on O-014 and O-015",
 			"neither planner predicts, copies, or reserves a number",
-			"after creating or renaming any other identity-bearing V2 record",
+			"follow AGENTS.md's CLI Rules (write → resume → fix)",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s task creation guidance is missing %q", tree, path, phrase)
@@ -689,8 +689,7 @@ func TestSavepointCheckSkillArtifactTemplate(t *testing.T) {
 func TestSavepointCheckSkillStrictLoadsNewCheck(t *testing.T) {
 	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "savepoint-check", "SKILL.md") }, func(tree, path, content string) {
 		for _, phrase := range []string{
-			"After writing the record, run `savepoint resume`",
-			"strict-load the complete V2 index, including the new Check",
+			"follow AGENTS.md's CLI Rules (write → resume → fix)",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not require strict index loading after Check creation: missing %q", tree, path, phrase)
@@ -721,7 +720,16 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 		for _, phrase := range []string{
 			"complete a technical Task",
 			"no unexcepted material blocker",
-			"owner_validation.required` additionally needs the owner's recorded acceptance naming this same current Check",
+			"owner_validation.required` additionally needs the owner's recorded acceptance",
+			"A decision carries forward",
+			"carried_forward: [{check: C-###, applies: true",
+			"scope: [<accepted behavior or criterion IDs>]",
+			"`Assess` is applicability only",
+			"write the `carried_forward` entries and no new Check record",
+			"must assess every prior owner decision",
+			"structured `exception` only on the owner's explicit instruction",
+			"`unmet: [<requirement IDs>]`",
+			"Waived evidence is unproven",
 			"A Goal is complete when every member Objective is complete",
 			"Goal completion does not mean published or deployed",
 			"cannot support completion",
@@ -732,6 +740,11 @@ func TestSavepointCheckSkillClosureRules(t *testing.T) {
 				t.Errorf("%s: %s does not state closure phrase %q", tree, path, phrase)
 			}
 		}
+		for _, stale := range []string{"naming this same current Check", "acceptance naming a Check a later run has superseded", "applies only to the Check it names"} {
+			if strings.Contains(content, stale) {
+				t.Errorf("%s: %s keeps the exact-Check wording %q", tree, path, stale)
+			}
+		}
 	})
 }
 
@@ -739,14 +752,12 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		idea := string(readSkillFile(t, root, "savepoint-idea"))
 		for _, phrase := range []string{
-			"Every Savepoint project has at least one live Goal selected by the router",
-			"every live Objective names exactly one Goal through `release:`",
-			"G-001, titled after the project",
+			"AGENTS.md's Required Goal Context",
+			"G-001 placeholder",
 			"do not create another Goal for the same initial outcome",
 			"only fill the fresh scaffold placeholder from owner-provided answers",
 			"Choose a Goal",
 			"savepoint doctor",
-			"savepoint migrate",
 		} {
 			if !strings.Contains(idea, phrase) {
 				t.Errorf("%s: savepoint-idea missing project-Goal phrase %q", tree, phrase)
@@ -756,11 +767,9 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 		design := string(readSkillFile(t, root, "savepoint-design"))
 		for _, phrase := range []string{
 			"## Required Goal Context",
-			"every live Objective must name exactly one live Goal",
+			"AGENTS.md's Required Goal Context",
 			"Choose a Goal",
 			"savepoint doctor",
-			"savepoint init",
-			"savepoint migrate",
 			"required `release:` compatibility field containing its Goal's R-### or G-### identity",
 			"stable global `G-###` identity from the first unused G number",
 			"Goal sections `Outcome`, `Why`, `Success Conditions`, and `Boundaries`",
@@ -779,11 +788,9 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 		task := string(readSkillFile(t, root, "savepoint-task"))
 		for _, phrase := range []string{
 			"## Goal Context",
-			"Every Savepoint project has at least one live Goal selected by the router",
+			"AGENTS.md's Required Goal Context",
 			"Choose a Goal",
 			"savepoint doctor",
-			"G-001",
-			"savepoint migrate",
 		} {
 			if !strings.Contains(task, phrase) {
 				t.Errorf("%s: savepoint-task missing project-Goal phrase %q", tree, phrase)
@@ -793,17 +800,30 @@ func TestV2SkillsTeachProjectGoalWorkflow(t *testing.T) {
 		check := string(readSkillFile(t, root, "savepoint-check"))
 		for _, phrase := range []string{
 			"## Goal Context",
-			"Every Savepoint project has at least one live Goal selected by the router",
+			"AGENTS.md's Required Goal Context",
 			"Choose a Goal",
 			"savepoint doctor",
-			"G-001",
-			"savepoint migrate",
 			"scope: {kind: task, id: T-001}",
 			"A Goal is complete when every member Objective is complete",
 			"Goal completion does not mean published or deployed",
 		} {
 			if !strings.Contains(check, phrase) {
 				t.Errorf("%s: savepoint-check missing Goal context phrase %q", tree, phrase)
+			}
+		}
+
+		// The Goal Context rule has one home, the managed AGENTS.md block.
+		for name, body := range map[string]string{"idea": idea, "design": design, "task": task, "check": check} {
+			for _, restated := range []string{
+				"Every Savepoint project has at least one live Goal selected by the router",
+				"every live Objective names exactly one Goal through `release:`",
+				"every live Objective must name exactly one live Goal",
+				"G-001, titled after the project",
+				"`savepoint migrate` preserves converted R-### identities",
+			} {
+				if strings.Contains(body, restated) {
+					t.Errorf("%s: savepoint-%s restates the Goal Context rule %q", tree, name, restated)
+				}
 			}
 		}
 	}
@@ -896,7 +916,7 @@ func TestSharedIssueCaptureStrictLoadsIdentityChanges(t *testing.T) {
 	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
 			"After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume`",
-			"strict loading of the complete V2 index",
+			"strict loading of the complete index",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not require strict index loading after identity changes: missing %q", tree, path, phrase)
@@ -970,9 +990,8 @@ func TestSharedIssueCaptureRoleBoundariesAndRepairRouting(t *testing.T) {
 func TestSharedIssueCaptureDefectWordMapping(t *testing.T) {
 	forEachSkillFile(t, func(root string) string { return issueCapturePath(root) }, func(tree, path, content string) {
 		for _, phrase := range []string{
-			"\"Defect\" stays a word the user says",
+			"\"Defect\" stays a word the owner says",
 			"maps to `type: defect`",
-			"does not resurrect a separate defect record, status, or public phase in V2",
 		} {
 			if !strings.Contains(content, phrase) {
 				t.Errorf("%s: %s does not state defect word-mapping phrase %q", tree, path, phrase)
@@ -1330,11 +1349,12 @@ var skillTextCases = []struct {
 		[]string{"name in its Technical Verification the platform evidence the Full Check needs", "who produces it"}, nil},
 	{"repair reruns Proof Needed before recording", "references/issue-capture.md",
 		[]string{"Before recording `repair_attempted`, re-run the Issue's Proof Needed scenario", "mark any platform or case you could not run as unverified", "never claims `verified`"}, nil},
-	{"design keeps the workflow retrospective optional", "savepoint-design/SKILL.md",
-		[]string{"### Optional Workflow Retrospective", "Add one only when the owner asks for it; do not add one to a Goal by default",
-			"records its outcome in that Objective", "\"no change, because…\" conclusion", "tunes the project's own Guardrails, AGENTS.md project rules, and configured gates",
-			"records suggestions for the packaged skills as Issues", "with no additional Check", "it never holds a Goal open"},
-		[]string{"Goal Check", "Goal-level Check", "### Goal Workflow Retrospective", "add one final workflow-retrospective Objective"}},
+	{"design writes the Goal workflow review as a note", "savepoint-design/SKILL.md",
+		[]string{"### Goal Workflow Review", "writes a `## Workflow Review` section in that Goal's `Release.md`", "not an Objective, Task or Check",
+			"\"no change, because…\"", "costs no Objective, Task or Check", "becomes an ordinary Objective or an Issue",
+			"tunes the project's own Guardrails, AGENTS.md project rules, and configured gates",
+			"records suggestions for the packaged skills as Issues", "a Goal is still complete when every member Objective is complete"},
+		[]string{"Goal Check", "Goal-level Check", "retrospective Objective", "workflow-retrospective Objective"}},
 	{"working skills carry no board key names", "savepoint-task/SKILL.md", nil, []string{"Space", "Backspace"}},
 	{"check skill carries no board key names", "savepoint-check/SKILL.md", nil, []string{"Space", "Backspace"}},
 	{"design skill carries no board key names", "savepoint-design/SKILL.md", nil, []string{"Space", "Backspace"}},
@@ -1372,4 +1392,36 @@ func TestSkillReviewRulesCiteGuardrailsInsteadOfRestatingThem(t *testing.T) {
 			t.Errorf("%s: %s Code Health section restates STYLE rule IDs", tree, path)
 		}
 	})
+}
+
+func TestCheckMethodReCheckAssessesPriorDecisions(t *testing.T) {
+	forEachSkillFile(t, func(root string) string { return filepath.Join(root, "references", "check-method.md") }, func(tree, path, content string) {
+		for _, phrase := range []string{
+			"assess every prior owner decision",
+			"`carried_forward` entry",
+			"do not ask the owner to renew it",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s: %s re-check guidance missing %q", tree, path, phrase)
+			}
+		}
+	})
+}
+
+func TestAgentsGuideRoutesAssessToCheckSkill(t *testing.T) {
+	for _, path := range []string{"AGENTS.md", filepath.Join("templates", "project-v2", "AGENTS.md")} {
+		data, err := os.ReadFile(filepath.Join("..", "..", path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(data)
+		for _, phrase := range []string{
+			"`Assess` → `savepoint-check` (applicability only, no new Check)",
+			"carry forward to later Checks while their scope is unchanged",
+		} {
+			if !strings.Contains(content, phrase) {
+				t.Errorf("%s does not state %q", path, phrase)
+			}
+		}
+	}
 }

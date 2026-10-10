@@ -1,8 +1,34 @@
 # Changelog
 
+## v2.3.0 — Skills optimisation
+
+### Added
+
+- **Claude Code works out of the box.** `init` and `upgrade-assets` add a
+  `CLAUDE.md` block that imports `AGENTS.md`, Claude skills, and session-start
+  and router-guard hooks. A `CLAUDE.md` holding half a marker pair is left
+  untouched, and the Windows hook path is quoted and tested.
+- **Owner decision gates.** Close, assess and accept steps show on the status
+  line, board and resume output, with carry-over of owner acceptances to later
+  Checks.
+
+### Changed
+
+- Skills and shared references are shorter and easier to follow, with
+  navigation between references. Duplicated guidance in `AGENTS.md` is trimmed.
+- The end-of-Goal workflow review is now a `## Workflow Review` note in the
+  Goal's `Release.md`, not a retrospective Objective. A review that finds
+  nothing costs no Objective, Task or Check.
+
+### Fixed
+
+- The router guard detects worktree lanes correctly on Windows.
+
 ## v2.2.2
 
 ### Changed
+
+> Superseded in v2.3.0: the workflow review is now a note on the Goal, not an Objective.
 
 - **Workflow retrospectives are optional.** The planning guidance no longer
   adds a final retrospective Objective to every Goal. The planner adds one only

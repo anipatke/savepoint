@@ -32,7 +32,7 @@ const (
 // here too.
 func wantOwnership(path string) ownership {
 	switch {
-	case path == "AGENTS.md", strings.HasPrefix(path, "agent-skills/"):
+	case path == "AGENTS.md", strings.HasPrefix(path, "agent-skills/"), strings.HasPrefix(path, ".claude/skills/"), strings.HasPrefix(path, ".claude/hooks/"):
 		return ownPackage
 	case path == ".savepoint/Guardrails.md", path == ".savepoint/Health-Check.md":
 		return ownInstallIfMissing
@@ -245,7 +245,7 @@ func TestLifecycle_upgradeHonoursOwnership(t *testing.T) {
 					if got != edited[path] {
 						t.Errorf("%s (%s) was rewritten by upgrade", path, wantOwnership(path))
 					}
-					if action, found := actionFor(report, path); found && action != ActionSkipped && action != ActionUnchanged {
+					if action, found := actionFor(report, path); found && action != ActionSkipped && action != ActionUnchanged && !(path == claudeSettingsPath && action == ActionInfo) {
 						t.Errorf("%s action = %v, want skipped or unchanged", path, action)
 					}
 				case ownPackage:

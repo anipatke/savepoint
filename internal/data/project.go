@@ -492,7 +492,7 @@ func checkEvidenceReferences(index *V2Index, path, recordKind, id string, eviden
 			return fmt.Errorf("%w: %s: %s %s %s names missing check %s", ErrV2EvidenceMissingReference, path, recordKind, id, ref.field, ref.check)
 		}
 	}
-	return nil
+	return checkDecisionCarryReferences(index, path, recordKind, id, evidence)
 }
 
 // indexChecks resolves each Check's scope target against the rest of index,

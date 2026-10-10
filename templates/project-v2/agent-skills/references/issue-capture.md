@@ -7,7 +7,17 @@ triggerable: false
 
 This non-triggerable reference owns Issue capture for Design, Task, and Check; each enters it from its own workflow.
 
-An Issue captures durable follow-up from planning, execution, or Check; it is a record, not a fifth router state. "Defect" stays a word the user says; it maps to `type: defect` and does not resurrect a separate defect record, status, or public phase in V2.
+An Issue captures durable follow-up from planning, execution, or Check; it is a record, not a fifth router state. "Defect" stays a word the owner says; it maps to `type: defect`.
+
+**Contents**
+
+- Issue Artifact Template
+- Search Before Creating
+- Resolution Dispositions
+- Escalation Retires The Issue
+- History Is Append-Only
+- Role Boundaries
+- Out-Of-Scope Repair
 
 ## Issue Artifact Template
 
@@ -63,7 +73,7 @@ A Task Check skipped under an explicit owner waiver is not an Issue; apply AGENT
 
 Before allocating an `I-###`, search for the same symptom, the same location, the same violated requirement, or the same linked work. No automatic deduplication is assumed; every capture performs this search.
 
-After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume` to require strict loading of the complete V2 index before handoff.
+After creating or renaming an Issue or another identity-bearing record outside `savepoint create-task`, run `savepoint resume` to require strict loading of the complete index before handoff.
 
 ## Resolution Dispositions
 

@@ -256,11 +256,22 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 			return nil
 		}
 
+		if path == claudeSettingsPath {
+			content, err := fs.ReadFile(templates, path)
+			if err != nil {
+				report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionFailed})
+				return fmt.Errorf("read template %s: %w", path, err)
+			}
+			entry, err := upgradeClaudeSettings(absTarget, content, dryRun, write)
+			report.Actions = append(report.Actions, entry)
+			return err
+		}
+
 		targetPath := filepath.Join(absTarget, path)
 
 		isSkill := isPackageSkillAsset(path)
 
-		if !isSkill && path != "AGENTS.md" {
+		if !isSkill && path != "AGENTS.md" && path != claudeGuideName {
 			report.Actions = append(report.Actions, UpgradeEntry{Path: path, Action: ActionSkipped})
 			return nil
 		}
@@ -283,7 +294,11 @@ func upgradeProjectAssets(templates fs.FS, targetDir string, dryRun, force bool,
 			return nil
 		}
 
-		entry, err := upgradeAgentGuide(absTarget, path, content, dryRun, force, write)
+		upgrade := upgradeAgentGuide
+		if path == claudeGuideName {
+			upgrade = upgradeClaudeGuide
+		}
+		entry, err := upgrade(absTarget, path, content, dryRun, force, write)
 		report.Actions = append(report.Actions, entry)
 		if err != nil {
 			return err
@@ -433,6 +448,38 @@ func upgradeAgentGuide(absTarget, path string, content []byte, dryRun, force boo
 	return entry, nil
 }
 
+// upgradeClaudeGuide refreshes the managed block in CLAUDE.md. Unlike the agent
+// guide, a file without markers is not a conflict: the block is appended and
+// every byte of the user's text stays where it was, so there is nothing to
+// offer beside it. A file that already imports AGENTS.md by hand is unchanged.
+func upgradeClaudeGuide(absTarget, path string, content []byte, dryRun, _ bool, write assetWriter) (UpgradeEntry, error) {
+	entry := UpgradeEntry{Path: path}
+	dest := filepath.Join(absTarget, path)
+
+	existing, err := os.ReadFile(dest)
+	if err != nil && !os.IsNotExist(err) {
+		return failedEntry(entry, ""), fmt.Errorf("read existing %s: %w", path, err)
+	}
+
+	merged := mergeClaudeGuide(string(existing), string(content))
+	switch {
+	case os.IsNotExist(err):
+		entry.Action = ActionUpdated
+	case merged == string(existing):
+		entry.Action = ActionUnchanged
+		return entry, nil
+	default:
+		entry.Action = ActionMerged
+	}
+	if dryRun {
+		return entry, nil
+	}
+	if err := write(dest, []byte(merged)); err != nil {
+		return failedEntry(entry, ""), fmt.Errorf("write %s: %w", path, err)
+	}
+	return entry, nil
+}
+
 // failedEntry marks an attempted action as failed, keeping only the note that
 // is still true: a sidecar already written stays named, and a note describing
 // work that never happened is dropped.
@@ -567,10 +614,20 @@ func writeSidecar(targetPath, path, suffix string, content []byte, dryRun bool, 
 // reference such as agent-skills/references/check-method.md that a V2 skill
 // loads but that never triggers on its own.
 func isPackageSkillAsset(path string) bool {
+	if isClaudeSkillPointer(path) {
+		return true
+	}
 	if !strings.HasPrefix(path, "agent-skills/") {
 		return false
 	}
 	return strings.HasSuffix(path, "/SKILL.md") || strings.HasPrefix(path, "agent-skills/references/")
+}
+
+// isClaudeSkillPointer reports whether a template path is a managed Claude Code
+// asset (a hook script, or one of the thin
+// .claude/skills/<skill>/SKILL.md pointers Claude Code discovers natively).
+func isClaudeSkillPointer(path string) bool {
+	return isManifestPath(path) && strings.HasPrefix(path, ".claude/")
 }
 
 // auditAssetPrefix marks the project documentation area whose files are

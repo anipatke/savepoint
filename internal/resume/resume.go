@@ -122,6 +122,8 @@ func taskVerb(next data.Next) string {
 		return "Test"
 	}
 	switch next.Kind {
+	case data.NextAssessDecision:
+		return "Assess"
 	case data.NextOwnerValidationRequired:
 		return "Accept"
 	case data.NextExecute:
@@ -138,6 +140,10 @@ func objectiveVerb(next data.Next) string {
 		return "Done"
 	}
 	switch next.Kind {
+	case data.NextAssessDecision:
+		return "Assess"
+	case data.NextOwnerValidationRequired:
+		return "Accept"
 	case data.NextObjectiveIntegration:
 		if onlyOwnerAcceptance(next.GateDecision) {
 			return "Accept"
@@ -273,10 +279,18 @@ func EvidenceLines(next data.Next) []string {
 	case data.NextDependency:
 		return dependencyBlockerLines(next.GateDecision)
 	case data.NextExecute:
-		return executeLines(next.GateDecision, next.Task)
+		return executeLines(next.GateDecision, next.Task, next.Clearance)
 	case data.NextCheckNeeded:
 		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
+	case data.NextAssessDecision:
+		return append([]string{"Technical clearance: " + ClearancePhrase(next.Clearance)},
+			DecisionBlockerLines(next.GateDecision, data.GateBlockDecisionUnassessed)...)
 	case data.NextOwnerValidationRequired:
+		if hasBlockerKind(next.GateDecision, data.GateBlockDecisionChanged) || hasBlockerKind(next.GateDecision, data.GateBlockExceptionScope) {
+			lines := append([]string{"Technical clearance: " + ClearancePhrase(next.Clearance)},
+				DecisionBlockerLines(next.GateDecision, data.GateBlockDecisionChanged)...)
+			return append(lines, DecisionBlockerLines(next.GateDecision, data.GateBlockExceptionScope)...)
+		}
 		return []string{
 			"Technical clearance: " + ClearancePhrase(next.Clearance),
 			"Owner wait: " + OwnerWaitPhrase(clearanceCheckID(next.Clearance)),
@@ -289,7 +303,7 @@ func EvidenceLines(next data.Next) []string {
 		return lines
 	case data.NextObjectiveReady:
 		if next.GateDecision != nil && next.GateDecision.AllowedByException {
-			return []string{"Completion: " + ExceptionPhrase(next.GateDecision.Exception)}
+			return CompletionLines(next.GateDecision, next.Clearance)
 		}
 		return []string{"Technical clearance: " + ClearancePhrase(next.Clearance)}
 	case data.NextReleaseReady:
@@ -351,9 +365,9 @@ func dependencyBlockerLines(decision *data.GateDecision) []string {
 // executeLines renders the NextExecute rung: a completion allowed only by a
 // recorded exception is reported as exactly that, never as clearance: a
 // Task that may start or advance is reported by what allows it.
-func executeLines(decision *data.GateDecision, task *data.TaskV2) []string {
+func executeLines(decision *data.GateDecision, task *data.TaskV2, clearance *data.Clearance) []string {
 	if decision != nil && decision.AllowedByException {
-		return []string{"Completion: " + ExceptionPhrase(decision.Exception)}
+		return CompletionLines(decision, clearance)
 	}
 	return []string{"Ready: " + executeReadyPhrase(task)}
 }
@@ -423,7 +437,15 @@ func ActionPhrase(next data.Next) string {
 		return executeNextActionPhrase(next)
 	case data.NextCheckNeeded:
 		return "Owner: request an optional Task Check or record an explicit owner waiver; the Full Objective Check remains mandatory before Objective closure."
+	case data.NextAssessDecision:
+		return "Confirm whether the recorded owner decision still applies to the latest Check; this is not a new Check."
 	case data.NextOwnerValidationRequired:
+		if hasBlockerKind(next.GateDecision, data.GateBlockDecisionChanged) {
+			return "Ask the owner to renew the decision a material change affected, or to decline it."
+		}
+		if hasBlockerKind(next.GateDecision, data.GateBlockExceptionScope) {
+			return "Ask the owner to widen or renew the exception to cover the named requirements, or send the work back for repair."
+		}
 		return "Ask the owner to accept the current Check."
 	case data.NextObjectiveIntegration:
 		return objectiveIntegrationNextActionPhrase(next)

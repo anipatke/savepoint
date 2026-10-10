@@ -77,17 +77,31 @@ func actionsForRecord(index *data.V2Index, target actionTarget) []BoardAction {
 		})
 	}
 
-	if clearanceIsCurrent(clearance) && hasOwnerAcceptanceBlock(decision) {
+	if acceptanceOffered(decision, clearance) {
 		actions = append(actions, BoardAction{
 			Key:        acceptanceKey,
 			Kind:       ActionAcceptCheck,
 			TargetKind: target.Kind,
 			TargetID:   target.ID,
-			Label:      fmt.Sprintf("accept current Check %s", clearance.Check),
+			Label:      acceptanceLabel(decision, clearance),
 			Decision:   decision,
 		})
 	}
 	return actions
+}
+
+// acceptanceOffered is the one test for whether the gate offers an owner
+// acceptance: a first acceptance of a current Check, or a renewal of an
+// acceptance no checker has assessed or a material change ended.
+func acceptanceOffered(decision data.GateDecision, clearance data.Clearance) bool {
+	return (clearanceIsCurrent(clearance) && hasOwnerAcceptanceBlock(decision)) || hasAcceptanceRenewalBlock(decision)
+}
+
+func acceptanceLabel(decision data.GateDecision, clearance data.Clearance) string {
+	if hasAcceptanceRenewalBlock(decision) {
+		return "renew owner acceptance"
+	}
+	return fmt.Sprintf("accept current Check %s", clearance.Check)
 }
 
 func recordDecision(index *data.V2Index, target actionTarget) (data.GateDecision, data.Clearance, bool) {
@@ -144,6 +158,9 @@ var refusalTemplates = map[string]string{
 	"clearance_stale":           "Clearance is stale (%s); the checker session must reassess it.",
 	"clearance_unknown":         "Clearance is unknown (%s); the checker session must assess it.",
 	"owner_acceptance_required": "Acceptance by the owner is required (%s); the owner session may accept the current Check.",
+	"decision_unassessed":       "An owner decision is not assessed at the latest Check (%s); the checker session must confirm whether it still applies, or the owner session may renew it.",
+	"decision_changed":          "A material change ended an owner decision (%s); the owner session may renew it.",
+	"exception_scope":           "The exception does not cover the latest Check's unmet requirements (%s); the checker session must re-check or the owner session must record a new exception.",
 	"checker_authority":         "Checker authority is required (%s); the checker session must complete the decision.",
 	"invalid_state":             "The recorded state is invalid (%s); the planner session must repair the record.",
 }

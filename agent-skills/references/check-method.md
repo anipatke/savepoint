@@ -9,14 +9,33 @@ This non-triggerable reference is loaded in full by `savepoint-check`, which own
 
 Use Guardrails and optional project verification procedures when present; skip the related steps when absent. Absence is not an Issue.
 
+**Contents**
+
+- Task Check And Objective Check Depth
+- Quick And Full Evidence Modes
+- Establish Scope
+- Freeze The Check Scope
+- Turn Acceptance Into Invariants
+- Build The Mandatory Coverage Matrix
+- Workflow And Side-Effect Check Lock
+- Parallel Planning Advice
+- Perform The Adversarial Pass
+- Re-check After Remediation
+- Verify File Reality
+- Verify Evidence And Gates
+- Collect Code Health Evidence
+- Complete The Issues Pass
+- Summarize Materiality
+- Review Code Style
+
 ## Task Check And Objective Check Depth
 
-A requested Task Check evaluates one Task's acceptance criteria, plan, evidence, and scoped files. The mandatory Objective Check additionally covers every owned Task, including waived Tasks, cross-Task integration, and Design reconciliation. Task clearance never substitutes for Objective clearance; an owner waiver never waives acceptance criteria or guardrails.
+A requested Task Check evaluates one Task's acceptance criteria, plan, evidence, and scoped files. The mandatory Objective Check additionally covers every owned Task, including waived Tasks, cross-Task integration, and Design reconciliation. Apply AGENTS.md's Verification Policy for what a Task clearance or waiver does not replace.
 
 ## Quick And Full Evidence Modes
 
 - **Quick** — optional, only when the owner requests or selects a Task Check. Follow the Quick Check Procedure below; never add an automatic Check to every handoff.
-- **Full** — mandatory for Objective closure; apply every section of this method.
+- **Full** — mandatory for Objective closure; apply every section of this method. Copy the Full Check Progress Checklist, below, into the Check record and tick each step as you finish it.
 
 ### Quick Check Procedure
 
@@ -35,6 +54,29 @@ Quick mode does not build the coverage matrix, the external-boundary matrix,
 the workflow and side-effect lock, or the adversarial pass. If a probe shows
 risk that reaches past the one Task, record it as an observation for the
 mandatory Objective Check rather than widening the Quick Check.
+
+### Full Check Progress Checklist
+
+Each step names the section that defines it, in method order. Skip a step only where its section says it does not apply.
+
+```markdown
+- [ ] Establish Scope
+- [ ] Freeze The Check Scope
+- [ ] Turn Acceptance Into Invariants
+- [ ] Build The Mandatory Coverage Matrix
+- [ ] Finite External-Boundary Matrix
+- [ ] Workflow And Side-Effect Check Lock
+- [ ] Matrix Completion Lock
+- [ ] Parallel Planning Advice
+- [ ] Perform The Adversarial Pass
+- [ ] Re-check After Remediation
+- [ ] Verify File Reality
+- [ ] Verify Evidence And Gates
+- [ ] Collect Code Health Evidence
+- [ ] Complete The Issues Pass
+- [ ] Summarize Materiality
+- [ ] Review Code Style
+```
 
 ## Establish Scope
 
@@ -226,6 +268,13 @@ exception above applies, naming the exact Blocker rule.
 
 Start the re-check result with a closure map of the prior Issues: closed,
 still open, or unverified.
+
+Also assess every prior owner decision (acceptance or exception) on the scope.
+Compare each decision's scope with what changed since its last assessment and
+record the outcome as a `carried_forward` entry under `savepoint-check`
+Closure Rules. A decision whose scope is unchanged still applies; state why
+and do not ask the owner to renew it. List `unmet` requirement IDs on a
+`NEEDS WORK` result so exception coverage can be checked.
 
 Default convergence limit: one initial Check; one full re-check after
 remediation; if an in-scope failure remains, one targeted remediation and

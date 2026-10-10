@@ -187,7 +187,7 @@ func TestV2ScaffoldAgentsGuideIsLiveAndUsesV2Vocabulary(t *testing.T) {
 		assertNotContains(t, content, stale)
 	}
 	assertContains(t, content, "Exception: agents may run `savepoint create-task --objective O-### --draft <path> [dir]` only to create a new Task from an ID-free draft.")
-	assertContains(t, content, "After creating or renaming any other identity-bearing V2 record, run `savepoint resume` to require strict loading of the full V2 index.")
+	assertContains(t, content, "After writing or editing any `.savepoint/` record, including creating or renaming one, run `savepoint resume`.")
 }
 
 // v2AdoptionLoadBearingPhrases are the statements the existing-codebase

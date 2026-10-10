@@ -1,0 +1,536 @@
+{
+  "version": 1,
+  "id": "sha256:aa05e1fd094901f1a42a2677d76cd254391ba180b6c804369ee8f851cb998a13",
+  "origin": "official",
+  "retention": "permanent",
+  "created_at": "2026-10-10T08:06:42Z",
+  "repository": {
+    "commit": "3596b2c3be8c4ccef93ae4996dbf5e84fc625889",
+    "dirty": false,
+    "input_fingerprint": "sha256:b0307fc6fafa6384a654eedfbb7f92eff98b1c2b88f58f910fd46656b9b78d79"
+  },
+  "results": [
+    {
+      "capability": "complexity",
+      "outcome": "available",
+      "freshness": "fresh",
+      "collected_at": "2026-10-10T08:06:39Z",
+      "provenance": {
+        "provider": "lizard-csv",
+        "provider_version": "unknown",
+        "measurement_definition": "highest cyclomatic complexity (CCN) of any function"
+      },
+      "config_digest": "sha256:69d06ef3dff445ba4a057368e953949906d1706498512632a8955a97cff07f90",
+      "exclusions": [
+        "**/*.min.js",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "dist/**"
+      ],
+      "value": {
+        "number": 22,
+        "unit": "ccn"
+      },
+      "reason": "Lizard's CSV does not state its version",
+      "details": [
+        {
+          "key": "average_ccn",
+          "number": 4.035662299854439
+        },
+        {
+          "key": "functions",
+          "number": 5496
+        },
+        {
+          "key": "functions_over_10",
+          "number": 305
+        },
+        {
+          "key": "functions_over_20",
+          "number": 3
+        }
+      ],
+      "evidence": [
+        {
+          "path": "internal/board/v2/plain.go",
+          "line": 26,
+          "note": "renderPlain has complexity 19"
+        },
+        {
+          "path": "internal/board/v2/releases_test.go",
+          "line": 478,
+          "note": "TestBoardWithoutAValidGoalShowsNoProjectWideRecords has complexity 19"
+        },
+        {
+          "path": "internal/codehealth/collect.go",
+          "line": 349,
+          "note": "execute has complexity 19"
+        },
+        {
+          "path": "internal/codehealth/reader_lizard_test.go",
+          "line": 48,
+          "note": "has complexity 20"
+        },
+        {
+          "path": "internal/codehealth/readers_polyglot_test.go",
+          "line": 345,
+          "note": "TestPolyglotDashboardAgreesWithTheVerdict has complexity 20"
+        },
+        {
+          "path": "internal/codehealth/readers_polyglot_test.go",
+          "line": 401,
+          "note": "TestPolyglotHistoryComparabilityAcrossChanges has complexity 20"
+        },
+        {
+          "path": "internal/data/carry_v2.go",
+          "line": 35,
+          "note": "decodeDecisionCarriesV2 has complexity 19"
+        },
+        {
+          "path": "internal/data/check_v2.go",
+          "line": 136,
+          "note": "DecodeCheckV2 has complexity 21"
+        },
+        {
+          "path": "internal/data/discover.go",
+          "line": 251,
+          "note": "DiscoverV2Records has complexity 19"
+        },
+        {
+          "path": "internal/data/evidence_v2.go",
+          "line": 163,
+          "note": "decodeEvidenceV2 has complexity 19"
+        },
+        {
+          "path": "internal/data/feature_preferences.go",
+          "line": 151,
+          "note": "spliceParallelPlanning has complexity 22"
+        },
+        {
+          "path": "internal/data/next.go",
+          "line": 116,
+          "note": "ResolveSelection has complexity 20"
+        },
+        {
+          "path": "internal/data/objective_gate_v2.go",
+          "line": 24,
+          "note": "ResolveObjectiveCompletion has complexity 20"
+        },
+        {
+          "path": "internal/data/project_test.go",
+          "line": 390,
+          "note": "TestLoadV2Index_integratedProjectScenario has complexity 20"
+        },
+        {
+          "path": "internal/data/release_v2_test.go",
+          "line": 154,
+          "note": "TestLoadV2Index_routerReleaseSelectionResolvesExistingRecords has complexity 20"
+        },
+        {
+          "path": "internal/init/reference_navigation_test.go",
+          "line": 68,
+          "note": "has complexity 20"
+        },
+        {
+          "path": "internal/migrate/convert_docs.go",
+          "line": 168,
+          "note": "resolveRouterObjective has complexity 20"
+        },
+        {
+          "path": "internal/migrate/convert_docs.go",
+          "line": 210,
+          "note": "resolveRouterTask has complexity 20"
+        },
+        {
+          "path": "internal/resume/resume.go",
+          "line": 427,
+          "note": "ActionPhrase has complexity 21"
+        },
+        {
+          "path": "main_test.go",
+          "line": 88,
+          "note": "TestMainCreateTaskConcurrentAcrossObjectivesStrictLoadsIndex has complexity 20"
+        }
+      ]
+    },
+    {
+      "capability": "coverage",
+      "outcome": "available",
+      "freshness": "fresh",
+      "collected_at": "2026-10-10T08:06:38Z",
+      "provenance": {
+        "provider": "go-cover-profile",
+        "provider_version": "unknown",
+        "measurement_definition": "covered statements as a share of all statements"
+      },
+      "config_digest": "sha256:cb9a866b8952520c8fffabc1111ed6fb80a97921edeb7632b364cada5d2c563a",
+      "exclusions": [
+        "**/*.min.js",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "dist/**"
+      ],
+      "value": {
+        "number": 87.16054449688761,
+        "unit": "percent"
+      },
+      "details": [
+        {
+          "key": "covered_statements",
+          "number": 12742
+        },
+        {
+          "key": "total_statements",
+          "number": 14619
+        }
+      ],
+      "evidence": [
+        {
+          "path": "internal/board/v2/io.go",
+          "note": "79.0% of 343 statements covered"
+        },
+        {
+          "path": "internal/board/v2/run.go",
+          "note": "50.0% of 30 statements covered"
+        },
+        {
+          "path": "internal/board/v2/watch.go",
+          "note": "79.2% of 96 statements covered"
+        },
+        {
+          "path": "internal/buildtool/main.go",
+          "note": "61.5% of 488 statements covered"
+        },
+        {
+          "path": "internal/data/config.go",
+          "note": "68.7% of 67 statements covered"
+        },
+        {
+          "path": "internal/data/lifecycle.go",
+          "note": "79.8% of 104 statements covered"
+        },
+        {
+          "path": "internal/data/release_v2.go",
+          "note": "73.6% of 87 statements covered"
+        },
+        {
+          "path": "internal/data/runtime.go",
+          "note": "26.5% of 34 statements covered"
+        },
+        {
+          "path": "internal/data/task_create.go",
+          "note": "76.9% of 143 statements covered"
+        },
+        {
+          "path": "internal/data/task_ids.go",
+          "note": "79.3% of 198 statements covered"
+        },
+        {
+          "path": "internal/healthcheck/healthcheck.go",
+          "note": "75.0% of 72 statements covered"
+        },
+        {
+          "path": "internal/init/clipboard.go",
+          "note": "21.9% of 32 statements covered"
+        },
+        {
+          "path": "internal/init/validate.go",
+          "note": "75.8% of 33 statements covered"
+        },
+        {
+          "path": "internal/init/write.go",
+          "note": "40.5% of 37 statements covered"
+        },
+        {
+          "path": "internal/migrate/apply.go",
+          "note": "75.9% of 174 statements covered"
+        },
+        {
+          "path": "internal/migrate/convert_docs.go",
+          "note": "71.2% of 111 statements covered"
+        },
+        {
+          "path": "internal/resume/concurrency.go",
+          "note": "62.8% of 86 statements covered"
+        },
+        {
+          "path": "internal/resume/evidence.go",
+          "note": "70.1% of 107 statements covered"
+        },
+        {
+          "path": "internal/testutil/fixture.go",
+          "note": "0.0% of 54 statements covered"
+        },
+        {
+          "path": "internal/testutil/fs.go",
+          "note": "0.0% of 15 statements covered"
+        }
+      ]
+    },
+    {
+      "capability": "dependency_vulnerabilities",
+      "outcome": "available",
+      "freshness": "fresh",
+      "collected_at": "2026-10-10T08:06:42Z",
+      "provenance": {
+        "provider": "osv-scanner-json",
+        "provider_version": "unknown",
+        "measurement_definition": "vulnerability groups per package, bucketed by CVSS"
+      },
+      "config_digest": "sha256:f3bf9d28f07029169291e0c8124736e447df9d29688f8b86b4e803fec6a1ca71",
+      "exclusions": [
+        "**/*.min.js",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "dist/**"
+      ],
+      "value": {
+        "number": 0,
+        "unit": "count"
+      },
+      "reason": "Vulnerability database was queried at collection time; its snapshot is unknown.",
+      "details": [
+        {
+          "key": "critical",
+          "number": 0
+        },
+        {
+          "key": "high",
+          "number": 0
+        },
+        {
+          "key": "low",
+          "number": 0
+        },
+        {
+          "key": "medium",
+          "number": 0
+        },
+        {
+          "key": "unknown",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "capability": "duplication",
+      "outcome": "available",
+      "freshness": "fresh",
+      "collected_at": "2026-10-10T08:06:40Z",
+      "provenance": {
+        "provider": "jscpd-json",
+        "provider_version": "unknown",
+        "measurement_definition": "share of lines that are part of a repeated block"
+      },
+      "config_digest": "sha256:633fc2f6acfe2047e3ed9089260a940eb7b22f41b4fe4a3e7e14379ca4c736b9",
+      "exclusions": [
+        "**/*.min.js",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "**/testdata/**",
+        ".savepoint/**",
+        "dist/**",
+        "templates/**"
+      ],
+      "value": {
+        "number": 2.7115783293888858,
+        "unit": "percent"
+      },
+      "details": [
+        {
+          "key": "clones",
+          "number": 332
+        },
+        {
+          "key": "duplicated_lines",
+          "number": 2956
+        },
+        {
+          "key": "sources",
+          "number": 358
+        },
+        {
+          "key": "total_lines",
+          "number": 109014
+        }
+      ],
+      "evidence": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "line": 14,
+          "note": "14 lines repeated at .github/workflows/ci.yml:30"
+        },
+        {
+          "path": "cmd/migrate_test.go",
+          "line": 151,
+          "note": "15 lines repeated at cmd/resume_test.go:75"
+        },
+        {
+          "path": "internal/board/v2/issues_test.go",
+          "line": 641,
+          "note": "15 lines repeated at internal/migrate/inventory_test.go:328"
+        },
+        {
+          "path": "internal/data/gate_v2.go",
+          "line": 296,
+          "note": "14 lines repeated at internal/data/gate_v2.go:347"
+        },
+        {
+          "path": "internal/data/gate_v2_test.go",
+          "line": 473,
+          "note": "15 lines repeated at internal/data/objective_gate_v2_test.go:88"
+        },
+        {
+          "path": "internal/data/lifecycle_test.go",
+          "line": 66,
+          "note": "18 lines repeated at internal/data/lifecycle_test.go:110"
+        },
+        {
+          "path": "internal/data/migration_history_test.go",
+          "line": 194,
+          "note": "46 lines repeated at internal/data/migration_source_test.go:99"
+        },
+        {
+          "path": "internal/data/migration_history_test.go",
+          "line": 350,
+          "note": "15 lines repeated at internal/data/migration_source_test.go:363"
+        },
+        {
+          "path": "internal/data/next_test.go",
+          "line": 865,
+          "note": "14 lines repeated at internal/data/next_test.go:882"
+        },
+        {
+          "path": "internal/data/parser_test.go",
+          "line": 268,
+          "note": "16 lines repeated at internal/data/parser_test.go:288"
+        },
+        {
+          "path": "internal/data/parser_test.go",
+          "line": 393,
+          "note": "14 lines repeated at internal/data/parser_test.go:420"
+        },
+        {
+          "path": "internal/data/release_v2_test.go",
+          "line": 292,
+          "note": "15 lines repeated at internal/data/release_v2_test.go:307"
+        },
+        {
+          "path": "internal/data/router.go",
+          "line": 48,
+          "note": "19 lines repeated at internal/data/router.go:77"
+        },
+        {
+          "path": "internal/data/task_v2_test.go",
+          "line": 351,
+          "note": "15 lines repeated at internal/data/task_v2_test.go:435"
+        },
+        {
+          "path": "internal/data/write_test.go",
+          "line": 90,
+          "note": "14 lines repeated at internal/data/write_test.go:276"
+        },
+        {
+          "path": "internal/doctor/checks_test.go",
+          "line": 948,
+          "note": "20 lines repeated at internal/doctor/checks_test.go:1002"
+        },
+        {
+          "path": "internal/init/integration_test.go",
+          "line": 260,
+          "note": "15 lines repeated at internal/init/scaffold_test.go:147"
+        },
+        {
+          "path": "internal/init/upgrade_test.go",
+          "line": 73,
+          "note": "17 lines repeated at internal/init/upgrade_test.go:601"
+        },
+        {
+          "path": "internal/init/upgrade_test.go",
+          "line": 78,
+          "note": "15 lines repeated at internal/init/upgrade_test.go:472"
+        },
+        {
+          "path": "internal/migrate/apply_test.go",
+          "line": 21,
+          "note": "15 lines repeated at internal/migrate/end_to_end_test.go:1854"
+        }
+      ]
+    },
+    {
+      "capability": "tests",
+      "outcome": "available",
+      "freshness": "fresh",
+      "collected_at": "2026-10-10T08:06:38Z",
+      "provenance": {
+        "provider": "go-test-json",
+        "provider_version": "unknown",
+        "measurement_definition": "failed tests plus packages that failed to build"
+      },
+      "config_digest": "sha256:55198b941a3142e9e32df6a7e099bcfdc9c25e6c5064244f8b03b59e4d0de81e",
+      "exclusions": [
+        "**/*.min.js",
+        "**/*.pb.go",
+        "**/*_generated.*",
+        "dist/**"
+      ],
+      "value": {
+        "number": 0,
+        "unit": "count"
+      },
+      "details": [
+        {
+          "key": "build_failures",
+          "number": 0
+        },
+        {
+          "key": "passed_tests",
+          "number": 3672
+        },
+        {
+          "key": "skipped_tests",
+          "number": 0
+        },
+        {
+          "key": "total_tests",
+          "number": 3672
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "overall": "needs_attention",
+    "capabilities": [
+      {
+        "capability": "complexity",
+        "provider": "lizard-csv",
+        "classification": "needs_attention",
+        "explanation": "Highest complexity 22 is beyond the watch range. Unchanged at 22 over 5 official checks."
+      },
+      {
+        "capability": "coverage",
+        "provider": "go-cover-profile",
+        "classification": "good",
+        "explanation": "Coverage 87.2% meets the good threshold. Recent range 87.1% to 87.2% over 5 official checks, steady."
+      },
+      {
+        "capability": "dependency_vulnerabilities",
+        "provider": "osv-scanner-json",
+        "classification": "good",
+        "explanation": "Vulnerabilities 0 meets the good threshold. Unchanged at 0 over 5 official checks."
+      },
+      {
+        "capability": "duplication",
+        "provider": "jscpd-json",
+        "classification": "good",
+        "explanation": "Duplication 2.7% meets the good threshold. Recent range 2.7% to 2.7% over 5 official checks, steady. 13 earlier official results not compared."
+      },
+      {
+        "capability": "tests",
+        "provider": "go-test-json",
+        "classification": "good",
+        "explanation": "Failing tests 0 meets the good threshold. Unchanged at 0 over 5 official checks."
+      }
+    ]
+  }
+}

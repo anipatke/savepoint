@@ -58,8 +58,8 @@ func ResolveObjectiveCompletion(index *V2Index, objectiveID string) GateDecision
 			blockers = append(blockers, GateBlocker{Kind: GateBlockClearanceUnknown, Detail: fmt.Sprintf("freshness assessment marks latest check %s unknown", clearance.Check)})
 		}
 	case ClearanceCurrent:
-		if ownerValidationRequired(objective.Evidence) && !ownerAcceptedCheck(objective.Evidence, clearance.Check) {
-			blockers = append(blockers, GateBlocker{Kind: GateBlockOwnerAcceptance, Detail: fmt.Sprintf("owner has not accepted current check %s", clearance.Check)})
+		if ownerValidationRequired(objective.Evidence) {
+			blockers = append(blockers, acceptanceBlockers(objective.Evidence, clearance.Check)...)
 		}
 	}
 
@@ -88,8 +88,11 @@ func ResolveObjectiveCompletion(index *V2Index, objectiveID string) GateDecision
 	if unresolvedIssue {
 		return GateDecision{Blockers: blockers}
 	}
-	if exception := applicableException(objective.Evidence, index.LatestCheck[objectiveID]); exception != nil {
-		return GateDecision{Allowed: true, Actor: ActorRoleOwner, AllowedByException: true, Exception: exception}
+	if assessed := assessException(index, objective.Evidence, objectiveID); assessed != nil {
+		if assessed.grants() {
+			return assessed.decision()
+		}
+		blockers = append(blockers, assessed.blockers()...)
 	}
 
 	return GateDecision{Blockers: blockers}
@@ -149,7 +152,7 @@ func ResolveObjectiveDependency(index *V2Index, dependencyID string) ObjectiveDe
 		return ObjectiveDependencyDecision{Satisfied: true}
 	}
 
-	if applicableException(target.Evidence, index.LatestCheck[dependencyID]) != nil {
+	if exceptionGrants(index, target.Evidence, dependencyID) {
 		return ObjectiveDependencyDecision{Block: &ObjectiveDependencyBlock{Target: dependencyID, Kind: ObjectiveDependencyBlockClearedByException}}
 	}
 
@@ -208,7 +211,7 @@ func InspectObjectiveConsistency(index *V2Index) []ObjectiveConsistencyDiagnosti
 		// An owner exception naming the latest Check completes the Objective
 		// as ResolveObjectiveCompletion allows; it is not a contradiction.
 		clearance := ResolveClearance(index, id)
-		if clearance.State != ClearanceCurrent && applicableException(objective.Evidence, index.LatestCheck[id]) == nil {
+		if clearance.State != ClearanceCurrent && !exceptionGrants(index, objective.Evidence, id) {
 			diagnostics = append(diagnostics, ObjectiveConsistencyDiagnostic{
 				Objective: id,
 				Kind:      ObjectiveConsistencyDoneWithoutClearance,

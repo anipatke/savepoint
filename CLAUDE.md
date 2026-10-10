@@ -1,1 +1,7 @@
-See `AGENTS.md` at the project root.
+<!-- SAVEPOINT:BEGIN -->
+# Claude Code
+
+@AGENTS.md
+
+Savepoint manages this section and refreshes it on upgrade; write your own notes outside it.
+<!-- SAVEPOINT:END -->

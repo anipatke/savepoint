@@ -250,8 +250,10 @@ func blockerBadge(blocker data.GateBlocker) (Badge, bool) {
 		return Badge{Glyph: glyphWaiting, Label: waitLabel("WAITS", dependencyTarget(blocker)), Style: styles.BadgeWaiting}, true
 	case data.GateBlockObjectiveDependency:
 		return Badge{Glyph: glyphWaiting, Label: waitLabel("OBJECTIVE WAITS", objectiveDependencyTarget(blocker)), Style: styles.BadgeWaiting}, true
-	case data.GateBlockOwnerAcceptance:
+	case data.GateBlockOwnerAcceptance, data.GateBlockDecisionChanged:
 		return Badge{Glyph: glyphOwner, Label: "AWAITS OWNER", Style: styles.BadgeAttention}, true
+	case data.GateBlockDecisionUnassessed:
+		return Badge{Glyph: glyphWaiting, Label: "NEEDS ASSESSMENT", Style: styles.BadgeWaiting}, true
 	default:
 		// The clearance kinds, GateBlockCheckerAuthority (folded into the
 		// review outcome's "REVIEW" wording), and GateBlockInvalidState,
@@ -313,6 +315,19 @@ func reviewOutcomeIsActionable(state data.ClearanceState) bool {
 	default:
 		return false
 	}
+}
+
+// hasAcceptanceRenewalBlock reports whether the owner's recorded acceptance
+// needs renewing: a checker has not assessed it at the latest Check, or found
+// a material change ended it. The exception decision never offers it.
+func hasAcceptanceRenewalBlock(decision data.GateDecision) bool {
+	for _, blocker := range decision.Blockers {
+		if (blocker.Kind == data.GateBlockDecisionUnassessed || blocker.Kind == data.GateBlockDecisionChanged) &&
+			blocker.Decision == data.DecisionKindAcceptance {
+			return true
+		}
+	}
+	return false
 }
 
 func hasOwnerAcceptanceBlock(decision data.GateDecision) bool {

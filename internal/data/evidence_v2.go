@@ -38,6 +38,12 @@ type OwnerValidation struct {
 	Required      bool
 	AcceptedCheck string // optional C-### reference
 	AcceptedBy    Actor  // required when AcceptedCheck is present
+	// Scope names the accepted behavior or criterion IDs; empty means the
+	// acceptance does not state its scope. Requires AcceptedCheck.
+	Scope []string
+	// CarriedForward is the append-only applicability history of the
+	// acceptance at later Checks. Requires AcceptedCheck.
+	CarriedForward []DecisionCarry
 }
 
 // Exception records an owner's decision to accept completion despite unmet
@@ -49,6 +55,9 @@ type Exception struct {
 	Owner        string
 	RecordedAt   time.Time
 	Check        string // C-### this exception applies to
+	// CarriedForward is the append-only applicability history of the
+	// exception at later Checks.
+	CarriedForward []DecisionCarry
 }
 
 // Replan flags that a Task or Objective's plan needs revisiting. It never
@@ -101,17 +110,20 @@ type freshnessV2Frontmatter struct {
 }
 
 type ownerValidationV2Frontmatter struct {
-	Required      bool                      `yaml:"required"`
-	AcceptedCheck string                    `yaml:"accepted_check"`
-	AcceptedBy    *evidenceActorFrontmatter `yaml:"accepted_by,omitempty"`
+	Required       bool                         `yaml:"required"`
+	AcceptedCheck  string                       `yaml:"accepted_check"`
+	AcceptedBy     *evidenceActorFrontmatter    `yaml:"accepted_by,omitempty"`
+	Scope          []string                     `yaml:"scope,omitempty"`
+	CarriedForward []decisionCarryV2Frontmatter `yaml:"carried_forward,omitempty"`
 }
 
 type exceptionV2Frontmatter struct {
-	Requirements []string `yaml:"requirements"`
-	Reason       string   `yaml:"reason"`
-	Owner        string   `yaml:"owner"`
-	RecordedAt   string   `yaml:"recorded_at"`
-	Check        string   `yaml:"check"`
+	Requirements   []string                     `yaml:"requirements"`
+	Reason         string                       `yaml:"reason"`
+	Owner          string                       `yaml:"owner"`
+	RecordedAt     string                       `yaml:"recorded_at"`
+	Check          string                       `yaml:"check"`
+	CarriedForward []decisionCarryV2Frontmatter `yaml:"carried_forward,omitempty"`
 }
 
 type replanV2Frontmatter struct {
@@ -257,6 +269,12 @@ func decodeOwnerValidationV2(path, recordKind, id string, raw ownerValidationV2F
 		if raw.AcceptedBy != nil {
 			return nil, fmt.Errorf("%w: %s: %s %s owner_validation.accepted_by requires accepted_check", ErrV2EvidenceMalformed, path, recordKind, id)
 		}
+		if len(raw.Scope) > 0 {
+			return nil, fmt.Errorf("%w: %s: %s %s owner_validation.scope requires accepted_check", ErrV2EvidenceMalformed, path, recordKind, id)
+		}
+		if len(raw.CarriedForward) > 0 {
+			return nil, fmt.Errorf("%w: %s: %s %s owner_validation.carried_forward requires accepted_check", ErrV2EvidenceMalformed, path, recordKind, id)
+		}
 		return &OwnerValidation{Required: raw.Required}, nil
 	}
 	if raw.AcceptedBy == nil {
@@ -270,7 +288,16 @@ func decodeOwnerValidationV2(path, recordKind, id string, raw ownerValidationV2F
 		return nil, fmt.Errorf("%w: %s: %s %s owner_validation.accepted_by.role %q; use owner", ErrV2EvidenceMalformed, path, recordKind, id, acceptedBy.Role)
 	}
 
-	return &OwnerValidation{Required: raw.Required, AcceptedCheck: raw.AcceptedCheck, AcceptedBy: acceptedBy}, nil
+	scope, err := decodeBlankFreeList(path, recordKind, id, "owner_validation.scope", raw.Scope)
+	if err != nil {
+		return nil, err
+	}
+	carried, err := decodeDecisionCarriesV2(path, recordKind, id, "owner_validation.carried_forward", raw.AcceptedCheck, raw.CarriedForward)
+	if err != nil {
+		return nil, err
+	}
+
+	return &OwnerValidation{Required: raw.Required, AcceptedCheck: raw.AcceptedCheck, AcceptedBy: acceptedBy, Scope: scope, CarriedForward: carried}, nil
 }
 
 func decodeExceptionV2(path, recordKind, id string, raw exceptionV2Frontmatter) (*Exception, error) {
@@ -304,12 +331,18 @@ func decodeExceptionV2(path, recordKind, id string, raw exceptionV2Frontmatter) 
 		return nil, fmt.Errorf("%w: %s: %s %s exception.check %q must match C- plus at least three digits", ErrV2InvalidID, path, recordKind, id, raw.Check)
 	}
 
+	carried, err := decodeDecisionCarriesV2(path, recordKind, id, "exception.carried_forward", raw.Check, raw.CarriedForward)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Exception{
-		Requirements: requirements,
-		Reason:       raw.Reason,
-		Owner:        raw.Owner,
-		RecordedAt:   recordedAt,
-		Check:        raw.Check,
+		Requirements:   requirements,
+		Reason:         raw.Reason,
+		Owner:          raw.Owner,
+		RecordedAt:     recordedAt,
+		Check:          raw.Check,
+		CarriedForward: carried,
 	}, nil
 }
 

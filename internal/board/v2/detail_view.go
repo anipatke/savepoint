@@ -310,8 +310,22 @@ func ownerValidationLines(evidence *data.Evidence) []string {
 	if validation.AcceptedCheck == "" {
 		return append(lines, "Accepted: "+notRecorded)
 	}
-	return append(lines, fmt.Sprintf("Accepted: Check %s, by %s",
+	lines = append(lines, fmt.Sprintf("Accepted: Check %s, by %s",
 		validation.AcceptedCheck, resume.ActorLabel(validation.AcceptedBy)))
+	if len(validation.Scope) > 0 {
+		lines = append(lines, "Scope: "+strings.Join(validation.Scope, ", "))
+	}
+	return append(lines, carryLines(validation.CarriedForward)...)
+}
+
+// carryLines lists every carry entry on a decision, oldest first, in the
+// shared wording.
+func carryLines(carried []data.DecisionCarry) []string {
+	var lines []string
+	for _, carry := range carried {
+		lines = append(lines, "Carried: "+resume.CarryPhrase(&carry))
+	}
+	return lines
 }
 
 // exceptionLines report a recorded exception as an exception — never as a
@@ -322,12 +336,13 @@ func exceptionLines(evidence *data.Evidence) []string {
 		return nil
 	}
 	exception := evidence.Exception
-	return []string{
+	lines := []string{
 		resume.ExceptionPhrase(exception),
 		"Requirements: " + strings.Join(exception.Requirements, ", "),
 		"Applies to: Check " + exception.Check,
 		fmt.Sprintf("Recorded by owner %s on %s", exception.Owner, exception.RecordedAt.Format(detailTimeFormat)),
 	}
+	return append(lines, carryLines(exception.CarriedForward)...)
 }
 
 // replanLines report a recorded replan by its own reason and provenance.

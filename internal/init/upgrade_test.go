@@ -1580,7 +1580,9 @@ func TestUpgradeDeliversRevisedSkillsToUneditedProjects(t *testing.T) {
 	if got := upgradeActionFor(t, report, realTaskSkill); got != ActionUpdated {
 		t.Fatalf("action = %v, want updated", got)
 	}
-	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill)))), "## Acting On A Code Health Report")
+	delivered := string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(realTaskSkill))))
+	assertContains(t, delivered, "## Acting On A Code Health Report")
+	assertContains(t, delivered, "Apply AGENTS.md's Required Goal Context")
 }
 
 func TestUpgradeKeepsAnEditedSkillAndOffersTheRevision(t *testing.T) {
@@ -1602,11 +1604,11 @@ func TestUpgradeKeepsAnEditedSkillAndOffersTheRevision(t *testing.T) {
 	assertContains(t, incoming, "## Acting On A Code Health Report")
 }
 
-func TestUpgradeDeliversOptionalRetrospectiveRuleToDesignSkill(t *testing.T) {
+func TestUpgradeDeliversGoalWorkflowReviewRuleToDesignSkill(t *testing.T) {
 	const designSkill = "agent-skills/savepoint-design/SKILL.md"
 	templates := os.DirFS(filepath.Join("..", "..", "templates", "project-v2"))
 	dir := savepointProject(t)
-	const old = "# savepoint-design before the retrospective rule"
+	const old = "# savepoint-design before the workflow review rule"
 	testutil.WriteFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)), old)
 	manifest := NewManifest()
 	manifest.Record(designSkill, []byte(old))
@@ -1621,7 +1623,7 @@ func TestUpgradeDeliversOptionalRetrospectiveRuleToDesignSkill(t *testing.T) {
 	if got := upgradeActionFor(t, report, designSkill); got != ActionUpdated {
 		t.Fatalf("action = %v, want updated", got)
 	}
-	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "### Optional Workflow Retrospective")
+	assertContains(t, string(mustReadFile(t, filepath.Join(dir, filepath.FromSlash(designSkill)))), "### Goal Workflow Review")
 }
 
 // TestUpgradeDeliversParallelPlanningGuidanceWithoutTouchingRecords refreshes

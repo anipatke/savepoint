@@ -1,6 +1,6 @@
 ---
 name: savepoint-design
-description: Maintains Savepoint Design and Guardrails and the current Objective, detailing Tasks only for the next ready Objective, when router state is design or an executor returns REPLAN REQUIRED.
+description: Maintains Savepoint Design and Guardrails and the current Objective, detailing Tasks only for the next ready Objective, when the `Next` line starts with `Plan` or `Replan`, router state is design, or an executor returns REPLAN REQUIRED.
 ---
 
 # Savepoint Skill: Design
@@ -67,23 +67,23 @@ Summarise the settled outcome, success conditions, boundaries, and key technical
 
 ## Task Creation
 
-The planner never chooses, reserves, or writes a Task ID or destination filename. Prepare the complete V2 Task Markdown as an ID-free draft. Its `objective` field may be omitted or must match the selected Objective. Create each new Task with:
+The planner never chooses, reserves, or writes a Task ID or destination filename. Prepare the complete Task Markdown as an ID-free draft. Its `objective` field may be omitted or must match the selected Objective. Create each new Task with:
 
 ```bash
 savepoint create-task --objective O-### --draft <path> [project-dir]
 ```
 
-The command allocates the next project-wide `T-###`, adds the Task identity and Objective to the draft, derives the filename from the title, and strict-loads the complete V2 index before reporting success. It holds the allocator lock through creation and validation; concurrent planners for different Objectives receive distinct IDs. A failed post-reservation creation may retire an ID, so never retry by selecting that number yourself.
+The command allocates the next project-wide `T-###`, adds the Task identity and Objective to the draft, derives the filename from the title, and strict-loads the complete index before reporting success. It holds the allocator lock through creation and validation; concurrent planners for different Objectives receive distinct IDs. A failed post-reservation creation may retire an ID, so never retry by selecting that number yourself.
 
-For example, planners working concurrently on O-014 and O-015 each prepare an ID-free draft and invoke `savepoint create-task --objective O-014 --draft draft-o-014.md` or `savepoint create-task --objective O-015 --draft draft-o-015.md`. The command outputs the assigned ID and path for each; neither planner predicts, copies, or reserves a number. Use `savepoint resume` after creating or renaming any other identity-bearing V2 record to require a strict load of the complete index. No other agent-run `savepoint` command is permitted.
+For example, planners working concurrently on O-014 and O-015 each prepare an ID-free draft and invoke `savepoint create-task --objective O-014 --draft draft-o-014.md` or `savepoint create-task --objective O-015 --draft draft-o-015.md`. The command outputs the assigned ID and path for each; neither planner predicts, copies, or reserves a number. No other agent-run `savepoint` command is permitted.
 
 ## Verification Contract
 
-Apply AGENTS.md's Verification Policy to every implementation: per-criterion evidence and configured gates, an explicit owner waiver when a Task Check is skipped, and mandatory Full Objective integration including waived Tasks. Plan verification and owner validation accordingly; never substitute a Task-only result or waiver for Objective clearance.
+Apply AGENTS.md's Verification Policy to every implementation. Plan verification and owner validation accordingly; never substitute a Task-only result or waiver for Objective clearance.
 
 ## Required Goal Context
 
-Every Savepoint project must have at least one live Goal selected by the router, and every live Objective must name exactly one live Goal through `release:`. Apply AGENTS.md's Required Goal Context for identity compatibility, storage, diagnostics, and migration. `savepoint init` supplies G-001; `savepoint migrate` preserves converted R-### identities. If Next says `Choose a Goal` or `savepoint doctor` reports a missing Goal, report it to the owner; do not infer a selection.
+Apply AGENTS.md's Required Goal Context. If Next says `Choose a Goal` or `savepoint doctor` reports a missing Goal, report it to the owner; do not infer a selection.
 
 When adding another Goal:
 
@@ -93,11 +93,11 @@ When adding another Goal:
 4. Keep Objectives and Tasks in their normal locations and ownership: a Goal does not nest files, own Tasks, or recreate an Objective → Task hierarchy.
 5. A Goal is complete when every member Objective is complete; completion is derived, not a publishing action.
 
-### Optional Workflow Retrospective
+### Goal Workflow Review
 
-A workflow retrospective is optional. Add one only when the owner asks for it; do not add one to a Goal by default. When the owner asks, the planner may add a workflow-retrospective Objective to the Goal and records its outcome in that Objective, including a "no change, because…" conclusion when nothing needs to change. It may review the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in.
+When every member Objective of a Goal is done, the first planning session afterwards (or any session the owner asks) writes a `## Workflow Review` section in that Goal's `Release.md`. It is a note: not an Objective, Task or Check. It reviews the workflow skills, shared references, AGENTS.md routing guidance, and scaffolded project documents against the Goal's records: REPLAN REQUIRED Tasks, NEEDS WORK Checks, Issues, and lessons carried in. A review that finds nothing says "no change, because…" and costs no Objective, Task or Check. A real change it finds becomes an ordinary Objective or an Issue.
 
-What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It is verified like any other Objective under AGENTS.md's Verification Policy, with no additional Check. It adds no field, state, command, or Goal-owned Task list, and it never holds a Goal open: if it is unfinished when the Goal's other Objectives are complete, move it to another live Goal by changing its `release:` rather than delaying the Goal.
+What the review may change depends on who owns the files. In a project that receives the skills from the package, it tunes the project's own Guardrails, AGENTS.md project rules, and configured gates, and records suggestions for the packaged skills as Issues rather than editing them. It adds no field, state, command, or Goal-owned Task list, and a Goal is still complete when every member Objective is complete.
 
 ## Objective Artifact Template
 
@@ -171,7 +171,7 @@ planned_by: {role: planner, session: planning-example}
 
 ## Outcome
 
-Reopening an existing V2 project shows selected work, recorded Check freshness, and one understandable next action without changing project files.
+Reopening an existing project shows selected work, recorded Check freshness, and one understandable next action without changing project files.
 
 ## User Check
 
@@ -265,3 +265,5 @@ When any of these is not yet true, that gap is the thing to resolve next — eit
 ## Rules
 
 Write only Design, Guardrails, the current Objective, the next Objective's detailed Tasks, and the routing handoff; never production code or detailed backlog beyond the next Objective. Apply AGENTS.md's lifecycle terminology, verification policy, and owner authority. Keep Task titles distinct from outcomes and Objective references as the artifact contract requires.
+
+After writing any `.savepoint/` record, follow AGENTS.md's CLI Rules (write → resume → fix).
