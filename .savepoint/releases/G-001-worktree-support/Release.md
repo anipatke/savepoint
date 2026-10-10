@@ -1,7 +1,7 @@
 ---
 id: G-001
 title: Worktree Support
-status: planned
+status: done
 ---
 
 ## Outcome
