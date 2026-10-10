@@ -1,7 +1,7 @@
 ---
 id: G-002
 title: Skills Optimisation
-status: planned
+status: done
 ---
 
 ## Outcome
