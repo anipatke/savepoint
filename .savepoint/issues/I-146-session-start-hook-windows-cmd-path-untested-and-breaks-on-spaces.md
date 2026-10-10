@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-117]
-checks: [C-974]
+checks: [C-974, C-975]
 guardrail_ids: [CFG-02, CFG-03]
 severity: medium
 history:
@@ -18,6 +18,11 @@ history:
     kind: observed
     note: Found by the Full Objective Check of O-043.
     check: C-974
+  - at: '2026-10-10T07:59:00Z'
+    actor: {role: checker, session: check-o043-20261010}
+    kind: rechecked
+    check: C-975
+    note: Native Windows run 38036069019 at 0fb8c37 ran every TestSessionStartHook subtest with a .cmd fake, including the directory-with-a-space case, all PASS; quoted .cmd spawn confirmed by probe.
 ---
 
 # I-146: Session-start hook's Windows .cmd path is untested and breaks on paths with spaces

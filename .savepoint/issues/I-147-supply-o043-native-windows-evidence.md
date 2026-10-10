@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-115, T-116, T-117, T-118]
-checks: [C-974]
+checks: [C-974, C-975]
 guardrail_ids: [CFG-03]
 severity: medium
 history:
@@ -18,6 +18,11 @@ history:
     kind: observed
     note: Found by the Full Objective Check of O-043.
     check: C-974
+  - at: '2026-10-10T07:59:00Z'
+    actor: {role: checker, session: check-o043-20261010}
+    kind: rechecked
+    check: C-975
+    note: Native run 38036069019 at 0fb8c37 failed windows-tests on TestGuard_routerInLane (main checkout blocked, see I-148); evidence still missing.
 ---
 
 # I-147: Supply native Windows evidence for O-043

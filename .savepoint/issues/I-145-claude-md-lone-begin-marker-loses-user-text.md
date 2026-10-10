@@ -9,7 +9,7 @@ source:
   actor: {role: checker, session: check-o043-20261010}
   at: '2026-10-10T07:52:00Z'
 tasks: [T-115]
-checks: [C-974]
+checks: [C-974, C-975]
 guardrail_ids: [FS-01, FS-02, TEST-03]
 severity: medium
 history:
@@ -18,6 +18,11 @@ history:
     kind: observed
     note: Found by the Full Objective Check of O-043.
     check: C-974
+  - at: '2026-10-10T07:59:00Z'
+    actor: {role: checker, session: check-o043-20261010}
+    kind: rechecked
+    check: C-975
+    note: 'Re-check overlay probe found that lone BEGIN, lone END and reversed markers each stay byte-identical over three upgrades and two init merges; HalfMarkerPair tests pass on Linux and native Windows (run 38036069019); fresh full gate passes at 0fb8c37.'
 ---
 
 # I-145: CLAUDE.md with a lone BEGIN marker loses user text on the second upgrade

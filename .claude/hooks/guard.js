@@ -69,7 +69,19 @@ function inLane(cwd) {
   const dir = gitDir(cwd, "--git-dir");
   const common = gitDir(cwd, "--git-common-dir");
   if (!dir || !common) return false;
-  return fs.realpathSync(dir) !== fs.realpathSync(common);
+  return canonical(dir) !== canonical(common);
+}
+
+// Windows can report the same folder with 8.3 short names or a different
+// drive-letter case; the native resolver and a case fold make them compare equal.
+function canonical(p) {
+  let real;
+  try {
+    real = fs.realpathSync.native(p);
+  } catch {
+    real = path.resolve(p);
+  }
+  return process.platform === "win32" ? real.toLowerCase() : real;
 }
 
 function checkRouter(input, cwd) {
