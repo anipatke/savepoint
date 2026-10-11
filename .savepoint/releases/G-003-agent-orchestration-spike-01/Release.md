@@ -1,7 +1,7 @@
 ---
 id: G-003
 title: Animate Tiles
-status: planned
+status: done
 ---
 
 ## Decision (2026-10-11)
