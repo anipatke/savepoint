@@ -1,27 +1,35 @@
 ---
 id: G-003
-title: Agent Orchestration Spike 01
+title: Animate Tiles
 status: planned
 ---
 
+## Decision (2026-10-11)
+
+The owner stopped Agent Orchestration Spike 01 and scrapped its board code: run start, the Runs overlay and activity view, cancel, and the Agent runs option. The first real run on T-134 wrote code but could run no command, because a project with no configured build or test commands gives a headless run an empty allow-list, and the board gave no warning. The branch is kept for one smaller feature: animated "Building…" and "Testing…" labels on Task tiles. The planner replanned the Goal the same day:
+
+- O-046 (board runs) and O-047 (validation) were deleted with Tasks T-131 to T-136. Their IDs are retired, and git history keeps their committed versions.
+- O-045 (the detached run command) stays done as history. Its code is removed by O-048.
+- O-048, Animate Tiles, is the Goal's one remaining Objective.
+
+The Goal keeps its stable ID and path. Its original spike outcome is in git history and in `docs/reviews/agent-orchestration-spike-01-plan.md`.
+
 ## Outcome
 
-With `agent_launcher.enabled: true`, an owner can press one key on a startable Task and Savepoint runs Claude Code headless in the project directory, shows the agent's real file, command, and permission events on the board as they happen, survives the board being closed, and records the outcome in files that say what Savepoint observed, separately from what the agent reported. With the flag off (the default), nothing on any screen or in `savepoint resume` changes. Pasting the Next line into any terminal remains the primary, fully supported way to work.
+On the board, a Task tile that is building or testing shows a small moving spinner with "Building…" or "Testing…", so the owner can see at a glance which work is under way. The words come from the stage recorded in the Task file. Every other tile, and a board with nothing building or testing, looks exactly as in v2.3.0. The unused agent-run command from the spike is gone. Pasting the Next line into an agent terminal remains the way work is done.
 
 ## Why
 
-Today the human is the router: copy the Next line, switch to an agent terminal, watch there, switch back to update the board, open another session for the Check. The review at `docs/reviews/agent-orchestration-pass-1.md` (2026-10-11) found that Savepoint already has the next-action projection, the file-watching board, a shell-free subprocess runner, and a parsed-but-unused `agent_launcher` config. The missing piece is a run: a detached process that starts the agent and writes its status and events under `.savepoint/`. Claude Code 2.1.296 is the only installed provider whose event format, permission-denial behaviour, cancellation, and usage reporting are documented, so the spike hard-codes it. The plan is at `docs/reviews/agent-orchestration-spike-01-plan.md`.
+The spike showed that driving agents from the board needs more groundwork than it was worth now. The one part the owner wants is visible progress on the main board, without new commands or records.
 
 ## Success Conditions
 
-- The review's non-negotiables hold in every member Objective: local-first; run records are files from the first commit; agent output is labelled as agent-reported and never feeds a gate; Savepoint never writes a Task status on an agent's behalf; the owner approves permissions in advance and sees every denial; manual operation is untouched; no AI orchestrator; the prompt is the Next line and nothing more; existing Go and Bubble Tea code is extended, not rewritten.
-- A real Claude Code run started from the board on WSL2 and on native Windows produces at least one edit event and one command event, finishes with exit code, session ID, usage, and denials recorded, and can be cancelled with no surviving child process.
-- Closing and reopening the board during a run loses nothing.
-- Per-run usage, as reported by the provider, is not higher than a hand-started session given the same Next line.
-- With the flag off, board output, key map, help, and `savepoint resume` are byte-identical to v2.3.0 on the same project, proven by a golden test.
+- O-048 is done: tiles animate at build and test, idle boards run no timer, and the committed golden board snapshots pass unchanged.
+- No `run` command, run package, or lost-runner report ships, and existing `agent_launcher` config still loads.
+- `make test-full` passes, with native Windows CI green for the Full Objective Check.
 
 ## Boundaries
 
-**In scope:** a new `internal/run` package and `savepoint run` subcommand; a Claude Code `stream-json` adapter; run records under `.savepoint/runs/`; the board's opt-in run key, Runs overlay, activity view, and cancel; `doctor` reporting of lost runners; Design.md, README, config template, and AGENTS.md wording for the opt-in; validation evidence on two platforms.
+**In scope:** the tile spinner and labels in `internal/board/v2`; the visual-identity exception for it; removal of O-045's run code.
 
-**Out of scope (later spikes):** Check runs and BUILD → CHECK handoff; interactive takeover (`tea.ExecProcess`); Codex and OpenCode adapters; per-stage provider or model assignment; parallel runs and worktree lanes; any permission-editing UI; a daemon; PTY or transcript views; cost estimation; changes to gates, `ResolveNext`, or the workflow skills.
+**Out of scope:** starting, watching, or cancelling agent runs; run records; liveness inference; any change to gates, `ResolveNext`, the workflow skills, or plain output.
