@@ -1,0 +1,40 @@
+                                                                                                                                  
+                                                                                                                                  
+   ▣  S A V E P O I N T                                       ♥ Health: not set up  ◆ 1/6 Objectives  ▣ 2/4 Tasks  ✗ 0/0 Issues   
+                                                                                                                                  
+  GOAL: R-001 — Fixture Goal                                                                                                      
+                                                                                                                                  
+  NEXT: Blocked T-003 — Blocked by an objective wait (O-003)                                                                      
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  ┌──────────────────────────────────┐┌────────────────────────────┐┌────────────────────────────┐┌────────────────────────────┐  
+  │ OBJECTIVES                       ││ PLANNED (2)                ││ IN PROGRESS (0)            ││ DONE (0)                   │  
+  │ ──────────────────────────────── ││ ────────────────────────── ││ ────────────────────────── ││ ────────────────────────── │  
+  │ MEDIUM                           ││ ┌────────────────────────┐ ││ (empty)                    ││ (empty)                    │  
+  │    O-002 Every task done,        ││ │ T-003                  │ ││                            ││                            │  
+  │    nothing integrated            ││ │ Blocked by an          │ ││                            ││                            │  
+  │    [ ] Check                     ││ │ objective wait         │ ││                            ││                            │  
+  │                                  ││ │ → OBJECTIVE WAITS O-   │ ││                            ││                            │  
+  │ ▸● O-003 Waiting on the second   ││ │ 002                    │ ││                            ││                            │  
+  │    [ ] Check  → WAITS O-002      ││ └────────────────────────┘ ││                            ││                            │  
+  │                                  ││ ┌────────────────────────┐ ││                            ││                            │  
+  │    O-004 Integration found       ││ │ T-004                  │ ││                            ││                            │  
+  │    problems                      ││ │ Filed somewhere else   │ ││                            ││                            │  
+  │    [!] Check (needs work)        ││ │ entirely               │ ││                            ││                            │  
+  │                                  ││ │ → OBJECTIVE WAITS O-   │ ││                            ││                            │  
+  │    O-005 Integration marked      ││ │ 002                    │ ││                            ││                            │  
+  │    unknown                       ││ └────────────────────────┘ ││                            ││                            │  
+  │    [!] Check (needs work)        ││                            ││                            ││                            │  
+  │                                  ││                            ││                            ││                            │  
+  │    O-006 Integration has gone    ││                            ││                            ││                            │  
+  │    stale                         ││                            ││                            ││                            │  
+  │    [!] Check (needs work)        ││                            ││                            ││                            │  
+  │                                  ││                            ││                            ││                            │  
+  │ ↓ 1 more                         ││                            ││                            ││                            │  
+  │                                  ││                            ││                            ││                            │  
+  │                                  ││                            ││                            ││                            │  
+  └──────────────────────────────────┘└────────────────────────────┘└────────────────────────────┘└────────────────────────────┘  
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+                                                   IDEA │ DESIGN │ TASK │ CHECK                                                   
+                                                                                                                                  
+      ↑↓:objective  →:cards  g:goals  v:detail  i:issues  H:health  esc:clear  p:record selection  ?:help  q:quit  o:options      
+                                                                                                                                  

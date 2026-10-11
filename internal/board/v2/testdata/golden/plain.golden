@@ -1,0 +1,24 @@
+[non-interactive mode — run in a TTY to launch the board UI]
+
+Blocked T-003 — Blocked by an objective wait (O-003)
+
+Objectives: 6  Tasks: 4
+Selected Goal: R-001
+Selected: O-003
+Objectives:
+MEDIUM
+  O-002 — Every task done, nothing integrated  [ ] Check
+  O-003 — Waiting on the second  [ ] Check  → WAITS O-002
+  O-004 — Integration found problems  [!] Check (needs work)
+  O-005 — Integration marked unknown  [!] Check (needs work)
+  O-006 — Integration has gone stale  [!] Check (needs work)
+DONE
+  O-001 — Finished and integrated  [✓] Check
+
+PLANNED      2
+  T-003 — Blocked by an objective wait  [→ OBJECTIVE WAITS O-002]
+  T-004 — Filed somewhere else entirely  [→ OBJECTIVE WAITS O-002]
+IN PROGRESS  0
+DONE         0
+
+Issues: 0

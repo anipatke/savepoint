@@ -227,3 +227,19 @@ func TestSettingsNote_namesOnlyMissingEntries(t *testing.T) {
 		t.Errorf("both entries should be named: %q", note)
 	}
 }
+
+// The repository's own guard must be the shipped one, so the behavior proven
+// above holds for agents working in this repository too.
+func TestGuard_repositoryCopyMatchesTheScaffold(t *testing.T) {
+	shipped, err := os.ReadFile(filepath.Join("..", "..", "templates", "project-v2", ".claude", "hooks", "guard.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	own, err := os.ReadFile(filepath.Join("..", "..", ".claude", "hooks", "guard.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(shipped) != string(own) {
+		t.Error(".claude/hooks/guard.js differs from templates/project-v2/.claude/hooks/guard.js")
+	}
+}

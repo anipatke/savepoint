@@ -33,13 +33,20 @@ func TestBoardShowsTasksInTheColumnTheirStatusNames(t *testing.T) {
 		"Planned with nothing recorded",
 		"Being built right now",
 		"Done and cleared",
-		"▣ BUILD", "◇ TEST", "◆ CHECK",
+		"⠋ Building…", "⠋ Testing…", "◆ CHECK",
 		"[!] NEEDS WORK", "[✓] CHECK",
 		"→ WAITS T-001", "⚠ REPLAN", "! AWAITS OWNER",
 		"[!] REVIEW", "[✓] OWNER ACCEPTED",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("board is missing %q:\n%s", want, got)
+		}
+	}
+
+	// A build or test tile shows the live label in place of the static badge.
+	for _, replaced := range []string{"▣ BUILD", "◇ TEST"} {
+		if strings.Contains(got, replaced) {
+			t.Errorf("board still shows the static badge %q on a live tile:\n%s", replaced, got)
 		}
 	}
 

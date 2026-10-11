@@ -37,10 +37,11 @@ These Context Files are the read budget. Necessary targeted extra reads are allo
 2. Set the router selection to the owning Objective and active Task, then set the Task `status: in_progress` and `stage: build`, and set the owning Objective `status: in_progress` if it is still `planned`. Follow AGENTS.md's Router Selection section and preserve `release:`.
 3. Implement the plan's checklist in scoped order. Treat the `STYLE` guardrail rules as advisory and reference guardrail rule IDs rather than restating rule prose.
 4. Start at `in_progress` with `stage: build`, then advance as work completes: `build` → `test` → `audit`. Reaching `audit` means the Task is ready for a Check when one is requested — an optional Task Check or the mandatory Full Objective Check — and explicitly does not mean it passed.
-5. Before reading or editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
-6. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
-7. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
-8. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
+5. Write each stage to the Task when work enters it, so the board shows it live: set `stage: test` just before running the build and test gates, and set `stage: audit` only after they pass and the evidence is recorded. If a gate fails and you return to fixing code, set `stage: build` again.
+6. Before reading or editing anything outside the Context Files, record the extra read and its reason in the Task's evidence.
+7. If the plan turns out to be materially invalid — a Context File doesn't exist, an assumption the plan depends on is false, the described approach can't work — stop and return `REPLAN REQUIRED` instead of redesigning silently. See below.
+8. At handoff, verify every acceptance criterion against a concrete outcome, run the applicable gate in Verification Gates below, and record the required technical evidence whether or not an optional Task Check is requested.
+9. If the owner requests the optional Task Check, hand off to a fresh `savepoint-check` session. If the owner supplies an explicit Task-check waiver, record that decision and route the evidence to the mandatory Full Objective Check instead. The executor's own session can never be that Check.
 
 In a worktree lane, follow AGENTS.md's Worktree Lanes section: skip the router writes in step 2 and after a direct Issue repair, create no Tasks, Checks, or Issues, and commit on the lane branch without pushing or merging.
 

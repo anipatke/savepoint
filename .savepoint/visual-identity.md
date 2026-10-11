@@ -109,7 +109,8 @@ If recreating this look-and-feel, preserve:
 | Quiet borders, dark surfaces        | ✓                    | box-drawing chars (`─ │ ┌ ┐`) in border-subtle gray              |
 | Inline reveal cards                 | ✓                    | Bubble Tea model-driven expand/collapse                          |
 | Visual encoding before text         | ✓                    | colored glyphs (`▣ ◇ ◆ ✓`) with text reinforcement               |
-| "System booting up" motion          | ⚠                    | 200ms init sequence on launch acceptable; running animation skip |
+| "System booting up" motion          | ⚠                    | 200ms init sequence on launch acceptable; running animation skip, except the Task tile spinner below |
+| Task tile spinner                   | ✓ (owner exception)  | a one-cell spinner and "Building…" / "Testing…" on a tile whose recorded stage is build or test; ticks only while such a tile is shown |
 
 ## Terminal UI guardrails
 

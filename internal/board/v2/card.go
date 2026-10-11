@@ -44,6 +44,11 @@ type TaskCard struct {
 	// Heading is the saved lane the card is grouped under; zero when the
 	// board is ungrouped or the Task is outside every heading.
 	Heading LaneHeading
+	// Live and Frame are set only while the card is drawn on the Task board:
+	// Live asks for the spinner badge on a build or test tile, drawn at Frame.
+	// They are never set by newTaskCard, so plain output keeps badges().
+	Live  bool
+	Frame int
 }
 
 // newTaskCard resolves everything a card shows about task, through the
@@ -128,7 +133,7 @@ func groupTaskCardsForIDs(index *data.V2Index, taskIDs []string, headings map[st
 func (c TaskCard) badges() []Badge {
 	var badges []Badge
 
-	if badge, ok := stageBadge(c.Task.Status, c.Task.Stage); ok {
+	if badge, ok := c.stageLine(); ok {
 		badges = append(badges, badge)
 	}
 	if c.showsReviewOutcome() {
@@ -141,6 +146,17 @@ func (c TaskCard) badges() []Badge {
 	}
 
 	return badges
+}
+
+// stageLine is the card's stage badge: the live spinner badge for a build or
+// test tile drawn on the board, otherwise the static one.
+func (c TaskCard) stageLine() (Badge, bool) {
+	if c.Live {
+		if badge, ok := liveStageBadge(c.Task.Status, c.Task.Stage, c.Frame); ok {
+			return badge, true
+		}
+	}
+	return stageBadge(c.Task.Status, c.Task.Stage)
 }
 
 // showsReviewOutcome reports whether this card's one review-outcome badge
@@ -205,6 +221,9 @@ func renderBadgeLines(badges []Badge, width int) []string {
 	current := ""
 	for _, badge := range badges {
 		rendered := badge.Render()
+		if badge.NoWrap {
+			rendered = xansi.Truncate(rendered, width, "…")
+		}
 		switch {
 		case current == "":
 			current = rendered
