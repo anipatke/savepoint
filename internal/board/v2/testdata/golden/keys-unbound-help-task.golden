@@ -1,0 +1,34 @@
+                                                                                                                                  
+                                                                                                                                  
+   ▣  S A V E P O I N T                                       ♥ Health: not set up  ◆ 1/6 Objectives  ▣ 2/4 Tasks  ✗ 0/0 Issues   
+                                                                                                                                  
+  GOAL: R-001 — Fixture Goal                                                                                                      
+                                                                                                                                  
+  NEXT: Blocked T-003 — Blocked by an objective wait (O-003)                                                                      
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+  KEYBOARD HELP                                                                                                                   
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────      
+  ↑↓ / j k: move within the focused surface                                                                                       
+  ←→ / h l: move between columns, and into/out of Objectives at the edge                                                          
+  g: open the Goal selector                                                                                                       
+  C: in the Goal selector: close a ready Goal, or reopen a done one                                                               
+  enter / v: open the focused record                                                                                              
+  i / I: open Issues                                                                                                              
+  H: open Code Health                                                                                                             
+  o: open Advanced Options (optional features); enter/space toggles, esc closes                                                   
+  ?: close this help                                                                                                              
+                                                                                                                                  
+  OWNER ACTIONS                                                                                                                   
+  p: record selection                                                                                                             
+                                                                                                                                  
+  CURRENT GATE                                                                                                                    
+  Objective dependency is unmet (owning objective O-003 waits on objective O-002: not_done); the executor session must resolve    
+  it.                                                                                                                             
+                                                                                                                                  
+  Executor and checker work belongs to their sessions.                                                                            
+  esc/q:close                                                                                                                     
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+                                                   IDEA │ DESIGN │ TASK │ CHECK                                                   
+                                                                                                                                  
+                                                           esc/q:close                                                            
+                                                                                                                                  
