@@ -2,7 +2,7 @@
 id: I-156
 title: O-048 working tree changes the savepoint-task skill, which the Objective puts out of scope
 type: drift
-status: open
+status: resolved
 source:
   kind: check
   check: C-980
@@ -12,12 +12,21 @@ tasks: [T-137, T-138]
 checks: [C-980]
 guardrail_ids: [TPL-02]
 severity: low
+resolution:
+  disposition: accepted
+  actor: {role: owner, session: owner-20261011}
+  at: '2026-10-11T06:30:00Z'
+  reason: Owner keeps the stage-writing step; O-048 Boundaries now name it as in scope.
 history:
   - at: '2026-10-11T05:45:00Z'
     actor: {role: checker, session: check-o048-20261011}
     kind: observed
     check: C-980
     note: Found by the O-048 Full Objective Check.
+  - at: '2026-10-11T06:30:00Z'
+    actor: {role: owner, session: owner-20261011}
+    kind: owner_decision
+    note: Accepted by owner decision; Objective boundary updated.
 ---
 
 # I-156: O-048 working tree changes the savepoint-task skill, which the Objective puts out of scope

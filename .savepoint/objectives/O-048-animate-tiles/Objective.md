@@ -51,4 +51,4 @@ Owner, 2026-10-11, replanning after the spike was scrapped:
 - Removal of `cmd/run.go`, `main.go` run dispatch, `internal/run`, `internal/doctor/lost_runs.go`, O-045's `internal/data/launcher_config.go` additions, related tests, and the AGENTS.md Codebase Map lines
 
 **Out of scope:**
-- Any run, agent launch, or board-started work; any new key, option, or overlay; animation on Objective rows or in plain output; changes to gates, `ResolveNext`, or the workflow skills
+- Any run, agent launch, or board-started work; any new key, option, or overlay; animation on Objective rows or in plain output; changes to gates or `ResolveNext`, or to the workflow skills other than the savepoint-task stage-writing step (step 5, added to O-048 by owner decision on 2026-10-11 so agents set `stage: test` and `stage: audit`, which the tile animation shows)
