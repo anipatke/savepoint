@@ -225,3 +225,32 @@ func TestPlainOutputCarriesNoLiveLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestSpinnerRestartsWhenAnObjectiveSwitchShowsALiveTileAgain(t *testing.T) {
+	root := writeBadgeProject(t)
+	writeObjective(t, root, "O-002", "Quiet", "planned")
+	writeTask(t, root, "O-002", "T-900", "Not started yet", "status: planned\n")
+	m := openBoard(t, root, "")
+	if !m.spinnerRunning {
+		t.Fatal("the opened board with live tiles has no timer")
+	}
+
+	// Narrowing to an Objective with no live tile lets the timer end.
+	m.selectObjective("O-002")
+	updated, _ := m.Update(spinnerTickMsg{})
+	m = updated.(Model)
+	if m.spinnerRunning {
+		t.Fatal("the timer kept running with no live tile shown")
+	}
+
+	// Failure path from I-155: going back to the live view must restart it.
+	m.SidebarFocused = true
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(Model)
+	if !m.hasLiveTile() {
+		t.Fatal("esc did not return to a view with a live tile")
+	}
+	if cmd == nil || !m.spinnerRunning {
+		t.Error("the spinner stayed frozen after switching back to a live tile")
+	}
+}

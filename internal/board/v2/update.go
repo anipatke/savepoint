@@ -18,6 +18,21 @@ var columnOrder = []data.ColumnType{data.ColumnPlanned, data.ColumnInProgress, d
 // subprocess, and performs no IO (ARCH-02). Filesystem actions are returned as
 // explicit Bubble Tea commands. Navigation clamps at each surface's edges.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if _, isTick := msg.(spinnerTickMsg); isTick {
+		return next, cmd
+	}
+	// Any change to the shown cards (a reload, an Objective or Goal switch)
+	// may bring a live tile into view after the timer stopped. A pending
+	// command is left alone: Goal selection returns a write that reloads the
+	// board, and that reload starts the timer.
+	if nm, ok := next.(Model); ok && cmd == nil {
+		return nm, nm.spinnerCmd()
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -721,7 +736,7 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	m.noteVanishedSelection(snapshot, wasLoaded)
 	m.refreshDetail()
 	m.reconcileDetailAndIssues(snapshot)
-	return m, m.spinnerCmd()
+	return m, nil
 }
 
 // acceptLoadSeq records the sequence of a load result and reports whether it
