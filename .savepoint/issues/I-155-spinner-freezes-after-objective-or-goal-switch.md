@@ -2,22 +2,33 @@
 id: I-155
 title: Spinner freezes after switching the board to another Objective or Goal and back
 type: defect
-status: open
+status: resolved
 source:
   kind: check
   check: C-980
   actor: {role: checker, session: check-o048-20261011}
   at: '2026-10-11T05:45:00Z'
 tasks: [T-137]
-checks: [C-980]
+checks: [C-980, C-981]
 guardrail_ids: [ARCH-02, TEST-02]
 severity: medium
+resolution:
+  disposition: verified
+  check: C-981
+  actor: {role: checker, session: check-o048-recheck-20261011}
+  at: '2026-10-11T05:55:00Z'
+  reason: 'Commit 6145746 starts the timer from Update after any non-tick message that returns no command; reload path still starts it. Independent probes: esc back to whole Goal, sidebar up/down walk, and Goal picker switch R-001->R-002->R-001->R-002 all restart or stop the timer correctly; no second timer from an ordinary key; idle board keys start none. New regression test TestSpinnerRestartsWhenAnObjectiveSwitchShowsALiveTileAgain passes.'
 history:
   - at: '2026-10-11T05:45:00Z'
     actor: {role: checker, session: check-o048-20261011}
     kind: observed
     check: C-980
     note: Found by the O-048 Full Objective Check.
+  - at: '2026-10-11T05:55:00Z'
+    actor: {role: checker, session: check-o048-recheck-20261011}
+    kind: rechecked
+    check: C-981
+    note: 'Commit 6145746 starts the timer from Update after any non-tick message that returns no command; reload path still starts it. Independent probes: esc back to whole Goal, sidebar up/down walk, and Goal picker switch R-001->R-002->R-001->R-002 all restart or stop the timer correctly; no second timer from an ordinary key; idle board keys start none. New regression test TestSpinnerRestartsWhenAnObjectiveSwitchShowsALiveTileAgain passes.'
 ---
 
 # I-155: Spinner freezes after switching the board to another Objective or Goal and back

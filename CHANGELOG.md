@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.3.1 — Animate tiles
+
+### Added
+
+- **Live Task tiles.** On the board, a Task at `build` or `test` shows a small
+  moving spinner with "Building…" or "Testing…" in place of its stage badge.
+  The words come from the stage recorded in the Task file. The spinner runs
+  only while such a tile is shown; every other tile, plain output, keys and
+  help are unchanged.
+- The `savepoint-task` skill asks agents to write `stage: test` before running
+  the gates and `stage: audit` after they pass, so the board shows the work as
+  it moves.
+
+### Removed
+
+- The unreleased agent-run experiment (`savepoint run`, its run records and
+  doctor's lost-runner report). `agent_launcher` stays a parsed but unused
+  config block, and existing configs still load.
+
 ## v2.3.0 — Skills optimisation
 
 ### Added
