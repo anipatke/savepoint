@@ -1,10 +1,6 @@
 package data
 
-import (
-	"fmt"
-	"strings"
-	"time"
-)
+import "fmt"
 
 // TerminalMode selects how the launcher opens an interactive terminal.
 type TerminalMode string
@@ -46,28 +42,12 @@ type TerminalConfig struct {
 }
 
 // AgentLauncher is the disabled-by-default, vendor-neutral launcher contract.
-// Builder and Auditor are optional; an absent Builder means DefaultAgentBuilder.
+// Builder is required when Enabled; Auditor is always optional.
 type AgentLauncher struct {
 	Enabled  bool           `yaml:"enabled"`
 	Builder  *CommandSpec   `yaml:"builder"`
 	Auditor  *CommandSpec   `yaml:"auditor"`
 	Terminal TerminalConfig `yaml:"terminal"`
-	// Timeout bounds one headless run, written like quality_gates.gate_timeout
-	// ("30m"). Use RunTimeout, which applies the default.
-	Timeout string `yaml:"timeout"`
-}
-
-// DefaultRunTimeout is how long a headless run may last when
-// agent_launcher.timeout is unset or not a positive duration.
-const DefaultRunTimeout = 30 * time.Minute
-
-// RunTimeout is the configured run timeout. It is parsed as the gate timeout
-// is: a value that is not a positive duration falls back to the default.
-func (l AgentLauncher) RunTimeout() time.Duration {
-	if d, err := time.ParseDuration(l.Timeout); err == nil && d > 0 {
-		return d
-	}
-	return DefaultRunTimeout
 }
 
 // fillLauncherDefaults applies defaults that are independent of YAML parsing.
@@ -86,11 +66,8 @@ func (l AgentLauncher) Validate() error {
 		return nil
 	}
 
-	// A missing builder is allowed: headless runs then use DefaultAgentBuilder.
-	if l.Builder != nil {
-		if err := validateProfileCommand("agent_launcher.builder", l.Builder); err != nil {
-			return err
-		}
+	if err := validateRequiredProfile("agent_launcher.builder", l.Builder); err != nil {
+		return err
 	}
 	if l.Auditor != nil {
 		if err := validateProfileCommand("agent_launcher.auditor", l.Auditor); err != nil {
@@ -123,50 +100,4 @@ func validateTerminal(terminal TerminalConfig) error {
 	default:
 		return fmt.Errorf("agent_launcher.terminal.mode %q is invalid (want auto or override)", terminal.Mode)
 	}
-}
-
-// Default Claude Code command for headless runs, used when the owner has not
-// set agent_launcher.builder. The flags are content, not logic: a later provider
-// is another table (O-045 Confirmed Design). Argument order matters: the
-// variadic --allowedTools follows the prompt and precedes a flag.
-const (
-	// DefaultBuilderCommand is the executable the default builder starts.
-	DefaultBuilderCommand = "claude"
-	// AllowedToolsFlag introduces the list DefaultAgentBuilder derives from
-	// quality_gates; it is omitted when no gate names a command.
-	AllowedToolsFlag = "--allowedTools"
-)
-
-var (
-	defaultBuilderLeadArgs = []string{
-		"-p", PlaceholderPrompt, "--output-format", "stream-json", "--verbose",
-		"--permission-mode", "acceptEdits",
-	}
-	defaultBuilderTailArgs = []string{"--permission-prompts", "none"}
-)
-
-// DefaultAgentBuilder is the Claude command used when agent_launcher.builder is
-// absent. It allows the first word of each configured quality gate as
-// `Bash(<word> *)` so the agent can run its own gates and nothing else asks for
-// approval; a gate that is unset allows nothing.
-func DefaultAgentBuilder(gates QualityGates) CommandSpec {
-	args := append([]string(nil), defaultBuilderLeadArgs...)
-	var allowed []string
-	seen := map[string]bool{}
-	for _, gate := range []*string{gates.Lint, gates.Typecheck, gates.Build, gates.Test} {
-		if gate == nil {
-			continue
-		}
-		words := strings.Fields(*gate)
-		if len(words) == 0 || seen[words[0]] {
-			continue
-		}
-		seen[words[0]] = true
-		allowed = append(allowed, "Bash("+words[0]+" *)")
-	}
-	if len(allowed) > 0 {
-		args = append(args, AllowedToolsFlag)
-		args = append(args, allowed...)
-	}
-	return CommandSpec{Command: DefaultBuilderCommand, Args: append(args, defaultBuilderTailArgs...)}
 }

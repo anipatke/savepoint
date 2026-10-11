@@ -2,10 +2,19 @@
 id: T-138
 title: Remove the unused run command
 objective: O-048
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: false}
+owner_validation:
+    required: false
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o048-animate-tiles-20261011}
+check_waiver:
+    task: T-138
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-11T05:38:57Z"
 ---
 
 # Remove the unused run command
@@ -57,7 +66,21 @@ Focused tests during iteration, then fresh `make test-full` at handoff. The nati
 
 ## Technical Evidence
 
-Pending execution.
+Executor evidence (claims for a fresh Check to verify).
+
+Scope confirmed with `git show ced16e7 --stat`: O-045 code changes were `cmd/run.go`, `cmd/run_test.go`, `internal/run/*` (incl. testdata), `internal/doctor/lost_runs*.go`, `internal/doctor/v2_runtime.go`, `internal/data/launcher_config*.go`, `internal/init/claude_guard_test.go`, `main.go`, `AGENTS.md`. Everything else in that commit is records/docs and was left alone.
+
+Per criterion:
+1. Met. The listed files and `internal/run/` deleted (`git rm`); `run` case, usage line, `runRunner` and the `internal/run` import removed from `main.go`; `lostRunProblems` call removed from `v2_runtime.go`. `go build ./...` succeeds, so nothing else imports `internal/run`.
+2. Met. `launcher_config.go` and its test restored to their `ced16e7^` content (removes `DefaultAgentBuilder`, `RunTimeout`, headless defaults, `Timeout` field). No remaining caller of them (grep over templates, agent-skills, cmd, internal, main.go). Restored code is what every config loaded under before ced16e7; repo and scaffold config ship `agent_launcher` only as a comment, so they still load.
+3. Met. Three `run` guard cases removed from `claude_guard_test.go`; `TestGuard_repositoryCopyMatchesTheScaffold` kept, its comment reworded to drop the run-command mention.
+4. Met. AGENTS.md: `run` dropped from the `cmd/` row and the `internal/run/` row removed. The doctor lost-runner sentence lived only in that row. grep of `templates/` and `agent-skills/` for the run command found no mentions (TPL-02).
+5. Met. No remaining code references `.savepoint/runs` (grep). `docs/reviews/*` and O-045 records untouched.
+6. Met. `make build && make test-fast` passed; fresh `make test-full` exited 0 after the final edit.
+
+Extra reads (beyond Context Files): `git show ced16e7` diff of main.go, v2_runtime.go, claude_guard_test.go, AGENTS.md, launcher_config.go, to restore exact prior state. `.savepoint/config.yml` and the scaffold config grep, to confirm configs still load.
+
+Limitations: Windows process-control removal is covered only by the O-048 Full Objective Check's native Windows CI job, not run here. Running the built program with no arguments to eyeball the usage list was blocked by the agent command guard, so "run no longer listed" is verified by the diff and tests, not by that run. The working tree also holds unrelated uncommitted T-137 board changes, which this Task did not touch.
 
 ## Drift Notes
 

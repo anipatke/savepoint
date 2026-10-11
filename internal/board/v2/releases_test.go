@@ -53,7 +53,12 @@ func applyBoardCommands(t *testing.T, model Model, cmd tea.Cmd) Model {
 	t.Helper()
 	current := model
 	for steps := 0; cmd != nil && steps < 3; steps++ {
-		updated, next := current.Update(cmd())
+		msg := cmd()
+		if _, tick := msg.(spinnerTickMsg); tick {
+			// The spinner timer is meant to keep running while a tile is live.
+			return current
+		}
+		updated, next := current.Update(msg)
 		var ok bool
 		current, ok = updated.(Model)
 		if !ok {

@@ -2,10 +2,19 @@
 id: T-137
 title: Animate tiles that are building or testing
 objective: O-048
-status: planned
+status: done
 depends_on: []
-owner_validation: {required: true}
+owner_validation:
+    required: true
+    accepted_check: ""
 planned_by: {role: planner, session: planning-o048-animate-tiles-20261011}
+check_waiver:
+    task: T-137
+    reason: Owner completed this Task via the board without requesting a Task Check.
+    actor:
+        role: owner
+        session: board-owner
+    recorded_at: "2026-10-11T05:34:55Z"
 ---
 
 # Animate tiles that are building or testing
@@ -57,7 +66,22 @@ Focused tests during iteration. Handoff gates per AGENTS.md's Verification Polic
 
 ## Technical Evidence
 
-Pending execution.
+**Commands run:** `make build && make test-fast` (exit 0, run twice, the second to confirm the exit code). Focused runs during iteration: `go test ./internal/board/...` and the new spinner tests. `make test-full` not run: no migration or platform-sensitive work.
+
+**Per-criterion outcomes**
+
+1. Live label: `liveStageBadge` (`badges.go`) applies only to `in_progress` + `build`/`test`. Words "Building…"/"Testing…" come from `liveStageWords`; spinner frame first; keeps the attention (build) and clear (test) accents; `NoWrap` cuts it to the tile width in `renderBadgeLines`. Review outcome and blocker badges keep their order (`TestLiveLabelKeepsOtherBadgesInOrder`).
+2. Timer: `spinnerFrame` and `spinnerRunning` on `Model`; `spinnerTickMsg` advances the frame and reschedules only while `hasLiveTile()`; `applyLoad` calls `spinnerCmd()`, which starts one timer only when a live tile is in scope. No file work in Update or rendering. Frames and interval are named in `spinner.go` (STYLE-09).
+3. Plain output, help, keys, footer unchanged: live drawing is opt-in (`TaskCard.Live`, set only by the board's `renderColumns`), so `badges()` and plain output are unchanged (`TestPlainOutputCarriesNoLiveLabel`). The committed golden files pass unchanged and none were modified.
+4. `.savepoint/visual-identity.md` records the spinner as the owner-approved exception.
+5. Tests in `spinner_test.go`: build label, test label, frame wrap, audit/done/planned unchanged, tick advances, tick stops when none live, idle board starts no timer, narrow tile no wrap, stage change between reloads. Each has a failure-path case.
+6. `make build && make test-fast` pass.
+
+**Existing tests changed:** `columns_view_test.go` now expects the live labels instead of the static BUILD/TEST badges on the board. `objectives_test.go` and `releases_test.go` helpers stop following a spinner tick, since a live tile's timer never ends by design.
+
+**Files read:** the Task, Objective, `badges.go`, `card.go`, `model.go`, `update.go`, `view.go`, `column.go`, `visual-identity.md`, `Guardrails.md` (rule lines). **Extra reads beyond Context Files:** `column.go` (where tiles are drawn, needed to pass the frame), `fixture_test.go` and `view_test.go` helpers (to reuse fixtures), `Guardrails.md` (rule wording). **Files changed:** `badges.go`, `card.go`, `column.go`, `model.go`, `update.go`, `view.go`, new `spinner.go` and `spinner_test.go`, the three test files above, `visual-identity.md`.
+
+**Limitations:** Not run in a real terminal; owner validation (the User Check) is still to do. In the narrow single-column layout the timer runs while any in-scope tile is live, even if the In Progress column is not the one on screen. A Task left at build keeps animating until moved on, as the Objective decided.
 
 ## Drift Notes
 

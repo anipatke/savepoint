@@ -26,6 +26,9 @@ type Badge struct {
 	Glyph string
 	Label string
 	Style lipgloss.Style
+	// NoWrap cuts the badge to the line width instead of letting it wrap. Only
+	// the live stage badge sets it: a spinner and its words stay on one line.
+	NoWrap bool
 }
 
 // Text is the badge with no styling: the glyph and label a reader sees when
@@ -100,6 +103,33 @@ func stageBadge(status data.ColumnType, stage data.ProgressStage) (Badge, bool) 
 	default:
 		return Badge{}, false
 	}
+}
+
+// liveStageBadge is the stage badge of a Task whose recorded status and stage
+// say it is being built or tested: a one-cell spinner frame and the stage word
+// ("Building…", "Testing…") instead of the static glyph and label. It reports
+// ok=false for every other Task, which keeps stageBadge. The words come from
+// the recorded stage alone; nothing here claims the work is actually running.
+func liveStageBadge(status data.ColumnType, stage data.ProgressStage, frame int) (Badge, bool) {
+	if status != data.ColumnInProgress {
+		return Badge{}, false
+	}
+	var style lipgloss.Style
+	switch stage {
+	case data.StageBuild:
+		style = styles.BadgeAttention
+	case data.StageTest:
+		style = styles.BadgeClear
+	default:
+		return Badge{}, false
+	}
+	return Badge{Glyph: spinnerFrame(frame), Label: liveStageWord(stage), Style: style, NoWrap: true}, true
+}
+
+// liveStageWord is the progressive form of stageLabel for the stages that
+// animate. Only build and test reach it.
+func liveStageWord(stage data.ProgressStage) string {
+	return liveStageWords[stage]
 }
 
 // stageLabel is the one place a Task's stage becomes owner-facing text.

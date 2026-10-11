@@ -176,9 +176,6 @@ func TestGuard_savepointCommands(t *testing.T) {
 		{"savepoint health setup --apply", true},
 		{"savepoint health report", true},
 		{"savepoint migrate", true},
-		{"savepoint run --task T-001", true},
-		{"./savepoint run --task T-001 .", true},
-		{"npx savepoint run --task T-001", true},
 		{"make build; savepoint doctor", true},
 		{"FOO=1 /usr/bin/savepoint board", true},
 		{"savepoint.exe board", true},
@@ -231,8 +228,8 @@ func TestSettingsNote_namesOnlyMissingEntries(t *testing.T) {
 	}
 }
 
-// The repository's own guard must be the shipped one, so the run-command block
-// proven above holds for agents working in this repository too.
+// The repository's own guard must be the shipped one, so the behavior proven
+// above holds for agents working in this repository too.
 func TestGuard_repositoryCopyMatchesTheScaffold(t *testing.T) {
 	shipped, err := os.ReadFile(filepath.Join("..", "..", "templates", "project-v2", ".claude", "hooks", "guard.js"))
 	if err != nil {

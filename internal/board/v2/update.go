@@ -33,6 +33,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampDetailScroll()
 		m.clampIssueScroll()
 		return m, nil
+	case spinnerTickMsg:
+		return m.applySpinnerTick()
 	case healthLoadedMsg, healthFreshnessMsg, healthProgressMsg, healthRefreshDoneMsg:
 		return m.applyHealth(msg)
 	case projectLoadedMsg:
@@ -719,7 +721,7 @@ func (m Model) applyLoad(msg projectLoadedMsg) (tea.Model, tea.Cmd) {
 	m.noteVanishedSelection(snapshot, wasLoaded)
 	m.refreshDetail()
 	m.reconcileDetailAndIssues(snapshot)
-	return m, nil
+	return m, m.spinnerCmd()
 }
 
 // acceptLoadSeq records the sequence of a load result and reports whether it

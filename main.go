@@ -23,7 +23,6 @@ import (
 	"github.com/opencode/savepoint/internal/legacydep"
 	"github.com/opencode/savepoint/internal/migrate"
 	"github.com/opencode/savepoint/internal/resume"
-	"github.com/opencode/savepoint/internal/run"
 )
 
 //go:embed templates/prompts
@@ -107,12 +106,6 @@ func runCommand(args []string) int {
 	case "resume":
 		code, err := cmd.RunResume(context.Background(), args[1:], os.Stdout, resumeRunner)
 		return exitWith(code, err)
-	case "run":
-		// Ctrl-C stops the agent through the context: the runner writes the cancel file.
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-		code, err := cmd.RunRun(ctx, args[1:], os.Stdout, runRunner)
-		return exitWith(code, err)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], mainUsage)
 		return 2
@@ -127,7 +120,6 @@ Commands:
   board [--objective <objective>]        Open the V2 board
   doctor                                Check project health
   resume [dir]                           Print the next V2 action
-  run --task <T-###> [dir]               Run Claude Code on a Task (off unless agent_launcher.enabled)
   health setup [dir] [--apply]           Preview or save suggested health tools
   health check O-### [dir]               Collect an official health snapshot for an Objective
   health report [dir]                    Rewrite .savepoint/health/report.md from the newest snapshot
@@ -292,12 +284,6 @@ func resumeTargetError(dir string, err error) error {
 	default:
 		return fmt.Errorf("resume: %w", err)
 	}
-}
-
-// runRunner is the production wiring for the run command; the behavior lives
-// in internal/run.
-func runRunner(ctx context.Context, opts cmd.RunOptions) (int, error) {
-	return run.Launch(ctx, run.Request{Dir: opts.Dir, Task: opts.Task}, os.Stdout)
 }
 
 func initRunner(ctx context.Context, opts cmd.InitOptions) error {

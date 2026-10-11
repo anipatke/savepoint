@@ -29,6 +29,10 @@ type columnCursor struct {
 	Card    int
 	Holds   bool
 	Focused bool
+	// Live is set only for the Task board, whose build and test tiles draw the
+	// spinner at Frame. Other surfaces leave it false and keep the static badge.
+	Live  bool
+	Frame int
 }
 
 // accented reports whether this column wears the focus accent.
@@ -78,6 +82,7 @@ func renderColumn(label string, cards []TaskCard, width, height int, cursor colu
 	headingH := make([]int, len(cards))
 	newGroup := make([]bool, len(cards))
 	for i, card := range cards {
+		card.Live, card.Frame = cursor.Live, cursor.Frame
 		rendered[i] = renderCard(card, textW, cursor.highlights(i))
 		heights[i] = strings.Count(rendered[i], "\n") + 1
 		if card.Heading.Present() {

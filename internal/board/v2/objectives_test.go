@@ -41,8 +41,13 @@ func finishBoardCommands(t *testing.T, model tea.Model, cmd tea.Cmd) Model {
 		if steps >= 6 {
 			t.Fatal("board command chain did not settle")
 		}
+		msg := cmd()
+		if _, tick := msg.(spinnerTickMsg); tick {
+			// The spinner timer is meant to keep running while a tile is live.
+			break
+		}
 		var next tea.Model
-		next, cmd = model.Update(cmd())
+		next, cmd = model.Update(msg)
 		model = next
 	}
 	result, ok := model.(Model)

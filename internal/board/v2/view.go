@@ -375,7 +375,7 @@ func (m Model) renderColumns(w, height int) string {
 			m.Cards[m.FocusedColumn],
 			width,
 			height,
-			columnCursor{Card: m.FocusedCard, Holds: true, Focused: true},
+			columnCursor{Card: m.FocusedCard, Holds: true, Focused: true, Live: true, Frame: m.spinnerFrame},
 		)
 	}
 	if m.sidebarVisible() {
@@ -398,6 +398,8 @@ func (m Model) renderColumns(w, height int) string {
 				Card:    m.FocusedCard,
 				Holds:   m.FocusedColumn == column.Status,
 				Focused: !m.SidebarFocused,
+				Live:    true,
+				Frame:   m.spinnerFrame,
 			},
 		))
 	}

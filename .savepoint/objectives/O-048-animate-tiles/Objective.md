@@ -1,7 +1,7 @@
 ---
 id: O-048
 title: Animate Tiles
-status: planned
+status: in_progress
 depends_on: []
 release: G-003
 priority: high

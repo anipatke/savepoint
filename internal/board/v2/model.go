@@ -115,6 +115,12 @@ type Model struct {
 	// state, and its action rows are derived from the currently focused record.
 	Help bool
 
+	// spinnerFrame is the frame counter the live Task tiles draw, and
+	// spinnerRunning says a tick is already waiting. Both are in-memory only;
+	// the tick ends by itself once no shown tile is at build or test.
+	spinnerFrame   int
+	spinnerRunning bool
+
 	Width         int
 	Height        int
 	StatusMessage string

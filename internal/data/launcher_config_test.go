@@ -2,10 +2,8 @@ package data
 
 import (
 	"os"
-	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 func writeTempConfig(t *testing.T, content string) string {
@@ -122,6 +120,11 @@ func TestLauncherValidateErrors(t *testing.T) {
 		wantField string
 	}{
 		{
+			name:      "enabled without builder",
+			launcher:  AgentLauncher{Enabled: true, Terminal: TerminalConfig{Mode: TerminalModeAuto}},
+			wantField: "agent_launcher.builder is required",
+		},
+		{
 			name:      "builder without command",
 			launcher:  AgentLauncher{Enabled: true, Builder: &CommandSpec{Args: []string{"x"}}, Terminal: TerminalConfig{Mode: TerminalModeAuto}},
 			wantField: "agent_launcher.builder.command is required",
@@ -156,16 +159,12 @@ func TestLauncherValidateErrors(t *testing.T) {
 	}
 }
 
-func TestLauncherEnabledWithoutBuilderReadsAndUsesTheDefault(t *testing.T) {
+func TestLauncherEnabledMissingBuilderFailsRead(t *testing.T) {
 	path := writeTempConfig(t, `agent_launcher:
   enabled: true
 `)
-	cfg, err := NewConfigReader().Read(path)
-	if err != nil {
-		t.Fatalf("Read() = %v, want the default builder to apply", err)
-	}
-	if !cfg.AgentLauncher.Enabled || cfg.AgentLauncher.Builder != nil {
-		t.Errorf("launcher = %+v", cfg.AgentLauncher)
+	if _, err := NewConfigReader().Read(path); err == nil {
+		t.Fatal("Read() = nil error, want launcher validation error")
 	}
 }
 
@@ -206,51 +205,5 @@ func TestSupportedPlaceholdersDefined(t *testing.T) {
 		if !seen {
 			t.Errorf("placeholder %q missing from SupportedPlaceholders", p)
 		}
-	}
-}
-
-func TestDefaultAgentBuilder_allowsTheFirstWordOfEachGateOnce(t *testing.T) {
-	s := func(v string) *string { return &v }
-	got := DefaultAgentBuilder(QualityGates{Build: s("make build && make test-fast"), Test: s("make test"), Lint: s("  "), Typecheck: s("go vet ./...")})
-	want := []string{"-p", PlaceholderPrompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
-		"--allowedTools", "Bash(go *)", "Bash(make *)", "--permission-prompts", "none"}
-	if got.Command != "claude" || !reflect.DeepEqual(got.Args, want) {
-		t.Errorf("builder = %+v", got)
-	}
-}
-
-func TestDefaultAgentBuilder_noGatesAllowsNothingAndOmitsTheFlag(t *testing.T) {
-	got := DefaultAgentBuilder(QualityGates{})
-	for _, a := range got.Args {
-		if a == AllowedToolsFlag {
-			t.Fatalf("args = %q", got.Args)
-		}
-	}
-	if got.Args[len(got.Args)-2] != "--permission-prompts" {
-		t.Errorf("args = %q", got.Args)
-	}
-	// Mutating the result must not change the next caller's builder.
-	got.Args[0] = "changed"
-	if DefaultAgentBuilder(QualityGates{}).Args[0] != "-p" {
-		t.Error("the default arguments are shared")
-	}
-}
-
-func TestAgentLauncherRunTimeout_defaultsUnlessAPositiveDurationIsSet(t *testing.T) {
-	cases := map[string]time.Duration{
-		"":     DefaultRunTimeout,
-		"45s":  45 * time.Second,
-		"2h":   2 * time.Hour,
-		"soon": DefaultRunTimeout,
-		"0s":   DefaultRunTimeout,
-		"-5m":  DefaultRunTimeout,
-	}
-	for value, want := range cases {
-		if got := (AgentLauncher{Timeout: value}).RunTimeout(); got != want {
-			t.Errorf("timeout %q = %v, want %v", value, got, want)
-		}
-	}
-	if DefaultRunTimeout != 30*time.Minute {
-		t.Errorf("DefaultRunTimeout = %v", DefaultRunTimeout)
 	}
 }
