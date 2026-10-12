@@ -16,15 +16,15 @@ func TestProjectGuidanceTemplatesMirrorLiveGuidance(t *testing.T) {
 	// references (see .savepoint/Guardrails.md TPL-01), in both directions:
 	// a skill added to the live tree and forgotten in the shipped tree still
 	// fails, and so does a skill shipped to the wrong tree.
-	assertSkillTreeParity(t, root, "agent-skills", "templates/project-v2/agent-skills", v2Skills, v2References)
+	assertSkillTreeParity(t, root, "agent-skills", "templates/project-v2/agent-skills", packagedV2Skills(), v2References)
 
 	// Every live skill belongs to the declared V2 set; a skill added live and
 	// forgotten there would otherwise pass silently.
 	liveSkills := savepointSkillDirs(t, filepath.Join(root, "agent-skills"))
-	declared := append([]string(nil), v2Skills...)
+	declared := packagedV2Skills()
 	sort.Strings(declared)
 	if !slices.Equal(liveSkills, declared) {
-		t.Errorf("live agent-skills/ = %v, want exactly v2Skills = %v", liveSkills, declared)
+		t.Errorf("live agent-skills/ = %v, want exactly packaged skills = %v", liveSkills, declared)
 	}
 }
 

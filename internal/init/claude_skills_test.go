@@ -25,7 +25,7 @@ func readTemplateFS(t *testing.T, templates fs.FS, path string) string {
 
 func TestClaudeSkillPointers_matchCanonicalNameAndDescription(t *testing.T) {
 	templates := shippedTemplates(t)
-	for _, skill := range workflowSkills {
+	for _, skill := range packagedV2Skills() {
 		pointer := readTemplateFS(t, templates, pointerPath(skill))
 		canonical := readTemplateFS(t, templates, "agent-skills/"+skill+"/SKILL.md")
 		for _, key := range []string{"name", "description"} {
@@ -42,7 +42,7 @@ func TestClaudeSkillPointers_matchCanonicalNameAndDescription(t *testing.T) {
 
 func TestClaudeSkillPointers_bodyOnlyPointsAtCanonicalSkill(t *testing.T) {
 	templates := shippedTemplates(t)
-	for _, skill := range workflowSkills {
+	for _, skill := range packagedV2Skills() {
 		pointer := strings.ReplaceAll(readTemplateFS(t, templates, pointerPath(skill)), "\r\n", "\n")
 		body := strings.TrimSpace(pointer[strings.Index(pointer[4:], "\n---")+8:])
 		if !strings.Contains(body, "agent-skills/"+skill+"/SKILL.md") {
@@ -54,18 +54,18 @@ func TestClaudeSkillPointers_bodyOnlyPointsAtCanonicalSkill(t *testing.T) {
 	}
 }
 
-func TestClaudeSkillPointers_onlyWorkflowSkillsHavePointers(t *testing.T) {
+func TestClaudeSkillPointers_onlyPackagedSkillsHavePointers(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join("..", "..", "templates", "project-v2", ".claude", "skills"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != len(workflowSkills) {
-		t.Errorf("pointer directories = %d, want %d", len(entries), len(workflowSkills))
+	if len(entries) != len(packagedV2Skills()) {
+		t.Errorf("pointer directories = %d, want %d", len(entries), len(packagedV2Skills()))
 	}
 }
 
 func TestClaudeSkillPointers_repoCopiesAreByteIdenticalToTemplates(t *testing.T) {
-	for _, skill := range workflowSkills {
+	for _, skill := range packagedV2Skills() {
 		want := mustReadFile(t, filepath.Join("..", "..", "templates", "project-v2", pointerPath(skill)))
 		got := mustReadFile(t, filepath.Join("..", "..", pointerPath(skill)))
 		if string(got) != string(want) {
@@ -83,7 +83,7 @@ func TestScaffold_installsTrackedClaudeSkillPointers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, skill := range workflowSkills {
+	for _, skill := range packagedV2Skills() {
 		path := pointerPath(skill)
 		content := readProjectFile(t, dir, path)
 		if hash, ok := manifest.Hash(path); !ok || hash != hashContent([]byte(content)) {

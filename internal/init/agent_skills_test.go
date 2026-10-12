@@ -1171,14 +1171,21 @@ func TestSavepointDesignSkillReferencesCommandsAndProcedures(t *testing.T) {
 	})
 }
 
-// v2Skills and v2References are the complete V2 skill/reference set the
-// routing and role-matrix tests below treat as one partitioned whole.
+// v2Skills are the routed workflow skills; optional skills do not add states.
+// Routing and role-matrix tests cover these four skills and their references.
+// Packaging checks also cover optional owner-invoked skills.
 var v2Skills = []string{"savepoint-idea", "savepoint-design", "savepoint-task", "savepoint-check"}
+var v2OptionalSkills = []string{"savepoint-orchestrate"}
+
+func packagedV2Skills() []string {
+	return append(append([]string(nil), v2Skills...), v2OptionalSkills...)
+}
+
 var v2References = []string{"check-method.md", "issue-capture.md", "commands-and-procedures.md"}
 
 func TestV2SkillSetIsCompleteWithByteParity(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
-		for _, name := range v2Skills {
+		for _, name := range packagedV2Skills() {
 			path := filepath.Join(root, name, "SKILL.md")
 			if _, err := os.Stat(path); err != nil {
 				t.Errorf("%s: V2 skill %s missing: %v", tree, name, err)
@@ -1193,7 +1200,7 @@ func TestV2SkillSetIsCompleteWithByteParity(t *testing.T) {
 	}
 
 	root := filepath.Join("..", "..")
-	for _, name := range v2Skills {
+	for _, name := range packagedV2Skills() {
 		assertFileMatches(t, root,
 			filepath.Join("agent-skills", name, "SKILL.md"),
 			filepath.Join("templates", "project-v2", "agent-skills", name, "SKILL.md"))
@@ -1218,7 +1225,7 @@ var v2ObsoleteVocabulary = []string{
 func TestV2SkillSetHasNoObsoleteVocabulary(t *testing.T) {
 	for tree, root := range v2SkillRoots() {
 		files := map[string]string{}
-		for _, name := range v2Skills {
+		for _, name := range packagedV2Skills() {
 			files[name] = filepath.Join(root, name, "SKILL.md")
 		}
 		for _, name := range v2References {

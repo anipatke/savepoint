@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.3.2 — Optional orchestration
+
+### Added
+
+- Owner-invoked `savepoint-orchestrate` skill for sequential builders and
+  independent Check sessions on an already planned Objective. Owner completion
+  and acceptance decisions remain explicit.
+- Claude Code command pointer and delivery through `init` and `upgrade-assets`,
+  with preservation of user-edited copies.
+
 ## v2.3.1 — Animate tiles
 
 ### Added

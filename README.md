@@ -146,6 +146,17 @@ no worktree, runs no command and monitors nothing. If you do use a worktree,
 the Task records evidence and commits locally there; you merge, and Checks run
 on `main`.
 
+## Optional orchestration
+
+For an already planned Objective, ask your agent `orchestrate O-015` (or use
+`/savepoint-orchestrate O-015` in Claude Code). The optional skill coordinates
+one builder at a time and independent Check sessions. You still decide Task
+completion, required acceptance and Objective closure. It requires an agent
+host that supports delegation; ordinary Next-line handoffs work as before.
+
+New projects receive the skill through `savepoint init`; existing V2 projects
+receive it through `savepoint upgrade-assets`, which preserves edited copies.
+
 ## What's in your repo
 
 ```text

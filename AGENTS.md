@@ -30,7 +30,7 @@ make ci                        # CI full gate plus distribution and package chec
 | `internal/testutil/` | Provides shared Go test fixtures and filesystem helpers for internal packages. |
 | `internal/styles/` | Defines the TUI palette and styles. |
 | `templates/` | Contains the V2 scaffold's Markdown, YAML, prompts, and workflow guidance. |
-| `agent-skills/` | Contains the four active V2 skills and their shared references. |
+| `agent-skills/` | Contains the four workflow skills, the optional owner-invoked orchestration skill, and shared references. |
 
 After schema-2 migration, ordinary board, resume, doctor, init, and
 upgrade-assets behavior uses the V2 runtime. The V1 readers retained in
@@ -55,6 +55,8 @@ The Context Log stays technical and precise — it's the record a Check session 
 1. If the owner pasted a `Next` line, act on it directly; it is the selection, so do not re-run `savepoint resume` to confirm it. Otherwise run the read-only `savepoint resume` command and act on its `Next` line.
 2. The Next line's first word says what to do; use it to choose the skill: `Start`, `Build`, or `Test` → `savepoint-task`; `Check` → `savepoint-check`; `Assess` → `savepoint-check` (applicability only, no new Check); `Plan` or `Replan` → `savepoint-design`; `Pick a Task in` → select the Objective's next Task, then `savepoint-task`; `Fix` → repair with `savepoint-task` under `issue-capture.md`; `Choose` → report it to the owner, who decides; `Accept`, `Close`, `Blocked`, `Done`, or `Resolved` → report it to the owner, who decides. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
 3. Activate the skill per the table below and follow its Read section and the active Task's Context Files.
+
+`savepoint-orchestrate` is an optional, owner-invoked mode for an already planned Objective. A Next line never selects it. On an explicit orchestration request, read `agent-skills/savepoint-orchestrate/SKILL.md`; it coordinates the existing skills and changes no router state or gate.
 
 If the Next line does not name an Objective, Task, or Issue, follow the router `state` and the resume guidance; do not guess a record. If the `savepoint` binary is unavailable, read the router selection, report that the tool is missing, and do not guess the next step.
 

@@ -6,6 +6,8 @@
 2. The Next line's first word says what to do; use it to choose the skill: `Start`, `Build`, or `Test` → `savepoint-task`; `Check` → `savepoint-check`; `Assess` → `savepoint-check` (applicability only, no new Check); `Plan` or `Replan` → `savepoint-design`; `Pick a Task in` → select the Objective's next Task, then `savepoint-task`; `Fix` → repair with `savepoint-task` under `issue-capture.md`; `Choose` → report it to the owner, who decides; `Accept`, `Close`, `Blocked`, `Done`, or `Resolved` → report it to the owner, who decides. When an Objective or Task is selected with an Issue, follow the Objective or Task and treat the Issue as context. If a selected record is reported stale, do not substitute other work.
 3. Activate the skill per the table below and follow its Read section and the active Task's Context Files.
 
+`savepoint-orchestrate` is an optional, owner-invoked mode for an already planned Objective. A Next line never selects it. On an explicit orchestration request, read `agent-skills/savepoint-orchestrate/SKILL.md`; it coordinates the existing skills and changes no router state or gate.
+
 If the Next line does not name an Objective, Task, or Issue, follow the router `state` and the resume guidance; do not guess a record. If the `savepoint` binary is unavailable, read the router selection, report that the tool is missing, and do not guess the next step.
 
 The active skill is the canonical workflow source. This guide defines routing, terminology, and repo rules only; do not duplicate skill-by-skill prompt instructions here.

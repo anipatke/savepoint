@@ -309,7 +309,7 @@ func TestMainInitWritesNoV1OnlyPathOrSkill(t *testing.T) {
 	}
 }
 
-func TestMainInitManifestRecordsExactlyTheFourV2SkillsTheirPointersAndTheHooks(t *testing.T) {
+func TestMainInitManifestRecordsPackagedSkillsTheirPointersAndTheHooks(t *testing.T) {
 	dir := t.TempDir()
 
 	result := runMainForTest(t, []string{"init", dir}, "")
@@ -327,10 +327,12 @@ func TestMainInitManifestRecordsExactlyTheFourV2SkillsTheirPointersAndTheHooks(t
 		"agent-skills/savepoint-design/SKILL.md",
 		"agent-skills/savepoint-task/SKILL.md",
 		"agent-skills/savepoint-check/SKILL.md",
+		"agent-skills/savepoint-orchestrate/SKILL.md",
 		".claude/skills/savepoint-idea/SKILL.md",
 		".claude/skills/savepoint-design/SKILL.md",
 		".claude/skills/savepoint-task/SKILL.md",
 		".claude/skills/savepoint-check/SKILL.md",
+		".claude/skills/savepoint-orchestrate/SKILL.md",
 		".claude/hooks/savepoint-find.js",
 		".claude/hooks/session-start.js",
 		".claude/hooks/guard.js",
